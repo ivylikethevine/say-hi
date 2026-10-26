@@ -689,17 +689,12 @@ EOF
   cp "$_HI_SUITE_WORKDIR/packages" "$_HI_SUITE_WORKDIR/cfg/packages"
 }
 
-# the fixture's packages, and the coreutils the script itself shells out to
-function _hi_pkg_path() {
-  printf '%s:%s' "$(_hi_fake_path pkgbin)" "$(_hi_real_path pkgtools bash awk sort sed cat)"
-}
-
 # collect once - it is the same work for every case that reads the results.
 # An empty $_HI_PACKAGES_GROUPS reads as the shipped default, whatever the
 # runner's environment carries.
 function _hi_collect_once() {
   local saved="$PATH" _HI_PACKAGES_GROUPS=""
-  PATH="$(_hi_pkg_path)"
+  PATH="$_HI_PKG_PATH"
   _hi_collect_examples
   PATH="$saved"
 }
@@ -710,6 +705,8 @@ function _hi_preview_begin() {
   _hi_write_color_fixtures
   _hi_write_package_fixtures
   _hi_write_preview_tree
+  # the fixture's packages, and the coreutils the script itself shells out to
+  _HI_PKG_PATH="$(_hi_fake_path pkgbin):$(_hi_real_path pkgtools bash awk sort sed cat)"
   _hi_collect_once
   _hi_suite_begin
 }

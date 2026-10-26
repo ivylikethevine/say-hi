@@ -33,10 +33,7 @@ function _hi_conv_is() {
   local got want
   got="$(printf '%b' "$2" | "$1")"
   want="$(printf '%b' "$3")"
-  [ "$got" = "$want" ] && return 0
-  _hi_cecho " | got:  [$got]" "$RED"
-  _hi_cecho " | want: [$want]" "$RED"
-  return 1
+  [ "$got" = "$want" ] || _hi_because "got:  [$got]"$'\n'"want: [$want]"
 }
 
 # _hi_conv_dir <name> - a fresh overlay directory holding one old-shape file
@@ -321,10 +318,8 @@ function test_entry_converts_each_old_file() {
   cp "$dir/settings.sh" "$dir/settings.sh.orig"
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
   for f in packages colors settings.sh; do
-    if [[ "$out" != *"converted $dir/$f to the current format"* ]] || ! cmp -s "$dir/$f.old" "$dir/$f.orig"; then
-      _hi_cecho " | $f: $out" "$RED"
-      return 1
-    fi
+    [[ "$out" == *"converted $dir/$f to the current format"* ]] && cmp -s "$dir/$f.old" "$dir/$f.orig" ||
+      _hi_because "$f: $out" || return 1
   done
   { grep -qx '\[core\]' "$dir/packages" && grep -qx 'bat = \["batcat"\]' "$dir/packages" &&
     grep -qx '\[useful.required\]' "$dir/packages" && grep -qx 'sudo = \[\]' "$dir/packages" &&
@@ -335,45 +330,39 @@ function test_entry_converts_each_old_file() {
 
 # a settings.sh holding only an old alias toggle is old-format too
 function test_entry_converts_the_old_alias_toggles() {
-  local dir="$_HI_WORKDIR/conv-toggles" out
+  local dir="$_HI_WORKDIR/conv-toggles" out got
   mkdir -p "$dir"
   printf 'export _HI_DISABLE_SUDO_ALIAS=1\nexport _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
+  got="$(<"$dir/settings.sh")"
   [[ "$out" == *"converted $dir/settings.sh to the current format"* ]] &&
     grep -q _HI_DISABLE_SUDO_ALIAS "$dir/settings.sh.old" &&
-    [ "$(cat "$dir/settings.sh")" = 'export _HI_MAX_WIDTH=100' ] || {
-    _hi_cecho " | said: $out" "$RED"
-    return 1
-  }
+    [ "$got" = 'export _HI_MAX_WIDTH=100' ] || _hi_because "said: $out, wrote: $got"
 }
 
 # ...and so does a toggle the list replaced
 function test_entry_converts_a_tool_toggle() {
-  local dir="$_HI_WORKDIR/conv-tool-toggle" out
+  local dir="$_HI_WORKDIR/conv-tool-toggle" out got
   mkdir -p "$dir"
   printf 'export _HI_DISABLE_KAKOUNE=1\n' >"$dir/settings.sh"
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
+  got="$(<"$dir/settings.sh")"
   [[ "$out" == *"converted $dir/settings.sh to the current format"* ]] &&
-    [ "$(cat "$dir/settings.sh")" = "export _HI_PLUGINS_OFF='kak'" ] || {
-    _hi_cecho " | said: $out" "$RED"
-    return 1
-  }
+    [ "$got" = "export _HI_PLUGINS_OFF='kak'" ] || _hi_because "said: $out, wrote: $got"
 }
 
 # ...and a group's word in a list, a group of the overlay's plugins file
 # among them, though not one a plugin shares its name with; a second run
 # finds nothing to do
 function test_entry_converts_a_group_word() {
-  local dir="$_HI_WORKDIR/conv-group-word" out
+  local dir="$_HI_WORKDIR/conv-group-word" out got
   mkdir -p "$dir"
   printf '[mine.task]\nfiles = "taskrc"\n[own.own]\nfiles = "ownrc"\n' >"$dir/plugins"
   printf "export _HI_PLUGINS_OFF='mine own mux'\n" >"$dir/settings.sh"
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
+  got="$(<"$dir/settings.sh")"
   [[ "$out" == *"converted $dir/settings.sh to the current format"* ]] &&
-    [ "$(cat "$dir/settings.sh")" = "export _HI_PLUGINS_OFF='task own tmux screen zellij'" ] || {
-    _hi_cecho " | said: $out, wrote: $(cat "$dir/settings.sh")" "$RED"
-    return 1
-  }
+    [ "$got" = "export _HI_PLUGINS_OFF='task own tmux screen zellij'" ] || _hi_because "said: $out, wrote: $got" || return 1
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
   [[ "$out" != *converted* ]] || _hi_because "a second run said: $out"
 }
@@ -504,9 +493,8 @@ _HI_CONV_OLD="$_HI_ROOT/tests/scripts/convert_settings"
 # the old shipped config/packages converts into a file full_check reads
 # without an error and with no name:N row left, every group on
 function test_shipped_old_packages_convert_and_parse() {
-  local old="$_HI_WORKDIR/shipped.packages.old" new="$_HI_WORKDIR/shipped.packages"
+  local old="$_HI_CONV_OLD/packages" new="$_HI_WORKDIR/shipped.packages"
   local err="$_HI_WORKDIR/shipped.packages.err" out shape=""
-  cp "$_HI_CONV_OLD/packages" "$old"
   grep -q '^[^#]*:[0-9]' "$old" || _hi_why old || return 1
   _hi_convert_packages <"$old" | _hi_toml_packages >"$new"
   ! grep -q '^[^#]*:[0-9]' "$new" || _hi_why new || return 1
@@ -541,7 +529,7 @@ function test_shipped_sections_packages_convert_whole() {
 # ...and its config/colors into one every pin reads back from
 function test_shipped_sections_colors_convert_whole() {
   local old="$_HI_CONV_OLD/colors.sections" new="$_HI_WORKDIR/shipped.colors.toml"
-  local type="" name color hex got n=0
+  local type="" name color hex got n=0 _HI_COLORS="$new"
   _hi_toml_colors <"$old" >"$new"
   while read -r name color hex; do
     case "$name" in
@@ -551,7 +539,8 @@ function test_shipped_sections_colors_convert_whole() {
       continue
       ;;
     esac
-    got="$(_HI_COLORS="$new" _hi_colors_lookup "$type" "$name")" || got=""
+    got=""
+    _hi_colors_lookup "$type" "$name" got || :
     [ "$got" = "$color" ] || _hi_because "$type $name: got [$got], want [$color]" || return 1
     n=$((n + 1))
   done <"$old"
@@ -561,8 +550,7 @@ function test_shipped_sections_colors_convert_whole() {
 # ...and the old shipped config/colors into one core.sh resolves the same
 # pins from: every old row's name reads back its old color
 function test_shipped_old_colors_convert_and_resolve() {
-  local old="$_HI_WORKDIR/shipped.colors.old" new="$_HI_WORKDIR/shipped.colors" type name color hex want got n=0
-  cp "$_HI_CONV_OLD/colors" "$old"
+  local old="$_HI_CONV_OLD/colors" new="$_HI_WORKDIR/shipped.colors" type name color hex want got n=0 _HI_COLORS="$_HI_WORKDIR/shipped.colors"
   grep -Eq '^[a-z]+,[^,#]+,' "$old" || _hi_why old || return 1
   _hi_convert_colors <"$old" | _hi_toml_colors >"$new"
   while IFS=, read -r type name color hex; do
@@ -571,11 +559,9 @@ function test_shipped_old_colors_convert_and_resolve() {
     want="$color"
     hex="${hex#\#}"
     [ -z "$hex" ] || want="$color#$hex"
-    got="$(_HI_COLORS="$new" _hi_colors_lookup "$type" "$name")" || got=""
-    [ "$got" = "$want" ] || {
-      _hi_cecho " | $type $name: got [$got], want [$want]" "$RED"
-      return 1
-    }
+    got=""
+    _hi_colors_lookup "$type" "$name" got || :
+    [ "$got" = "$want" ] || _hi_because "$type $name: got [$got], want [$want]" || return 1
     n=$((n + 1))
   done <"$old"
   [ "$n" -gt 0 ] || _hi_why n

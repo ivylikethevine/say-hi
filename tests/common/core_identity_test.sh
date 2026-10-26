@@ -434,9 +434,7 @@ function test_hi_sh_walks_its_symlinks_to_the_tree() {
 # the whole seconds instead
 function test_hi_sh_connect_clock_takes_whole_seconds_without_nanoseconds() {
   local dir="$_HI_WORKDIR/hi-bsd-date" got
-  mkdir -p "$dir"
-  printf '%s\n' '#!/bin/sh' 'case "$1" in +%s.%N) echo 1700000000.N ;; *) echo 1700000000 ;; esac' >"$dir/date"
-  chmod +x "$dir/date"
+  _hi_script "$dir/date" '#!/bin/sh' 'case "$1" in +%s.%N) echo 1700000000.N ;; *) echo 1700000000 ;; esac'
   got="$(env -u _hi_core_loaded PATH="$dir:$PATH" bash -c \
     'unset EPOCHREALTIME; set --; source "$_HI_HOME/say-hi/hi.sh"; printf "%s" "$_HI_CONNECT_T0"')"
   [ "$got" = 1700000000 ] || _hi_because "_HI_CONNECT_T0: $got"
@@ -617,8 +615,7 @@ function test_unexport_leaves_exactly_the_roster() {
   out="$(_hi_unexported_env "$1")"
   [ "$out" = "$want" ] || {
     _hi_cecho " | $1 exports: $out" "$RED"
-    _hi_cecho " | roster:     $want" "$RED"
-    return 1
+    _hi_because "roster:     $want" || return 1
   }
 }
 

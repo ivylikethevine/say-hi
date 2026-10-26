@@ -15,25 +15,10 @@ set -euo pipefail
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
-# _hi_setcolor_fixture <name> - a target-shaped tree with scripts/ added, the
-# one thing that makes --add-color reachable at all. Prints its _HI_HOME.
-function _hi_setcolor_fixture() {
-  _hi_scratch_tree "$1" common config load.sh hi.sh link:scripts
-}
-
-# _hi_setcolor_run <home> <config> <args...> - `hi --add-color` with its own
-# overlay directory
-function _hi_setcolor_run() {
-  local home="$1" cfg="$2"
-  shift 2
-  _HI_CONFIG_DIR="$cfg" _hi_subcmd_run "$home" --add-color "$@"
-}
-
-# _hi_unsetcolor_run <home> <config> <args...> - the same, for --remove-color
-function _hi_unsetcolor_run() {
-  local home="$1" cfg="$2"
-  shift 2
-  _HI_CONFIG_DIR="$cfg" _hi_subcmd_run "$home" --remove-color "$@"
+# _hi_color_run <add|remove> <config> <args...> - `hi --<add|remove>-color`
+# on the suite's tree, with its own overlay directory
+function _hi_color_run() {
+  _HI_CONFIG_DIR="$2" _hi_subcmd_run "$_HI_SETCOLOR_HOME" "--$1-color" "${@:3}"
 }
 
 # _hi_setcolor_overlay <config> <body> - an existing overlay colors file
@@ -43,114 +28,86 @@ function _hi_setcolor_overlay() {
   printf '%b' "$2" >"$1/colors"
 }
 
-# _hi_setcolor_refused <home> <config> <message> <args...> - --add-color with
-# <args> fails, says <message>, and writes no file
+# _hi_setcolor_refused <config> <message> <args...> - --add-color with <args>
+# fails, says <message>, and writes no file
 function _hi_setcolor_refused() {
-  local home="$1" cfg="$2" msg="$3" out rc=0
-  shift 3
-  out="$(_hi_setcolor_run "$home" "$cfg" "$@")" || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"$msg"* ]] && [ ! -e "$cfg/colors" ] && return 0
-  _hi_cecho " | [$*] gave rc $rc: $out" "$RED"
-  return 1
-}
-
-# _hi_setcolor_tree_lines <home> - how many lines the fixture tree's own
-# colors file has, which every first write copies in
-function _hi_setcolor_tree_lines() {
-  wc -l <"$1/say-hi/config/colors"
+  local cfg="$1" msg="$2" out rc=0
+  shift 2
+  out="$(_hi_color_run add "$cfg" "$@")" || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"$msg"* ]] && [ ! -e "$cfg/colors" ] || _hi_because "[$*] gave rc $rc: $out"
 }
 
 # --- arguments ---------------------------------------------------------------
 
 # the set help names the four types and the color vocabulary
 function test_set_color_help_is_its_own() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture setcolor-help)"
-  cfg="$_HI_WORKDIR/setcolor-help-cfg"
-  out="$(_hi_setcolor_run "$home" "$cfg" --help)" || _hi_why home cfg || return 1
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
+  out="$(_hi_color_run add "$cfg" --help)" || _hi_why home cfg || return 1
   [[ "$out" == "Usage: hi --add-color <type> <name> <color> [rrggbb]"* ]] &&
     [[ "$out" == *"hosttag usertag username hostname"* && "$out" == *lavender* ]] &&
     [[ "$out" == *"-n, --dry-run"* ]] && [ ! -e "$cfg" ] || _hi_why out cfg
 }
 
 function test_unset_color_help_is_its_own() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture unsetcolor-help)"
-  cfg="$_HI_WORKDIR/unsetcolor-help-cfg"
-  out="$(_hi_unsetcolor_run "$home" "$cfg" --help)" || _hi_why home cfg || return 1
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
+  out="$(_hi_color_run remove "$cfg" --help)" || _hi_why home cfg || return 1
   [[ "$out" == "Usage: hi --remove-color <type> <name> [--dry-run]"* && "$out" == *"-n, --dry-run"* ]] || _hi_why out
 }
 
 # three or four words to set, two to unset; anything else is refused
 function test_set_color_counts_its_arguments() {
-  local home cfg out rc=0
-  home="$(_hi_setcolor_fixture setcolor-count)"
-  cfg="$_HI_WORKDIR/setcolor-count-cfg"
-  _hi_setcolor_refused "$home" "$cfg" "needs a type, a name, and a color" hostname box || _hi_why home cfg || return 1
-  _hi_setcolor_refused "$home" "$cfg" "needs a type, a name, and a color" hostname box red 3ba55d extra || _hi_why home cfg || return 1
-  out="$(_hi_unsetcolor_run "$home" "$cfg" hostname box red)" || rc=$?
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out rc=0
+  _hi_setcolor_refused "$cfg" "needs a type, a name, and a color" hostname box || _hi_why home cfg || return 1
+  _hi_setcolor_refused "$cfg" "needs a type, a name, and a color" hostname box red 3ba55d extra || _hi_why home cfg || return 1
+  out="$(_hi_color_run remove "$cfg" hostname box red)" || rc=$?
   [ "$rc" -ne 0 ] && [[ "$out" == *"needs a type and a name"* ]] && [ ! -e "$cfg/colors" ] || _hi_why rc out cfg
 }
 
 function test_set_color_refuses_an_unknown_option() {
-  local home cfg
-  home="$(_hi_setcolor_fixture setcolor-opt)"
-  cfg="$_HI_WORKDIR/setcolor-opt-cfg"
-  _hi_setcolor_refused "$home" "$cfg" "unknown option --bogus" hostname box red --bogus || _hi_why home cfg
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg"
+  _hi_setcolor_refused "$cfg" "unknown option --bogus" hostname box red --bogus || _hi_why home cfg
 }
 
 function test_set_color_refuses_an_unknown_type() {
-  local home cfg
-  home="$(_hi_setcolor_fixture setcolor-type)"
-  cfg="$_HI_WORKDIR/setcolor-type-cfg"
-  _hi_setcolor_refused "$home" "$cfg" "not a type: host (one of hosttag usertag username hostname)" host box red || _hi_why home cfg
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg"
+  _hi_setcolor_refused "$cfg" "not a type: host (one of hosttag usertag username hostname)" host box red || _hi_why home cfg
 }
 
 # a name is one key of a row: no spaces, and nothing that reads as a
 # comment or a table, or that a quoted key would have to escape
 function test_set_color_refuses_a_bad_name() {
-  local home cfg bad
-  home="$(_hi_setcolor_fixture setcolor-name)"
-  cfg="$_HI_WORKDIR/setcolor-name-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" bad
   for bad in 'a b' '#box' 'box#1' '[box]' 'bo"x'; do
-    _hi_setcolor_refused "$home" "$cfg" "not a name: $bad" hostname "$bad" red || _hi_why home cfg bad || return 1
+    _hi_setcolor_refused "$cfg" "not a name: $bad" hostname "$bad" red || _hi_why home cfg bad || return 1
   done
 }
 
 function test_set_color_refuses_an_unknown_color() {
-  local home cfg
-  home="$(_hi_setcolor_fixture setcolor-color)"
-  cfg="$_HI_WORKDIR/setcolor-color-cfg"
-  _hi_setcolor_refused "$home" "$cfg" "not a color: purple" hostname box purple || _hi_why home cfg
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg"
+  _hi_setcolor_refused "$cfg" "not a color: purple" hostname box purple || _hi_why home cfg
 }
 
 function test_set_color_refuses_a_bad_hex() {
-  local home cfg bad
-  home="$(_hi_setcolor_fixture setcolor-hex)"
-  cfg="$_HI_WORKDIR/setcolor-hex-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" bad
   for bad in 12345 1234567 zzzzzz '##3ba55d'; do
-    _hi_setcolor_refused "$home" "$cfg" "not six hex digits: $bad" hostname box red "$bad" || _hi_why home cfg bad || return 1
+    _hi_setcolor_refused "$cfg" "not six hex digits: $bad" hostname box red "$bad" || _hi_why home cfg bad || return 1
   done
 }
 
 # with no overlay file yet, --dry-run names the copy the real run would make
 # - and makes no directory at all
 function test_set_color_dry_run_writes_nothing() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture setcolor-dry)"
-  cfg="$_HI_WORKDIR/setcolor-dry-cfg"
-  out="$(_hi_setcolor_run "$home" "$cfg" hostname box red --dry-run)" || _hi_why home cfg || return 1
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
+  out="$(_hi_color_run add "$cfg" hostname box red --dry-run)" || _hi_why home cfg || return 1
   [[ "$out" == *"dry run"* && "$out" == *"copy $home/say-hi/config/colors to $cfg/colors, then change it there"* ]] &&
     [ ! -d "$cfg" ] || _hi_why out home cfg
 }
 
 # ...and with one, it names a plain write, leaving the file as it was
 function test_set_color_dry_run_over_an_overlay() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture setcolor-dry-overlay)"
-  cfg="$_HI_WORKDIR/setcolor-dry-overlay-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
   _hi_setcolor_overlay "$cfg" '[hostname]\na = "red"\n'
-  out="$(_hi_setcolor_run "$home" "$cfg" hostname box red --dry-run)" || _hi_why home cfg || return 1
+  out="$(_hi_color_run add "$cfg" hostname box red --dry-run)" || _hi_why home cfg || return 1
   { [[ "$out" == *"write $cfg/colors"* && "$out" != *"copy "* ]] &&
     _hi_file_is "$cfg/colors" '[hostname]\na = "red"'; } || _hi_why out cfg
 }
@@ -159,11 +116,9 @@ function test_set_color_dry_run_over_an_overlay() {
 
 # into its type's section, after the last row there
 function test_set_color_joins_its_section() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture setcolor-join)"
-  cfg="$_HI_WORKDIR/setcolor-join-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
   _hi_setcolor_overlay "$cfg" '[hostname]\na = "red"\n\n[username]\nb = "blue"\n'
-  out="$(_hi_setcolor_run "$home" "$cfg" hostname box cyan)" || _hi_why home cfg || return 1
+  out="$(_hi_color_run add "$cfg" hostname box cyan)" || _hi_why home cfg || return 1
   { [[ "$out" == *"+ box cyan in [hostname]"* && "$out" == *"$cfg/colors updated"* ]] &&
     _hi_file_is "$cfg/colors" '[hostname]\na = "red"\nbox = "cyan"\n\n[username]\nb = "blue"'; } || _hi_why out cfg
 }
@@ -171,46 +126,38 @@ function test_set_color_joins_its_section() {
 # a type the file has no section for gets one at the end, after a blank line,
 # and the hex is written without its #
 function test_set_color_creates_a_section() {
-  local home cfg
-  home="$(_hi_setcolor_fixture setcolor-section)"
-  cfg="$_HI_WORKDIR/setcolor-section-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg"
   _hi_setcolor_overlay "$cfg" '[hostname]\na = "red"\n'
-  _hi_setcolor_run "$home" "$cfg" usertag ops brred '#3BA55D' >/dev/null || _hi_why home cfg || return 1
+  _hi_color_run add "$cfg" usertag ops brred '#3BA55D' >/dev/null || _hi_why home cfg || return 1
   _hi_file_is "$cfg/colors" '[hostname]\na = "red"\n\n[usertag]\nops = "brred 3BA55D"' || _hi_why cfg || return 1
   # a name TOML would not read bare is written in quotes, and found there
-  _hi_setcolor_run "$home" "$cfg" hostname '10.0.*' red >/dev/null || _hi_why home cfg || return 1
-  _hi_setcolor_run "$home" "$cfg" hostname '10.0.*' blue >/dev/null || _hi_why home cfg || return 1
+  _hi_color_run add "$cfg" hostname '10.0.*' red >/dev/null || _hi_why home cfg || return 1
+  _hi_color_run add "$cfg" hostname '10.0.*' blue >/dev/null || _hi_why home cfg || return 1
   _hi_file_is "$cfg/colors" '[hostname]\na = "red"\n"10.0.*" = "blue"\n\n[usertag]\nops = "brred 3BA55D"' || _hi_why cfg
 }
 
 # a name already pinned under the type is replaced in place
 function test_set_color_replaces_a_pin() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture setcolor-replace)"
-  cfg="$_HI_WORKDIR/setcolor-replace-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
   _hi_setcolor_overlay "$cfg" '[hostname]\nbox = "red 3ba55d"\nz = "blue"\n'
-  out="$(_hi_setcolor_run "$home" "$cfg" hostname box green)" || _hi_why home cfg || return 1
+  out="$(_hi_color_run add "$cfg" hostname box green)" || _hi_why home cfg || return 1
   { [[ "$out" == *"~ box green (replacing box red 3ba55d in [hostname])"* ]] &&
     _hi_file_is "$cfg/colors" '[hostname]\nbox = "green"\nz = "blue"'; } || _hi_why out cfg
 }
 
 # the same name under another type is a different pin, left alone
 function test_set_color_keeps_to_its_type() {
-  local home cfg
-  home="$(_hi_setcolor_fixture setcolor-scope)"
-  cfg="$_HI_WORKDIR/setcolor-scope-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg"
   _hi_setcolor_overlay "$cfg" '[username]\nbox = "red"\n'
-  _hi_setcolor_run "$home" "$cfg" hostname box blue >/dev/null || _hi_why home cfg || return 1
+  _hi_color_run add "$cfg" hostname box blue >/dev/null || _hi_why home cfg || return 1
   _hi_file_is "$cfg/colors" '[username]\nbox = "red"\n\n[hostname]\nbox = "blue"' || _hi_why cfg
 }
 
 # the identical pin changes nothing and writes nothing
 function test_set_color_identical_pin_is_a_no_op() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture setcolor-noop)"
-  cfg="$_HI_WORKDIR/setcolor-noop-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
   _hi_setcolor_overlay "$cfg" '# mine\n[hostname]\nbox = "red"\n'
-  out="$(_hi_setcolor_run "$home" "$cfg" hostname box red)" || _hi_why home cfg || return 1
+  out="$(_hi_color_run add "$cfg" hostname box red)" || _hi_why home cfg || return 1
   { [[ "$out" == *"$cfg/colors: box red is already in [hostname] - nothing to write"* ]] &&
     _hi_file_is "$cfg/colors" '# mine\n[hostname]\nbox = "red"'; } || _hi_why out cfg
 }
@@ -218,13 +165,11 @@ function test_set_color_identical_pin_is_a_no_op() {
 # a pin in the shipped file's padded spelling is the same pin: re-pinning the
 # same color and hex compares field by field, and writes nothing
 function test_set_color_same_pin_padded_is_a_no_op() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture setcolor-padded)"
-  cfg="$_HI_WORKDIR/setcolor-padded-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
   _hi_setcolor_overlay "$cfg" '[hostname]\nbox             =   "red   #3ba55d"  # a note\n  z = "blue"\n'
-  out="$(_hi_setcolor_run "$home" "$cfg" hostname box red 3ba55d)" || _hi_why home cfg || return 1
+  out="$(_hi_color_run add "$cfg" hostname box red 3ba55d)" || _hi_why home cfg || return 1
   [[ "$out" == *"is already in [hostname] - nothing to write"* ]] || _hi_why out || return 1
-  out="$(_hi_setcolor_run "$home" "$cfg" hostname z blue)" || _hi_why home cfg || return 1
+  out="$(_hi_color_run add "$cfg" hostname z blue)" || _hi_why home cfg || return 1
   { [[ "$out" == *"is already in [hostname] - nothing to write"* ]] &&
     _hi_file_is "$cfg/colors" '[hostname]\nbox             =   "red   #3ba55d"  # a note\n  z = "blue"'; } || _hi_why out cfg
 }
@@ -232,21 +177,17 @@ function test_set_color_same_pin_padded_is_a_no_op() {
 # ...and through the cascade: re-pinning a shipped pin as it stands makes no
 # overlay at all
 function test_set_color_shipped_pin_is_a_no_op() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture setcolor-shipped)"
-  cfg="$_HI_WORKDIR/setcolor-shipped-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
   grep -Eq '^root += "red b00020"$' "$home/say-hi/config/colors" || _hi_why home || return 1
-  out="$(_hi_setcolor_run "$home" "$cfg" username root red b00020)" || _hi_why home cfg || return 1
+  out="$(_hi_color_run add "$cfg" username root red b00020)" || _hi_why home cfg || return 1
   [[ "$out" == *"is already in [username] - nothing to write"* ]] && [ ! -d "$cfg" ] || _hi_why out cfg
 }
 
 # a different hex on the same color is a change, not a no-op
 function test_set_color_new_hex_is_a_change() {
-  local home cfg
-  home="$(_hi_setcolor_fixture setcolor-rehex)"
-  cfg="$_HI_WORKDIR/setcolor-rehex-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg"
   _hi_setcolor_overlay "$cfg" '[hostname]\nbox = "red 3ba55d"\n'
-  _hi_setcolor_run "$home" "$cfg" hostname box red >/dev/null || _hi_why home cfg || return 1
+  _hi_color_run add "$cfg" hostname box red >/dev/null || _hi_why home cfg || return 1
   _hi_file_is "$cfg/colors" '[hostname]\nbox = "red"' || _hi_why cfg
 }
 
@@ -254,10 +195,8 @@ function test_set_color_new_hex_is_a_change() {
 # tree's, and its paths.sh finds the fixture's freshly-written colors file in
 # $_HI_CONFIG_DIR
 function test_set_color_pin_reaches_the_lookup() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture setcolor-integration)"
-  cfg="$_HI_WORKDIR/setcolor-integration-cfg"
-  _hi_setcolor_run "$home" "$cfg" username hi-test-user orange fd971f >/dev/null || _hi_why home cfg || return 1
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
+  _hi_color_run add "$cfg" username hi-test-user orange fd971f >/dev/null || _hi_why home cfg || return 1
   out="$(_HI_CONFIG_DIR="$cfg" bash -c 'source "$_HI_HEADER"; _hi_colors_lookup username hi-test-user')"
   [ "$out" = 'orange#fd971f' ] || _hi_why out
 }
@@ -266,22 +205,18 @@ function test_set_color_pin_reaches_the_lookup() {
 
 # the pin goes, the section header stays
 function test_unset_color_removes_a_pin() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture unsetcolor-rm)"
-  cfg="$_HI_WORKDIR/unsetcolor-rm-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
   _hi_setcolor_overlay "$cfg" '[hostname]\nbox = "red"\nz = "blue"\n'
-  out="$(_hi_unsetcolor_run "$home" "$cfg" hostname box)" || _hi_why home cfg || return 1
+  out="$(_hi_color_run remove "$cfg" hostname box)" || _hi_why home cfg || return 1
   { [[ "$out" == *"- box red (from [hostname])"* ]] &&
     _hi_file_is "$cfg/colors" '[hostname]\nz = "blue"'; } || _hi_why out cfg
 }
 
 # a name pinned only under another type, or not at all, is a no-op
 function test_unset_color_without_a_pin_is_a_no_op() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture unsetcolor-miss)"
-  cfg="$_HI_WORKDIR/unsetcolor-miss-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
   _hi_setcolor_overlay "$cfg" '[username]\nbox = "red"\n'
-  out="$(_hi_unsetcolor_run "$home" "$cfg" hostname box)" || _hi_why home cfg || return 1
+  out="$(_hi_color_run remove "$cfg" hostname box)" || _hi_why home cfg || return 1
   { [[ "$out" == *"$cfg/colors has no [hostname] pin for box - nothing to write"* ]] &&
     _hi_file_is "$cfg/colors" '[username]\nbox = "red"'; } || _hi_why out cfg
 }
@@ -290,11 +225,9 @@ function test_unset_color_without_a_pin_is_a_no_op() {
 # copies the tree's pins in -------------------------------------------------
 
 function test_set_color_first_call_copies_the_tree_in() {
-  local home cfg n got
-  home="$(_hi_setcolor_fixture setcolor-seed)"
-  cfg="$_HI_WORKDIR/setcolor-seed-cfg"
-  _hi_setcolor_run "$home" "$cfg" hostname box cyan >/dev/null || _hi_why home cfg || return 1
-  n="$(_hi_setcolor_tree_lines "$home")"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" n got
+  _hi_color_run add "$cfg" hostname box cyan >/dev/null || _hi_why home cfg || return 1
+  n="$(wc -l <"$home/say-hi/config/colors")"
   # the tree's lines plus the one pin, which taken out again leaves the tree
   got="$(wc -l <"$cfg/colors")"
   { [ "$got" -eq "$((n + 1))" ] && grep -vxF 'box = "cyan"' "$cfg/colors" | cmp -s - "$home/say-hi/config/colors"; } || _hi_why got cfg home
@@ -302,24 +235,20 @@ function test_set_color_first_call_copies_the_tree_in() {
 
 # a second call does not re-copy or clobber what the first one wrote
 function test_set_color_second_call_does_not_recopy() {
-  local home cfg
-  home="$(_hi_setcolor_fixture setcolor-noreseed)"
-  cfg="$_HI_WORKDIR/setcolor-noreseed-cfg"
-  _hi_setcolor_run "$home" "$cfg" hostname a red >/dev/null || _hi_why home cfg || return 1
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg"
+  _hi_color_run add "$cfg" hostname a red >/dev/null || _hi_why home cfg || return 1
   printf '[hostname]\ntruncated = "red"\n' >"$cfg/colors"
-  _hi_setcolor_run "$home" "$cfg" hostname b blue >/dev/null || _hi_why home cfg || return 1
+  _hi_color_run add "$cfg" hostname b blue >/dev/null || _hi_why home cfg || return 1
   _hi_file_is "$cfg/colors" '[hostname]\ntruncated = "red"\nb = "blue"' || _hi_why cfg
 }
 
 # unsetting a shipped pin reads through the cascade and copies the tree in
 # without it
 function test_unset_color_copies_the_tree_in_without_the_pin() {
-  local home cfg n got
-  home="$(_hi_setcolor_fixture unsetcolor-seed)"
-  cfg="$_HI_WORKDIR/unsetcolor-seed-cfg"
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" n got
   grep -q '^root ' "$home/say-hi/config/colors" || _hi_why home || return 1
-  _hi_unsetcolor_run "$home" "$cfg" username root >/dev/null || _hi_why home cfg || return 1
-  n="$(_hi_setcolor_tree_lines "$home")"
+  _hi_color_run remove "$cfg" username root >/dev/null || _hi_why home cfg || return 1
+  n="$(wc -l <"$home/say-hi/config/colors")"
   got="$(wc -l <"$cfg/colors")"
   { [ "$got" -eq "$((n - 1))" ] && ! grep -q '^root ' "$cfg/colors"; } || _hi_why got cfg
 }
@@ -327,10 +256,8 @@ function test_unset_color_copies_the_tree_in_without_the_pin() {
 # --dry-run reads through the cascade too: an unset of a name the tree does
 # not pin reports against the tree's file, and makes no overlay
 function test_unset_color_dry_run_reads_through_the_cascade() {
-  local home cfg out
-  home="$(_hi_setcolor_fixture unsetcolor-dry)"
-  cfg="$_HI_WORKDIR/unsetcolor-dry-cfg"
-  out="$(_hi_unsetcolor_run "$home" "$cfg" hostname hi-no-such-host --dry-run)" || _hi_why home cfg || return 1
+  local home="$_HI_SETCOLOR_HOME" cfg="$_HI_WORKDIR/cfg" out
+  out="$(_hi_color_run remove "$cfg" hostname hi-no-such-host --dry-run)" || _hi_why home cfg || return 1
   [[ "$out" == *"config/colors has no [hostname] pin for hi-no-such-host - nothing to write"* ]] &&
     [ ! -d "$cfg" ] || _hi_why out cfg
 }
@@ -338,6 +265,9 @@ function test_unset_color_dry_run_reads_through_the_cascade() {
 function run_set_color_tests() {
   _hi_workdir setcolor
   _hi_suite_begin
+  # a target-shaped tree with scripts/, which is what makes --add-color
+  # reachable at all; the cases only read it
+  _HI_SETCOLOR_HOME="$(_hi_scratch_tree setcolor common config load.sh hi.sh link:scripts)"
 
   _hi_h2 "Testing: scripts/set_color.sh arguments"
   _hi_check "--add-color --help is its own text" test_set_color_help_is_its_own

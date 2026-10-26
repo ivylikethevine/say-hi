@@ -247,11 +247,7 @@ attach=ssh -o ControlPath=/s -p 22 box" ] || _hi_why out
 # through the same channel the real one uses
 function _hi_ct_word() {
   local w="$_HI_WORKDIR/echoword"
-  cat >"$w" <<'EOF'
-#!/bin/sh
-printf '%s' "$1"
-EOF
-  chmod +x "$w"
+  _hi_script "$w" '#!/bin/sh' 'printf "%s" "$1"'
   printf '%s' "$w"
 }
 
@@ -310,9 +306,7 @@ function test_say_hi_hands_over_after_three_short_landings() {
 # GNU's and not on macOS's, which falls back to a directory of its own
 function _hi_ct_mktemp() {
   local dir="$_HI_WORKDIR/ct.mktemp.$1"
-  mkdir -p "$dir"
-  printf '#!/bin/sh\n%s\n' "$2" >"$dir/mktemp"
-  chmod +x "$dir/mktemp"
+  _hi_script "$dir/mktemp" '#!/bin/sh' "$2"
   printf '%s' "$dir"
 }
 

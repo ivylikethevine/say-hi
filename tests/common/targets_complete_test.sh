@@ -22,18 +22,21 @@ source "${BASH_SOURCE[0]%/*}/targets_test.sh"
 # interactive rc, and sourcing it here would drop its aliases (rm -iv, cp -rv)
 # and readline binds on every case that runs after. The three toggles switch
 # off everything except the completion itself, which sits outside all of them.
+#
+# _hi_completions_for <word...> - COMPREPLY for `hi <word...>`, the last word the
+# one under the cursor, after $_HI_TEST_TABS (1) TABs in one shell.
 function _hi_completions_for() {
   PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
     _HI_DISABLE_PROMPT=1 \
     bash -c '
       # shellcheck source=../../common/bash.sh
       source "$_HI_BASHRC"
-      COMP_WORDS=(hi "$1")
-      COMP_CWORD=1
-      COMPREPLY=()
-      _hi_complete
+      COMP_WORDS=(hi "$@")
+      COMP_CWORD=$#
+      n=${_HI_TEST_TABS:-1}
+      while [ "$n" -gt 0 ]; do COMPREPLY=(); _hi_complete; n=$((n - 1)); done
       printf "%s\n" ${COMPREPLY[@]+"${COMPREPLY[@]}"}
-    ' _ "$1"
+    ' _ "$@"
 }
 
 function test_complete_offers_every_target() {
@@ -75,47 +78,17 @@ function test_complete_is_empty_for_an_unmatched_prefix() {
 # one shell actually run the target list.
 function _hi_complete_forks() {
   local dir="$_HI_WORKDIR/shcount" counter="$_HI_WORKDIR/sh.calls"
-  mkdir -p "$dir"
   : >"$counter"
-  cat >"$dir/sh" <<EOF
-#!/bin/sh
-case "\$1" in
-*targets.sh) echo ran >>"$counter" ;;
-esac
-exec $(command -v sh) "\$@"
-EOF
-  chmod +x "$dir/sh"
-  PATH="$dir:$_HI_SHIM_PATH" _HI_TARGETS_TTL="$1" \
-    _HI_DISABLE_PROMPT=1 \
-    bash -c '
-      # shellcheck source=../../common/bash.sh
-      source "$_HI_BASHRC"
-      COMP_WORDS=(hi "")
-      COMP_CWORD=1
-      COMPREPLY=()
-      _hi_complete
-      COMPREPLY=()
-      _hi_complete
-    ' >/dev/null 2>&1
+  # shellcheck disable=SC2016 # the shim's own $1 and $@
+  _hi_script "$dir/sh" '#!/bin/sh' 'case "$1" in' "*targets.sh) echo ran >>\"$counter\" ;;" 'esac' "exec $(command -v sh) \"\$@\""
+  _HI_SHIM_PATH="$dir:$_HI_SHIM_PATH" _HI_TARGETS_TTL="$1" _HI_TEST_TABS=2 _hi_completions_for "" >/dev/null 2>&1
   grep -c . "$counter" || true
 }
 
 # the cached path must still produce completions, not just skip the fork
 function test_complete_still_answers_from_the_cache() {
   local out
-  out="$(
-    PATH="$_HI_SHIM_PATH" _HI_DISABLE_PROMPT=1 \
-      bash -c '
-        source "$_HI_BASHRC"
-        COMP_WORDS=(hi "")
-        COMP_CWORD=1
-        COMPREPLY=()
-        _hi_complete
-        COMPREPLY=()
-        _hi_complete
-        printf "%s\n" ${COMPREPLY[@]+"${COMPREPLY[@]}"}
-      '
-  )"
+  out="$(_HI_TEST_TABS=2 _hi_completions_for "")"
   printf '%s\n' "$out" | grep -qx alpha || _hi_why out
 }
 
@@ -167,15 +140,9 @@ function test_flags_carry_their_help_as_a_second_column() {
   local out flag help table
   out="$(sh "$_HI_ROOT/common/targets.sh" flags)"
   while IFS=$'\t' read -r flag help; do
-    [ -n "$help" ] || {
-      _hi_cecho "   $flag has no help column" "$RED"
-      return 1
-    }
+    [ -n "$help" ] || _hi_because "$flag has no help column" || return 1
     table="$(sed -n "s/^$flag|[^|]*|[^|]*|[^|]*|[^|]*|//p" "$_HI_ROOT/common/flags")"
-    [ "$help" = "$table" ] || {
-      _hi_cecho "   $flag: roster says '$help', common/flags says '$table'" "$RED"
-      return 1
-    }
+    [ "$help" = "$table" ] || _hi_because "$flag: roster says '$help', common/flags says '$table'" || return 1
   done <<<"$out"
   case "$out" in *'--plain'$'\t'*) ;; *) _hi_why out || return 1 ;; esac
   case "$out" in *'--doctor'$'\t'*) ;; *) _hi_why out || return 1 ;; esac
@@ -201,8 +168,7 @@ function test_flags_drop_local_subcommands_in_a_session() {
   for flag in --install --doctor --preview --update; do
     case $'\n'"$out"$'\n' in
     *$'\n'"$flag"$'\n'*)
-      _hi_cecho "   a session was offered $flag" "$RED"
-      return 1
+      _hi_because "a session was offered $flag" || return 1
       ;;
     esac
   done
@@ -210,8 +176,7 @@ function test_flags_drop_local_subcommands_in_a_session() {
   case $'\n'"$out"$'\n' in
   *$'\n--use\n'*) return 0 ;;
   esac
-  _hi_cecho "   a session lost --use, which works there" "$RED"
-  return 1
+  _hi_because "a session lost --use, which works there"
 }
 
 # The case _HI_REMOTE_SESSION cannot see. A package-manager install ships
@@ -227,15 +192,13 @@ function test_flags_drop_what_a_package_lacks() {
   out="$(sh "$tree/common/targets.sh" flags | cut -f1)"
   case $'\n'"$out"$'\n' in
   *$'\n--update\n'*)
-    _hi_cecho "   a packaged install was offered --update" "$RED"
-    return 1
+    _hi_because "a packaged install was offered --update" || return 1
     ;;
   esac
   case $'\n'"$out"$'\n' in
   *$'\n--doctor\n'*) return 0 ;;
   esac
-  _hi_cecho "   a packaged install lost --doctor, which works there" "$RED"
-  return 1
+  _hi_because "a packaged install lost --doctor, which works there"
 }
 
 # The roster's four cases above pin targets.sh; these two pin the half that
@@ -254,10 +217,7 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
 function test_flags_behind_a_local_command_are_its_switches() {
   local out got got2 got3
   out="$(sh "$_HI_TARGETS" flags --install | cut -f1 | tr '\n' ' ')"
-  [ "$out" = "--yes --link --shell --print-rc --preset --dry-run " ] || {
-    _hi_cecho "   flags --install gave: $out" "$RED"
-    return 1
-  }
+  [ "$out" = "--yes --link --shell --print-rc --preset --dry-run " ] || _hi_because "flags --install gave: $out" || return 1
   got="$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')"
   [ "$got" = "--json --problems --text --use " ] || _hi_why got _HI_TARGETS || return 1
   # a row with no switches offers nothing; a connect flag or a target first
@@ -274,45 +234,26 @@ function test_flags_behind_a_local_command_are_its_switches() {
 
 function test_complete_offers_a_local_commands_switches() {
   local out
-  out="$(_hi_completions_after --install --)"
+  out="$(_hi_completions_for --install --)"
   { printf '%s\n' "$out" | grep -qx -- --dry-run &&
     printf '%s\n' "$out" | grep -qx -- --link &&
     ! printf '%s\n' "$out" | grep -qx -- --doctor; } || _hi_why out
-}
-
-# _hi_completions_after <prev> <cur> - _hi_complete with a flag already typed
-function _hi_completions_after() {
-  PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
-    _HI_DISABLE_PROMPT=1 \
-    bash -c '
-      # shellcheck source=../../common/bash.sh
-      source "$_HI_BASHRC"
-      COMP_WORDS=(hi "$1" "$2")
-      COMP_CWORD=2
-      COMPREPLY=()
-      _hi_complete
-      printf "%s\n" ${COMPREPLY[@]+"${COMPREPLY[@]}"}
-    ' _ "$1" "$2"
 }
 
 # the word after --preview or --use is that flag's own roster, prefix-filtered
 # here, and never a target: alpha (the shim docker's container) must not show
 function test_complete_the_word_after_preview_and_use() {
   local out
-  out="$(_hi_completions_after --preview "")"
+  out="$(_hi_completions_for --preview "")"
   printf '%s\n' "$out" | grep -qx header || _hi_why out || return 1
   printf '%s\n' "$out" | grep -qx colors || _hi_why out || return 1
   if printf '%s\n' "$out" | grep -qx alpha; then
-    _hi_cecho "   --preview's word reached the target list" "$RED"
-    return 1
+    _hi_because "--preview's word reached the target list" || return 1
   fi
-  out="$(_hi_completions_after --use "do")"
-  [ "$out" = docker ] || {
-    _hi_cecho "   --use do: $out" "$RED"
-    return 1
-  }
+  out="$(_hi_completions_for --use "do")"
+  [ "$out" = docker ] || _hi_because "--use do: $out" || return 1
   # ...and once the word is taken, the next one is a target again
-  out="$(_hi_completions_after docker "")"
+  out="$(_hi_completions_for docker "")"
   printf '%s\n' "$out" | grep -qx alpha || _hi_why out
 }
 
@@ -320,17 +261,11 @@ function test_complete_the_word_after_preview_and_use() {
 # tags, exactly git's own list (empty on a shallow, tagless CI checkout)
 function test_complete_the_word_after_link_preset_and_update() {
   local out got got2
-  out="$(_hi_completions_after --link "" | sort | tr '\n' ' ')"
-  [ "$out" = "none system user " ] || {
-    _hi_cecho "   --link: $out" "$RED"
-    return 1
-  }
-  out="$(_hi_completions_after --preset "" | sort | tr '\n' ' ')"
-  [ "$out" = "balanced configs everything lean minimal " ] || {
-    _hi_cecho "   --preset: $out" "$RED"
-    return 1
-  }
-  got="$(_hi_completions_after --update "")"
+  out="$(_hi_completions_for --link "" | sort | tr '\n' ' ')"
+  [ "$out" = "none system user " ] || _hi_because "--link: $out" || return 1
+  out="$(_hi_completions_for --preset "" | sort | tr '\n' ' ')"
+  [ "$out" = "balanced configs everything lean minimal " ] || _hi_because "--preset: $out" || return 1
+  got="$(_hi_completions_for --update "")"
   got2="$(git -C "$_HI_ROOT" tag --list 'v*' --sort=-v:refname 2>/dev/null)"
   [ "$got" = "$got2" ] || _hi_why got got2
 }
@@ -340,12 +275,9 @@ function test_complete_the_word_after_link_preset_and_update() {
 function test_shell_words_match_what_install_takes() {
   local want got got2
   want="$(sed -n 's/^      \(bash | zsh | fish | all\)) ;;$/\1/p' "$_HI_ROOT/scripts/install.sh" | tr -d '|' | tr -s ' ' '\n' | sort | tr '\n' ' ')"
-  got="$(_hi_completions_after --shell "" | sort | tr '\n' ' ')"
-  [ -n "$want" ] && [ "$got" = "$want" ] || {
-    _hi_cecho " | install.sh takes [$want], targets.sh offers [$got]" "$RED"
-    return 1
-  }
-  got2="$(_hi_completions_after --shell z)"
+  got="$(_hi_completions_for --shell "" | sort | tr '\n' ' ')"
+  [ -n "$want" ] && [ "$got" = "$want" ] || _hi_because "install.sh takes [$want], targets.sh offers [$got]" || return 1
+  got2="$(_hi_completions_for --shell z)"
   [ "$got2" = zsh ] || _hi_why got2
 }
 
@@ -355,10 +287,7 @@ function test_preset_words_match_the_presets_table() {
   want="$(sed -n '/^_HI_PRESETS=(/,/^)/p' "$_HI_ROOT/scripts/configure.sh" |
     sed -n 's/^  "\([a-z]*\)|.*/\1/p' | sort | tr '\n' ' ')"
   got="$(sh "$_HI_TARGETS" words --preset | cut -f1 | sort | tr '\n' ' ')"
-  [ "$got" = "$want" ] || {
-    _hi_cecho " | configure.sh's presets are [$want], targets.sh offers [$got]" "$RED"
-    return 1
-  }
+  [ "$got" = "$want" ] || _hi_because "configure.sh's presets are [$want], targets.sh offers [$got]"
 }
 
 # ...and the prefix filter is the completion's own, not targets.sh's: the
@@ -370,12 +299,10 @@ function test_complete_flags_filter_by_prefix_and_never_reach_targets() {
   out="$(_hi_completions_for --pl)"
   printf '%s\n' "$out" | grep -qx -- --plain || _hi_why out || return 1
   if printf '%s\n' "$out" | grep -qx -- --preview; then
-    _hi_cecho "   --pl also offered --preview" "$RED"
-    return 1
+    _hi_because "--pl also offered --preview" || return 1
   fi
   if printf '%s\n' "$out" | grep -qx alpha; then
-    _hi_cecho "   a dash word reached the target list" "$RED"
-    return 1
+    _hi_because "a dash word reached the target list" || return 1
   fi
   return 0
 }
@@ -391,8 +318,7 @@ function test_flags_do_not_probe() {
   case $'\n'"$out"$'\n' in
   *$'\n--doctor\n'*) return 0 ;;
   esac
-  _hi_cecho "   flags did not answer with an empty PATH - something probed" "$RED"
-  return 1
+  _hi_because "flags did not answer with an empty PATH - something probed"
 }
 
 # paths.sh's $_HI_WORD_FLAGS is the membership test all four completions use;
@@ -412,10 +338,7 @@ function test_word_flags_match_the_flags_table() {
   ) | sort -u | tr '\n' ' ')"
   # shellcheck disable=SC2086 # the split is the roster
   got="$(printf '%s\n' $_HI_WORD_FLAGS | sort | tr '\n' ' ')"
-  [ "$got" = "$want" ] || {
-    _hi_cecho " | common/flags takes a word for [$want], _HI_WORD_FLAGS names [$got]" "$RED"
-    return 1
-  }
+  [ "$got" = "$want" ] || _hi_because "common/flags takes a word for [$want], _HI_WORD_FLAGS names [$got]"
 }
 
 # the --preview subjects are spelled four times - preview.sh's usage line,
@@ -425,18 +348,12 @@ function test_preview_subjects_agree_everywhere() {
   local want got subj bad=""
   want="$(sed -n 's/^Usage: .*<\([a-z|]*\)>$/\1/p' "$_HI_ROOT/scripts/preview.sh" | tr '|' '\n' | sort | tr '\n' ' ')"
   got="$(sh "$_HI_TARGETS" words --preview | cut -f1 | sort | tr '\n' ' ')"
-  [ -n "$want" ] && [ "$got" = "$want" ] || {
-    _hi_cecho " | targets.sh offers [$got], preview.sh's usage names [$want]" "$RED"
-    return 1
-  }
+  [ -n "$want" ] && [ "$got" = "$want" ] || _hi_because "targets.sh offers [$got], preview.sh's usage names [$want]" || return 1
   for subj in $want; do
     grep -q -- "^--preview|.*$subj" "$_HI_ROOT/common/flags" || bad="$bad common/flags:$subj"
     grep -A1 -F '.B hi \-\-preview' "$_HI_ROOT/docs/hi.1" | grep -q "$subj" || bad="$bad hi.1:$subj"
   done
-  [ -z "$bad" ] || {
-    _hi_cecho " | --preview subjects missing:$bad" "$RED"
-    return 1
-  }
+  [ -z "$bad" ] || _hi_because "--preview subjects missing:$bad"
 }
 
 function test_word_flags_match_the_words_roster() {
@@ -454,10 +371,7 @@ function test_word_flags_match_the_words_roster() {
   # shellcheck disable=SC2086 # the split is the roster
   want="$(printf '%s\n' $_HI_WORD_FLAGS | sort | tr '\n' ' ')"
   got="$arms"
-  [ "$got" = "$want" ] || {
-    _hi_cecho " | targets.sh answers for [$got], _HI_WORD_FLAGS names [$want]" "$RED"
-    return 1
-  }
+  [ "$got" = "$want" ] || _hi_because "targets.sh answers for [$got], _HI_WORD_FLAGS names [$want]"
 }
 
 # --- words --add-package and --remove-package: the packages cascade,

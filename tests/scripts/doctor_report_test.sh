@@ -47,13 +47,12 @@ function test_text_and_json_are_two_forms() {
 # is an error rather than the target; --keep and --no-keep
 # are the connect-time flags with nothing to report here, like --plain
 function test_unknown_flag_is_refused_not_taken_as_the_target() {
-  local out rc=0 home
+  local out rc=0
   out="$("$_HI_DOCTOR" --bogus 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus"* ]] || _hi_why rc out || return 1
   rc=0
-  home="$(_hi_doctor_home)"
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --keep --no-keep)" || rc=$?
+  out="$(PATH="$_HI_DOC_PATH" HOME="$_HI_DOC_HOME" _HI_SSH_CONFIG=/nonexistent \
+    _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --keep --no-keep)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" != *"Target: --"* ]] || _hi_why rc out
 }
 

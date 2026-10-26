@@ -306,7 +306,9 @@ Pages; the lint group checks that too.
 [Release Stages](../README.md#release-stages) are to-do lists, not a
 changelog: finishing an entry means **moving** it, as one sentence, into the
 `From the roadmap:` list under [CHANGELOG.md](../CHANGELOG.md)'s
-`## Unreleased`, which the next release's entry takes in. What a _user_ reads
+`## Unreleased`, which the next release's entry takes in. A change that
+ships in the release's own pull request writes its sentence there too, as a
+bullet above that list, since the entry is written before that PR exists. What a _user_ reads
 is the pull request's `## Release note` section (the template has it), which
 [`release.yml` collects into the release body](RELEASING.md#cutting-a-release)
 and `.github/scripts/changelog.sh` into `CHANGELOG.md`: write the sentence you

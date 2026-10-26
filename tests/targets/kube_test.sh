@@ -27,7 +27,19 @@ function _hi_kube_cleanup() {
   return 0
 }
 
-function _hi_pod_running() { [ "$(kubectl get pod "$1" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]; }
+# _hi_pod_running <pod> [namespace] - the pod's phase is Running
+function _hi_pod_running() { [ "$(kubectl ${2:+-n "$2"} get pod "$1" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]; }
+
+# _hi_pod_never_ran <pod> <log> <why> [namespace] - the pod described into
+# <log> and dumped under <why>, then removed, its namespace with it where it
+# has one; returns 1
+function _hi_pod_never_ran() {
+  kubectl ${4:+-n "$4"} describe pod "$1" >"$2" 2>&1 || true
+  _hi_dump_log "$3" "$2"
+  [ -z "${4:-}" ] || kubectl delete namespace "$4" --now >/dev/null 2>&1
+  [ -n "${4:-}" ] || kubectl delete pod "$1" --now >/dev/null 2>&1
+  return 1
+}
 
 # _hi_pod_containers_running <pod> <n> - every one of the pod's <n> containers
 # has a `running` state, which the phase alone does not promise (see the
@@ -98,12 +110,8 @@ function _hi_run_case() {
   # 120s, generously: the preload makes Running arrive in a couple of seconds,
   # so this is the budget for the run where that didn't work rather than a
   # figure anything normally spends.
-  if ! _hi_poll_bool 240 0.5 _hi_pod_running "$name"; then
-    kubectl describe pod "$name" >"$_HI_WORKDIR/$label.describe.log" 2>&1 || true
-    _hi_dump_log "Pod never reported Running:" "$_HI_WORKDIR/$label.describe.log"
-    kubectl delete pod "$name" --now >/dev/null 2>&1
-    return 1
-  fi
+  _hi_poll_bool 240 0.5 _hi_pod_running "$name" ||
+    _hi_pod_never_ran "$name" "$_HI_WORKDIR/$label.describe.log" "Pod never reported Running:" || return 1
 
   # a real CI run saw the [sh] shape fail once with no marker and no ash
   # startup banner - a transient this tree could not reproduce locally, on a
@@ -146,12 +154,9 @@ EOF
   # land on a container that was not there yet - silently, with its stderr
   # dropped - and the session then read an empty file back: the `read ''`
   # this case reported on CI while passing on every dev box.
-  if ! _hi_poll_bool 240 0.5 _hi_pod_containers_running "$name" 2; then
-    kubectl describe pod "$name" >"$_HI_WORKDIR/multi.describe.log" 2>&1 || true
-    _hi_dump_log "Multi-container pod never had both containers running:" "$_HI_WORKDIR/multi.describe.log"
-    kubectl delete pod "$name" --now >/dev/null 2>&1
-    return 1
-  fi
+  _hi_poll_bool 240 0.5 _hi_pod_containers_running "$name" 2 ||
+    _hi_pod_never_ran "$name" "$_HI_WORKDIR/multi.describe.log" \
+      "Multi-container pod never had both containers running:" || return 1
   # The writes are the fixture; a failed one is a broken case, not a failed
   # assertion, so they are checked and their stderr kept.
   local c
@@ -193,18 +198,13 @@ function _hi_kube_namespace_case() {
     kubectl delete namespace "$ns" --now >/dev/null 2>&1
     return 1
   fi
-  if ! _hi_poll_bool 240 0.5 _hi_pod_running_in "$ns" "$name"; then
-    kubectl -n "$ns" describe pod "$name" >"$_HI_WORKDIR/ns.describe.log" 2>&1 || true
-    _hi_dump_log "Namespaced pod never reported Running:" "$_HI_WORKDIR/ns.describe.log"
-    kubectl delete namespace "$ns" --now >/dev/null 2>&1
-    return 1
-  fi
+  _hi_poll_bool 240 0.5 _hi_pod_running "$name" "$ns" ||
+    _hi_pod_never_ran "$name" "$_HI_WORKDIR/ns.describe.log" "Namespaced pod never reported Running:" "$ns" || return 1
   _hi_exec_case ns "kube path (namespace:pod)" "$_HI_TEST_MARKER" 90 \
     "$ns:$name" "$(_hi_probe_cmd "$_HI_TEST_MARKER" fallback)" && ok=1
   kubectl delete namespace "$ns" --now >/dev/null 2>&1
   [ "$ok" -eq 1 ]
 }
-function _hi_pod_running_in() { [ "$(kubectl -n "$1" get pod "$2" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]; }
 
 function run_kube_test() {
   _hi_require_bin kind

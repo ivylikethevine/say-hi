@@ -20,10 +20,7 @@ function test_prerelease_tags_reach_no_external_channel() {
   [ -f "$_HI_PUBLISH_EXTERNAL_WF" ] || return 0
   local job guard="!contains(github.event.inputs.tag, '-')"
   job="$(_hi_wf_job "$_HI_PUBLISH_EXTERNAL_WF" aur)"
-  [[ "$job" == *"$guard"* ]] || {
-    _hi_cecho " | publish-external.yml's aur job runs on a prerelease tag" "$RED"
-    return 1
-  }
+  [[ "$job" == *"$guard"* ]] || _hi_because "publish-external.yml's aur job runs on a prerelease tag"
 }
 
 # aur does not run off a tag push at all - a v0.0.x/prerelease skip on
@@ -47,10 +44,7 @@ function test_aur_is_dispatch_only() {
 function test_release_workflow_opens_the_tap_pr_after_brew() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" tap)"
-  [ -n "$job" ] || {
-    _hi_cecho " | release.yml has no tap job" "$RED"
-    return 1
-  }
+  [ -n "$job" ] || _hi_because "release.yml has no tap job" || return 1
   [[ "$job" == *"needs: brew"* ]] &&
     [[ "$job" == *"needs.brew.result == 'success'"* ]] &&
     [[ "$job" == *"needs.brew.outputs.debug != 'true'"* ]] &&
@@ -77,10 +71,7 @@ function test_tap_formula_swaps_only_the_template_header() {
 # in https://github.com/ivylikethevine/say-hi. Edit it there, not here.
 # Pull requests to this tap are opened automatically for each release.
 $(sed -n '/^#$/,$p' "$_HI_FORMULA")"
-  [ "$out" = "$want" ] || {
-    _hi_cecho " | tap_formula.sh's output is not the template under the tap header" "$RED"
-    return 1
-  }
+  [ "$out" = "$want" ] || _hi_because "tap_formula.sh's output is not the template under the tap header" || return 1
   [[ "$out" != *"v0.0.0 sentinel"* ]] || _hi_why out || return 1
   ! printf 'x\nclass SayHi < Formula\n#\n' | bash "$script" >/dev/null 2>&1 || _hi_why script
 }
@@ -189,10 +180,7 @@ EOF
     PATH="$dir/bin:$PATH" GITHUB_REPOSITORY=o/r CI_GH_LOG="$dir/log" \
       _ci_upload_assets v9.9.9 "$dir/pkg.rpm" 2>&1
   )" || rc=$?
-  [ "$rc" = 0 ] || {
-    _hi_cecho " | gh_asset.sh gave up on a file the fallback could have landed: [$out]" "$RED"
-    return 1
-  }
+  [ "$rc" = 0 ] || _hi_because "gh_asset.sh gave up on a file the fallback could have landed: [$out]" || return 1
   { grep -qF 'releases/assets/77' "$dir/log" &&
     grep -qF -- '--method DELETE' "$dir/log" &&
     grep -qF 'https://uploads.github.com/repos/o/r/releases/4242/assets?name=pkg.rpm' "$dir/log" &&
@@ -230,10 +218,7 @@ EOF
       _ci_upload_assets v9.9.9 "$dir/a.deb" "$dir/bad.rpm" "$dir/c.apk" 2>&1
   )" || rc=$?
   [ "$rc" -ne 0 ] || _hi_why rc || return 1
-  [[ "$out" == *"::error title=Release assets::v9.9.9 is missing: bad.rpm"* ]] || {
-    _hi_cecho " | gh_asset.sh said: [$out]" "$RED"
-    return 1
-  }
+  [[ "$out" == *"::error title=Release assets::v9.9.9 is missing: bad.rpm"* ]] || _hi_because "gh_asset.sh said: [$out]" || return 1
   # the two either side of it went up anyway - the whole point
   { grep -qF 'a.deb' "$dir/log" && grep -qF 'c.apk' "$dir/log"; } || _hi_why dir
 }
@@ -350,10 +335,9 @@ function test_setup_tool_builds_from_a_source_tarball() {
   dir="$(_hi_tool_dir build)"
   _hi_tool_build_stubs "$dir"
   stage="$dir/stage"
-  mkdir -p "$stage/mk/mk-1.0" "$stage/nomk/nomk-1.0" "$stage/cm/cm-1.0" "$stage/flat"
-  printf '#!/bin/sh\n: >configured\n' >"$stage/mk/mk-1.0/configure"
-  printf '#!/bin/sh\nexit 0\n' >"$stage/nomk/nomk-1.0/configure"
-  chmod +x "$stage/mk/mk-1.0/configure" "$stage/nomk/nomk-1.0/configure"
+  mkdir -p "$stage/cm/cm-1.0" "$stage/flat"
+  _hi_script "$stage/mk/mk-1.0/configure" '#!/bin/sh' ': >configured'
+  _hi_script "$stage/nomk/nomk-1.0/configure" '#!/bin/sh' 'exit 0'
   printf 'project(cm)\n' >"$stage/cm/cm-1.0/CMakeLists.txt"
   printf 'loose\n' >"$stage/flat/README"
   for name in mk nomk cm flat; do tar -czf "$dir/src/$name.tar.gz" -C "$stage/$name" . || _hi_why dir name stage || return 1; done
@@ -384,11 +368,8 @@ function test_setup_tool_assumes_build_deps_without_apt() {
   dir="$(_hi_tool_dir noapt)"
   box="$(_hi_real_path settool-box bash sh env dirname grep awk uname mktemp rm cp sha256sum shasum perl \
     mkdir tar gzip find head mv chmod cat sed)"
-  printf '#!/bin/sh\n[ -f configured ] || exit 0\nprintf "#!/bin/sh\\necho built\\n" >mk && chmod +x mk\n' >"$dir/bin/make"
-  chmod +x "$dir/bin/make"
-  mkdir -p "$dir/stage/mk-1.0"
-  printf '#!/bin/sh\n: >configured\n' >"$dir/stage/mk-1.0/configure"
-  chmod +x "$dir/stage/mk-1.0/configure"
+  _hi_script "$dir/bin/make" '#!/bin/sh' '[ -f configured ] || exit 0' 'printf "#!/bin/sh\necho built\n" >mk && chmod +x mk'
+  _hi_script "$dir/stage/mk-1.0/configure" '#!/bin/sh' ': >configured'
   tar -czf "$dir/src/mk.tar.gz" -C "$dir/stage" . || _hi_why dir || return 1
   printf '%s\n' "mk|1.0|make:libfoo-dev,libbar-dev|https://x/mk.tar.gz||-||$(_hi_tool_sum "$dir/src/mk.tar.gz")" >"$dir/tools.txt"
   out="$(_hi_tool_run "$dir" install CI_TOOL=mk PATH="$dir/bin:$box")" || _hi_because "the build failed: $out" || return 1

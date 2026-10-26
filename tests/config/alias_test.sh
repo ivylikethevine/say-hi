@@ -49,29 +49,16 @@ function _hi_test_script() {
 # itself - that is the shape `hi <target> <command>` runs in. fish has no `set -u` (unset is always empty there), so its
 # strict run only proves the defaulting line parses.
 function _hi_test_shell() {
-  local shell="$1" strict="${3:-}" output exit_code=0 t0 t1
-  local script="$2/$1${strict:+.strict}.test" what="Loaded aliases.sh"
+  local shell="$1" strict="${3:-}" output code=0
+  local script="$2/$1${strict:+.strict}.test"
   local -a runner=("$shell")
   if [ -n "$strict" ]; then
-    what="Loaded with the session mark unset"
     [ "$shell" = fish ] || runner+=(-u)
     runner=(env -u _HI_REMOTE_SESSION "${runner[@]}")
   fi
-
-  _hi_h2 "Starting: [$shell]${strict:+ (session mark unset, strict mode)}"
-  t0="$(_hi_now)"
   _hi_test_script "$shell" >"$script"
-  _hi_cecho "  [$shell] -- Running: $script"
-  output=$("${runner[@]}" "$script" 2>&1) || exit_code=$?
-  t1="$(_hi_now)"
-
-  if [ "$exit_code" -eq 0 ]; then
-    _hi_h3 "[$shell] -- $what OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
-  else
-    _hi_h3 "[$shell] -- FAILED${strict:+ with the toggles unset} ($(_hi_elapsed "$t0" "$t1")s)" "$RED"
-    [ -n "$output" ] && printf '%s\n' "$output" | sed 's/^/      /'
-  fi
-  return "$exit_code"
+  output=$("${runner[@]}" "$script" 2>&1) || code=$?
+  [ "$code" -eq 0 ] || _hi_because "$script exited $code: $output"
 }
 
 # The presence-gated aliases the sampler above leaves out, read off the same
@@ -159,29 +146,41 @@ SCRIPT
   return 1
 }
 
-# _hi_test_nvim_stays_in_tree <shell> <dir> - on a target, neovim run through
-# the alias writes its shada, undo, and vim.loader cache under the session
-# tree ($_HI_HOME there), not the target's ~/.local or ~/.cache, even with an
-# init.lua that turns undofile on. The alias is the overlay's wiring.sh line
-# (GLOSSARY: HI.62), written here as a client writes it. fish's own
-# ~/.local/share/fish is not neovim's, hence the name filter.
+# _hi_editor_in_tree <shell> <dir> <rc> <run> <rc line...> - on a target, <run>
+# on a file through the alias the overlay's wiring.sh line for <rc> makes
+# (GLOSSARY: HI.62), with $HOME at <dir>/<editor>state.<shell>/home and the
+# session tree ($_HI_HOME there) beside it. The overlay, <rc> written as
+# <rc line...> and the wiring as a client writes it, is built once per <rc>.
 # shellcheck disable=SC2016 # the scripts we write out, not code to run here
-function _hi_test_nvim_stays_in_tree() {
-  local shell="$1" base="$2/nvstate.$1" output rc=0
-  mkdir -p "$base/home" "$base/tree" "$base/cfg/vim" "$base/cfg/nvim"
-  printf '%s\n' 'vim.loader.enable()' 'vim.opt.undofile = true' >"$base/cfg/nvim/init.lua"
+function _hi_editor_in_tree() {
+  local shell="$1" rc="$3" run="$4" base="$2/${3%%/*}state.$1" cfg="$2/${3%%/*}cfg" output code=0
+  shift 4
+  if [ ! -s "$cfg/wiring.sh" ]; then
+    mkdir -p "$cfg/vim" "$cfg/nvim"
+    printf '%s\n' "$@" >"$cfg/$rc"
+    _hi_wiring_for "$rc" >"$cfg/wiring.sh" || _hi_because "[$shell] no wiring.sh for $rc" || return 1
+  fi
+  mkdir -p "$base/home" "$base/tree"
   printf 'a\n' >"$base/f.txt"
-  _hi_wiring_for nvim/init.lua >"$base/cfg/wiring.sh" ||
-    _hi_because "[$shell] no wiring.sh for init.lua" || return 1
   if [ "$shell" = fish ]; then
-    printf '%s\n' 'source "$_HI_CONFIG_DIR/wiring.sh"; or exit 2' 'nvim --headless -c "normal! ix" -c wq $F' >"$base/t"
+    printf '%s\n' 'source "$_HI_CONFIG_DIR/wiring.sh"; or exit 2' "$run \$F" >"$base/t"
   else
-    printf '%s\n' 'shopt -s expand_aliases 2>/dev/null' '. "$_HI_CONFIG_DIR/wiring.sh" || exit 2' 'nvim --headless -c "normal! ix" -c wq "$F"' >"$base/t"
+    printf '%s\n' 'shopt -s expand_aliases 2>/dev/null' '. "$_HI_CONFIG_DIR/wiring.sh" || exit 2' "$run \"\$F\"" >"$base/t"
   fi
   output=$(env -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME HOME="$base/home" \
     XDG_CONFIG_HOME="$base/home/.config" F="$base/f.txt" _HI_REMOTE_SESSION=1 \
-    _HI_HOME="$base/tree" _HI_CONFIG_DIR="$base/cfg" "$shell" "$base/t" 2>&1) || rc=$?
-  [ "$rc" -eq 0 ] || _hi_because "[$shell] nvim exited $rc: $output" || return 1
+    _HI_HOME="$base/tree" _HI_CONFIG_DIR="$cfg" "$shell" "$base/t" 2>&1) || code=$?
+  [ "$code" -eq 0 ] || _hi_because "[$shell] ${run%% *} exited $code: $output"
+}
+
+# _hi_test_nvim_stays_in_tree <shell> <dir> - neovim writes its shada, undo,
+# and vim.loader cache under the session tree, not the target's ~/.local or
+# ~/.cache, even with an init.lua that turns undofile on. fish's own
+# ~/.local/share/fish is not neovim's, hence the name filter.
+function _hi_test_nvim_stays_in_tree() {
+  local shell="$1" base="$2/nvimstate.$1"
+  _hi_editor_in_tree "$shell" "$2" nvim/init.lua 'nvim --headless -c "normal! ix" -c wq' \
+    'vim.loader.enable()' 'vim.opt.undofile = true' || return 1
   [ -z "$(find "$base/home" -name nvim)" ] ||
     _hi_because "[$shell] wrote outside the tree: $(find "$base/home" -name nvim | tr '\n' ' ')" || return 1
   [ -n "$(find "$base/tree/nvim/state" -path '*undo/*' -type f 2>/dev/null)" ] &&
@@ -192,24 +191,11 @@ function _hi_test_nvim_stays_in_tree() {
 # _hi_test_vim_stays_in_tree <shell> <dir> - ...and vim the same way: no
 # viminfo, and the undo files of a vimrc that keeps them under
 # $XDG_STATE_HOME are the session tree's
-# shellcheck disable=SC2016 # the scripts we write out, not code to run here
+# shellcheck disable=SC2016 # the vimrc we write out, not code to run here
 function _hi_test_vim_stays_in_tree() {
-  local shell="$1" base="$2/vimstate.$1" output rc=0 run='vim -es -c "normal! ix" -c wq'
-  mkdir -p "$base/home" "$base/tree" "$base/cfg/vim" "$base/cfg/nvim"
-  printf '%s\n' 'set nocompatible undofile' 'let &undodir = $XDG_STATE_HOME . "/vim/undo"' \
-    'call mkdir(&undodir, "p")' >"$base/cfg/vim/vimrc"
-  printf 'a\n' >"$base/f.txt"
-  _hi_wiring_for vim/vimrc >"$base/cfg/wiring.sh" ||
-    _hi_because "[$shell] no wiring.sh for vimrc" || return 1
-  if [ "$shell" = fish ]; then
-    printf '%s\n' 'source "$_HI_CONFIG_DIR/wiring.sh"; or exit 2' "$run \$F" >"$base/t"
-  else
-    printf '%s\n' 'shopt -s expand_aliases 2>/dev/null' '. "$_HI_CONFIG_DIR/wiring.sh" || exit 2' "$run \"\$F\"" >"$base/t"
-  fi
-  output=$(env -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME HOME="$base/home" \
-    XDG_CONFIG_HOME="$base/home/.config" F="$base/f.txt" _HI_REMOTE_SESSION=1 \
-    _HI_HOME="$base/tree" _HI_CONFIG_DIR="$base/cfg" "$shell" "$base/t" 2>&1 </dev/null) || rc=$?
-  [ "$rc" -eq 0 ] || _hi_because "[$shell] vim exited $rc: $output" || return 1
+  local shell="$1" base="$2/vimstate.$1"
+  _hi_editor_in_tree "$shell" "$2" vim/vimrc 'vim -es -c "normal! ix" -c wq' 'set nocompatible undofile' \
+    'let &undodir = $XDG_STATE_HOME . "/vim/undo"' 'call mkdir(&undodir, "p")' </dev/null || return 1
   [ -z "$(find "$base/home" -name '.viminfo*' -o -name '*vim')" ] ||
     _hi_because "[$shell] wrote outside the tree: $(find "$base/home" -name '.viminfo*' -o -name '*vim' | tr '\n' ' ')" || return 1
   [ -n "$(find "$base/tree/vim/state/vim/undo" -type f 2>/dev/null)" ] ||
@@ -225,6 +211,9 @@ function run_alias_test() {
   export _HI_CONFIG_DIR="$_HI_WORKDIR/overlay" _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _HI_REMOTE_SESSION=1
 
   _hi_suite_begin
+  local nvim=no vim=no
+  command -v nvim >/dev/null 2>&1 && nvim=yes
+  vim --version 2>/dev/null | grep -q '+persistent_undo' && vim=yes
   for _hi_shell in dash bash zsh fish; do
     if ! command -v "$_hi_shell" >/dev/null 2>&1; then
       # counted, not silently dropped: an uninstalled shell has to show up in
@@ -233,19 +222,19 @@ function run_alias_test() {
       _hi_skip "$_hi_shell strict" "not installed"
       continue
     fi
-    _hi_case _hi_test_shell "$_hi_shell" "$_HI_WORKDIR"
-    _hi_case _hi_test_shell "$_hi_shell" "$_HI_WORKDIR" strict
+    _hi_check "[$_hi_shell] loaded aliases.sh" _hi_test_shell "$_hi_shell" "$_HI_WORKDIR"
+    _hi_check "[$_hi_shell] loaded with the session mark unset, strict" _hi_test_shell "$_hi_shell" "$_HI_WORKDIR" strict
     while read -r _hi_alias _hi_bins; do
       [ -n "$_hi_alias" ] || continue
       # shellcheck disable=SC2086 # the bins are a word list on purpose
       _hi_case _hi_test_presence "$_hi_shell" "$_HI_WORKDIR" "$_hi_alias" $_hi_bins
     done <<<"$_HI_PRESENCE_ALIASES"
-    if command -v nvim >/dev/null 2>&1; then
+    if [ "$nvim" = yes ]; then
       _hi_case _hi_test_nvim_stays_in_tree "$_hi_shell" "$_HI_WORKDIR"
     else
       _hi_skip "$_hi_shell nvim state" "no nvim"
     fi
-    if vim --version 2>/dev/null | grep -q '+persistent_undo'; then
+    if [ "$vim" = yes ]; then
       _hi_case _hi_test_vim_stays_in_tree "$_hi_shell" "$_HI_WORKDIR"
     else
       _hi_skip "$_hi_shell vim state" "no vim with persistent undo"

@@ -97,9 +97,8 @@ function test_overlay_copy_of_a_tool_config_wins() {
 # the prompt frameworks' files the same way: an overlay copy of each rides over
 # the one home has (tide's still down to its tide_ lines)
 function test_overlay_copy_of_a_prompt_framework_file_wins() {
-  local dir d h="$_HI_WORKDIR/fw-home"
+  local dir="$_HI_WORKDIR/fw-copy" d h="$_HI_WORKDIR/fw-home" got
   _hi_fw_home_fixture
-  dir="$_HI_WORKDIR/fw-copy"
   mkdir -p "$dir"
   printf 'POWERLEVEL9K_MODE=overlay\n' >"$dir/p10k.zsh"
   printf 'PROMPT=overlay\n' >"$dir/oh-my-zsh.zsh-theme"
@@ -107,11 +106,8 @@ function test_overlay_copy_of_a_prompt_framework_file_wins() {
   printf 'SETUVAR secret:x\nSETUVAR tide_character_icon:overlay\n' >"$dir/tide.vars"
   d="$(_hi_tool_home_unpacked "$dir" HOME="$h" XDG_CONFIG_HOME="$h/.config" \
     _HI_PROMPT_TOOL="powerlevel10k oh-my-zsh oh-my-bash tide")" || _hi_why dir h || return 1
-  [ "$(cat "$d/p10k.zsh" "$d/oh-my-zsh.zsh-theme" "$d/oh-my-bash.theme.sh" "$d/tide.vars")" = \
-    "$(printf 'POWERLEVEL9K_MODE=overlay\nPROMPT=overlay\nPS1=overlay\nSETUVAR tide_character_icon:overlay')" ] || {
-    _hi_cecho " | the stream carried: [$(cat "$d"/* 2>&1)]" "$RED"
-    return 1
-  }
+  got="$(cat "$d/p10k.zsh" "$d/oh-my-zsh.zsh-theme" "$d/oh-my-bash.theme.sh" "$d/tide.vars")"
+  [ "$got" = $'POWERLEVEL9K_MODE=overlay\nPROMPT=overlay\nPS1=overlay\nSETUVAR tide_character_icon:overlay' ] || _hi_because "the stream carried: [$(cat "$d"/* 2>&1)]"
 }
 
 # oh-my-posh has no default file: home's is the one $POSH_CONFIG names, else
@@ -121,7 +117,7 @@ function test_overlay_copy_of_a_prompt_framework_file_wins() {
 # `extends` naming a local file goes out emptied - a URL or a theme name
 # resolves on the target and stays.
 function test_oh_my_posh_config_rides_from_home_or_overlay() {
-  local got
+  local got got2 got3
   local h="$_HI_WORKDIR/omp-home" dir d
   mkdir -p "$h"
   printf '{\n  "extends": "~/base.omp.json",\n  "version": 3\n}\n' >"$h/mine.omp.json"
@@ -130,17 +126,15 @@ function test_oh_my_posh_config_rides_from_home_or_overlay() {
   dir="$(_hi_overlay_fixture omp-none)"
   set -- HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_PROMPT_TOOL=oh-my-posh
   d="$(_hi_tool_home_unpacked "$dir" "$@" POSH_CONFIG="$h/mine.omp.json")" || _hi_why dir h || return 1
-  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.json wiring.sh " ] &&
-    [ "$(cat "$d/oh-my-posh.json")" = "$(printf '{\n  "extends": "",\n  "version": 3\n}')" ] || {
-    _hi_cecho " | from \$POSH_CONFIG: [$(cd "$d" && printf '%s ' *)] $(cat "$d"/* 2>&1)" "$RED"
-    return 1
-  }
+  got="$(cd "$d" && printf '%s ' *)"
+  got2="$(cat "$d/oh-my-posh.json" 2>&1)"
+  [ "$got" = "oh-my-posh.json wiring.sh " ] && [ "$got2" = $'{\n  "extends": "",\n  "version": 3\n}' ] ||
+    _hi_because "from \$POSH_CONFIG: [$got] $(cat "$d"/* 2>&1)" || return 1
   d="$(_hi_tool_home_unpacked "$dir" "$@")" || _hi_why dir || return 1
-  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.yaml wiring.sh " ] &&
-    [ "$(cat "$d/oh-my-posh.yaml")" = "$(cat "$h/rc.omp.yaml")" ] || {
-    _hi_cecho " | from the rc: [$(cd "$d" && printf '%s ' *)]" "$RED"
-    return 1
-  }
+  got="$(cd "$d" && printf '%s ' *)"
+  got2="$(cat "$d/oh-my-posh.yaml" 2>&1)"
+  got3="$(<"$h/rc.omp.yaml")"
+  [ "$got" = "oh-my-posh.yaml wiring.sh " ] && [ "$got2" = "$got3" ] || _hi_because "from the rc: [$got]" || return 1
   printf 'version = 3\n' >"$dir/oh-my-posh.toml"
   d="$(_hi_tool_home_unpacked "$dir" "$@" POSH_CONFIG="$h/mine.omp.json")" || _hi_why dir h || return 1
   got="$(cd "$d" && printf '%s ' *)"
@@ -161,10 +155,8 @@ function test_overlay_carries_the_prompt_frameworks_home_files() {
     "$got3" ] || _hi_why got got2 got3 d || return 1
   # unnamed, nothing rides; and powerlevel10k as oh-my-zsh's theme is no theme file
   d="$(_hi_tool_home_unpacked "$dir" "$@" _HI_PROMPT_TOOL=hi)" || _hi_why dir || return 1
-  [ "$(cd "$d" && printf '%s' *)" = colors ] || {
-    _hi_cecho " | unnamed, the stream carried: $(cd "$d" && printf '%s ' *)" "$RED"
-    return 1
-  }
+  got="$(cd "$d" && printf '%s ' *)"
+  [ "$got" = "colors " ] || _hi_because "unnamed, the stream carried: $got" || return 1
   printf 'ZSH_THEME="powerlevel10k/powerlevel10k"\n' >"$_HI_WORKDIR/fw-home/.zshrc"
   d="$(_hi_tool_home_unpacked "$dir" "$@" _HI_PROMPT_TOOL=oh-my-zsh)" || _hi_why dir || return 1
   [ ! -e "$d/oh-my-zsh.zsh-theme" ] || _hi_why d
@@ -273,10 +265,7 @@ Host web1 web2
 # tags=lab
 Match host lab-* user x
 # Tags: inc
-Host included' ] || {
-    _hi_cecho " | ssh_tags arrived as: [$out]" "$RED"
-    return 1
-  }
+Host included' ] || _hi_because "ssh_tags arrived as: [$out]" || return 1
   printf 'Host untagged\n' >"$dir/config"
   ! XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src ssh_tags || _hi_why dir
 }
@@ -370,22 +359,19 @@ function test_ssh_tags_leaves_no_temp_file_when_the_cut_fails() {
 # own directory here otherwise; nvim/init.lua loses its plugin load, and keeps the
 # `import` of micro's own package
 function test_micro_config_rides_in_a_directory_of_its_own() {
-  local h="$_HI_WORKDIR/tool-home/.config/micro" dir d
+  local h="$_HI_WORKDIR/tool-home/.config/micro" dir="$_HI_WORKDIR/micro-overlay" d got got2
   mkdir -p "$h"
   printf '{"tabsize": 7}\n' >"$h/settings.json"
   printf '{"Alt-h": "home"}\n' >"$h/bindings.json"
   printf 'local config = import("micro/config")\n-- a comment\nconfig.AddRuntimeFile("mine", config.RTPlugin, "mine.lua")\n' >"$h/init.lua"
-  dir="$_HI_WORKDIR/micro-overlay"
   mkdir -p "$dir/micro"
   printf '{"Alt-h": "overlay"}\n' >"$dir/micro/bindings.json"
   d="$(_hi_tool_home_unpacked "$dir")" || _hi_why dir || return 1
-  [ "$(cd "$d/micro" && printf '%s ' *)" = "bindings.json init.lua settings.json " ] &&
-    [ "$(cat "$d/micro/settings.json" "$d/micro/bindings.json" "$d/micro/init.lua")" = '{"tabsize": 7}
+  got="$(cd "$d/micro" && printf '%s ' *)"
+  got2="$(cat "$d/micro/settings.json" "$d/micro/bindings.json" "$d/micro/init.lua")"
+  [ "$got" = "bindings.json init.lua settings.json " ] && [ "$got2" = '{"tabsize": 7}
 {"Alt-h": "overlay"}
-local config = import("micro/config")' ] || {
-    _hi_cecho " | micro/ arrived as: [$(cat "$d"/micro/* 2>&1)]" "$RED"
-    return 1
-  }
+local config = import("micro/config")' ] || _hi_because "micro/ arrived as: [$(cat "$d"/micro/* 2>&1)]"
 }
 
 # aliases.sh rides from the ~/.aliases a bash or zsh rc here already sources
@@ -400,10 +386,7 @@ function test_home_aliases_ride_as_aliases_sh() {
   [ "$out" = 'alias la="ls -a"' ] || _hi_because "from ~/.bash_aliases: [$out]" || return 1
   printf 'alias ll="ls -l"\n' >"$dir/.aliases"
   out="$(HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_tar | _hi_tar_cat aliases.sh)"
-  [ "$out" = 'alias ll="ls -l"' ] || {
-    _hi_cecho " | aliases.sh arrived as: [$out]" "$RED"
-    return 1
-  }
+  [ "$out" = 'alias ll="ls -l"' ] || _hi_because "aliases.sh arrived as: [$out]" || return 1
   printf 'alias x=y\n' >"$dir/overlay/aliases.sh"
   HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src aliases.sh out &&
     [ "$out" = "$dir/overlay/aliases.sh" ] || _hi_why dir out
@@ -417,10 +400,7 @@ function test_shell_rcs_ride_only_from_the_overlay() {
   mkdir -p "$dir/overlay" "$dir/.config/fish"
   printf 'echo mine\n' | tee "$dir/.bashrc" "$dir/.zshrc" "$dir/.config/fish/config.fish" >/dev/null
   for f in bashrc zshrc config.fish; do
-    ! HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src "$f" || {
-      _hi_cecho " | $f rode from home" "$RED"
-      return 1
-    }
+    ! HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src "$f" || _hi_because "$f rode from home" || return 1
   done
   printf 'echo overlay\n' >"$dir/overlay/bashrc"
   HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src bashrc out &&
@@ -488,12 +468,10 @@ function test_inputrc_rides_like_the_tool_configs() {
   printf 'set bell-style none\n' >"$h/named"
   dir="$(_hi_overlay_fixture rl-none)"
   d="$(_hi_tool_home_unpacked "$dir" HOME="$h")" || _hi_why dir h || return 1
-  [ "$(cat "$d/inputrc")" = '$include /etc/inputrc
+  got="$(cat "$d/inputrc" 2>&1)"
+  [ "$got" = '$include /etc/inputrc
 set editing-mode vi
-$include ~/.inputrc.kept' ] || {
-    _hi_cecho " | inputrc arrived as: [$(cat "$d/inputrc" 2>&1)]" "$RED"
-    return 1
-  }
+$include ~/.inputrc.kept' ] || _hi_because "inputrc arrived as: [$got]" || return 1
   d="$(_hi_tool_home_unpacked "$dir" HOME="$h" INPUTRC="$h/named")" || _hi_why dir h || return 1
   got="$(cat "$d/inputrc")"
   [ "$got" = 'set bell-style none' ] || _hi_why got d || return 1

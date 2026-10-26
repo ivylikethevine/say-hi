@@ -25,10 +25,7 @@ function _hi_all_lines_are() {
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     _hi_visible_width n "$(_hi_strip_ansi "$line")"
-    [ "$n" -eq "$want" ] || {
-      _hi_cecho " | got width $n, want $want: [$line]" "$RED"
-      return 1
-    }
+    [ "$n" -eq "$want" ] || _hi_because "got width $n, want $want: [$line]" || return 1
   done <<<"$text"
 }
 
@@ -505,7 +502,7 @@ function _hi_identity_path() {
 # header line, since the jobs cell drops line 1, then one line per fake job).
 function _hi_backend_shim() {
   local name="$1" count="$2" i=0
-  local dir="$_HI_WORKDIR/backend-$name-$count"
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/backend-$name-$count"
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     {
@@ -528,7 +525,7 @@ function _hi_backend_shim() {
 # namespace/pod/container triple per line, the shape kube_rows reads).
 function _hi_kube_shim() {
   local count="$1" i=0
-  local dir="$_HI_WORKDIR/backend-kube-$count"
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/backend-kube-$count"
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     {

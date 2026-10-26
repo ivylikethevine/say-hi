@@ -48,9 +48,7 @@ function test_require_backend_skips_when_the_cli_is_missing() {
 
 function test_require_backend_skips_when_the_backend_is_unreachable() {
   local fake="$_HI_WORKDIR/bin" out rc=0
-  mkdir -p "$fake"
-  printf '%s\n' '#!/bin/sh' 'exit 1' >"$fake/hi-fake-backend"
-  chmod +x "$fake/hi-fake-backend"
+  _hi_script "$fake/hi-fake-backend" '#!/bin/sh' 'exit 1'
   out="$(PATH="$fake:$PATH" bash -c 'source "$_HI_TEST_LIB"; _hi_require_backend hi-fake-backend')" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"not reachable, skipping"* ]] || _hi_why rc out
 }
@@ -443,8 +441,7 @@ function test_case_result_says_timed_out_by_name() {
 function _hi_retry_run() {
   local label="$1" timeout_s="$2" fake="$_HI_WORKDIR/$1.sh"
   shift 2
-  printf '%s\n' '#!/bin/sh' "$@" >"$fake"
-  chmod +x "$fake"
+  _hi_script "$fake" '#!/bin/sh' "$@"
   _HI_RETRY_RC=0
   _HI_RETRY_OUT="$(
     local _HI_PTY_WRAP=()
@@ -559,7 +556,6 @@ function test_sshd_entrypoint_body_unlocks_the_test_account() {
 
 function test_ssh_keypair_writes_a_usable_key() {
   (
-    _HI_WORKDIR="$(mktemp -d "$_HI_WORKDIR/keys.XXXXXX")"
     _hi_ssh_keypair >/dev/null
     [ "$_HI_SSH_KEY" = "$_HI_WORKDIR/id" ] && [ -f "$_HI_SSH_KEY" ] && [ -f "$_HI_SSH_KEY.pub" ] && [[ "$_HI_PUBKEY" == ssh-ed25519* ]]
   ) || _hi_why _HI_PUBKEY

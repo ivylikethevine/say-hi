@@ -24,5 +24,4 @@ RUN sed -i -e 's/^metalink=/#metalink=/' \
     && dnf clean all \
     && useradd -m -s /bin/bash hitest
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

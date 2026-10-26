@@ -214,6 +214,22 @@ exit $fail
 EOF
 }
 
+# The overlay every scenario reads: the editor and multiplexer aliases are
+# lines of the wiring.sh a client packs beside the configs that ride, so it
+# holds both (GLOSSARY: HI.62). Built once; the scenarios only read it.
+function _hi_write_overlay() {
+  local f members="vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml nano/nanorc emacs/init.el tmux/tmux.conf screenrc
+    zellij/config.kdl micro/settings.json"
+  _HI_OVERLAY="$_HI_WORKDIR/overlay"
+  for f in $members; do
+    f="$_HI_OVERLAY/$f"
+    mkdir -p "${f%/*}"
+    : >"$f"
+  done
+  # shellcheck disable=SC2086 # one member a word
+  _hi_wiring_for $members >"$_HI_OVERLAY/wiring.sh" || _hi_cecho " | no wiring.sh for the overlay: every target scenario fails" "$RED"
+}
+
 # aliases.sh's last act is sourcing $_HI_CONFIG_DIR/aliases.sh when it
 # exists, so the overlay's aliases win. Per shell, the tool aliases opted
 # into where a shipped one is needed: a new overlay alias
@@ -223,63 +239,44 @@ EOF
 # fallback's shape) stays silent.
 # shellcheck disable=SC2016 # the overlay lines expand in the shell under test
 function _hi_run_overlay_case() {
-  local shell="$1" mode="$2" shell_bin cfgdir="" script out
+  local shell="$1" cfgdir="$_HI_WORKDIR/overlaycfg_$2" line="" posix fish want shell_bin script out
+  local -a envs=()
   shell_bin="$(_hi_kv_get _HI_SHELL_BIN "$shell")"
-  case "$mode" in
+  case "$2" in
   present)
-    cfgdir="$_HI_WORKDIR/overlaycfg"
-    mkdir -p "$cfgdir"
-    printf 'alias overlay_probe="echo probe"\n' >"$cfgdir/aliases.sh"
-    if [ "$shell" = fish ]; then
-      script="source $_HI_ALIASES; functions -q overlay_probe; and echo OVERLAY-OK"
-    else
-      script=". $_HI_ALIASES && alias overlay_probe >/dev/null 2>&1 && echo OVERLAY-OK"
-    fi
-    out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
-      _HI_CONFIG_DIR="$cfgdir" "$shell_bin" -c "$script" 2>&1)"
-    [ "$out" = OVERLAY-OK ]
+    line='alias overlay_probe="echo probe"' want=OVERLAY-OK
+    posix="alias overlay_probe >/dev/null 2>&1 && echo $want" fish="functions -q overlay_probe; and echo $want"
     ;;
   wins)
-    cfgdir="$_HI_WORKDIR/overlaycfg_wins"
-    mkdir -p "$cfgdir"
-    printf 'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --overlay-marker"\n' >"$cfgdir/aliases.sh"
-    if [ "$shell" = fish ]; then
-      script="source $_HI_ALIASES; functions ls | string match -q -- '*$_HI_LS_BIN*--overlay-marker*'; and echo WINS-OK"
-    else
-      script=". $_HI_ALIASES && alias ls 2>/dev/null | grep -q -- '--overlay-marker' && echo WINS-OK"
-    fi
-    out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
-      _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" _HI_TOOL_ALIASES=1 "$shell_bin" -c "$script" 2>&1)"
-    [ "$out" = WINS-OK ]
+    line='alias ls="$_HI_LS_BIN $_HI_LS_OPTS --overlay-marker"' want=WINS-OK
+    envs=(_HI_ROOT="$_HI_ROOT" _HI_TOOL_ALIASES=1)
+    posix="alias ls 2>/dev/null | grep -q -- '--overlay-marker' && echo $want"
+    fish="functions ls | string match -q -- '*$_HI_LS_BIN*--overlay-marker*'; and echo $want"
     ;;
   drops)
-    cfgdir="$_HI_WORKDIR/overlaycfg_drops"
-    mkdir -p "$cfgdir"
-    printf 'alias cat=cat\n' >"$cfgdir/aliases.sh"
-    if [ "$shell" = fish ]; then
-      # the header line is metadata (fish keeps the shipped definition's
-      # --wraps bat after the overlay's replaces the body), so only the body
-      script="source $_HI_ALIASES; functions cat | string match -v -r '^(#|function |end\$)' | string match -q '*bat*'; and echo DROP-BAD; or echo DROP-OK"
-    else
-      script=". $_HI_ALIASES && { alias cat 2>/dev/null | grep -q bat && echo DROP-BAD || echo DROP-OK; }"
-    fi
-    out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
-      _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" _HI_TOOL_ALIASES=1 "$shell_bin" -c "$script" 2>&1)"
-    [ "$out" = DROP-OK ]
+    line='alias cat=cat' want=DROP-OK
+    envs=(_HI_ROOT="$_HI_ROOT" _HI_TOOL_ALIASES=1)
+    posix="{ alias cat 2>/dev/null | grep -q bat && echo DROP-BAD || echo DROP-OK; }"
+    # the header line is metadata (fish keeps the shipped definition's
+    # --wraps bat after the overlay's replaces the body), so only the body
+    fish="functions cat | string match -v -r '^(#|function |end\$)' | string match -q '*bat*'; and echo DROP-BAD; or echo DROP-OK"
     ;;
   *)
     # no _HI_CONFIG_DIR in the environment at all - the backstop default must
     # leave the tail line a silent no-op, with nothing on stderr
-    if [ "$shell" = fish ]; then
-      script="source $_HI_ALIASES; and echo NO-OVERLAY-OK"
-    else
-      script=". $_HI_ALIASES && echo NO-OVERLAY-OK"
-    fi
-    out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
-      "$shell_bin" -c "$script" 2>&1)"
-    [ "$out" = NO-OVERLAY-OK ]
+    want=NO-OVERLAY-OK posix="echo $want" fish="and echo $want"
     ;;
   esac
+  if [ -n "$line" ]; then
+    mkdir -p "$cfgdir"
+    printf '%s\n' "$line" >"$cfgdir/aliases.sh"
+    envs+=(_HI_CONFIG_DIR="$cfgdir")
+  fi
+  script=". $_HI_ALIASES && $posix"
+  [ "$shell" != fish ] || script="source $_HI_ALIASES; $fish"
+  out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" ${envs[@]+"${envs[@]}"} \
+    "$shell_bin" -c "$script" 2>&1)"
+  [ "$out" = "$want" ] || _hi_because "$shell said: $out"
 }
 
 # In zsh and dash (not bash, not fish) `command -v name` returns an *alias's*
@@ -295,8 +292,8 @@ function run_overlay_poisoning_test() {
   printf 'alias cat="echo overlay-cat"\n' >"$cfgdir/aliases.sh"
 
   for shell in $_HI_INSTALLED_SHELLS; do
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "[$shell] overlay alias cat= does not poison \$_HI_CAT_BIN" \
+    _hi_run_scenario "$shell" "$fakepath" \
+      "overlay alias cat= does not poison \$_HI_CAT_BIN" \
       _HI_CONFIG_DIR="$cfgdir" _HI_CHECK_VAR=CAT_BIN _HI_EXPECT="$fakepath/cat"
   done
 }
@@ -310,8 +307,8 @@ function run_preexisting_alias_test() {
   fakepath="$(_hi_fake_path fp_prealias ls)"
   for shell in $_HI_INSTALLED_SHELLS; do
     [ "$shell" = fish ] && continue
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "[$shell] a prior alias ls= does not poison \$_HI_LS_BIN" \
+    _hi_run_scenario "$shell" "$fakepath" \
+      "a prior alias ls= does not poison \$_HI_LS_BIN" \
       _HI_PRE_ALIAS="ls=ls --color=auto" _HI_CHECK_VAR=LS_BIN _HI_EXPECT="$fakepath/ls"
   done
 }
@@ -322,7 +319,7 @@ function run_preexisting_alias_test() {
 # ignored (GLOSSARY: HI.13)
 function run_path_lookup_tests() {
   _hi_h1 "The ladders through core.sh's _hi_path_lookup"
-  local helpers="$_HI_WORKDIR/path_lookup.sh" var name cands installed expect fakepath shell
+  local helpers="$_HI_WORKDIR/path_lookup.sh" var name cands installed fakepath shell
   sed -n -e '/^function _hi_path_lookup()/,/^}/p' -e '/^function _hi_bin_is()/,/^}/p' \
     "$_HI_ROOT/common/core.sh" >"$helpers"
   for shell in bash zsh; do
@@ -330,20 +327,15 @@ function run_path_lookup_tests() {
     for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" LS_BIN:"eza ls"; do
       name="${var%%:*}" cands="${var#*:}"
       for installed in "$cands" "${cands##* }" ""; do
-        expect="$(_hi_expect_winner "$cands" "$installed")"
-        # shellcheck disable=SC2086 # $installed is an intentionally unquoted word list
-        fakepath="$(_hi_fake_path "fpl_${name}_$(echo "$installed" | tr -d ' ')" $installed)"
-        _hi_case _hi_run_scenario "$shell" "$fakepath" "$name installed=[${installed:-none}] -> want [${expect:-empty}]" \
-          _HI_CORE_HELPERS="$helpers" _HI_CHECK_VAR="$name" \
-          _HI_EXPECT="$([ -n "$expect" ] && printf '%s/%s' "$fakepath" "$expect" || printf '')"
+        _hi_ladder_case fpl "$shell" "$name" "$cands" "$installed" _HI_CORE_HELPERS="$helpers"
       done
     done
     fakepath="$(_hi_fake_path fpl_dir_rung ls)"
     mkdir -p "$fakepath/eza"
-    _hi_case _hi_run_scenario "$shell" "$fakepath" "a directory named eza is passed over" \
+    _hi_run_scenario "$shell" "$fakepath" "a directory named eza is passed over" \
       _HI_CORE_HELPERS="$helpers" _HI_CHECK_VAR=LS_BIN _HI_EXPECT="$fakepath/ls"
     fakepath="$(_hi_fake_path fpl_prealias ls)"
-    _hi_case _hi_run_scenario "$shell" "$fakepath" "a prior alias ls= does not poison \$_HI_LS_BIN" \
+    _hi_run_scenario "$shell" "$fakepath" "a prior alias ls= does not poison \$_HI_LS_BIN" \
       _HI_CORE_HELPERS="$helpers" _HI_PRE_ALIAS="ls=ls --color=auto" _HI_CHECK_VAR=LS_BIN _HI_EXPECT="$fakepath/ls"
   done
 }
@@ -355,8 +347,8 @@ function run_bat_opts_test() {
   local shell fakepath
   fakepath="$(_hi_fake_path fp_batopts bat)"
   for shell in $_HI_INSTALLED_SHELLS; do
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "[$shell] _HI_BAT_OPTS lands in the bat alias" \
+    _hi_run_scenario "$shell" "$fakepath" \
+      "_HI_BAT_OPTS lands in the bat alias" \
       _HI_BAT_OPTS='--style plain --opts-marker' _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--opts-marker'
   done
 }
@@ -372,80 +364,62 @@ function run_overlay_tests() {
   done
 }
 
-# The opt-ins default to on, so every alias the file can make is in play;
-# a caller sets _HI_CASE_TOOLS/_HI_CASE_SUDO to another value for
+# _hi_run_scenario <shell> <fakepath> <label> [NAME=VALUE...] - a case: the
+# check script in <shell> with <fakepath> its whole PATH and the pairs its
+# environment. The opt-ins default to on, so every alias the file can make is
+# in play; a caller sets _HI_CASE_TOOLS/_HI_CASE_SUDO to another value for
 # _HI_TOOL_ALIASES/_HI_SUDO_ALIAS, or to "unset" to leave the name out.
 function _hi_run_scenario() {
-  local shell="$1" fakepath="$2" label="$3"
-  shift 3
-  local script shell_bin t0 t1
+  _hi_check "[$1] $3" _hi_scenario "$1" "$2" "${@:4}"
+}
+
+function _hi_scenario() {
+  local shell="$1" fakepath="$2" script="$_HI_POSIX_CHECK" shell_bin
+  shift 2
   local -a opt_in=()
   [ "${_HI_CASE_TOOLS:-1}" = unset ] || opt_in+=("_HI_TOOL_ALIASES=${_HI_CASE_TOOLS:-1}")
   [ "${_HI_CASE_SUDO:-1}" = unset ] || opt_in+=("_HI_SUDO_ALIAS=${_HI_CASE_SUDO:-1}")
-
+  [ "$shell" != fish ] || script="$_HI_FISH_CHECK"
   # resolved against the real (unrestricted) PATH by the caller's one-time
   # probe, since $fakepath below is deliberately too narrow to contain the
   # shell binary itself; only installed shells ever reach here
   shell_bin="$(_hi_kv_get _HI_SHELL_BIN "$shell")"
-
-  if [ "$shell" = fish ]; then
-    script="$_HI_FISH_CHECK"
-  else
-    script="$_HI_POSIX_CHECK"
-  fi
-
-  t0="$(_hi_now)"
-  # the editor and multiplexer aliases are lines of the wiring.sh a client
-  # packs beside the configs that ride, so the workdir is the overlay that
-  # holds both (GLOSSARY: HI.62)
-  local f members="vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml nano/nanorc emacs/init.el tmux/tmux.conf screenrc
-    zellij/config.kdl micro/settings.json"
-  for f in $members; do
-    case "$f" in */*) mkdir -p "$_HI_WORKDIR/${f%/*}" ;; esac
-    touch "$_HI_WORKDIR/$f"
-  done
-  if [ ! -f "$_HI_WORKDIR/wiring.sh" ]; then
-    # shellcheck disable=SC2086 # one member a word
-    _hi_wiring_for $members >"$_HI_WORKDIR/wiring.sh" || return 1
-  fi
   # $_HI_ROOT is what aliases.sh resolves its overlay-source tail through, and
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
-  if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
-    _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$_HI_WORKDIR" \
+  env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
+    _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$_HI_OVERLAY" \
     ${opt_in[@]+"${opt_in[@]}"} \
-    "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
-    t1="$(_hi_now)"
-    _hi_align "  [$shell] -- $label" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
-  else
-    t1="$(_hi_now)"
-    _hi_dump_log "[$shell] -- $label: FAILED ($(_hi_elapsed "$t0" "$t1")s)" "$_HI_WORKDIR/err"
-    return 1
-  fi
+    "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err" || _hi_because "the $shell check failed: $(cat "$_HI_WORKDIR/err")"
+}
+
+# _hi_ladder_case <fakepath prefix> <shells> <ladder> <candidates> <installed>
+# [NAME=VALUE...] - <ladder> with <installed> alone on PATH, in each of
+# <shells>: its variable is _hi_expect_winner's binary there, or empty
+function _hi_ladder_case() {
+  local prefix="$1" shells="$2" name="$3" cands="$4" installed="$5" expect fakepath shell
+  shift 5
+  expect="$(_hi_expect_winner "$cands" "$installed")"
+  # shellcheck disable=SC2086 # $installed is an intentionally unquoted word list
+  fakepath="$(_hi_fake_path "${prefix}_${name}_${installed// /}" $installed)"
+  for shell in $shells; do
+    _hi_run_scenario "$shell" "$fakepath" "$name installed=[${installed:-none}] -> want [${expect:-empty}]" \
+      "$@" _HI_CHECK_VAR="$name" _HI_EXPECT="${expect:+$fakepath/$expect}"
+  done
 }
 
 function run_fallthrough_tests() {
   _hi_h1 "Fallthrough (command -v a || b || ...) resolution"
-  local var last mid installed expect fakepath shell
+  local var name cands mid installed
 
   # BAT_BIN is the one chain here with no floor: it is deliberately empty when
   # nothing in it is installed, which is what aliases.sh gates the
   # bat-syntax $_HI_BAT_OPTS on. _hi_expect_winner already returns empty for
   # that case, so the no-floor chain needs no special handling - only listing.
   for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" LS_BIN:"eza ls"; do
-    local name="${var%%:*}" cands="${var#*:}"
-    # shellcheck disable=SC2086 # word-splitting into positional candidates is intended
-    set -- $cands
-    eval "last=\$$#"
-    mid="$2"
-
-    for installed in "$cands" "$last" "$mid" ""; do
-      expect="$(_hi_expect_winner "$cands" "$installed")"
-      # shellcheck disable=SC2086 # $installed is an intentionally unquoted word list
-      fakepath="$(_hi_fake_path "fp_${name}_$(echo "$installed" | tr -d ' ')" $installed)"
-      for shell in $_HI_INSTALLED_SHELLS; do
-        _hi_case _hi_run_scenario "$shell" "$fakepath" "$name installed=[${installed:-none}] -> want [${expect:-empty}]" \
-          _HI_CHECK_VAR="$name" _HI_EXPECT="$([ -n "$expect" ] && printf '%s/%s' "$fakepath" "$expect" || printf '')"
-      done
+    name="${var%%:*}" cands="${var#*:}"
+    mid="${cands#* }"
+    for installed in "$cands" "${cands##* }" "${mid%% *}" ""; do
+      _hi_ladder_case fp "$_HI_INSTALLED_SHELLS" "$name" "$cands" "$installed"
     done
   done
 }
@@ -465,7 +439,7 @@ function run_flag_tests() {
     local want_sudo="$1" sa="$2"
     for shell in $_HI_INSTALLED_SHELLS; do
       _HI_CASE_SUDO="$sa" \
-        _hi_case _hi_run_scenario "$shell" "$fakepath" \
+        _hi_run_scenario "$shell" "$fakepath" \
         "_HI_SUDO_ALIAS=$sa" \
         _HI_REMOTE_SESSION=1 _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_CAT_ALIAS=1
     done
@@ -483,7 +457,7 @@ function run_tool_aliases_flag_tests() {
   _hi_h1 "The default bat options leave the theme to bat's config"
   fakepath="$(_hi_fake_path fp_batconf bat)"
   for shell in $_HI_INSTALLED_SHELLS; do
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+    _hi_run_scenario "$shell" "$fakepath" \
       "default _HI_BAT_OPTS carry no --theme" \
       _HI_CHECK_BAT_NO_THEME=1 _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='-P --tabs 2 --style changes,grid'
   done
@@ -497,7 +471,7 @@ function run_tool_aliases_flag_tests() {
     [ "$want" = 1 ] && cat_bin="$fakepath/bat" bats=PRESENT
     for shell in $_HI_INSTALLED_SHELLS; do
       _HI_CASE_TOOLS="$ta" \
-        _hi_case _hi_run_scenario "$shell" "$fakepath" \
+        _hi_run_scenario "$shell" "$fakepath" \
         "_HI_TOOL_ALIASES=$ta" \
         _HI_REMOTE_SESSION=1 _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS="$want" \
         _HI_EXPECT_LS_ALIAS="$want" _HI_CHECK_VAR=CAT_BIN _HI_EXPECT="$cat_bin" \
@@ -513,9 +487,9 @@ function run_micro_tests() {
   local shell fakepath
   fakepath="$(_hi_fake_path fp_micro cat micro)"
   for shell in $_HI_INSTALLED_SHELLS; do
-    _hi_case _hi_run_scenario "$shell" "$fakepath" "at home: no micro alias" \
+    _hi_run_scenario "$shell" "$fakepath" "at home: no micro alias" \
       _HI_REMOTE_SESSION=0 _HI_CHECK_ABSENT=micro
-    _hi_case _hi_run_scenario "$shell" "$fakepath" "on a target: micro reads its config" \
+    _hi_run_scenario "$shell" "$fakepath" "on a target: micro reads its config" \
       _HI_REMOTE_SESSION=1 _HI_CHECK_PRESENT=micro
   done
 }
@@ -532,11 +506,11 @@ function run_presence_tests() {
   all="$(_hi_fake_path fp_all cat nano emacs micro vim nvim hx tmux screen zellij sudo bat eza)"
   bare="$(_hi_fake_path fp_bare cat)"
   for shell in $_HI_INSTALLED_SHELLS; do
-    _hi_case _hi_run_scenario "$shell" "$all" "every tool installed: every gated alias" \
+    _hi_run_scenario "$shell" "$all" "every tool installed: every gated alias" \
       _HI_REMOTE_SESSION=1 _HI_CHECK_PRESENT="$gated cat ls"
-    _hi_case _hi_run_scenario "$shell" "$bare" "only cat installed: no gated alias" \
+    _hi_run_scenario "$shell" "$bare" "only cat installed: no gated alias" \
       _HI_REMOTE_SESSION=1 _HI_CHECK_ABSENT="$gated" _HI_CHECK_PRESENT=cat
-    _hi_case _hi_run_scenario "$shell" "$all" "at home: no editor or multiplexer alias" \
+    _hi_run_scenario "$shell" "$all" "at home: no editor or multiplexer alias" \
       _HI_REMOTE_SESSION=0 _HI_CHECK_ABSENT="nano emacs micro vim nvim hx tmux screen zellij"
   done
 }
@@ -557,13 +531,13 @@ function run_session_wrapper_tests() {
   printf '# fish.config\n' >"$rcdir/fish.config"
 
   for shell in $_HI_INSTALLED_SHELLS; do
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+    _hi_run_scenario "$shell" "$fakepath" \
       "remote session with both rcs: bash and fish are wrapped" \
       _HI_REMOTE_SESSION=1 _HI_SESSION_RC="$rcdir" _HI_CHECK_SESSION=1 _HI_EXPECT_SESSION=1
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+    _hi_run_scenario "$shell" "$fakepath" \
       "remote session, rcs absent: neither is wrapped" \
       _HI_REMOTE_SESSION=1 _HI_SESSION_RC="$emptydir" _HI_CHECK_SESSION=1 _HI_EXPECT_SESSION=0
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+    _hi_run_scenario "$shell" "$fakepath" \
       "not a remote session: neither is wrapped" \
       _HI_REMOTE_SESSION=0 _HI_SESSION_RC="$rcdir" _HI_CHECK_SESSION=1 _HI_EXPECT_SESSION=0
   done
@@ -577,6 +551,7 @@ function run_alias_fallthrough_test() {
   mkdir -p "$_HI_FAKEHOME"
 
   _hi_write_check_scripts
+  _hi_write_overlay
 
   # Resolved once here rather than re-probed inside the scenario loops, which
   # ask the same question 64 times over. The resolved *path* is what gets

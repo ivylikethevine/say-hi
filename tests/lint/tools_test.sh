@@ -32,9 +32,7 @@ function lint_shfmt() {
   if out="$(shfmt -d "${files[@]}" 2>&1)"; then
     _hi_align " | shfmt $(shfmt --version): every file already formatted" "OK" "$GREEN"
   else
-    _hi_align " | shfmt: files need reformatting (fix with: shfmt -w on the paths below)" "FAILED" "$RED"
-    printf '%s\n' "$out" | sed 's/^/      /'
-    _hi_note_failure "shfmt formatting (shfmt -w the paths it names)"
+    _hi_lint_fail " | shfmt: files need reformatting (fix with: shfmt -w on the paths below)" "shfmt formatting (shfmt -w the paths it names)" "$out"
     return 1
   fi
 }
@@ -59,9 +57,7 @@ function lint_checkbashisms() {
     if out="$(checkbashisms "$file" 2>&1)"; then
       _hi_align " | $rel" "OK" "$GREEN"
     else
-      _hi_align " | $rel" "FAILED" "$RED"
-      printf '%s\n' "$out" | sed 's/^/      /'
-      _hi_note_failure "$rel (checkbashisms)"
+      _hi_lint_fail " | $rel" "$rel (checkbashisms)" "$out"
       bad=$((bad + 1))
     fi
   done
@@ -82,9 +78,7 @@ function lint_manpage() {
   if out="$(mandoc -T lint -W warning "$man" 2>&1)"; then
     _hi_align " | docs/hi.1" "OK" "$GREEN"
   else
-    _hi_align " | docs/hi.1" "FAILED" "$RED"
-    printf '%s\n' "$out" | sed 's/^/      /'
-    _hi_note_failure "docs/hi.1 (mandoc)"
+    _hi_lint_fail " | docs/hi.1" "docs/hi.1 (mandoc)" "$out"
     return 1
   fi
 }
@@ -133,9 +127,7 @@ function lint_typos() {
   if out="$(cd "$_HI_ROOT" && typos --format brief --config .typos.toml . 2>&1)"; then
     _hi_align " | typos $(typos --version | awk '{print $2}'): nothing misspelt" "OK" "$GREEN"
   else
-    _hi_align " | typos: misspellings below (a term that is right goes in .typos.toml)" "FAILED" "$RED"
-    printf '%s\n' "$out" | sed 's/^/      /'
-    _hi_note_failure "spelling (typos)"
+    _hi_lint_fail " | typos: misspellings below (a term that is right goes in .typos.toml)" "spelling (typos)" "$out"
     return 1
   fi
 }
@@ -205,9 +197,7 @@ function _hi_lint_md_tool() {
   if out="$(cd "$_HI_ROOT" && "$bin" "$@" "${_HI_MD_FILES[@]}" 2>&1)"; then
     _hi_align " | $tool: $ok" "OK" "$GREEN"
   else
-    _hi_align " | $tool: $failed" "FAILED" "$RED"
-    printf '%s\n' "$out" | sed 's/^/      /'
-    _hi_note_failure "$note"
+    _hi_lint_fail " | $tool: $failed" "$note" "$out"
     return 1
   fi
 }

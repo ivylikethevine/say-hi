@@ -347,13 +347,9 @@ function test_config_hi_skips_when_hi_on_path_runs_this_tree() {
 # PATH; pacman (this box's, when it is one) answers "not owned" for a scratch
 # path and link_owner moves on to it
 function _hi_pkg_shim() {
-  local bin="$_HI_WORKDIR/pkgbin"
-  [ -x "$bin/dpkg" ] || {
-    mkdir -p "$bin"
-    # shellcheck disable=SC2016 # the shim's own $1/$2
-    printf '#!/bin/sh\n[ "$1" = -S ] || exit 1\nprintf "say-hi: %%s\\n" "$2"\n' >"$bin/dpkg"
-    chmod +x "$bin/dpkg"
-  }
+  local bin="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/pkgbin"
+  # shellcheck disable=SC2016 # the shim's own $1/$2
+  [ -x "$bin/dpkg" ] || _hi_script "$bin/dpkg" '#!/bin/sh' '[ "$1" = -S ] || exit 1' 'printf "say-hi: %s\n" "$2"'
   printf '%s' "$bin"
 }
 

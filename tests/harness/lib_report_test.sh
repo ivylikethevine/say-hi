@@ -390,37 +390,33 @@ function test_suite_end_honours_custom_banners() {
 }
 
 function test_report_counts_writes_total_and_failed() {
-  local file got
+  local file
   file="$_HI_WORKDIR/counts.reported"
   (
     _HI_COUNTS_FILE="$file"
     _hi_report_counts 9 2
   )
-  got="$(cat "$file")"
-  [ "$got" = "9 2 0" ] || _hi_why got file
+  _hi_file_is "$file" "9 2 0" || _hi_why file
 }
 
 function test_report_counts_writes_the_skip_tally() {
-  local file got
+  local file
   file="$_HI_WORKDIR/counts.skiptally"
   (
     _HI_COUNTS_FILE="$file"
     _hi_report_counts 9 2 3
   )
-  got="$(cat "$file")"
-  [ "$got" = "9 2 3" ] || _hi_why got file
+  _hi_file_is "$file" "9 2 3" || _hi_why file
 }
 
 function test_case_keeps_the_progress_file_current() {
-  local got
   local file="$_HI_WORKDIR/progress.live"
   (
     _HI_PROGRESS_FILE="$file" _HI_TOTAL=0 _HI_FAILED=0 _HI_SKIPPED=1
     _hi_case _hi_true
     _hi_case _hi_false
   )
-  got="$(cat "$file")"
-  [ "$got" = "2 1 1" ] || _hi_why got file
+  _hi_file_is "$file" "2 1 1" || _hi_why file
 }
 
 function test_case_names_itself_before_it_runs() {
@@ -435,7 +431,7 @@ function test_case_names_itself_before_it_runs() {
 }
 
 function test_note_failure_appends_the_label() {
-  local file got
+  local file
   file="$_HI_WORKDIR/fails.noted"
   # a rerun starts where the first try did: nothing noted
   rm -f "$file"
@@ -444,9 +440,7 @@ function test_note_failure_appends_the_label() {
     _hi_note_failure "first case"
     _hi_note_failure "second case"
   )
-  got="$(cat "$file")"
-  [ "$got" = "first case
-second case" ] || _hi_why got file
+  _hi_file_is "$file" "first case\nsecond case" || _hi_why file
 }
 
 function test_note_failure_is_a_noop_without_a_fails_file() {
@@ -466,14 +460,13 @@ function test_report_counts_is_a_noop_without_a_counts_file() {
 }
 
 function test_report_skip_marks_the_suite_as_skipped() {
-  local file got
+  local file
   file="$_HI_WORKDIR/counts.skipped"
   (
     _HI_COUNTS_FILE="$file"
     _hi_report_skip "no docker"
   )
-  got="$(cat "$file")"
-  [ "$got" = "SKIP no docker" ] || _hi_why got file
+  _hi_file_is "$file" "SKIP no docker" || _hi_why file
 }
 
 function test_report_skip_is_a_noop_without_a_counts_file() {
@@ -555,7 +548,7 @@ function test_suite_end_adds_skips_to_real_failures() {
 # did not fail an assertion, and the summary's two columns have to keep saying
 # which is which
 function test_require_run_leaves_the_counts_alone() {
-  local file got
+  local file
   file="$_HI_WORKDIR/counts.require_run"
   (
     _HI_REQUIRE_RUN=1
@@ -565,8 +558,7 @@ function test_require_run_leaves_the_counts_alone() {
     _HI_SKIPPED=2
     _hi_suite_end thing >/dev/null
   ) || true
-  got="$(cat "$file")"
-  [ "$got" = "4 1 2" ] || _hi_why got file
+  _hi_file_is "$file" "4 1 2" || _hi_why file
 }
 
 # the label and the reason are only in hand inside _hi_skip, so that is where
@@ -599,7 +591,7 @@ function test_suite_end_stays_quiet_with_nothing_skipped() {
 }
 
 function test_suite_end_reports_its_counts() {
-  local file got
+  local file
   file="$_HI_WORKDIR/counts.suite_end"
   (
     _HI_COUNTS_FILE="$file"
@@ -608,8 +600,7 @@ function test_suite_end_reports_its_counts() {
     _HI_SKIPPED=1
     _hi_suite_end thing >/dev/null
   ) || true
-  got="$(cat "$file")"
-  [ "$got" = "5 2 1" ] || _hi_why got file
+  _hi_file_is "$file" "5 2 1" || _hi_why file
 }
 
 # _hi_dump_log prints a log's text, never its *path*: every log is under

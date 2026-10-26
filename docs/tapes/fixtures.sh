@@ -75,6 +75,7 @@ function demo_sshd_image() {
     printf '#!/bin/bash\nset -e\n'
     printf '%s\n' "${_HI_SSHD_ENTRYPOINT_BODY//hitest/$_HI_DEMO_SSH_USER}"
   } >"$_HI_DEMO_DIR/base/entrypoint.sh"
+  chmod +x "$_HI_DEMO_DIR/base/entrypoint.sh"
   demo_step "building the sshd base image (a cold runner fetches its packages here)"
   docker build --progress=plain -t hi-demo-sshd-base \
     -f "$_HI_ROOT/tests/dockerfiles/sshd-debian.Dockerfile" "$_HI_DEMO_DIR/base" >&2
@@ -160,14 +161,14 @@ function up_ssh() { # <login> <name...> - one sshd box per name, off the one ima
 # own, root. <ps1> is the prompt that account's rc leaves where the distro's
 # differs from the image's - what shows on a box whose session has hi's
 # prompt off.
-function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|fish-bash> [login] [ps1]
+function up_container() { # <backend> <name> <flavor: debian|tools|web|zsh|fish|fish-bash> [login] [ps1]
   demo_step "starting $2 on $1 ($3${4:+, as $4})"
   local backend="$1" name="$2" flavor="$3" login="${4:-}" ps1="${5:-}" image
   # rootless podman's build network (slirp4netns) sends DNS straight to the
   # host's upstream resolver, past the one a CI egress filter answers - so
   # apk/apt inside the build cannot resolve. The host's network is the host's
   # resolver; docker's builds already go through it.
-  local -a net=()
+  local -a net=() run=(tail -f /dev/null) runopt=()
   [ "$backend" != podman ] || net=(--network=host)
   case "$flavor" in
   debian) image=debian:bookworm-slim ;;
@@ -178,6 +179,15 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|fish
     "$backend" build "${net[@]}" -t hi-demo-tools-img \
       -f "$_HI_ROOT/tests/dockerfiles/demo-debian.Dockerfile" "$_HI_DEMO_DIR" >&2
     image=hi-demo-tools-img
+    ;;
+  # the web host: systemd as init and nginx under it (the Dockerfile says
+  # why), so PID 1 is systemd, run as root whatever account the login image
+  # sets, with the cgroup and the tmpfs mounts it needs inside a container
+  web)
+    "$backend" build "${net[@]}" -t hi-demo-web-img \
+      -f "$_HI_ROOT/tests/dockerfiles/demo-web.Dockerfile" "$_HI_DEMO_DIR" >&2
+    image=hi-demo-web-img run=(/sbin/init)
+    runopt=(--privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw --tmpfs /run --tmpfs /run/lock -u root)
     ;;
   # fish-bash is fish with bash beside it: a box hi can give a *full* session on, in fish
   # (fish leads the shell tree) - the overlay demo's second target, since
@@ -200,7 +210,18 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|fish
   fi
   "$backend" rm -f "$name" >/dev/null 2>&1 || true
   "$backend" run -d --rm --name "$name" --hostname "$name" --label hi.demo=1 \
-    "$image" tail -f /dev/null >/dev/null
+    ${runopt[@]+"${runopt[@]}"} "$image" "${run[@]}" >/dev/null || return 1
+  [ "$flavor" = web ] || return 0
+  # nginx up under systemd before the tape types: a box still booting would
+  # answer the first request with nothing at all
+  local _
+  for _ in $(seq 120); do
+    [ "$("$backend" exec "$name" systemctl is-active nginx 2>/dev/null)" != active ] || return 0
+    sleep 0.5
+  done
+  echo "$name: nginx never came up under systemd" >&2
+  "$backend" exec "$name" systemctl --failed --no-pager >&2 || true
+  return 1
 }
 
 # one poll of the hi-demo allocation: stash the running alloc's short ID and
@@ -811,18 +832,27 @@ EOF
   up_run
   ;;
 up:demo)
+  # The README's top GIF: ivy, bash on an arch workstation, on call for a
+  # web host whose site answers 502. Her aliases ride in (the overlay's
+  # aliases.sh), so a box she never set up already knows `site`, `errs`,
+  # and `restart`; her vimrc rides too, and the sudo alias keeps it under
+  # `sudo vim`. The box is systemd's, so the restart is a real one. Stock
+  # otherwise but for the prompt, `hi` at both ends whatever prompt program
+  # the renderer has.
   client_rc bash ivy workshop arch
-  # Every other demo turns something off or ships something of its own; the
-  # README's top GIF is the one that shows the defaults, which is only legible
-  # if it stays stock but for two lines: the styled tool aliases, so `cat`
-  # renders through the box's bat, and `hi` as the prompt, so both ends draw
-  # hi's whatever prompt program the renderer has installed. The tools
-  # debian, so the defaults have something to work on.
   demo_settings <<'EOF'
-export _HI_TOOL_ALIASES='1'
 export _HI_PROMPT_TOOL='hi'
+export _HI_SUDO_ALIAS='1'
 EOF
-  up_container docker db-prod tools deploy
+  # No quote inside a body: the POSIX+fish subset common/aliases.sh keeps.
+  demo_overlay aliases.sh <<'EOF'
+# ~/.config/say-hi/aliases.sh - sourced on every target, in every shell
+alias site='curl -sI localhost | head -n 1'
+alias errs='sudo tail -n 1 /var/log/nginx/error.log'
+alias restart='sudo nginx -t -q && sudo systemctl restart nginx && systemctl is-active nginx'
+EOF
+  demo_overlay vim/vimrc <"$_HI_ROOT/docs/tapes/editors/vimrc"
+  up_container docker web-prod web deploy
   ;;
 up:keep)
   # The on-call engineer: noor, zsh on a macbook left as it is

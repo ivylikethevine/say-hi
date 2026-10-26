@@ -66,9 +66,7 @@ function _hi_plugins_refused() {
   local cfg="$1" msg="$2" out rc=0
   shift 2
   out="$(_hi_plugins_run "$cfg" "$@")" || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"$msg"* ]] && [ ! -e "$cfg" ] && return 0
-  _hi_cecho " | [$*] gave rc $rc: $out" "$RED"
-  return 1
+  [ "$rc" -ne 0 ] && [[ "$out" == *"$msg"* ]] && [ ! -e "$cfg" ] || _hi_because "[$*] gave rc $rc: $out"
 }
 
 # ---------------------------------------------------------------------------

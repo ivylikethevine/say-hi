@@ -25,12 +25,7 @@ source "$_HI_LAUNCHER"
 # in order, the row's <first arg> column included.
 function _hi_ds_stub() {
   local s="$_HI_WORKDIR/stub.sh"
-  cat >"$s" <<'EOF'
-#!/bin/sh
-printf 'argv0=%s\n' "${_HI_ARGV0:-unset}"
-printf 'args=%s\n' "$*"
-EOF
-  chmod +x "$s"
+  _hi_script "$s" '#!/bin/sh' 'printf "argv0=%s\n" "${_HI_ARGV0:-unset}"' 'printf "args=%s\n" "$*"'
   printf '%s' "$s"
 }
 
@@ -177,12 +172,7 @@ function test_run_script_reports_the_missing_checkout_on_stderr() {
 # about the shape rather than about a re-split string
 function _hi_ds_fake_ssh() {
   local dir="$_HI_WORKDIR/sshbin"
-  mkdir -p "$dir"
-  cat >"$dir/ssh" <<'EOF'
-#!/bin/sh
-for a in "$@"; do printf '%s\n' "$a"; done
-EOF
-  chmod +x "$dir/ssh"
+  _hi_script "$dir/ssh" '#!/bin/sh' 'for a in "$@"; do printf "%s\n" "$a"; done'
   printf '%s' "$dir"
 }
 

@@ -35,11 +35,7 @@ function _hi_rc_probe() {
   done
   shift
   mkdir -p "$home"
-  local script='
-    source "$_HI_HOME/say-hi/common/core.sh"
-    source "$_HI_HOME/say-hi/scripts/lib.sh"
-    source "$_HI_HOME/say-hi/scripts/table.sh"
-    source "$_HI_HOME/say-hi/scripts/rc.sh"
+  local script="$_HI_RC_SOURCES"'
     eval "${_HI_RC_PRELUDE:-}"
     "$@"'
   if [ "$capture" = silent ]; then
@@ -50,6 +46,12 @@ function _hi_rc_probe() {
 }
 
 function _hi_rc_in() { _hi_rc_probe silent "$@"; }
+
+# what every child script starts with: the files rc.sh runs on
+_HI_RC_SOURCES='source "$_HI_HOME/say-hi/common/core.sh"
+source "$_HI_HOME/say-hi/scripts/lib.sh"
+source "$_HI_HOME/say-hi/scripts/table.sh"
+source "$_HI_HOME/say-hi/scripts/rc.sh"'
 
 # every roster shell "installed", whatever this box has: the roster cases
 # are about the lines, not about which shells are here
@@ -575,18 +577,16 @@ function test_darwin_bash_login_is_only_pointed_at() {
 # timeout kills the shell itself. GLOSSARY: HI.55
 # shellcheck disable=SC2016 # the fixtures are the login shell's to expand
 function test_bash_profile_lines_end_a_sourcing_loop() {
-  local home="$_HI_WORKDIR/pingpong"
+  local home="$_HI_WORKDIR/pingpong" got
   _hi_rc_in "$home" _HI_UNAME=Darwin -- install_bash_profile_line || _hi_why home || return 1
   printf '. "$HOME/.bash_profile"\necho profile\n' >"$home/.profile"
   printf '. "$HOME/.bash_profile"\necho rc\n' >"$home/.bashrc"
   (exec env -i HOME="$home" PATH="$PATH" bash -l -c 'echo "done:${_hi_login-unset}"' \
     </dev/null >"$home.out" 2>&1) &
   _hi_wait_pid $! 20
-  [ "$_HI_WAIT_EXIT" != 124 ] && [ "$(tr '\n' ' ' <"$home.out")" = "profile rc done:unset " ] || {
-    _hi_cecho " | exit $_HI_WAIT_EXIT, said: $(tr '\n' ' ' <"$home.out")" "$RED"
-    _hi_cecho " | .bash_profile: $(cat "$home/.bash_profile")" "$RED"
-    return 1
-  }
+  got="$(tr '\n' ' ' <"$home.out")"
+  [ "$_HI_WAIT_EXIT" != 124 ] && [ "$got" = "profile rc done:unset " ] ||
+    _hi_because "exit $_HI_WAIT_EXIT, said: $got"$'\n'".bash_profile: $(cat "$home/.bash_profile")"
 }
 
 # --print-rc on macOS prints the .bash_profile lines for whoever manages that
@@ -634,11 +634,7 @@ function test_config_validate_shells_asks_at_a_terminal() {
   for reply in y n; do
     : >"$_HI_WORKDIR/gate-tty.$reply.out"
     printf '%s\n' "$reply" |
-      env HOME="$home" "${_HI_PTY_FORCED[@]}" bash -c '
-        source "$_HI_HOME/say-hi/common/core.sh"
-        source "$_HI_HOME/say-hi/scripts/lib.sh"
-        source "$_HI_HOME/say-hi/scripts/table.sh"
-        source "$_HI_HOME/say-hi/scripts/rc.sh"
+      env HOME="$home" "${_HI_PTY_FORCED[@]}" bash -c "$_HI_RC_SOURCES"'
         config_validate_shells && echo GATE_WENT_ON' >"$_HI_WORKDIR/gate-tty.$reply.out" 2>&1 &
     _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-60}"
     [ "$_HI_WAIT_EXIT" != 124 ] || _hi_why _HI_WAIT_EXIT || return 1
@@ -673,19 +669,11 @@ function test_check_shell_configs_flags_a_broken_rc() {
   local home="$_HI_WORKDIR/checkall" out
   mkdir -p "$home"
   printf 'echo fine\n' >"$home/.bashrc"
-  out="$(_hi_rc_out "$home" -- check_shell_configs)" || {
-    _hi_cecho " | a valid .bashrc was flagged: $out" "$RED"
-    return 1
-  }
+  out="$(_hi_rc_out "$home" -- check_shell_configs)" || _hi_because "a valid .bashrc was flagged: $out" || return 1
   printf 'if true; then\n' >"$home/.bashrc"
-  out="$(_hi_rc_out "$home" -- check_shell_configs)" && {
-    _hi_cecho " | a broken .bashrc was waved through; the child saw: $out" "$RED"
-    return 1
-  }
-  [[ "$out" == *".bashrc) has issues"* ]] || {
-    _hi_cecho " | flagged, but not as .bashrc: $out" "$RED"
-    return 1
-  }
+  ! out="$(_hi_rc_out "$home" -- check_shell_configs)" ||
+    _hi_because "a broken .bashrc was waved through; the child saw: $out" || return 1
+  [[ "$out" == *".bashrc) has issues"* ]] || _hi_because "flagged, but not as .bashrc: $out"
 }
 
 # --yes waves a broken config through; a non-interactive run without it aborts
@@ -705,11 +693,7 @@ function test_config_validate_shells_gate() {
 # verdicts are about the parsing, not about what this box has installed.
 function _hi_link_owner_with() {
   local mgrdir="$1" path="$2"
-  bash -c '
-    source "$_HI_HOME/say-hi/common/core.sh"
-    source "$_HI_HOME/say-hi/scripts/lib.sh"
-    source "$_HI_HOME/say-hi/scripts/table.sh"
-    source "$_HI_HOME/say-hi/scripts/rc.sh"
+  bash -c "$_HI_RC_SOURCES"'
     PATH="$1"
     link_owner "$2"' link_owner_probe "$mgrdir" "$path"
 }
@@ -724,23 +708,11 @@ function test_link_owner_per_package_manager() {
     answer="${mgr#*|}"
     want="${answer#*|}"
     answer="${answer%%|*}"
-    mkdir -p "$home/$name.bin"
-    printf '%s\n' '#!/bin/sh' 'case "$*" in' "*/usr/bin/hi*) echo '$answer' ;;" '*) exit 1 ;;' 'esac' \
-      >"$home/$name.bin/$name"
-    chmod +x "$home/$name.bin/$name"
-    got="$(_hi_link_owner_with "$home/$name.bin" /usr/bin/hi)" || {
-      _hi_cecho " | $name: link_owner failed on an owned path" "$RED"
-      return 1
-    }
-    [ "$got" = "$want" ] || {
-      _hi_cecho " | $name: got [$got] want [$want]" "$RED"
-      return 1
-    }
+    _hi_script "$home/$name.bin/$name" '#!/bin/sh' 'case "$*" in' "*/usr/bin/hi*) echo '$answer' ;;" '*) exit 1 ;;' 'esac'
+    got="$(_hi_link_owner_with "$home/$name.bin" /usr/bin/hi)" || _hi_because "$name: link_owner failed on an owned path" || return 1
+    [ "$got" = "$want" ] || _hi_because "$name: got [$got] want [$want]" || return 1
     # the same manager, a path nothing owns: no answer, not an empty one
-    ! _hi_link_owner_with "$home/$name.bin" /usr/bin/other >/dev/null || {
-      _hi_cecho " | $name: claimed a path it does not own" "$RED"
-      return 1
-    }
+    ! _hi_link_owner_with "$home/$name.bin" /usr/bin/other >/dev/null || _hi_because "$name: claimed a path it does not own" || return 1
   done
   # no manager at all: failure, not a crash
   ! _hi_link_owner_with "$home/none.bin" /usr/bin/hi >/dev/null || _hi_why home

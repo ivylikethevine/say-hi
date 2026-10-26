@@ -275,8 +275,7 @@ function _hi_carried_client_home() {
   printf 'require("hi_one")\nrequire("hi_two")\n' >"$1/.config/nvim/init.lua"
   printf 'vim.g.hi_one = "HIONE"\n' >"$1/.config/nvim/lua/hi_one.lua"
   printf 'vim.g.hi_two = "HITWO"\n' >"$1/.config/nvim/lua/hi_two.lua"
-  printf '#!/bin/sh\necho HIBIN\n' >"$1/.config/say-hi/bin/hicheck"
-  chmod +x "$1/.config/say-hi/bin/hicheck"
+  _hi_script "$1/.config/say-hi/bin/hicheck" '#!/bin/sh' 'echo HIBIN'
   printf '[user]\n\tname = Hi Check\n\tsigningkey = HIKEY\n[commit]\n\tgpgsign = true\n[alias]\n\thicarried = "!echo HIGITCARRIED"\n' >"$1/.gitconfig"
   printf "export _HI_PLUGINS_ON='git'\n" >"$1/.config/say-hi/settings.sh"
 }
@@ -310,38 +309,46 @@ function _hi_release_tree() {
 # One image per framework, each tests/dockerfiles/framework.Dockerfile with
 # that row's packages and setup script, on top of the shared sshd base. A
 # failed build - these all reach the network - marks its label 0 and the case
-# skips rather than failing the suite.
+# skips rather than failing the suite. Overlapped (_hi_bg), six at a time.
 function _hi_build_frameworks() {
-  local spec label shell pkgs family
+  local spec label shell pkgs family ok ctx="$_HI_WORKDIR/tools"
+  local -a built=()
   for spec in "${_HI_FRAMEWORKS[@]}"; do
     IFS=: read -r label shell pkgs family <<<"$spec"
-    # the context is tests/dockerfiles itself: the one COPY is the script
-    # under frameworks/, and nothing else in that directory is large
-    if _hi_build_image "$label" "hi-fwtest-$label-$$" "the $label case" \
-      --build-arg "BASE=$_HI_SSHD_IMAGE" \
+    # the context is tests/dockerfiles itself: the COPYs are scripts under
+    # frameworks/, and nothing else in that directory is large
+    _hi_fw_bg "$label" --build-arg "BASE=$_HI_SSHD_IMAGE" \
       --build-arg "FRAMEWORK=$label" --build-arg "PKGS=$pkgs" \
-      -f "$(_hi_dockerfile framework)" "$_HI_ROOT/tests/dockerfiles"; then
-      _hi_kv_set _HI_FRAMEWORK_OK "$label" 1
-    else
-      _hi_kv_set _HI_FRAMEWORK_OK "$label" 0
-    fi
+      -f "$(_hi_dockerfile framework)" "$_HI_ROOT/tests/dockerfiles"
   done
-  local ctx="$_HI_WORKDIR/tools"
   mkdir -p "$ctx"
   _hi_sshd_entrypoint "$ctx" /bin/sh
-  if _hi_build_image tools "hi-fwtest-tools-$$" "the tools case" \
-    --build-arg "PKGS=$_HI_TOOLS_PKGS" -f "$(_hi_dockerfile sshd-alpine)" "$ctx"; then
-    _hi_kv_set _HI_FRAMEWORK_OK tools 1
-  else
-    _hi_kv_set _HI_FRAMEWORK_OK tools 0
-  fi
+  _hi_fw_bg tools --build-arg "PKGS=$_HI_TOOLS_PKGS" -f "$(_hi_dockerfile sshd-alpine)" "$ctx"
   # ...and the same Alpine with tmux and zellij and no fish, for the nofish
   # case; an image of its own, so a package it lacks skips that case alone
-  if _hi_build_image nofish "hi-fwtest-nofish-$$" "the nofish case" \
-    --build-arg "PKGS=bash tmux zellij" -f "$(_hi_dockerfile sshd-alpine)" "$ctx"; then
-    _hi_kv_set _HI_FRAMEWORK_OK nofish 1
+  _hi_fw_bg nofish --build-arg "PKGS=bash tmux zellij" -f "$(_hi_dockerfile sshd-alpine)" "$ctx"
+  wait
+  for label in "${built[@]}"; do
+    _hi_bg_ok "$label" ok
+    _hi_kv_set _HI_FRAMEWORK_OK "$label" "$ok"
+  done
+}
+
+# _hi_fw_bg <label> <build args...> - <label>'s image built in the background
+# onto _hi_build_frameworks' `built`, the wave in flight waited out every six
+function _hi_fw_bg() {
+  [ $((${#built[@]} % 6)) -ne 0 ] || wait
+  built+=("$1")
+  _hi_bg "$1" _hi_build_image "$1" "hi-fwtest-$1-$$" "the $1 case" "${@:2}"
+}
+
+# _hi_fw_case <image> <label> <login shell> <family> - <label>'s case on the
+# image built under <image>, or its skip when that build failed
+function _hi_fw_case() {
+  if [ "$(_hi_kv_get _HI_FRAMEWORK_OK "$1")" = 1 ]; then
+    _hi_par_case "$2" _hi_run_framework_case "$2" "$3" "$4" "$1"
   else
-    _hi_kv_set _HI_FRAMEWORK_OK nofish 0
+    _hi_skip "[$2]" "image did not build"
   fi
 }
 
@@ -376,94 +383,68 @@ function _hi_run_framework_case() {
 
   # a prompt case connects from a home of its own, handing the prompt over.
   # ${3%%:*} peels the family down to the tool name alone - prompt:hi:bash
-  # and prompt:hi:zsh both hand hi the same _HI_PROMPT_TOOL=hi
+  # and prompt:hi:zsh both hand hi the same _HI_PROMPT_TOOL=hi. The rest
+  # connect from a home whose configs ride only with their tools, which a
+  # runner lacks, so each names its tools for stubs (git is the runner's own)
+  local home="$_HI_WORKDIR/home-$label" stubs
+  local -a tools=()
   case "$3" in
   prompt:*)
     local prompt_tool="${3#prompt:}"
-    local -x HOME="$_HI_WORKDIR/home-$label" _HI_PROMPT_TOOL="${prompt_tool%%:*}"
-    local -x XDG_CONFIG_HOME="$HOME/.config"
-    _hi_prompt_client_home "$HOME"
+    local -x _HI_PROMPT_TOOL="${prompt_tool%%:*}"
+    _hi_prompt_client_home "$home"
     ;;
   pershell:*)
-    local -x HOME="$_HI_WORKDIR/home-$label" _HI_PROMPT_TOOL="bash:starship hi"
-    local -x XDG_CONFIG_HOME="$HOME/.config"
-    mkdir -p "$HOME"
+    local -x _HI_PROMPT_TOOL="bash:starship hi"
+    mkdir -p "$home"
     ;;
   config)
-    local -x HOME="$_HI_WORKDIR/home-$label"
-    local -x XDG_CONFIG_HOME="$HOME/.config" RIPGREP_CONFIG_PATH="$_HI_WORKDIR/home-$label/.ripgreprc"
-    local -x _HI_CONFIG_DIR="$HOME/.config/say-hi"
-    local -x FZF_DEFAULT_OPTS_FILE="$_HI_WORKDIR/home-$label/.fzfrc"
-    # home's configs ride only with their tools here, and a runner has no
-    # micro, nano, rg, or fzf
-    local stubs
-    stubs="$(_hi_stub_tools tmux micro nano rg fzf)"
-    local -x PATH="$stubs:$PATH"
-    _hi_config_client_home "$HOME"
+    local -x RIPGREP_CONFIG_PATH="$home/.ripgreprc" FZF_DEFAULT_OPTS_FILE="$home/.fzfrc"
+    tools=(tmux micro nano rg fzf)
+    _hi_config_client_home "$home"
     ;;
   tools)
-    local -x HOME="$_HI_WORKDIR/home-$label"
-    local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
     # helix's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported
-    local -x _HI_XDG_CONFIG="$XDG_CONFIG_HOME"
-    # home's configs ride only with their tools here; git is the runner's own
-    local stubs
-    stubs="$(_hi_stub_tools hx kak lazygit)"
-    local -x PATH="$stubs:$PATH"
-    _hi_tools_client_home "$HOME"
+    local -x _HI_XDG_CONFIG="$home/.config"
+    tools=(hx kak lazygit)
+    _hi_tools_client_home "$home"
     ;;
   carried)
-    local -x HOME="$_HI_WORKDIR/home-$label"
-    local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
     # nvim's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported,
     # and git's the global config test_lib.sh points at /dev/null
-    local -x _HI_XDG_CONFIG="$XDG_CONFIG_HOME" GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
-    # home's configs ride only with their tools here; git is the runner's own
-    local stubs
-    stubs="$(_hi_stub_tools nvim)"
-    local -x PATH="$stubs:$PATH"
-    _hi_carried_client_home "$HOME"
+    local -x _HI_XDG_CONFIG="$home/.config" GIT_CONFIG_GLOBAL="$home/.gitconfig"
+    tools=(nvim)
+    _hi_carried_client_home "$home"
     ;;
   hookon | hookshells:* | hookfish)
-    local -x HOME="$_HI_WORKDIR/home-$label"
-    local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
-    # the line the wizard's box and `hi --enable-plugin zoxide` write; a hook
-    # rides only with its tool here, and a runner has no zoxide or atuin
-    local stubs on=zoxide
-    [ "$3" != hookfish ] || on="zoxide atuin"
-    # shellcheck disable=SC2086 # one stub a word
-    stubs="$(_hi_stub_tools $on)"
-    local -x PATH="$stubs:$PATH"
-    mkdir -p "$_HI_CONFIG_DIR"
-    printf "export _HI_PLUGINS_ON='%s'\n" "$on" >"$_HI_CONFIG_DIR/settings.sh"
+    # the line the wizard's box and `hi --enable-plugin zoxide` write
+    tools=(zoxide)
+    [ "$3" != hookfish ] || tools=(zoxide atuin)
+    mkdir -p "$home/.config/say-hi"
+    printf "export _HI_PLUGINS_ON='%s'\n" "${tools[*]}" >"$home/.config/say-hi/settings.sh"
     # a table of the client's own keeps the hook to the shells it names
-    case "$3" in
-    hookshells:*)
-      printf '[hooks.zoxide]\ninit = "zoxide init {shell}"\nshells = "%s"\n' "${3#hookshells:}" >"$_HI_CONFIG_DIR/plugins"
+    case "$3" in hookshells:*)
+      printf '[hooks.zoxide]\ninit = "zoxide init {shell}"\nshells = "%s"\n' "${3#hookshells:}" >"$home/.config/say-hi/plugins"
       ;;
     esac
     ;;
   editors | editors-release)
-    local -x HOME="$_HI_WORKDIR/home-$label"
-    local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
     # nvim's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported
-    local -x _HI_XDG_CONFIG="$XDG_CONFIG_HOME"
-    # home's configs ride only with their tools here
-    local stubs
-    stubs="$(_hi_stub_tools vim nvim)"
-    local -x PATH="$stubs:$PATH"
-    _hi_editors_client_home "$HOME"
+    local -x _HI_XDG_CONFIG="$home/.config"
+    tools=(vim nvim)
+    _hi_editors_client_home "$home"
     ;;
   nofish)
-    local -x HOME="$_HI_WORKDIR/home-$label"
-    local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
-    # home's configs ride only with their tools here
-    local stubs
-    stubs="$(_hi_stub_tools tmux zellij)"
-    local -x PATH="$stubs:$PATH"
-    _hi_nofish_client_home "$HOME"
+    tools=(tmux zellij)
+    _hi_nofish_client_home "$home"
     ;;
+  *) home="" ;;
   esac
+  [ -z "$home" ] || local -x HOME="$home" XDG_CONFIG_HOME="$home/.config"
+  if [ "${#tools[@]}" -gt 0 ]; then
+    stubs="$(_hi_fake_path "stub-$label" "${tools[@]}")"
+    local -x _HI_CONFIG_DIR="$home/.config/say-hi" PATH="$stubs:$PATH"
+  fi
 
   # the client is a release's tree rather than this checkout
   if [ "$3" = editors-release ]; then
@@ -517,27 +498,16 @@ function run_framework_tests() {
   _hi_par_begin "framework cases"
   for spec in "${_HI_FRAMEWORKS[@]}"; do
     IFS=: read -r label shell pkgs family <<<"$spec"
-    if [ "$(_hi_kv_get _HI_FRAMEWORK_OK "$label")" = 1 ]; then
-      _hi_par_case "$label" _hi_run_framework_case "$label" "$shell" "$family"
-    else
-      _hi_skip "[$label]" "image did not build"
-    fi
+    _hi_fw_case "$label" "$label" "$shell" "$family"
   done
-  if [ "$(_hi_kv_get _HI_FRAMEWORK_OK tools)" = 1 ]; then
-    _hi_par_case tools _hi_run_framework_case tools /bin/ash tools
-    # ...and the same image from another home: a neovim config in more than
-    # one file, a script of the overlay's bin/, and the git plugin
-    _hi_par_case carried _hi_run_framework_case carried /bin/ash carried tools
-    # ...and from a third, with a vimrc and an init.lua, to vim and neovim both
-    _hi_par_case editors _hi_run_framework_case editors /bin/ash editors tools
-    # ...and the same from a tree a release ships
-    _hi_par_case editors-release _hi_run_framework_case editors-release /bin/ash editors-release tools
-  else
-    _hi_skip "[tools]" "image did not build"
-    _hi_skip "[carried]" "image did not build"
-    _hi_skip "[editors]" "image did not build"
-    _hi_skip "[editors-release]" "image did not build"
-  fi
+  _hi_fw_case tools tools /bin/ash tools
+  # ...and the same image from another home: a neovim config in more than
+  # one file, a script of the overlay's bin/, and the git plugin
+  _hi_fw_case tools carried /bin/ash carried
+  # ...and from a third, with a vimrc and an init.lua, to vim and neovim both
+  _hi_fw_case tools editors /bin/ash editors
+  # ...and the same from a tree a release ships
+  _hi_fw_case tools editors-release /bin/ash editors-release
 
   # Three more containers off the starship, p10k, and bash-it images above,
   # with the prompt handed to hi instead of the framework - proof that the
@@ -548,52 +518,28 @@ function run_framework_tests() {
   local program
   for spec in "${_HI_PROMPT_HI[@]}"; do
     IFS=: read -r label shell program <<<"$spec"
-    family="prompt:hi:$program"
-    if [ "$(_hi_kv_get _HI_FRAMEWORK_OK "$label")" = 1 ]; then
-      _hi_par_case "$label-hi" _hi_run_framework_case "$label-hi" "$shell" "$family" "$label"
-    else
-      _hi_skip "[$label-hi]" "image did not build"
-    fi
+    _hi_fw_case "$label" "$label-hi" "$shell" "prompt:hi:$program"
   done
   # ...and three off the starship image, one per login shell, the prompt
   # handed out shell by shell
   for spec in "${_HI_PROMPT_PER_SHELL[@]}"; do
-    label="starship-as-${spec%%:*}" shell="${spec#*:}"
-    if [ "$(_hi_kv_get _HI_FRAMEWORK_OK starship)" = 1 ]; then
-      _hi_par_case "$label" _hi_run_framework_case "$label" "$shell" "pershell:${spec%%:*}" starship
-    else
-      _hi_skip "[$label]" "image did not build"
-    fi
+    _hi_fw_case starship "starship-as-${spec%%:*}" "${spec#*:}" "pershell:${spec%%:*}"
   done
   # ...and one off the zoxide image under zsh, where only its ~/.bashrc
   # starts zoxide: the hook is off by default, the client's settings name it
   # in $_HI_PLUGINS_ON, and hi runs its init
-  if [ "$(_hi_kv_get _HI_FRAMEWORK_OK zoxide)" = 1 ]; then
-    _hi_par_case zoxide-on _hi_run_framework_case zoxide-on /usr/bin/zsh hookon zoxide
-    # ...and twice more with a `shells` on the hook: kept to zsh it runs
-    # there, kept to bash it does not
-    _hi_par_case zoxide-zsh _hi_run_framework_case zoxide-zsh /usr/bin/zsh hookshells:zsh zoxide
-    _hi_par_case zoxide-bash _hi_run_framework_case zoxide-bash /usr/bin/zsh hookshells:bash zoxide
-  else
-    _hi_skip "[zoxide-on]" "image did not build"
-    _hi_skip "[zoxide-zsh]" "image did not build"
-    _hi_skip "[zoxide-bash]" "image did not build"
-  fi
+  _hi_fw_case zoxide zoxide-on /usr/bin/zsh hookon
+  # ...and twice more with a `shells` on the hook: kept to zsh it runs
+  # there, kept to bash it does not
+  _hi_fw_case zoxide zoxide-zsh /usr/bin/zsh hookshells:zsh
+  _hi_fw_case zoxide zoxide-bash /usr/bin/zsh hookshells:bash
   # ...and one off the atuin image under fish, whose own config starts
   # neither tool: the client's settings name zoxide and atuin, and hi runs
   # both inits there
-  if [ "$(_hi_kv_get _HI_FRAMEWORK_OK atuin)" = 1 ]; then
-    _hi_par_case hooks-fish _hi_run_framework_case hooks-fish /usr/bin/fish hookfish atuin
-  else
-    _hi_skip "[hooks-fish]" "image did not build"
-  fi
+  _hi_fw_case atuin hooks-fish /usr/bin/fish hookfish
   # ...and a target with no fish, from a home whose tmux and zellij configs
   # ask for it
-  if [ "$(_hi_kv_get _HI_FRAMEWORK_OK nofish)" = 1 ]; then
-    _hi_par_case nofish _hi_run_framework_case nofish /bin/ash nofish
-  else
-    _hi_skip "[nofish]" "image did not build"
-  fi
+  _hi_fw_case nofish nofish /bin/ash nofish
   _hi_par_wait
 
   for spec in "${_HI_FRAMEWORKS[@]}"; do

@@ -16,13 +16,8 @@ _HI_PAR_LOCAL=1
 # _hi_report_counts/_hi_report_skip do, and exits <exit>. One writer rather
 # than three near-copies of the same hand-escaped printf format.
 function _hi_fixture() {
-  {
-    printf '#!/usr/bin/env bash\nprintf "ran:%s\\n"\n' "$1"
-    # shellcheck disable=SC2016 # $_HI_COUNTS_FILE is resolved when the fixture runs
-    [ -n "${3:-}" ] && printf 'printf "%%s\\n" "%s" >"$_HI_COUNTS_FILE"\n' "$3"
-    printf 'exit %s\n' "$2"
-  } >"$_HI_FIXTURES/$1.sh"
-  chmod +x "$_HI_FIXTURES/$1.sh"
+  _hi_script "$_HI_FIXTURES/$1.sh" '#!/usr/bin/env bash' "printf 'ran:%s\\n' $1" \
+    ${3:+"printf '%s\\n' '$3' >\"\$_HI_COUNTS_FILE\""} "exit $2"
 }
 
 # A suite reporting a case tally: "<total> <failed> [skipped]", exiting with
@@ -51,16 +46,11 @@ function _hi_skipping_fixture() {
 # set passes it that way rather than exporting around the call - keyed by
 # cksum because it contains newlines; a collision would show up as a case
 # failing, not as a quietly wrong pass.
-_HI_RUN_MEMO_DIR=""
-
 function _hi_run_runner() {
-  local table="$1" line memo key
+  local table="$1" line memo key dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/runmemo"
   key="$table"$'\x1f'"$*"$'\x1f'"${_HI_RUN_WITH:-}"
-  [ -n "$_HI_RUN_MEMO_DIR" ] || {
-    _HI_RUN_MEMO_DIR="$_HI_WORKDIR/runmemo"
-    mkdir -p "$_HI_RUN_MEMO_DIR"
-  }
-  memo="$_HI_RUN_MEMO_DIR/$(printf '%s' "$key" | cksum | tr -cd '0-9')"
+  [ -d "$dir" ] || mkdir -p "$dir"
+  memo="$dir/$(printf '%s' "$key" | cksum | tr -cd '0-9')"
   if [ -f "$memo.exit" ]; then
     _HI_RUN_EXIT="$(cat "$memo.exit")"
     _HI_RUN_OUT="$(cat "$memo.out")"
@@ -170,10 +160,8 @@ function test_a_malformed_or_out_of_range_shard_is_an_error() {
   local bad
   for bad in 3/2 0/2 2 a/b 1/0 /2 2/ 1/2/3; do
     _hi_run_runner $'a:green.sh' --shard "$bad"
-    [ "$_HI_RUN_EXIT" -eq 1 ] && [[ "$_HI_RUN_OUT" == *"--shard"* ]] || {
-      _hi_cecho " | --shard $bad was accepted (exit $_HI_RUN_EXIT)" "$RED"
-      return 1
-    }
+    [ "$_HI_RUN_EXIT" -eq 1 ] && [[ "$_HI_RUN_OUT" == *"--shard"* ]] ||
+      _hi_because "--shard $bad was accepted (exit $_HI_RUN_EXIT)" || return 1
   done
 }
 
@@ -237,56 +225,53 @@ function test_summary_lists_every_suite_with_a_duration() {
     printf '%s\n' "$_HI_RUN_OUT" | grep -qE 'beta .*FAILED \(3\)'; } || _hi_why _HI_RUN_OUT
 }
 
-# The summary rows carry color, so every measurement below strips the escapes
-# first and then reads the row whose name cell is $1 - "SUITE" for the header
-# and "TOTAL" for the totals row, both of which sit in the same column.
-function _hi_summary_field() {
-  printf '%s\n' "$(_hi_strip_ansi "$_HI_RUN_OUT")" |
-    awk -v n="$1" -v what="$2" '$1 == "|" && $2 == n {
+# _hi_run_row <var> <name> <len|col> [ere] - the first row of the last run
+# whose name cell is <name> ("SUITE" for the header, "TOTAL" for the totals
+# row) and that matches <ere>: its length, or the column its PASS starts in.
+# The rows carry color, so the escapes are stripped first, once per run
+# output ($_HI_RUN_PLAIN).
+function _hi_run_row() {
+  [ "${_HI_RUN_PLAIN_OF-}" = "$_HI_RUN_OUT" ] || {
+    _HI_RUN_PLAIN="$(_hi_strip_ansi "$_HI_RUN_OUT")"
+    _HI_RUN_PLAIN_OF="$_HI_RUN_OUT"
+  }
+  printf -v "$1" '%s' "$(printf '%s\n' "$_HI_RUN_PLAIN" |
+    awk -v n="$2" -v what="$3" -v re="${4:-}" '$1 == "|" && $2 == n && $0 ~ re {
       print (what == "len" ? length($0) : index($0, "PASS")); exit
-    }'
+    }')"
 }
 
 function test_summary_pads_names_to_the_widest() {
-  local short long
+  local col_a col_long
   _hi_run_runner $'a:green.sh\nlongername:green.sh'
   # a short name is padded out to the column width, so the STATUS cell starts
   # at the same offset on every row
-  short="$(_hi_summary_field a col)"
-  long="$(_hi_summary_field longername col)"
-  [ -n "$short" ] && [ "$short" != 0 ] && [ "$short" = "$long" ] || _hi_why short long
+  _hi_run_row col_a a col
+  _hi_run_row col_long longername col
+  [ -n "$col_a" ] && [ "$col_a" != 0 ] && [ "$col_a" = "$col_long" ] || _hi_why col_a col_long
 }
 
 # The per-suite status line collapsed mode leaves behind is right-aligned to
 # the same _HI_MAX_WIDTH the summary table spans, so a run's verdicts read as
 # one column. Measured off the status lines only - they carry "PASS (", which
 # the summary row for the same suite does not.
-function _hi_status_line_len() {
-  printf '%s\n' "$(_hi_strip_ansi "$_HI_RUN_OUT")" |
-    awk -v n="$1" '$1 == "|" && $2 == n && /\(/ { print length($0); exit }'
-}
-
 function test_status_lines_span_hi_max_width() {
-  local name
+  local name got
   _HI_RUN_WITH="_HI_MAX_WIDTH=72" _hi_run_runner $'a:green.sh\nlongername:green.sh'
   for name in a longername; do
-    [ "$(_hi_status_line_len "$name")" = 72 ] || {
-      _hi_cecho " | '$name' status line is $(_hi_status_line_len "$name") wide, expected 72" "$RED"
-      return 1
-    }
+    _hi_run_row got "$name" len '[(]'
+    [ "$got" = 72 ] || _hi_because "'$name' status line is $got wide, expected 72" || return 1
   done
 }
 
 # the point of the alignment: two names of different lengths put their verdict
 # in the same column, rather than each one ragging along behind its name
 function test_status_lines_align_verdicts_in_one_column() {
-  local short long
+  local col_a col_long
   _hi_run_runner $'a:green.sh\nlongername:green.sh'
-  short="$(printf '%s\n' "$(_hi_strip_ansi "$_HI_RUN_OUT")" |
-    awk '$1 == "|" && $2 == "a" && /PASS \(/ { print index($0, "PASS"); exit }')"
-  long="$(printf '%s\n' "$(_hi_strip_ansi "$_HI_RUN_OUT")" |
-    awk '$1 == "|" && $2 == "longername" && /PASS \(/ { print index($0, "PASS"); exit }')"
-  [ -n "$short" ] && [ "$short" != 0 ] && [ "$short" = "$long" ] || _hi_why short long
+  _hi_run_row col_a a col 'PASS [(]'
+  _hi_run_row col_long longername col 'PASS [(]'
+  [ -n "$col_a" ] && [ "$col_a" != 0 ] && [ "$col_a" = "$col_long" ] || _hi_why col_a col_long
 }
 
 # a name with no room left for the verdict pushes it right instead of losing
@@ -299,20 +284,18 @@ function test_status_line_narrow_width_keeps_the_verdict() {
 # the table is sized like every other banner hi prints - see common/core.sh's
 # _HI_MAX_WIDTH, which the _hi_h1 rules above and below the table already use
 function test_summary_rows_span_hi_max_width() {
-  local row
+  local row got
   _HI_RUN_WITH="_HI_MAX_WIDTH=72" _hi_run_runner $'a:green.sh\nlongername:green.sh'
   for row in SUITE a longername TOTAL; do
-    [ "$(_hi_summary_field "$row" len)" = 72 ] || {
-      _hi_cecho " | row '$row' is $(_hi_summary_field "$row" len) wide, expected 72" "$RED"
-      return 1
-    }
+    _hi_run_row got "$row" len
+    [ "$got" = 72 ] || _hi_because "row '$row' is $got wide, expected 72" || return 1
   done
 }
 
 function test_summary_tracks_a_wider_hi_max_width() {
   local got
   _HI_RUN_WITH="_HI_MAX_WIDTH=110" _hi_run_runner $'a:green.sh'
-  got="$(_hi_summary_field TOTAL len)"
+  _hi_run_row got TOTAL len
   [ "$got" = 110 ] || _hi_why got
 }
 
@@ -321,7 +304,7 @@ function test_summary_tracks_a_wider_hi_max_width() {
 function test_summary_narrow_width_does_not_truncate_names() {
   local got
   _HI_RUN_WITH="_HI_MAX_WIDTH=20" _hi_run_runner $'averylongsuitename:green.sh'
-  got="$(_hi_summary_field averylongsuitename len)"
+  _hi_run_row got averylongsuitename len
   [ -n "$got" ] || _hi_why got
 }
 
@@ -370,18 +353,14 @@ function test_summary_totals_sum_every_suites_cases() {
 # --totals-file is what CI reads to keep README's tests badge honest, so the
 # four numbers have to be the table's own and in a fixed order.
 function test_totals_file_carries_the_summary_numbers() {
-  local out got
+  local out
   _hi_counting_fixture six 6 1
   _hi_counting_fixture four 4 0
   out="$_HI_WORKDIR/totals.out"
   _hi_run_runner $'six:six.sh\nfour:four.sh' --totals-file "$out"
-  [ -s "$out" ] || {
-    _hi_cecho " | --totals-file wrote nothing" "$RED"
-    return 1
-  }
+  [ -s "$out" ] || _hi_because "--totals-file wrote nothing" || return 1
   # 9 passed, 1 failed, 0 skipped, 2 suites
-  got="$(cat "$out")"
-  [ "$got" = "9 1 0 2" ] || _hi_why got out
+  _hi_file_is "$out" "9 1 0 2" || _hi_why out
 }
 
 # without a path it must stay silent rather than write somewhere of its own
@@ -406,15 +385,11 @@ function test_summary_totals_ignore_suites_without_counts() {
 # has no such section
 function test_summary_lists_the_slowest_cases() {
   local i out
-  {
-    printf '#!/usr/bin/env bash\n'
-    # shellcheck disable=SC2016 # $_HI_FAILS_FILE is resolved when the fixture runs
-    for i in 2 67 3 4 5 6 7 8 9 10 11 12; do
-      printf 'printf "%%s\\tcase %%s\\n" %s %s >>"$_HI_FAILS_FILE.times"\n' "$i" "$i"
-    done
-    printf 'exit 0\n'
-  } >"$_HI_FIXTURES/timed.sh"
-  chmod +x "$_HI_FIXTURES/timed.sh"
+  local -a body=()
+  for i in 2 67 3 4 5 6 7 8 9 10 11 12; do
+    body+=("printf '%s\\tcase %s\\n' $i $i >>\"\$_HI_FAILS_FILE.times\"")
+  done
+  _hi_script "$_HI_FIXTURES/timed.sh" '#!/usr/bin/env bash' "${body[@]}" 'exit 0'
   _hi_run_runner $'timed:timed.sh'
   out="$(_hi_strip_ansi "$_HI_RUN_OUT")"
   [[ "$out" == *"Slowest cases"*"67s  timed: case 67"*"12s  timed: case 12"*" 4s  timed: case 4"* ]] ||
@@ -583,12 +558,8 @@ function test_ci_annotates_failures_unfolded() {
 function _hi_progress_run() {
   local _HI_RUNNER_WIDTH=2
   _hi_counting_fixture prog_counted 3 0
-  {
-    printf '#!/usr/bin/env bash\n'
-    # shellcheck disable=SC2016 # resolves when the fixture runs
-    printf 'printf "4 1 0\\n" >"$_HI_PROGRESS_FILE"\n'
-  } >"$_HI_FIXTURES/prog_live.sh"
-  chmod +x "$_HI_FIXTURES/prog_live.sh"
+  # shellcheck disable=SC2016 # resolves when the fixture runs
+  _hi_script "$_HI_FIXTURES/prog_live.sh" '#!/usr/bin/env bash' 'printf "4 1 0\n" >"$_HI_PROGRESS_FILE"'
   _hi_run_runner $'prog_counted:prog_counted.sh\nprog_live:prog_live.sh'
 }
 
@@ -607,24 +578,13 @@ function test_progress_line_counts_suites_and_cases() {
 # holds the name.
 function _hi_stall_run() {
   local _HI_RUNNER_WIDTH=2 _HI_SUITE_STALL=4
-  {
-    printf '#!/usr/bin/env bash\nn=0\n'
-    # shellcheck disable=SC2016 # resolves when the fixture runs
-    printf 'until [ -s "${_HI_PROGRESS_FILE%%/*}/2.progress.case" ] || [ "$n" -ge 20 ]; do\n'
-    # shellcheck disable=SC2016
-    printf '  sleep 1\n  n=$((n + 1))\ndone\n'
-    # shellcheck disable=SC2016
-    printf 'printf "ran:stall_ok\\n"\nprintf "2 0\\n" >"$_HI_COUNTS_FILE"\n'
-  } >"$_HI_FIXTURES/stall_ok.sh"
-  {
-    printf '#!/usr/bin/env bash\n'
-    # shellcheck disable=SC2016
-    printf 'printf "1 0 0\\n" >"$_HI_PROGRESS_FILE"\n'
-    # shellcheck disable=SC2016
-    printf 'printf "the case that hangs\\n" >"$_HI_PROGRESS_FILE.case"\n'
-    printf 'sleep 300 &\nwait\n'
-  } >"$_HI_FIXTURES/stall_hung.sh"
-  chmod +x "$_HI_FIXTURES/stall_ok.sh" "$_HI_FIXTURES/stall_hung.sh"
+  # shellcheck disable=SC2016 # resolves when the fixture runs
+  _hi_script "$_HI_FIXTURES/stall_ok.sh" '#!/usr/bin/env bash' n=0 \
+    'until [ -s "${_HI_PROGRESS_FILE%/*}/2.progress.case" ] || [ "$n" -ge 20 ]; do' '  sleep 1' '  n=$((n + 1))' 'done' \
+    'printf "ran:stall_ok\n"' 'printf "2 0\n" >"$_HI_COUNTS_FILE"'
+  # shellcheck disable=SC2016
+  _hi_script "$_HI_FIXTURES/stall_hung.sh" '#!/usr/bin/env bash' 'printf "1 0 0\n" >"$_HI_PROGRESS_FILE"' \
+    'printf "the case that hangs\n" >"$_HI_PROGRESS_FILE.case"' 'sleep 300 &' wait
   _HI_RUN_WITH="_HI_PROGRESS=1" _hi_run_runner $'stall_ok:stall_ok.sh\nstall_hung:stall_hung.sh'
 }
 
@@ -642,17 +602,11 @@ function test_a_hung_suite_is_ended_and_named_by_its_case() {
 function test_the_deadline_ends_the_run_with_its_evidence() {
   local _HI_RUNNER_WIDTH=2 n
   for n in 1 2; do
-    {
-      printf '#!/usr/bin/env bash\n'
-      # shellcheck disable=SC2016
-      printf 'printf "1 0 0\\n" >"$_HI_PROGRESS_FILE"\n'
-      # shellcheck disable=SC2016
-      printf 'printf "the case that waits\\n" >"$_HI_PROGRESS_FILE.case"\n'
-      printf 'sleep 300 &\nwait\n'
-    } >"$_HI_FIXTURES/late_$n.sh"
+    # shellcheck disable=SC2016
+    _hi_script "$_HI_FIXTURES/late_$n.sh" '#!/usr/bin/env bash' 'printf "1 0 0\n" >"$_HI_PROGRESS_FILE"' \
+      'printf "the case that waits\n" >"$_HI_PROGRESS_FILE.case"' 'sleep 300 &' wait
   done
-  printf '#!/usr/bin/env bash\nprintf "ran:late_3\\n"\n' >"$_HI_FIXTURES/late_3.sh"
-  chmod +x "$_HI_FIXTURES"/late_[123].sh
+  _hi_script "$_HI_FIXTURES/late_3.sh" '#!/usr/bin/env bash' 'printf "ran:late_3\n"'
   _HI_RUN_WITH="_HI_RUN_DEADLINE=8" _hi_run_runner $'late_1:late_1.sh\nlate_2:late_2.sh\nlate_3:late_3.sh'
   [[ "$_HI_RUN_EXIT" == 3 && "$_HI_RUN_OUT" == *"the run's deadline of 8s passed: the suite is ended here, in: the case that waits"* &&
     "$_HI_RUN_OUT" == *"its processes then:"*sleep* && "$_HI_RUN_OUT" == *"ended at the run's 8s deadline in: the case that waits"* &&
@@ -663,8 +617,7 @@ function test_the_deadline_ends_the_run_with_its_evidence() {
 # The machine is sampled while suites run and summed up at the end: CPU busy,
 # and CPU busy by how many suites were running at once
 function test_machine_use_is_reported() {
-  printf '#!/usr/bin/env bash\nsleep 3\n' >"$_HI_FIXTURES/busy.sh"
-  chmod +x "$_HI_FIXTURES/busy.sh"
+  _hi_script "$_HI_FIXTURES/busy.sh" '#!/usr/bin/env bash' 'sleep 3'
   _HI_RUN_WITH="_HI_USAGE=1" _hi_run_runner 'busy:busy.sh'
   [[ "$_HI_RUN_OUT" == *"Machine use"* && "$_HI_RUN_OUT" == *"CPU busy: average "* &&
     "$_HI_RUN_OUT" == *"suites at once"*" 1 "* ]] || _hi_why _HI_RUN_OUT
@@ -713,13 +666,9 @@ function test_ci_turns_the_progress_line_on() {
 # the recap under the summary: a suite that noted its failing cases gets them
 # listed by name, one that failed silently still gets one line
 function test_failing_cases_are_recapped_under_the_summary() {
-  {
-    printf '#!/usr/bin/env bash\nprintf "ran:noted\\n"\n'
-    # shellcheck disable=SC2016 # $_HI_FAILS_FILE resolves when the fixture runs
-    printf 'printf "%%s\\n" "case-x" >>"$_HI_FAILS_FILE"\n'
-    printf 'exit 1\n'
-  } >"$_HI_FIXTURES/noted.sh"
-  chmod +x "$_HI_FIXTURES/noted.sh"
+  # shellcheck disable=SC2016 # $_HI_FAILS_FILE resolves when the fixture runs
+  _hi_script "$_HI_FIXTURES/noted.sh" '#!/usr/bin/env bash' 'printf "ran:noted\n"' \
+    'printf "%s\n" "case-x" >>"$_HI_FAILS_FILE"' 'exit 1'
   _hi_run_runner $'noted:noted.sh\nquiet:red.sh'
   [[ "$_HI_RUN_OUT" == *"Failing cases"* &&
     "$_HI_RUN_OUT" == *"noted: case-x"* &&

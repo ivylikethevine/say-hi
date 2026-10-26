@@ -163,10 +163,10 @@ function writeUsage(text) {
       "",
     );
     rows.forEach((example, i) => {
-      // `-#<anchor>`: no image, the README's demo at <anchor> instead
+      // `-#<anchor>`: no image, the tour's story at <anchor> instead
       if (example.startsWith("-#")) {
         out.push(
-          `It changes how a connect runs, which [the README's demo](../README.md${example.slice(1)}) shows.`,
+          `It changes how a connect runs, which [the tour's story](TOUR.md${example.slice(1)}) shows.`,
           "",
         );
         return;

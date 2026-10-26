@@ -37,10 +37,7 @@ function _hi_menu_layout_at() {
   want="$_HI_MENU_EVERY_TITLE"
   # under 60 columns a page's title is its name alone
   ((w >= 60)) || want="${want//hi --configure: /}"
-  [ "$titles" = "$want" ] || {
-    _hi_cecho " | the pages at $w columns: [$titles]" "$RED"
-    return 1
-  }
+  [ "$titles" = "$want" ] || _hi_because "the pages at $w columns: [$titles]" || return 1
   [ "$over" = 0 ]
 }
 
@@ -213,49 +210,9 @@ function test_menu_pages_fit_24_rows() {
   done
 }
 
-function test_menu_header_grid_at_40() { _hi_menu_grid_at 40 2; }
-
-# At 80 columns every page, the main one included, fits a 24-row terminal:
-# a draw's lines, then the prompt's own row
-function test_menu_pages_fit_24_rows() {
-  local k rows
-  _HI_TERM_COLS=80 _hi_cfg_pty hub_rows "$_HI_MENU_EVERY_PAGE" '' run_configure "" || _hi_why || return 1
-  for k in 1 2 3 4 5 6 7; do
-    rows=$(($(_hi_cfg_screen hub_rows "$k" | wc -l) + 1))
-    ((rows <= 24)) || _hi_because "draw $k is $rows rows" || return 1
-  done
-}
-
-# At 80 columns every page, the main one included, fits a 24-row terminal:
-# a draw's lines, then the prompt's own row
-function test_menu_pages_fit_24_rows() {
-  local k rows
-  _HI_TERM_COLS=80 _hi_cfg_pty hub_rows "$_HI_MENU_EVERY_PAGE" '' run_configure "" || _hi_why || return 1
-  for k in 1 2 3 4 5 6 7; do
-    rows=$(($(_hi_cfg_screen hub_rows "$k" | wc -l) + 1))
-    ((rows <= 24)) || _hi_because "draw $k is $rows rows" || return 1
-  done
-}
-
 function test_menu_layout_at_80() { _hi_menu_layout_at 80; }
 
 function test_menu_layout_at_40() { _hi_menu_layout_at 40; }
-
-# a value away from its default says the default beside it; one at it does not
-function test_menu_value_shows_its_default() {
-  _HI_TERM_COLS=80 _hi_cfg_pty hub_def 'i\ns\n' "export _HI_MAX_WIDTH=100" run_configure "" || _hi_why || return 1
-  _hi_cfg_has hub_def "width                 100 (default 80)" &&
-    ! _hi_cfg_has hub_def "(default 172.*)" || _hi_why
-}
-
-function test_menu_layout_at_40() { _hi_menu_layout_at 40; }
-
-# a value away from its default says the default beside it; one at it does not
-function test_menu_value_shows_its_default() {
-  _HI_TERM_COLS=80 _hi_cfg_pty hub_def 'i\ns\n' "export _HI_MAX_WIDTH=100" run_configure "" || _hi_why || return 1
-  _hi_cfg_has hub_def "width                 100 (default 80)" &&
-    ! _hi_cfg_has hub_def "(default 172.*)" || _hi_why
-}
 
 # a value away from its default says the default beside it; one at it does not
 function test_menu_value_shows_its_default() {

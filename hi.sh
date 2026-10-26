@@ -143,6 +143,10 @@ export _HI_SHELL_LADDER="${_HI_SHELL_TREE//bash /}"
 # stands in for the size until the script is measured. GLOSSARY: HI.44
 _HI_SIZE_TOKEN="@@SIZE@@"
 
+# the TERMs every target has an entry for: the preamble takes them on trust,
+# and the client sends its own terminfo for no other. GLOSSARY: HI.22
+_HI_TERM_KNOWN="xterm xterm-256color xterm-color screen screen-256color tmux tmux-256color linux vt100 vt220 dumb"
+
 # GLOSSARY: HI.17 - base64 over openssl (and openssl where base64 is
 # missing), the -d/-D ladder, and the `tr` fold
 _HI_ARMOR="base64"
@@ -206,6 +210,10 @@ function _hi_session_env() {
   # the client's own editors, for load.sh's _hi_session_editor to try first
   ! _hi_cmd_name "${EDITOR:-}" _hi_se_v || printf '_HI_CLIENT_EDITOR\t%s\n' "$_hi_se_v"
   ! _hi_cmd_name "${VISUAL:-}" _hi_se_v || printf '_HI_CLIENT_VISUAL\t%s\n' "$_hi_se_v"
+  # the client's UTF-8 locale, for the target to try where its own is none
+  # (_hi_locale_probe)
+  _hi_se_v="${LC_ALL:-${LC_CTYPE:-${LANG:-}}}"
+  case "$_hi_se_v" in *[Uu][Tt][Ff]-8* | *[Uu][Tt][Ff]8*) printf '_HI_CLIENT_LOCALE\t%s\n' "$_hi_se_v" ;; esac
   _hi_client_verdicts '%s\t%s\n'
 }
 
@@ -893,7 +901,7 @@ function _hi_remote_preamble() {
       _hi_t0=\$(_hi_now)
 $(_hi_env_each '      export %s=%s\n')
       case "\$TERM" in
-      xterm | xterm-256color | xterm-color | screen | screen-256color | tmux | tmux-256color | linux | vt100 | vt220 | dumb | '') ;;
+      ${_HI_TERM_KNOWN// / | } | '') ;;
       *)
         _hi_ti_ok=""
         _hi_ti_c=\${TERM%"\${TERM#?}"}
@@ -905,10 +913,63 @@ $(_hi_env_each '      export %s=%s\n')
             break
           fi
         done
-        [ -n "\$_hi_ti_ok" ] || export TERM=xterm-256color
+        [ -n "\$_hi_ti_ok" ] || {
+          _hi_ti_was=\$TERM
+          export TERM=xterm-256color
+        }
         ;;
       esac
+$(_hi_locale_probe)
 REMOTE
+}
+
+# _hi_terminfo_line <outvar> - the script's line that compiles the client's
+# terminfo entry into the session tree, where the preamble swapped a TERM the
+# target had no entry for, and puts the TERM back (GLOSSARY: HI.22): `infocmp
+# -x` here, `tic -x -o` there, the tree on TERMINFO_DIRS ahead of the target's
+# own. Empty for a TERM every target knows, or one this client cannot
+# describe; a target with no `tic` keeps the swap.
+function _hi_terminfo_line() {
+  local _hi_tl_src=""
+  printf -v "$1" '%s' ''
+  case " $_HI_TERM_KNOWN " in *" ${TERM:-dumb} "*) return 0 ;; esac
+  command -v infocmp >/dev/null 2>&1 || return 0
+  _hi_tl_src="$(infocmp -x "$TERM" 2>/dev/null)" || return 0
+  [ -n "$_hi_tl_src" ] || return 0
+  # shellcheck disable=SC2016 # the target's to expand
+  printf -v "$1" 'if [ -n "${_hi_ti_was:-}" ] && command -v tic >/dev/null 2>&1 && mkdir -p "$_HI_ROOT/terminfo"; then\n        %s\n      fi' \
+    "$(printf '%s\n' "$_hi_tl_src" | _hi_armored_line '|' 'tic -x -o "$_HI_ROOT/terminfo" - >/dev/null 2>&1 && export TERMINFO_DIRS="$_HI_ROOT/terminfo:${TERMINFO_DIRS:-}" TERM="$_hi_ti_was"')"
+}
+
+# The target's half of the glyph decision (GLOSSARY: HI.12), for a client
+# that ships glyphs: a session whose locale is no UTF-8 one the target has
+# installed counts a glyph's bytes as columns, so it is given the session's,
+# the client's ($_HI_CLIENT_LOCALE), or C.UTF-8 as LC_CTYPE, the first that
+# `locale -a` lists, and ASCII where none is or an LC_ALL says otherwise,
+# which is the user's to keep. A target with no `locale` is left as it is.
+function _hi_locale_probe() {
+  cat <<'LOCALE'
+      if [ "${_HI_ASCII:-}" = 0 ] && _hi_la=$(locale -a 2>/dev/null | tr 'A-Z' 'a-z' | sed 's/utf-8/utf8/') && [ -n "$_hi_la" ]; then
+        _hi_lc_ok() {
+          case "$1" in *[Uu][Tt][Ff]-8* | *[Uu][Tt][Ff]8*) ;; *) return 1 ;; esac
+          printf '%s\n' "$_hi_la" | grep -x "$(printf '%s' "$1" | tr 'A-Z' 'a-z' | sed 's/utf-8/utf8/')" >/dev/null
+        }
+        if _hi_lc_ok "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}"; then
+          :
+        elif [ -n "${LC_ALL:-}" ]; then
+          export _HI_ASCII=1
+        else
+          _hi_lc=""
+          for _hi_c in "${_HI_CLIENT_LOCALE:-}" C.UTF-8; do
+            if [ -n "$_hi_c" ] && _hi_lc_ok "$_hi_c"; then
+              _hi_lc=$_hi_c
+              break
+            fi
+          done
+          if [ -n "$_hi_lc" ]; then export LC_CTYPE="$_hi_lc"; else export _HI_ASCII=1; fi
+        fi
+      fi
+LOCALE
 }
 
 # hi's yellow and the reset as real escape bytes, derived from the palette
@@ -1013,7 +1074,9 @@ REMOTE
   # script by the boot probe; $0 is the script's path under `sh <file>`
   # shellcheck disable=SC2016 # the target's to expand
   printf '      _hi_b=${0%%/*}\n      tar -x -m -z -f "$_hi_b/tree.tgz" -C "$_HI_HOME"\n'
-  printf '      %s\n%s\n      export _HI_CONNECT_PREFIX=" %s"\n' "$overlay_line" "$fi" "$size"
+  printf '      %s\n%s\n' "$overlay_line" "$fi"
+  [ -z "${terminfo_line:-}" ] || printf '      %s\n' "$terminfo_line"
+  printf '      export _HI_CONNECT_PREFIX=" %s"\n' "$size"
 }
 
 # _hi_boot_stream - the boot call's stdin: a line of the script's, the
@@ -1307,7 +1370,7 @@ function _hi_attach_cmd() {
 function _say_hi() {
   local arm="${1:-ssh}" errlog="${2:-/dev/null}"
   local size script bytes boot_tmp ctl_path="" ctl_dir="" ctl_shared=0 ct ec=0
-  local bootloader="" overlay_line="" wire_dir="" tree_f="" tree_n=0 ovl_f="" ovl_n=0
+  local bootloader="" overlay_line="" terminfo_line="" wire_dir="" tree_f="" tree_n=0 ovl_f="" ovl_n=0
   local -a ctl_opts=() overlay=() retry=() probe cp attach
 
   # Asked here rather than at the pipeline that needs them: a
@@ -1375,6 +1438,9 @@ function _say_hi() {
   elif [ -n "$_HI_RELAY" ]; then
     overlay_line="$(_hi_overlay_fixup '"$_HI_ROOT/config"')"
   fi
+  # the client's terminfo, for a TERM the target may not know; left out of
+  # _hi_wire_bytes with the overlay, being a question about this client
+  _hi_terminfo_line terminfo_line
   _hi_byte_count tree_n "$tree_f"
   _hi_byte_count ovl_n "$ovl_f"
   size="$_HI_SIZE_TOKEN"

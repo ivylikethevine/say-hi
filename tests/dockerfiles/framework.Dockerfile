@@ -22,6 +22,8 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/docker \
  && apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates ${PKGS} >/dev/null \
  && rm -rf /var/lib/apt/lists/*
 ARG FRAMEWORK
+# omz.sh beside it for every framework: p10k.sh runs it first
+COPY --chown=hitest:hitest frameworks/omz.sh /tmp/omz.sh
 COPY --chown=hitest:hitest frameworks/${FRAMEWORK}.sh /tmp/framework.sh
 USER hitest
 # pipefail on the shell the script runs under as well as inside it: a 404 or
@@ -30,4 +32,4 @@ USER hitest
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN bash /tmp/framework.sh
 USER root
-RUN rm -f /tmp/framework.sh
+RUN rm -f /tmp/framework.sh /tmp/omz.sh

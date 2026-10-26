@@ -87,7 +87,7 @@ updates:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
-      # ohmyfish/fish:3.4.1 is the fish floor (fish34.Dockerfile)
+      # ohmyfish/fish:3.3.1 is the fish floor (fish33.Dockerfile)
       - dependency-name: ohmyfish/fish
         update-types:
           - "version-update:semver-major"

@@ -95,10 +95,8 @@ function _hi_test_cleanup() {
   if [ -n "$_HI_EXTRA_CLEANUP" ]; then
     "$_HI_EXTRA_CLEANUP" || true
   fi
-  for c in $(_hi_ledger_rows frozen); do
-    kill -CONT "$c" 2>/dev/null || true
-    kill -9 "$c" 2>/dev/null || true
-  done
+  _hi_read_lines _HI_FROZEN_PIDS < <(_hi_ledger_rows frozen)
+  _hi_thaw_frozen
   # one `rm -f` for the whole ledger rather than one docker-client exec per
   # container: `rm -f` already tolerates a name that never existed, which is
   # what the sweep relies on regardless

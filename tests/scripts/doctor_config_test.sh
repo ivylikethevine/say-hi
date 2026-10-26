@@ -14,8 +14,8 @@ _HI_DOCTOR_PART=config
 source "${BASH_SOURCE[0]%/*}/doctor_test.sh"
 
 function test_config_flags_a_settings_file_that_does_not_parse() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/badcfg.XXXXXX")"
+  local dir="$_HI_WORKDIR/badcfg" out
+  mkdir "$dir"
   printf 'if [ x\n' >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -29,8 +29,8 @@ function test_config_flags_a_settings_file_that_does_not_parse() {
 # a tree default get no row of the overlay's section, nor does a tool config
 # found at home
 function test_config_leaves_a_members_source_to_the_files_table() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/overlay.XXXXXX")"
+  local dir="$_HI_WORKDIR/overlay" out
+  mkdir "$dir"
   printf 'a\nb\n' >"$dir/colors"
   printf 'set number\n' >"$dir/.vimrc"
   out="$(
@@ -44,8 +44,7 @@ function test_config_leaves_a_members_source_to_the_files_table() {
 # an ssh config with a `# Tags:` line is a row saying the tags ride; one
 # without, or no config at all, is none
 function test_config_says_the_ssh_tags_ride() {
-  local dir out got
-  dir="$(mktemp -d "$_HI_WORKDIR/overlay.XXXXXX")"
+  local dir="$_HI_WORKDIR/overlay" out got
   mkdir -p "$dir/rt"
   printf '# Tags: prod\nHost web\n' >"$dir/ssh_config"
   out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
@@ -80,8 +79,7 @@ function test_member_labels_name_the_reading_tool() {
 # a candidate that is there but is no file (a directory named as the rc is)
 # is found, passed over, and said to be not the one a connect sends
 function test_files_names_a_place_that_is_no_file() {
-  local h out
-  h="$(mktemp -d "$_HI_WORKDIR/nofile.XXXXXX")"
+  local h="$_HI_WORKDIR/nofile" out
   mkdir -p "$h/overlay" "$h/.vimrc"
   out="$(
     PATH="$(_hi_fake_path nofile-bins vim):$PATH"
@@ -94,8 +92,7 @@ function test_files_names_a_place_that_is_no_file() {
 # prompt program's copy with that program out of the list is flagged, since
 # nothing ships it
 function test_config_flags_an_overlay_copy_nothing_ships() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/tooloverride.XXXXXX")"
+  local dir="$_HI_WORKDIR/tooloverride" out
   mkdir -p "$dir/bat"
   printf -- '--theme=x\n' >"$dir/bat/config"
   printf 'format = "x"\n' >"$dir/starship.toml"
@@ -113,8 +110,8 @@ function test_config_flags_an_overlay_copy_nothing_ships() {
 # table (GLOSSARY: HI.63)
 function test_config_reports_the_carry_rows() {
   local got
-  local dir out h="$_HI_WORKDIR/carry-doc-home"
-  dir="$(mktemp -d "$_HI_WORKDIR/carrydoc.XXXXXX")"
+  local dir="$_HI_WORKDIR/carrydoc" out h="$_HI_WORKDIR/carry-doc-home"
+  mkdir "$dir"
   mkdir -p "$h"
   printf 'x\n' >"$h/.taskrc"
   printf '[mine.task]\ntool = "-"\nwire = "env:TASKRC"\nhome = "%s/.taskrc"\nfiles = "taskrc"\n[mine.old]\nfiles = "vimrc"\n' "$h" >"$dir/plugins"
@@ -133,8 +130,7 @@ function test_config_reports_the_carry_rows() {
 # table, a word of the list that names nothing is a finding, and so is a
 # toggle the list replaced
 function test_config_reports_what_is_switched_off() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/offdoc.XXXXXX")"
+  local dir="$_HI_WORKDIR/offdoc" out
   mkdir -p "$dir/bat" "$dir/nano"
   printf -- '--theme=x\n' >"$dir/bat/config"
   printf 'set nu\n' >"$dir/nano/nanorc"
@@ -154,8 +150,8 @@ function test_config_reports_what_is_switched_off() {
 # a tmux/tmux.conf found at home is scanned like any editor rc: its
 # source-file is a row of the include scan
 function test_config_scans_a_home_tmux_config() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/muxcfg.XXXXXX")"
+  local dir="$_HI_WORKDIR/muxcfg" out
+  mkdir "$dir"
   printf 'set -g mouse on\nsource-file ~/.tmux/theme.conf\n' >"$dir/.tmux.conf"
   out="$(
     _HI_CONFIG_DIR="$dir/overlay"
@@ -171,8 +167,7 @@ function test_config_scans_a_home_tmux_config() {
 # is missing named as not sent. A place found empty is no part of a row.
 # GLOSSARY: HI.61
 function test_files_table_walks_every_tier() {
-  local h out
-  h="$(mktemp -d "$_HI_WORKDIR/files.XXXXXX")"
+  local h="$_HI_WORKDIR/files" out
   mkdir -p "$h/overlay"
   printf 'set number\n' >"$h/.vimrc"
   printf '(setq x 1)\n' >"$h/.emacs"
@@ -196,8 +191,7 @@ function test_files_table_walks_every_tier() {
 # a site colors is used where the overlay has none and passed over where it
 # has one, named as the site's either way
 function test_files_table_names_the_site_tier() {
-  local h out
-  h="$(mktemp -d "$_HI_WORKDIR/sitefiles.XXXXXX")"
+  local h="$_HI_WORKDIR/sitefiles" out
   mkdir -p "$h/overlay" "$h/site"
   printf '[hosttag]\nprod = "red"\n' >"$h/site/colors"
   printf '[core]\nbat = []\n' >"$h/site/packages"
@@ -212,8 +206,7 @@ function test_files_table_names_the_site_tier() {
 # site's settings.sh gets the two parser rows under its own label; with no
 # such directory, no row
 function test_config_names_the_site_tier() {
-  local h out
-  h="$(mktemp -d "$_HI_WORKDIR/sitecfg.XXXXXX")"
+  local h="$_HI_WORKDIR/sitecfg" out
   mkdir -p "$h/overlay" "$h/site"
   printf 'export _HI_MAX_WIDTH=70\n' >"$h/site/settings.sh"
   printf '[core]\nbat = []\n' >"$h/site/packages"
@@ -228,8 +221,7 @@ function test_config_names_the_site_tier() {
 # a directory member counts the files that ride from it, and a prompt
 # program's config is named but not sent while the prompt is hi's own
 function test_files_table_names_why_a_found_file_is_not_sent() {
-  local h out
-  h="$(mktemp -d "$_HI_WORKDIR/files-why.XXXXXX")"
+  local h="$_HI_WORKDIR/files-why" out
   mkdir -p "$h/overlay" "$h/.config/zellij/layouts" "$h/.config/zellij/themes"
   printf 'layout {}\n' >"$h/.config/zellij/layouts/dev.kdl"
   printf 'format = "x"\n' >"$h/.config/starship.toml"
@@ -252,8 +244,7 @@ function test_files_table_names_why_a_found_file_is_not_sent() {
 # wholesale, so its row names the copy alone - the tree's default behind it
 # is not "passed over" - while with no copy the tree's default is what is used
 function test_files_table_hides_the_tree_default_behind_a_copy() {
-  local h out
-  h="$(mktemp -d "$_HI_WORKDIR/files-tree.XXXXXX")"
+  local h="$_HI_WORKDIR/files-tree" out
   mkdir -p "$h/overlay"
   printf '[hostname]\nbox = "red"\n' >"$h/overlay/colors"
   out="$(
@@ -292,8 +283,8 @@ function test_the_box_folds_and_shortens() {
 # an overlay copy of the tree's own file, byte for byte: not an override
 # until somebody edits it
 function test_config_calls_an_unedited_overlay_copy_unchanged() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/copied.XXXXXX")"
+  local dir="$_HI_WORKDIR/copied" out
+  mkdir "$dir"
   cp "$_HI_ROOT/config/colors" "$dir/colors"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -307,8 +298,7 @@ function test_config_calls_an_unedited_overlay_copy_unchanged() {
 # the dropping on the way out, so what the report names is exactly what went
 # missing. GLOSSARY: HI.57
 function test_config_names_an_unresolvable_include() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/incl.XXXXXX")"
+  local dir="$_HI_WORKDIR/incl" out
   mkdir -p "$dir/vim"
   printf 'set number\nsource ~/.vim/extra.vim\ncall plug#begin()\n' >"$dir/vim/vimrc"
   out="$(
@@ -322,8 +312,7 @@ function test_config_names_an_unresolvable_include() {
 
 # a line under hi-carry is a row only for the file it names that is not there
 function test_config_names_a_marked_file_that_is_not_there() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/marked.XXXXXX")"
+  local dir="$_HI_WORKDIR/marked" out
   mkdir -p "$dir/overlay/tmux"
   : >"$dir/there.txt"
   printf '%s\n' '# hi-carry' 'bind a run "cat ~/there.txt"' '# hi-carry' 'bind b run "cat ~/gone.txt"' >"$dir/overlay/tmux/tmux.conf"
@@ -339,8 +328,8 @@ function test_config_names_a_marked_file_that_is_not_there() {
 # a shell overlay file gets the same yellow row, and a `# hi-allow` or
 # `# hi-quiet` line above a source silences it
 function test_config_names_a_shell_include_unless_allowed() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/inclsh.XXXXXX")"
+  local dir="$_HI_WORKDIR/inclsh" out
+  mkdir "$dir"
   printf '. ~/.secrets\n# hi-allow\n. ~/.kept\n# hi-quiet\n. ~/.hushed\n' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -354,8 +343,8 @@ function test_config_names_a_shell_include_unless_allowed() {
 # a block marker's start with no end below it decides nothing, so it gets a
 # row naming the end it lacks and the line under it keeps its own
 function test_config_names_an_unclosed_block_marker() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/unclosed.XXXXXX")"
+  local dir="$_HI_WORKDIR/unclosed" out
+  mkdir "$dir"
   printf '# hi-quiet-start\n. ~/.secrets\n' >"$dir/aliases.sh"
   mkdir -p "$dir/vim"
   printf '" hi-allow-start\nsource ~/.vim/kept.vim\n" hi-allow-end\n' >"$dir/vim/vimrc"
@@ -374,8 +363,8 @@ function test_config_names_an_unclosed_block_marker() {
 # row per parser that reads the file. doctor_config only says when it is
 # absent, so a present settings.sh is reported once.
 function test_config_reports_a_settings_file_that_parses() {
-  local dir out got
-  dir="$(mktemp -d "$_HI_WORKDIR/goodcfg.XXXXXX")"
+  local dir="$_HI_WORKDIR/goodcfg" out got
+  mkdir "$dir"
   printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -392,8 +381,8 @@ function test_config_reports_a_settings_file_that_parses() {
 # what the aliases.sh fish row of _HI_OVERLAY_CHECKS pins: an `if` block is
 # valid sh and invalid fish, so the sh row alone would wave it through
 function test_configs_fish_row_catches_sh_only_aliases() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/shonly.XXXXXX")"
+  local dir="$_HI_WORKDIR/shonly" out
+  mkdir "$dir"
   printf 'if true; then alias ll=ls; fi\n' >"$dir/aliases.sh"
   out="$(_HI_CONFIG_DIR="$dir" doctor_configs)"
   [[ "$out" == *"aliases.sh"*"parses (sh)"* && "$out" == *"aliases.sh"*"has issues (fish)"* ]] || _hi_why out
@@ -402,8 +391,8 @@ function test_configs_fish_row_catches_sh_only_aliases() {
 # a scheme that is neither a name nor 24/48 hex words renders nothing, and
 # nothing else says so (core.sh renders the default in silence)
 function test_config_flags_a_scheme_nothing_renders() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/badscheme.XXXXXX")"
+  local dir="$_HI_WORKDIR/badscheme" out
+  mkdir "$dir"
   printf "export _HI_COLOR_SCHEME='solarized'\n" >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -425,8 +414,8 @@ function test_config_flags_a_scheme_nothing_renders() {
 # settings.sh, so a stale preset name (mono, warm) or a typo would otherwise
 # be silent - header.sh just falls back to the shipped ramp
 function test_config_flags_a_ramp_nothing_paints() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/badramp.XXXXXX")"
+  local dir="$_HI_WORKDIR/badramp" out
+  mkdir "$dir"
   printf "export _HI_PACKAGES_PALETTE='mono'\n" >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -448,8 +437,8 @@ function test_config_flags_a_ramp_nothing_paints() {
 # shell here cannot parse (bash is always here; zsh and fish when installed),
 # and a warn for a member that never travels. Quiet without one.
 function test_config_lists_the_extensions() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/extdir.XXXXXX")"
+  local dir="$_HI_WORKDIR/extdir" out
+  mkdir "$dir"
   out="$(_HI_CONFIG_DIR="$dir" _HI_EXTENSIONS="$dir/extensions" doctor_config)"
   [[ "$out" != *extensions/* ]] || _hi_why out || return 1
   mkdir -p "$dir/extensions"
@@ -466,8 +455,7 @@ function test_config_lists_the_extensions() {
 # header/ (HI.58) is listed the same way, by bash alone, and not at all with
 # the header off, when no cell loads
 function test_config_lists_the_header_cells() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/celldir.XXXXXX")"
+  local dir="$_HI_WORKDIR/celldir" out
   mkdir -p "$dir/header"
   printf '_hi_cell_sky() { :; }\n' >"$dir/header/sky"
   printf '_hi_cell_torn() {\n' >"$dir/header/torn"
@@ -483,8 +471,8 @@ function test_config_lists_the_header_cells() {
 # packages is an overlay file like colors: a copy of the tree's (what
 # `hi --add-package` starts from) says so until it is edited
 function test_config_reports_the_packages_file() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/packages.XXXXXX")"
+  local dir="$_HI_WORKDIR/packages" out
+  mkdir "$dir"
   cp "$_HI_ROOT/config/packages" "$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
   [[ "$out" == *"packages"*"a copy of the tree's, unchanged"* ]] || _hi_why out || return 1
@@ -496,8 +484,8 @@ function test_config_reports_the_packages_file() {
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
 # has to say which of the two parsers refused it
 function test_config_flags_a_settings_file_that_is_not_fish() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/shonly.XXXXXX")"
+  local dir="$_HI_WORKDIR/shonly" out
+  mkdir "$dir"
   printf 'foo=1\n' >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -511,8 +499,8 @@ function test_config_flags_a_settings_file_that_is_not_fish() {
 # a non-default toggle is a row of its own - the one thing about a session
 # that a target-side report cannot see, named here so it is not a mystery
 function test_config_lists_a_non_default_toggle() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/toggled.XXXXXX")"
+  local dir="$_HI_WORKDIR/toggled" out
+  mkdir "$dir"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
@@ -524,8 +512,8 @@ function test_config_lists_a_non_default_toggle() {
 
 # an opt-in turned on is the non-default, so it gets a row; off is silent
 function test_config_lists_an_opt_in_turned_on() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/opt_in.XXXXXX")"
+  local dir="$_HI_WORKDIR/opt_in" out
+  mkdir "$dir"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
@@ -539,8 +527,8 @@ function test_config_lists_an_opt_in_turned_on() {
 # the mv that fixes it, a directory too; the new name beside it is an
 # ordinary override
 function test_config_names_a_file_under_an_old_member_name() {
-  local dir out got got2 got3 got4
-  dir="$(mktemp -d "$_HI_WORKDIR/oldname.XXXXXX")"
+  local dir="$_HI_WORKDIR/oldname" out got got2 got3 got4
+  mkdir "$dir"
   printf 'set number\n' >"$dir/vim.rc"
   printf 'export X=1\n' >"$dir/bash.sh"
   printf 'export X=1\n' >"$dir/bashrc"
@@ -572,8 +560,8 @@ function test_config_names_a_file_under_an_old_member_name() {
 # a hand-written value the code would fall back from silently is a row:
 # every predicate lib.sh has, one bad value each, and a good one stays quiet
 function test_config_flags_a_value_the_code_would_ignore() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/values.XXXXXX")"
+  local dir="$_HI_WORKDIR/values" out
+  mkdir "$dir"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
@@ -583,10 +571,7 @@ function test_config_flags_a_value_the_code_would_ignore() {
   )"
   local n
   for n in _HI_MAX_WIDTH _HI_PACKAGES_GROUPS _HI_IP_HIDE _HI_HEADER_ORDER _HI_PROMPT_TOOL _HI_EDITOR _HI_TRUECOLOR _HI_KEEP; do
-    printf '%s\n' "$out" | grep -q "$n.*is ignored" || {
-      _hi_cecho " | no row for $n" "$RED"
-      return 1
-    }
+    printf '%s\n' "$out" | grep -q "$n.*is ignored" || _hi_because "no row for $n" || return 1
   done
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -647,8 +632,8 @@ function test_config_flags_an_old_plugin_toggle() {
 # is read as no rows at all, so it is a bad row naming which; a `:N` or a bare
 # row inside a comment is not, in a file of TOML rows
 function test_config_flags_an_old_format_packages_file() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/oldpkgs.XXXXXX")"
+  local dir="$_HI_WORKDIR/oldpkgs" out
+  mkdir "$dir"
   printf '# the header\nbat:3,batcat:3\n' >"$dir/old"
   printf '# was bat:3\n# bat,batcat\n[core]\nbat = ["batcat"]\n\n[core.required]\n"g++" = [] # a note\n' >"$dir/new"
   printf '# the header\n[core]\nbat,batcat\n+sudo\n' >"$dir/sectioned"
@@ -681,8 +666,8 @@ function test_config_flags_an_old_format_packages_file() {
 # is no row, which does not make the file an old one; the tree's own names
 # none
 function test_config_names_what_a_packages_copy_lacks() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/driftpkgs.XXXXXX")"
+  local dir="$_HI_WORKDIR/driftpkgs" out
+  mkdir "$dir"
   printf '[core]\nbat = []\neza = ["-exa", "lsd"]\nlesspipe.sh = []\n[extras.required]\n' >"$dir/packages"
   out="$(
     _HI_PACKAGES="$dir/packages"
@@ -705,8 +690,8 @@ function test_config_names_what_a_packages_copy_lacks() {
 # lines, pins nothing, so it is a bad row naming which; a file of TOML rows
 # is not, whatever its comments hold
 function test_config_flags_an_old_format_colors_file() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/oldcolors.XXXXXX")"
+  local dir="$_HI_WORKDIR/oldcolors" out
+  mkdir "$dir"
   printf '# type,name,color\nhostname,box,red\nusername,me,blue,3ba55d\n' >"$dir/old"
   printf '# was hostname,box,red\n# box red\n[hostname]\nbox = "red"\n"10.0.*" = "blue 3ba55d" # a note\n' >"$dir/new"
   printf '[hostname]\nbox red\n' >"$dir/sectioned"
@@ -736,8 +721,8 @@ function test_config_flags_an_old_format_colors_file() {
 # _HI_DISABLE_LOCAL=1 sets every other toggle through paths.sh's gate: one
 # row says so, and only a toggle settings.sh sets by itself gets another
 function test_config_collapses_the_local_gates_toggles() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/localgate.XXXXXX")"
+  local dir="$_HI_WORKDIR/localgate" out
+  mkdir "$dir"
   printf 'export _HI_DISABLE_LOCAL=1\nexport _HI_DISABLE_BANNER=1\n' >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -746,10 +731,7 @@ function test_config_collapses_the_local_gates_toggles() {
     doctor_config
   )"
   [[ "$out" == *"_HI_DISABLE_LOCAL=1 (every feature off"* && "$out" == *"_HI_DISABLE_BANNER=1"* &&
-    "$out" != *"_HI_DISABLE_HEADER"* && "$out" != *"_HI_DISABLE_PROMPT"* ]] || {
-    _hi_cecho " | rows: $(printf '%s' "$out" | grep -c toggle)" "$RED"
-    return 1
-  }
+    "$out" != *"_HI_DISABLE_HEADER"* && "$out" != *"_HI_DISABLE_PROMPT"* ]] || _hi_because "rows: $(printf '%s' "$out" | grep -c toggle)"
 }
 
 # the overlay's aliases.sh loads after the shipped aliases are built, so a
@@ -759,8 +741,8 @@ function test_config_collapses_the_local_gates_toggles() {
 # never by its value; a $variable, a path, a comment, and a line under
 # hi-allow are not
 function test_config_flags_a_secret_in_a_riding_file() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/secret.XXXXXX")"
+  local dir="$_HI_WORKDIR/secret" out
+  mkdir "$dir"
   # shellcheck disable=SC2016 # written, not run
   printf '%s\n' 'export GITHUB_TOKEN=abc123def' \
     'export NPM_TOKEN="$(pass show npm)"' \
@@ -784,8 +766,7 @@ function test_config_flags_a_secret_in_a_riding_file() {
 # a module neovim's init.lua requires from its lua/ rides with it, so the
 # require is no finding; one that resolves to no file there still is
 function test_config_passes_a_require_of_a_module_that_rides() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/nvimlua.XXXXXX")"
+  local dir="$_HI_WORKDIR/nvimlua" out
   mkdir -p "$dir/nvim/lua/mine"
   printf 'require("mine.keys")\nrequire("absent")\n' >"$dir/nvim/init.lua"
   printf 'return {}\n' >"$dir/nvim/lua/mine/keys.lua"
@@ -803,8 +784,7 @@ function test_config_passes_a_require_of_a_module_that_rides() {
 # mode bit to read and calls any #! file executable, so there the plain
 # script rides too.
 function test_config_names_what_bin_leaves_home() {
-  local dir out rides=1 plain="left home - not executable"
-  dir="$(mktemp -d "$_HI_WORKDIR/bin.XXXXXX")"
+  local dir="$_HI_WORKDIR/bin" out rides=1 plain="left home - not executable"
   mkdir -p "$dir/bin"
   printf '#!/bin/sh\necho mine\n' >"$dir/bin/mine"
   printf '#!/bin/sh\necho plain\n' >"$dir/bin/plain"
@@ -825,8 +805,8 @@ function test_config_names_what_bin_leaves_home() {
 
 # the tag files are listed by tag, and one no tag can name is said to be unread
 function test_config_lists_the_tag_settings() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/tagfiles.XXXXXX")"
+  local dir="$_HI_WORKDIR/tagfiles" out
+  mkdir "$dir"
   printf 'export _HI_PLAIN=1\n' >"$dir/settings.prod.sh"
   printf 'export _HI_KEEP=1\n' >"$dir/settings.my tag.sh"
   out="$(
@@ -841,10 +821,10 @@ function test_config_lists_the_tag_settings() {
 # a settings.sh whose shape line names a shape this hi does not read is a
 # bad row; one at this hi's shape, or with no line, gets none
 function test_config_flags_a_settings_shape_this_hi_does_not_read() {
-  local dir out n
+  local dir="$_HI_WORKDIR/shape" out n
   n="$(sed -n 's/^_HI_SETTINGS_SHAPE=//p' "$_HI_ROOT/scripts/lib.sh")"
   [ -n "$n" ] || _hi_why n || return 1
-  dir="$(mktemp -d "$_HI_WORKDIR/shape.XXXXXX")"
+  mkdir "$dir"
   printf '#!/bin/sh\n# say-hi settings %s\nexport _HI_MAX_WIDTH=100\n' "$((n + 1))" >"$dir/settings.sh"
   out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
   [[ "$out" == *"settings.sh"*"is shape $((n + 1)), which this hi does not read (it reads $n)"* ]] ||
@@ -860,8 +840,8 @@ function test_config_flags_a_settings_shape_this_hi_does_not_read() {
 # a line of a colors file outside the TOML hi reads - an inline table, a
 # value on the next line - pins nothing, and is named by its line
 function test_config_names_a_colors_line_outside_the_subset() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/strays.XXXXXX")"
+  local dir="$_HI_WORKDIR/strays" out
+  mkdir "$dir"
   printf '[hostname]\nbox = { color = "red" }\nweb = "blue"\nlab =\n  "green"\n' >"$dir/colors"
   out="$(
     _HI_COLORS="$dir/colors"
@@ -908,8 +888,8 @@ function test_secret_awk_passes_a_name_inside_a_value() {
 # in the fixture because the row reads their names off common/aliases.sh.
 # shellcheck disable=SC2016 # the aliases.sh lines are written, not run
 function test_config_flags_values_set_in_aliases_sh() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/latevals.XXXXXX")"
+  local dir="$_HI_WORKDIR/latevals" out
+  mkdir "$dir"
   printf '%s\n' "export _HI_BAT_OPTS='-p'" '# export _HI_EZA_OPTS=x' \
     'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' \
     'export _HI_TOOL_ALIASES=1' \
@@ -935,8 +915,7 @@ function test_config_flags_values_set_in_aliases_sh() {
 # the list keeps home
 # shellcheck disable=SC2016 # the aliases.sh lines are written, not run
 function test_config_flags_aliases_that_replace_a_wired_one() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/wiredalias.XXXXXX")"
+  local dir="$_HI_WORKDIR/wiredalias" out
   mkdir -p "$dir/nano" "$dir/tmux"
   printf 'x\n' >"$dir/nano/nanorc"
   printf 'x\n' >"$dir/tmux/tmux.conf"
@@ -961,8 +940,8 @@ function test_config_flags_aliases_that_replace_a_wired_one() {
 # all: named for either, and not for a comment or a name that only ends so
 # shellcheck disable=SC2016 # the aliases.sh lines are written, not run
 function test_config_flags_an_editor_set_in_aliases_sh() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/editoralias.XXXXXX")"
+  local dir="$_HI_WORKDIR/editoralias" out
+  mkdir "$dir"
   printf '%s\n' 'alias ll="ls -l"' 'export VISUAL="$(command -v nvim)"' >"$dir/aliases.sh"
   out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
   [[ "$out" == *"alias-editor"*"_HI_EDITOR"* ]] || _hi_because "set: $out" || return 1

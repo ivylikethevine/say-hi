@@ -28,6 +28,11 @@ function _hi_rc_shell() {
     "$shell" -c "$script" </dev/null
 }
 
+# _hi_rc_of <shell> - the file name of hi's rc for <shell>
+function _hi_rc_of() {
+  case "$1" in bash) printf bash.sh ;; zsh) printf zsh.zsh ;; fish) printf config.fish ;; esac
+}
+
 # an extension's prompt decision comes first (HI.59): _HI_PROMPT_DRAWN=1
 # stands hi's prompt down, and _HI_PROMPT_INIT runs that program's init in
 # its place where the program is here - and where it is not, hi draws its own
@@ -35,9 +40,7 @@ function test_bash_prompt_stands_down_for_an_extension() {
   local bin="$_HI_WORKDIR/promptbin" out
   # shellcheck disable=SC2016 # the child shells expand these
   local probe='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf "%s|%s" "${HI_PS1-unset}" "$PS1"'
-  mkdir -p "$bin"
-  printf '#!/bin/sh\n[ "$*" = "init bash" ] && printf "%%s\\n" "PS1=mine"\n' >"$bin/myprompt"
-  chmod +x "$bin/myprompt"
+  _hi_script "$bin/myprompt" '#!/bin/sh' '[ "$*" = "init bash" ] && printf "%s\n" "PS1=mine"'
   out="$(_hi_rc_shell xterm-256color bash "$probe" _HI_PROMPT_DRAWN=1)"
   [[ "$out" == "unset|"* ]] || _hi_because "drawn by the extension: $out" || return 1
   out="$(_hi_rc_shell xterm-256color bash "$probe" PATH="$bin:$PATH" "_HI_PROMPT_INIT=myprompt init {shell}")"
@@ -180,17 +183,13 @@ function test_zsh_keeps_the_users_prompt_subst() {
 _HI_FOREIGN_ENV="GCC_COLORS CLICOLOR LSCOLORS LESSOPEN NC RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN"
 
 function test_rc_exports_nothing_for_other_tools() {
-  local rc=bash.sh out
-  [ "$1" = zsh ] && rc=zsh.zsh
-  out="$(_hi_rc_shell xterm-256color "$1" 'source "$_HI_HOME/say-hi/common/'"$rc"'" >/dev/null 2>&1
+  local out
+  out="$(_hi_rc_shell xterm-256color "$1" 'source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of "$1")"'" >/dev/null 2>&1
     printf "%s|" "${NC+set}${RED+set}"
     for v in '"$_HI_FOREIGN_ENV"'; do
       env | grep -q "^$v=" && printf "%s " "$v"
     done')"
-  [ "$out" = "setset|" ] || {
-    _hi_cecho " | $1: [$out]" "$RED"
-    return 1
-  }
+  [ "$out" = "setset|" ] || _hi_because "$1: [$out]"
 }
 
 # <shell>: the styled tool aliases and the sudo alias are opt-ins - none in a
@@ -200,17 +199,13 @@ function test_rc_tool_and_sudo_aliases_are_opt_in() {
   local shell="$1" names="cat catn bat batn batcat eza sudo" script path off on
   [ "$shell" = fish ] || names="$names ls"
   case "$shell" in
-  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; for a in '"$names"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
-  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; for a in '"$names"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; for a in '"$names"'; functions -q $a; and printf "%s " $a; end' ;;
+  *) script='source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of "$shell")"'" 2>/dev/null; for a in '"$names"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
   esac
   path="$(_hi_fake_path rc-opt_in-tools bat eza sudo):$PATH"
   off="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path")"
   on="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path" _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1)"
-  [ -z "$off" ] && [ "$on" = "$names " ] || {
-    _hi_cecho " | $shell: off [$off], on [$on]" "$RED"
-    return 1
-  }
+  [ -z "$off" ] && [ "$on" = "$names " ] || _hi_because "$shell: off [$off], on [$on]"
 }
 
 # No marks off a terminal, on TERM=dumb, or beside a terminal's own
@@ -280,10 +275,7 @@ function test_rc_keeps_the_callers_shell_options() {
   local shell="$1" rc out cfg="$_HI_WORKDIR/strictcfg"
   mkdir -p "$cfg"
   printf 'false\n: "$HI_UNSET_BY_ANYONE"\n' >"$cfg/settings.sh"
-  case "$shell" in
-  bash) rc="$_HI_HOME/say-hi/common/bash.sh" ;;
-  zsh) rc="$_HI_HOME/say-hi/common/zsh.zsh" ;;
-  esac
+  rc="$_HI_HOME/say-hi/common/$(_hi_rc_of "$shell")"
   out="$(env -i HOME="$_HI_WORKDIR" USER=hi TERM=dumb PATH="$PATH" _HI_HOME="$_HI_HOME" \
     _HI_CONFIG_DIR="$cfg" _HI_DISABLE_HEADER=1 "$shell" -ic \
     'set -u; set -o pipefail; source "$1" >/dev/null 2>&1; [[ $- == *u* && -o pipefail ]] && echo kept' \
@@ -303,7 +295,7 @@ function test_bash_exit_trap_closes_the_prompt_mark() {
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
     trap -p EXIT
     exit 5')"
-  want="$(printf "trap -- '_hi_marks_exit \$?; echo prev:\$?' EXIT\nprev:5")"
+  want=$'trap -- \'_hi_marks_exit $?; echo prev:$?\' EXIT\nprev:5'
   [ "$out" = "$want" ] || _hi_why out want
 }
 
@@ -480,12 +472,8 @@ function test_fish_runs_each_hook_once_and_a_quiet_one_silently() {
 # <name> whose body is <script-body> (after the #!/bin/sh line), built once;
 # prints the directory for a PATH prepend
 function _hi_stub_bin() {
-  local dir="$_HI_WORKDIR/$1-bin"
-  [ -x "$dir/$1" ] || {
-    mkdir -p "$dir"
-    printf '#!/bin/sh\n%s\n' "$2" >"$dir/$1"
-    chmod +x "$dir/$1"
-  }
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/$1-bin"
+  [ -x "$dir/$1" ] || _hi_script "$dir/$1" '#!/bin/sh' "$2"
   printf '%s' "$dir"
 }
 
@@ -608,10 +596,7 @@ function test_fish_prompt_leads_with_the_environment() {
 function test_fish_prompt_keeps_the_lead_without_an_environment() {
   local out
   out="$(_HI_AS_ROOT=no _hi_prompt_tail fish)"
-  [[ "$out" == " "* ]] || {
-    _hi_cecho " | fish prompt did not start with the lead: [${out:0:24}]" "$RED"
-    return 1
-  }
+  [[ "$out" == " "* ]] || _hi_because "fish prompt did not start with the lead: [${out:0:24}]"
 }
 
 # ...and _HI_DISABLE_LEAD_SPACE=1 is what takes it away, in the same place
@@ -680,10 +665,7 @@ function test_zsh_runs_no_compinit_of_its_own() {
   out="$(_hi_rc_shell dumb zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
     print -rn -- "${+functions[compinit]}${+functions[promptinit]}${+functions[compdef]}${+_comps}"' \
     HOME="$h" ZDOTDIR="$h")"
-  [ "$out" = 0000 ] || {
-    _hi_cecho " | compinit promptinit compdef _comps: $out" "$RED"
-    return 1
-  }
+  [ "$out" = 0000 ] || _hi_because "compinit promptinit compdef _comps: $out" || return 1
   for f in "$h"/.zcompdump*; do
     ! [ -e "$f" ] || _hi_why f || return 1
   done
@@ -699,10 +681,7 @@ function test_zsh_fpath_holds_common_once() {
     source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
     hits=(${(M)fpath:#$_HI_ROOT/common})
     print -rn -- "$#hits|$fpath[1]|$fpath[-1]"')"
-  [[ "$out" == "1|/mine|"*/say-hi/common ]] || {
-    _hi_cecho " | count|first|last: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == "1|/mine|"*/say-hi/common ]] || _hi_because "count|first|last: $out"
 }
 
 # ...and the word after --preview comes from the words roster, described,
@@ -718,16 +697,6 @@ function test_zsh_completes_the_word_after_preview() {
   ')"
   { printf '%s\n' "$out" | grep -qx header &&
     printf '%s\n' "$out" | grep -qx packages; } || _hi_why out
-}
-
-# _hi_rc_reentry <shell> <rc> <probe> - <shell> sources hi's <rc> with an
-# overlay copy of the same name that sources <rc> again, as an overlay sourcing
-# ~/.bashrc would; prints <probe>'s output, nothing if still recursing at the
-# deadline. exec'd, so a timeout kills the shell itself. GLOSSARY: HI.55
-# _hi_rc_of_member <overlay member> - hi's own rc for that shell, which the
-# overlay's per-shell file is named after the shell's rc rather than
-function _hi_rc_of_member() {
-  case "$1" in bashrc) printf bash.sh ;; zshrc) printf zsh.zsh ;; *) printf '%s' "$1" ;; esac
 }
 
 # The character each prompt ends with is a setting (core.sh's
@@ -793,7 +762,7 @@ function _hi_shell_override_probe() {
   IFS='|' read -r shell file script line value <<<"$row"
   rm -f "$_HI_WORKDIR/cfg/$file"
   [ "$mode" = user ] && mkdir -p "$_HI_WORKDIR/cfg" && printf '%s\n' "$line" >"$_HI_WORKDIR/cfg/$file"
-  [ "$mode" = bare ] || src='source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of_member "$file")"'" 2>/dev/null; '
+  [ "$mode" = bare ] || src='source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of "$shell")"'" 2>/dev/null; '
   _hi_rc_shell xterm-256color "$shell" "$src$script"
 }
 

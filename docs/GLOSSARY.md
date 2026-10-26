@@ -175,6 +175,15 @@ and a banner padded by it comes out narrow. Width math around user-visible
 strings computes column counts explicitly (`changes_w` in `common/header.sh`,
 `_hi_visible_len` in `scripts/table.sh`).
 
+The glyph set is the client's call, since glyphs render in its terminal, but
+counting them is the target shell's, so the preamble (`_hi_locale_probe`)
+checks the target can: a session locale `locale -a` does not list, which a
+forwarded `LANG` often is, leaves the shell in C. It sets `LC_CTYPE` to the
+first of the session's locale, the client's (`_HI_CLIENT_LOCALE`), and
+`C.UTF-8` that the target has, and falls back to ASCII where it has none, or
+where an `LC_ALL` of the user's names another. A target with no `locale`, as
+musl's often is, is left as it was.
+
 ## HI.13 command -v fallthrough
 
 ``export _HI_LS_BIN="`command -v eza || command -v ls`"`` in
@@ -345,7 +354,12 @@ clear/backspace before hi even matters. The bootloader skips the probe for
 ubiquitous names; anything else must be found in a terminfo tree — plain dirs
 and the BSD/macOS single-hex-char layout both checked — or is swapped for
 `xterm-256color`. Always on: there is no setting to keep a TERM the target
-cannot render.
+cannot render. A TERM the client can describe rides as its own entry instead
+(`_hi_terminfo_line`): `infocmp -x` on the client, `tic -x -o` into the
+session tree on a target with `tic`, the tree on `TERMINFO_DIRS` ahead of the
+target's own, and the TERM put back; the swap stays where there is no `tic`,
+and for a kept session's reattach, which runs ahead of the tree. The
+ubiquitous names are `$_HI_TERM_KNOWN`, which both ends read.
 
 ## HI.23 bash --rcfile -i
 

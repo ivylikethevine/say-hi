@@ -545,8 +545,8 @@ drifts); `starship.sh` (v1.26.0, via `--version`) fetches the generic
 a mismatch needs a fresh hash, not a version bump. The frameworks without
 releases are pinned by commit: the oh-my-zsh and oh-my-bash installers by commit
 and hash, each fed its framework through a local mirror fetched at a commit
-(`omz.sh`, `p10k.sh`, `omb.sh`), the bash-it and powerlevel10k checkouts by
-commit, and atuin's bash-preexec by commit and hash. Every pin is named in its
+(`omz.sh`, which `p10k.sh` runs first, and `omb.sh`), the bash-it and
+powerlevel10k checkouts by commit, and atuin's bash-preexec by commit and hash. Every pin is named in its
 script and bumped by hand. The image builds under `pipefail`, so a 404, a
 checksum mismatch, or an installer changing shape fails the build rather than
 shipping an image with the framework missing.

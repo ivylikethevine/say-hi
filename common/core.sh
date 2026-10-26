@@ -763,7 +763,7 @@ function _hi_backend_off() {
 # suite). Not in _HI_CHILD_ENV: load.sh writes them into the session rc files.
 _HI_SESSION_VARS=(_HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
   _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_CLIENT_EDITOR
-  _HI_CLIENT_VISUAL _HI_ASCII _HI_TRUECOLOR)
+  _HI_CLIENT_VISUAL _HI_CLIENT_LOCALE _HI_ASCII _HI_TRUECOLOR)
 
 # _hi_unexport - drop the export attribute from every _HI_* name not in
 # _HI_CHILD_ENV, values kept. Both shell-specific arms are eval'd; zsh's `-g`

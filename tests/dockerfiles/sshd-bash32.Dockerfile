@@ -9,5 +9,4 @@ RUN apk add --no-cache openssh \
     && ln -sf /usr/local/bin/bash /bin/bash \
     && adduser -D -s /usr/local/bin/bash hitest
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

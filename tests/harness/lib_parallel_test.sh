@@ -41,8 +41,9 @@ function test_workdir_creates_a_scratch_dir() {
 
 function test_test_cleanup_runs_the_extra_hook_first() {
   local marker="$_HI_WORKDIR/hook-ran"
+  mkdir "$_HI_WORKDIR/inner"
   (
-    _HI_SUITE_WORKDIR="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
+    _HI_SUITE_WORKDIR="$_HI_WORKDIR/inner"
     _HI_LEDGER=""
     # shellcheck disable=SC2317 # invoked by _hi_test_cleanup through $_HI_EXTRA_CLEANUP
     function _hi_probe_hook() { : >"$marker"; }
@@ -53,8 +54,8 @@ function test_test_cleanup_runs_the_extra_hook_first() {
 }
 
 function test_test_cleanup_removes_the_workdir_even_if_the_hook_fails() {
-  local inner
-  inner="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
+  local inner="$_HI_WORKDIR/inner"
+  mkdir "$inner"
   (
     unset _HI_COV_KEEP
     _HI_SUITE_WORKDIR="$inner"
@@ -68,8 +69,8 @@ function test_test_cleanup_removes_the_workdir_even_if_the_hook_fails() {
 # under tests/coverage_v2.sh the workdir outlives the suite, named in
 # $_HI_COV_KEEP for the driver to credit its copies and remove it
 function test_test_cleanup_keeps_the_workdir_for_a_coverage_driver() {
-  local inner kept keep="$_HI_WORKDIR/covkeep"
-  inner="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
+  local inner="$_HI_WORKDIR/inner" kept keep="$_HI_WORKDIR/covkeep"
+  mkdir "$inner"
   : >"$keep"
   (
     _HI_COV_KEEP="$keep"
@@ -103,13 +104,11 @@ function test_track_container_records_from_a_subshell_too() {
 # was asked to remove. Networks after containers, since docker refuses to remove
 # one that still has a container on it.
 function test_cleanup_sweeps_containers_then_networks() {
-  local dir="$_HI_WORKDIR/sweep" log
-  mkdir -p "$dir/bin"
-  log="$dir/calls"
-  printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"%s"\n' "$log" >"$dir/bin/hi-fake-backend"
-  chmod +x "$dir/bin/hi-fake-backend"
+  local dir="$_HI_WORKDIR/sweep" log="$_HI_WORKDIR/sweep/calls"
+  mkdir -p "$dir/inner"
+  _hi_script "$dir/bin/hi-fake-backend" '#!/bin/sh' "printf '%s\\n' \"\$*\" >>\"$log\""
   (
-    _HI_SUITE_WORKDIR="$(mktemp -d "$dir/inner.XXXXXX")"
+    _HI_SUITE_WORKDIR="$dir/inner"
     _HI_LEDGER="$_HI_SUITE_WORKDIR/.ledger"
     : >"$_HI_LEDGER"
     _HI_EXTRA_CLEANUP=""

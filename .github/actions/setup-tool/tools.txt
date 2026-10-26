@@ -45,8 +45,7 @@
 #             substituted). It changes only in the commit that bumps `pin`; a
 #             bumped pin with an unchanged sha256 is a red flag.
 #
-# Bumping a pin is a hand edit to one row: pin and sha256 together, and the
-# row's copy in ../../../mise.toml (the drift lint fails a stale one).
+# Bumping a pin is a hand edit to one row: pin and sha256 together.
 #
 # Floating by design - tools this repo deliberately does not pin, and why.
 # Each is still named here so "is this pinned?" has one place to look:

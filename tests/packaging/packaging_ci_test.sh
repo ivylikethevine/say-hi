@@ -34,7 +34,7 @@ function _hi_wf_job() {
 # shared: every caller only reads it, and install_tree is the expensive part
 # of this suite.
 function stage_fixture() {
-  local dest="$_HI_WORKDIR/stage"
+  local dest="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/stage"
   if [ ! -d "$dest" ]; then
     local _HI_PREFIX="/usr/share" DESTDIR="$dest"
     mkdir -p "$dest"
@@ -84,6 +84,15 @@ function test_nfpm_symlink_target_is_absolute_and_unstaged() {
   ! grep -B1 'dst: /usr/bin/hi' "$_HI_NFPM" | grep 'dist/staging' >/dev/null || _hi_why _HI_NFPM
 }
 
+# _hi_apk_dsts - the dst of every apk-only entry in nfpm.yaml
+function _hi_apk_dsts() {
+  awk '
+    /^  - src:/ { dst = "" }
+    /^    dst:/ { dst = $2 }
+    /packager: apk/ && dst { print dst }
+  ' "$_HI_NFPM"
+}
+
 # The apk cannot use the tree entry (nfpm 2.47.0 mode-bit bug, see nfpm.yaml),
 # so it repeats _HI_PACKAGE_CONTENTS as per-member entries - a second copy of
 # the list, kept honest here the way the formula's copy is.
@@ -98,10 +107,7 @@ function test_nfpm_apk_entries_match_package_contents() {
       # stays correct if a nested one is ever added back
       src="./dist/staging/usr/share/say-hi/${m##*/}"
     fi
-    grep -qF -- "- src: $src" "$_HI_NFPM" || {
-      _hi_cecho "   no apk entry for $m" "$RED"
-      return 1
-    }
+    grep -qF -- "- src: $src" "$_HI_NFPM" || _hi_because "no apk entry for $m" || return 1
   done
   # every apk entry traces back to a real member too, so a stray one can't
   # ship what the list doesn't name - a member with a nested directory of its
@@ -112,13 +118,8 @@ function test_nfpm_apk_entries_match_package_contents() {
     for m in "${_HI_PACKAGE_CONTENTS[@]}"; do
       case "$dst" in "/usr/share/say-hi/$m" | "/usr/share/say-hi/$m/"*) continue 2 ;; esac
     done
-    _hi_cecho "   apk entry $dst does not trace back to any _HI_PACKAGE_CONTENTS member" "$RED"
-    return 1
-  done < <(awk '
-    /^  - src:/ { dst = "" }
-    /^    dst:/ { dst = $2 }
-    /packager: apk/ && dst { print dst }
-  ' "$_HI_NFPM") || _hi_why
+    _hi_because "apk entry $dst does not trace back to any _HI_PACKAGE_CONTENTS member" || return 1
+  done < <(_hi_apk_dsts) || _hi_why
 }
 
 # ...and the globs are one level deep, so a nested directory appearing under a
@@ -132,19 +133,14 @@ function test_nfpm_apk_globs_cover_the_staged_depth() {
   dest="$(stage_fixture)"
   deep="$(find "$dest/usr/share/say-hi" -mindepth 2 -type d)"
   [ -n "$deep" ] || return 0
-  dst_list="$(awk '
-    /^  - src:/ { dst = "" }
-    /^    dst:/ { dst = $2 }
-    /packager: apk/ && dst { print dst }
-  ' "$_HI_NFPM")"
+  dst_list="$(_hi_apk_dsts)"
   while IFS= read -r d; do
     [ -n "$d" ] || continue
     rel="${d#"$dest"}"
     case $'\n'"$dst_list"$'\n' in
     *$'\n'"$rel/"$'\n'* | *$'\n'"$rel"$'\n'*) continue ;;
     esac
-    _hi_cecho "   $d has no apk glob entry of its own in $_HI_NFPM" "$RED"
-    return 1
+    _hi_because "$d has no apk glob entry of its own in $_HI_NFPM" || return 1
   done <<<"$deep"
 }
 
@@ -313,14 +309,12 @@ function test_manifests_build_from_the_release_asset() {
     case "$line" in
     *releases/download/*) ;;
     *)
-      _hi_cecho " | ${f%%:*}: [$line] is not the release asset" "$RED"
-      return 1
+      _hi_because "${f%%:*}: [$line] is not the release asset" || return 1
       ;;
     esac
     case "$line" in
     */archive/*)
-      _hi_cecho " | ${f%%:*}: [$line] still points at GitHub's /archive/ tarball" "$RED"
-      return 1
+      _hi_because "${f%%:*}: [$line] still points at GitHub's /archive/ tarball" || return 1
       ;;
     esac
   done
@@ -390,6 +384,23 @@ function _hi_in_mkrepo() {
     _HI_OUT="$out"
     "${_hi_argv[@]}"
   )
+}
+
+# _hi_with_gpg <key> <public, or ""> [cmd...] - inside _hi_in_mkrepo: gpg_setup
+# over <key>, then <cmd...> once it passes, then the teardown mkrepo.sh's own
+# trap would have done (it is set below the HI.06 guard, so sourcing never
+# sets it): gpg-agent killed and $_HI_GNUPGHOME removed, whatever the
+# verdict. The status is gpg_setup's, or <cmd...>'s.
+function _hi_with_gpg() {
+  local st=0
+  _HI_GPG_KEY="$1" _HI_GPG_PUBLIC="$2"
+  shift 2
+  gpg_setup && { [ $# -eq 0 ] || "$@"; } || st=$?
+  [ -z "$_HI_GNUPGHOME" ] || {
+    gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
+    rm -rf "$_HI_GNUPGHOME"
+  }
+  return "$st"
 }
 
 # _hi_fake_deb <dir> [member] - a structurally real .deb (ar of debian-binary +

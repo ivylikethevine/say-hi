@@ -34,10 +34,7 @@ function _hi_env_within_roster() {
     *) stray="$stray $n" ;;
     esac
   done < <(_hi_child_env "$shell" "$rc")
-  [ -z "$stray" ] || {
-    _hi_cecho " | $shell child inherits:$stray" "$RED"
-    return 1
-  }
+  [ -z "$stray" ] || _hi_because "$shell child inherits:$stray"
 }
 
 # The value has to survive the flip: the header's clock reads
@@ -54,8 +51,7 @@ function test_bash_child_still_sees_the_roster() {
   local out
   out="$(_hi_child_env bash "$_HI_BASHRC")"
   if ! printf '%s\n' "$out" | grep -qx _HI_HOME || ! printf '%s\n' "$out" | grep -qx _HI_CONFIG_DIR; then
-    _hi_cecho " | roster names missing from: $(printf '%s' "$out" | tr '\n' ' ')" "$RED"
-    return 1
+    _hi_because "roster names missing from: ${out//$'\n'/ }"
   fi
 }
 
@@ -66,10 +62,7 @@ function test_fish_bridge_passes_session_values_without_exporting_them() {
   local out
   # shellcheck disable=SC2153 # _HI_FISH_CONFIG is paths.sh's, not a typo of _HI_SSH_CONFIG
   out="$(HOME="$_HI_WORKDIR/home" fish -c "set -g _HI_LOCAL_USER bridged; source $_HI_FISH_CONFIG; __hi_bash 'printf %s \"\$_HI_LOCAL_USER\"'; printf '|'; env | grep -c '^_HI_LOCAL_USER=' || true" 2>/dev/null)"
-  [ "$out" = "bridged|0" ] || {
-    _hi_cecho " | got: $out (want bridged|0)" "$RED"
-    return 1
-  }
+  [ "$out" = "bridged|0" ] || _hi_because "got: $out (want bridged|0)"
 }
 
 # config.fish carries hand-written mirrors of both rosters; this is their
@@ -79,26 +72,12 @@ function _hi_fish_list() {
     "$_HI_ROOT/common/config.fish" | grep -oE '_HI_[A-Z0-9_]+' | grep -vx "$1"
 }
 
-function test_fish_child_env_mirror_matches_core() {
-  local fish_list core_list
-  fish_list="$(_hi_fish_list _HI_CHILD_ENV)"
-  core_list="$(printf '%s\n' "${_HI_CHILD_ENV[@]}")"
-  [ "$fish_list" = "$core_list" ] || {
-    _hi_cecho " | config.fish: $(printf '%s' "$fish_list" | tr '\n' ' ')" "$RED"
-    _hi_cecho " | core.sh:     ${_HI_CHILD_ENV[*]}" "$RED"
-    return 1
-  }
-}
-
-function test_fish_session_vars_mirror_matches_core() {
-  local fish_list core_list
-  fish_list="$(_hi_fish_list _HI_SESSION_VARS)"
-  core_list="$(printf '%s\n' "${_HI_SESSION_VARS[@]}")"
-  [ "$fish_list" = "$core_list" ] || {
-    _hi_cecho " | config.fish: $(printf '%s' "$fish_list" | tr '\n' ' ')" "$RED"
-    _hi_cecho " | core.sh:     ${_HI_SESSION_VARS[*]}" "$RED"
-    return 1
-  }
+# _hi_fish_mirror_is <array> - config.fish's copy of core.sh's <array>, name for name
+function _hi_fish_mirror_is() {
+  local ref="$1[*]" fish_list
+  fish_list="$(_hi_fish_list "$1")"
+  fish_list="${fish_list//$'\n'/ }"
+  [ "$fish_list" = "${!ref}" ] || _hi_because "config.fish: [$fish_list], core.sh: [${!ref}]"
 }
 
 # hi.sh's _hi_session_env is the list of what the client exports into a
@@ -113,19 +92,14 @@ function test_session_env_names_match_the_roster() {
   hi_list="$(awk '/^function _hi_(session_env|client_verdicts)\(\)/{p=1} p{print} /^}/{p=0}' "$_HI_ROOT/hi.sh" |
     grep -oE "printf ('|\"\\\$1\" )_HI_[A-Z0-9_]+" | sed -E "s/printf ('|\"\\\$1\" )//")"
   core_list="$(printf '%s\n' "${_HI_SESSION_VARS[@]}")"
-  [ "$hi_list" = "$core_list" ] || {
-    _hi_cecho " | hi.sh:   $(printf '%s' "$hi_list" | tr '\n' ' ')" "$RED"
-    _hi_cecho " | core.sh: ${_HI_SESSION_VARS[*]}" "$RED"
-    return 1
-  }
+  [ "$hi_list" = "$core_list" ] || _hi_because "hi.sh: [${hi_list//$'\n'/ }], core.sh: [${_HI_SESSION_VARS[*]}]"
 }
 
 # The two workstation names are exactly the ones the roster must never grow.
 function test_roster_never_names_the_workstation() {
   case " ${_HI_CHILD_ENV[*]} " in
   *" _HI_LOCAL_USER "* | *" _HI_LOCAL_HOSTNAME "*)
-    _hi_cecho " | _HI_CHILD_ENV carries a workstation name" "$RED"
-    return 1
+    _hi_because "_HI_CHILD_ENV carries a workstation name" || return 1
     ;;
   esac
 }
@@ -142,10 +116,7 @@ function test_targets_env_reads_are_in_the_roster() {
     *) stray="$stray $n" ;;
     esac
   done < <(grep -oE '\$\{_HI_[A-Z0-9_]+:-' "$_HI_ROOT/common/targets.sh" | grep -oE '_HI_[A-Z0-9_]+' | sort -u)
-  [ -z "$stray" ] || {
-    _hi_cecho " | targets.sh reads from the environment:$stray" "$RED"
-    return 1
-  }
+  [ -z "$stray" ] || _hi_because "targets.sh reads from the environment:$stray"
 }
 
 # load.sh's session rc carries every set session value, in each dialect, and
@@ -171,10 +142,7 @@ function _hi_rc_round_trips() { # <shell> <file> <assignment grep>
   grep "$3" "$dir/$2" >"$_HI_WORKDIR/vars.$1"
   out="$("$1" -c "source $_HI_WORKDIR/vars.$1; printf '%s|%s|%s|%s' \"\$_HI_TARGET_COLOR\" \"\$_HI_TARGET_TAG\" \"\$_HI_LOCAL_HOSTNAME\" \"\$_HI_ASCII\"" 2>&1)"
   rm -rf "$dir"
-  [ "$out" = "red|$_HI_RC_TAG|$_HI_RC_HOST|0" ] || {
-    _hi_cecho " | $1 read back: $out" "$RED"
-    return 1
-  }
+  [ "$out" = "red|$_HI_RC_TAG|$_HI_RC_HOST|0" ] || _hi_because "$1 read back: $out"
 }
 
 function run_exports_tests() {
@@ -196,8 +164,8 @@ function run_exports_tests() {
   _hi_check_requires fish "fish: __hi_bash passes session values without exporting them" test_fish_bridge_passes_session_values_without_exporting_them
 
   _hi_h2 "Testing: the rosters cannot drift"
-  _hi_check "config.fish's _HI_CHILD_ENV mirror matches core.sh" test_fish_child_env_mirror_matches_core
-  _hi_check "config.fish's _HI_SESSION_VARS mirror matches core.sh" test_fish_session_vars_mirror_matches_core
+  _hi_check "config.fish's _HI_CHILD_ENV mirror matches core.sh" _hi_fish_mirror_is _HI_CHILD_ENV
+  _hi_check "config.fish's _HI_SESSION_VARS mirror matches core.sh" _hi_fish_mirror_is _HI_SESSION_VARS
   _hi_check "hi.sh's _hi_session_env names match _HI_SESSION_VARS" test_session_env_names_match_the_roster
   _hi_check "the roster never names the workstation" test_roster_never_names_the_workstation
   _hi_check "every env read in targets.sh is in the roster" test_targets_env_reads_are_in_the_roster

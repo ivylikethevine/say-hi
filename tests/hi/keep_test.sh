@@ -20,11 +20,12 @@ source "$_HI_LAUNCHER"
 # prints $_HI_TEST_SCREENS, `zellij ls` $_HI_TEST_ZELLIJ and its options' help
 # $_HI_TEST_ZOPTS. A tmux or zellij that starts a session leaves its own
 # environment in $_HI_TEST_LOG.env, and zellij its layout in $_HI_TEST_LOG.kdl.
-# keepzbin holds zellij and bash alone, for a target with no tmux.
+# keepzbin beside it holds zellij and bash alone, for a target with no tmux.
+# Built once a suite: the cases only run them.
 function _hi_keep_shims() {
-  local bin="$_HI_WORKDIR/keepbin"
+  local bin="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/keepbin"
   if [ ! -d "$bin" ]; then
-    mkdir -p "$bin" "$_HI_WORKDIR/keepzbin"
+    mkdir -p "$bin" "${bin%/*}/keepzbin"
     cat >"$bin/zellij" <<'SHIM'
 #!/bin/sh
 printf 'ZELLIJ %s\n' "$*" >>"$_HI_TEST_LOG"
@@ -57,40 +58,46 @@ exit 0
 SHIM
     printf '%s\n' '#!/bin/sh' 'printf '\''BASH %s\n'\'' "$*" >>"$_HI_TEST_LOG"' >"$bin/bash"
     chmod +x "$bin/tmux" "$bin/zellij" "$bin/screen" "$bin/bash"
-    cp "$bin/zellij" "$bin/bash" "$_HI_WORKDIR/keepzbin/"
+    cp "$bin/zellij" "$bin/bash" "${bin%/*}/keepzbin/"
   fi
   printf '%s' "$bin"
 }
 
-# _hi_keep_sh <log> <script> [NAME=value...] - <script> under sh with the
-# shims first on PATH and the pairs in its environment; prints what it wrote,
-# then the log
+# _hi_keep_sh [--pty] <log> <script> [NAME=value...] - <script> under sh with
+# the shims first on PATH and the pairs in its environment, with --pty on a
+# terminal, which is what attaches and starts; prints what it wrote, then the
+# log
 function _hi_keep_sh() {
+  local -a pty=()
+  if [ "$1" = --pty ]; then
+    pty=(python3 -c "$_HI_PTY_SPAWN")
+    shift
+  fi
   local log="$1" script="$2" bin
   shift 2
   bin="$(_hi_keep_shims)"
   : >"$log"
-  env _HI_TEST_LOG="$log" PATH="$bin:$PATH" "$@" sh -c "$script" </dev/null 2>&1 || true
+  env _HI_TEST_LOG="$log" PATH="$bin:$PATH" "$@" ${pty[@]+"${pty[@]}"} sh -c "$script" </dev/null 2>&1 || true
   cat "$log"
 }
 
-# ...and the same with a terminal on stdin, which is what attaches and starts
-function _hi_keep_pty() {
-  local log="$1" script="$2" bin
-  shift 2
-  bin="$(_hi_keep_shims)"
-  : >"$log"
-  env _HI_TEST_LOG="$log" PATH="$bin:$PATH" "$@" python3 -c "$_HI_PTY_SPAWN" sh -c "$script" </dev/null 2>&1 || true
-  cat "$log"
+# _hi_dead_pid <outvar> - the pid of a process that has exited
+function _hi_dead_pid() {
+  sleep 0 &
+  wait "$!" && printf -v "$1" '%s' "$!"
 }
+
+# _hi_keep_mktemp <dir> - a mktemp in <dir>/bin that answers in <dir>, since
+# macOS's -t goes to the account's temp directory whatever $TMPDIR says
+function _hi_keep_mktemp() { _hi_script "$1/bin/mktemp" '#!/bin/sh' 'mkdir -p "$_HI_TEST_TMP/u.hi.probe" && printf "%s\n" "$_HI_TEST_TMP/u.hi.probe"'; }
 
 # ...on a target whose one multiplexer is zellij: the zellij and bash shims,
 # and the tools the script itself runs
 function _hi_keep_zpty() {
   local log="$1" script="$2" path
   shift 2
-  _hi_keep_shims >/dev/null
-  path="$_HI_WORKDIR/keepzbin:$(_hi_real_path keepztools sh sed awk date env grep cat mkdir)"
+  path="$(_hi_keep_shims)"
+  path="${path%/*}/keepzbin:$(_hi_real_path keepztools sh sed awk date env grep cat mkdir)"
   : >"$log"
   env _HI_TEST_LOG="$log" "$@" python3 -c "$_HI_PTY_SPAWN" env PATH="$path" sh -c "$script" </dev/null 2>&1 || true
   cat "$log"
@@ -199,7 +206,7 @@ function test_keep_script_ends_86_off_a_kept_session() {
   local log="$_HI_WORKDIR/ends86.log" script out
   script="$(DOMAIN=box KEEP='' CMDARG='' _hi_keep_attach)"
   # shellcheck disable=SC2016 # the shim's sh expands it
-  out="$(_hi_keep_pty "$log" 'sh -c "$S"; echo "RC=$?"' S="$script" _HI_TEST_HAS=0)"
+  out="$(_hi_keep_sh --pty "$log" 'sh -c "$S"; echo "RC=$?"' S="$script" _HI_TEST_HAS=0)"
   [[ "$out" == *"is kept"*"RC=86"* ]] || _hi_because "detached from a kept session: $out"
 }
 
@@ -228,9 +235,7 @@ function test_keep_script_says_how_it_ends_and_what_is_gone() {
 # a running timer claims are left.
 function test_keep_sweep_removes_the_tree_of_a_dead_owner_pane() {
   local d="$_HI_WORKDIR/sweep" dead n out
-  sleep 0 &
-  wait "$!"
-  dead=$!
+  _hi_dead_pid dead
   for n in u.hi.dead u.hi.both u.hi.live u.hi.outer u.hi.unclaimed u.hi.plain u.hi.new v.hi.other \
     u.hi.gone u.hi.here u.hi.handed u.hi.held u.hi.unheld; do
     mkdir -p "$d/$n/say-hi"
@@ -384,12 +389,12 @@ function test_kept_passes_over_a_dead_or_longer_named_session() {
 
 function test_keep_attaches_a_kept_session_and_stops() {
   local out
-  out="$(_hi_keep_pty "$_HI_WORKDIR/attach.log" "$(DOMAIN=box KEEP="" CMDARG="" _hi_keep_attach)
+  out="$(_hi_keep_sh --pty "$_HI_WORKDIR/attach.log" "$(DOMAIN=box KEEP="" CMDARG="" _hi_keep_attach)
 echo UNPACKED" _HI_TEST_HAS=0)"
   [[ "$out" == *"TMUX attach-session -t =hi-box"* ]] || _hi_because "no attach: $out" || return 1
   [[ "$out" == *"detached, the session on [box] is kept"* ]] || _hi_because "no note: $out" || return 1
   [[ "$out" != *UNPACKED* ]] || _hi_because "the script ran on past the attach" || return 1
-  out="$(_hi_keep_pty "$_HI_WORKDIR/attach.log" "$(DOMAIN=box KEEP="" CMDARG="" _hi_keep_attach)
+  out="$(_hi_keep_sh --pty "$_HI_WORKDIR/attach.log" "$(DOMAIN=box KEEP="" CMDARG="" _hi_keep_attach)
 echo UNPACKED" _HI_TEST_ZELLIJ='hi-box [Created 3s ago] \n')"
   [[ "$out" == *"ZELLIJ attach hi-box"* && "$out" == *"detached, the session"* && "$out" != *UNPACKED* ]] ||
     _hi_because "zellij: $out"
@@ -407,7 +412,7 @@ echo UNPACKED" _HI_TEST_HAS=0)"
 # environment has lost the ones a child may not see (GLOSSARY: HI.47)
 function test_keep_start_hands_the_pane_its_environment() {
   local log="$_HI_WORKDIR/start.log" out
-  out="$(_hi_keep_pty "$log" "$(_hi_keep_start_script)")"
+  out="$(_hi_keep_sh --pty "$log" "$(_hi_keep_start_script)")"
   [[ "$out" == *"TMUX new-session -s hi-box env _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box _HI_HOME=$_HI_WORKDIR/t "* ]] ||
     _hi_because "no owner pane: $out" || return 1
   [[ "$out" == *" _HI_LOCAL_USER="*" _HI_CLEANUP=$_HI_WORKDIR/t "*" bash --rcfile $_HI_WORKDIR/t/say-hi/hi.bashrc -i"* ]] ||
@@ -421,7 +426,7 @@ function test_keep_start_reads_the_carried_tmux_config() {
   local log="$_HI_WORKDIR/conf.log" out root="$_HI_WORKDIR/conftree"
   mkdir -p "$root/say-hi/config/tmux"
   : >"$root/say-hi/config/tmux/tmux.conf"
-  out="$(_hi_keep_pty "$log" "$(_hi_keep_start_script | sed "s|$_HI_WORKDIR/t/say-hi/config|$root/say-hi/config|")")"
+  out="$(_hi_keep_sh --pty "$log" "$(_hi_keep_start_script | sed "s|$_HI_WORKDIR/t/say-hi/config|$root/say-hi/config|")")"
   [[ "$out" == *"TMUX -f $root/say-hi/config/tmux/tmux.conf new-session -s hi-box env "* ]] || _hi_because "$out"
 }
 
@@ -475,10 +480,7 @@ function test_keep_start_without_a_multiplexer_holds_the_tree() {
   local got
   local log="$_HI_WORKDIR/nomux.log" out bare
   bare="$_HI_WORKDIR/keepbare"
-  mkdir -p "$bare"
-  # shellcheck disable=SC2016 # the shim's sh expands it
-  printf '%s\n' '#!/bin/sh' 'printf '\''BASH %s hold=%s\n'\'' "$*" "${_HI_KEEP_HOLD:-}" >>"$_HI_TEST_LOG"' >"$bare/bash"
-  chmod +x "$bare/bash"
+  _hi_script "$bare/bash" '#!/bin/sh' 'printf '\''BASH %s hold=%s\n'\'' "$*" "${_HI_KEEP_HOLD:-}" >>"$_HI_TEST_LOG"'
   : >"$log"
   out="$(env _HI_TEST_LOG="$log" PATH="$bare:$(_hi_real_path keeptools sh sed awk date env)" \
     sh -c "$(_hi_keep_start_script)" </dev/null 2>&1)" || true
@@ -509,9 +511,7 @@ printf 'HELD=%s HOME=%s PWD=%s HOLD=%s\n' \"\$_hi_held\" \"\$_HI_HOME\" \"\$PWD\
 # directory its shell was in, and one left for another name
 function _hi_keep_held_trees() {
   local dead
-  sleep 0 &
-  wait "$!"
-  dead=$!
+  _hi_dead_pid dead
   mkdir -p "$1/u.hi.old/say-hi" "$1/u.hi.else/say-hi" "$1/where it was"
   printf '%s %s hi-box\n' "$$" "$dead" >"$1/u.hi.old/say-hi/hi.held"
   printf '%s\n' "$dead" >"$1/u.hi.old/say-hi/hi.pid"
@@ -558,16 +558,13 @@ function test_keep_end_kills_the_session_or_says_there_is_none() {
 }
 
 # with no session, a tree a drop left under the name is ended through its
-# timer: hi.end beside the claim, and 0. mktemp is a shim that answers in the
-# case's own directory, since macOS's -t goes to the account's temp
-# directory whatever $TMPDIR says.
+# timer: hi.end beside the claim, and 0. mktemp answers in the case's own
+# directory (_hi_keep_mktemp).
 function test_keep_end_ends_a_held_tree_through_its_timer() {
   local d="$_HI_WORKDIR/endheld" out t path
   t="$d/u.hi.zzzzzz/say-hi"
-  mkdir -p "$t" "$d/bin"
-  # shellcheck disable=SC2016 # the shim's sh expands it
-  printf '%s\n' '#!/bin/sh' 'mkdir -p "$_HI_TEST_TMP/u.hi.probe" && printf "%s\n" "$_HI_TEST_TMP/u.hi.probe"' >"$d/bin/mktemp"
-  chmod +x "$d/bin/mktemp"
+  mkdir -p "$t"
+  _hi_keep_mktemp "$d"
   path="$d/bin:$(_hi_keep_shims):$PATH"
   printf '1 1 hi-box\n' >"$t/hi.held"
   out="$(_hi_keep_sh "$_HI_WORKDIR/endheld.log" "($(DOMAIN=box _hi_keep_end_script)); echo RC=\$?" PATH="$path" _HI_TEST_TMP="$d")"
@@ -582,13 +579,9 @@ function test_keep_end_ends_a_held_tree_through_its_timer() {
 # runs on is left, and the status is the kill's.
 function test_keep_end_sweeps_the_tree_of_a_dead_owner_pane() {
   local d="$_HI_WORKDIR/endsweep" out dead path
-  sleep 0 &
-  wait "$!"
-  dead=$!
-  mkdir -p "$d/u.hi.dead/say-hi" "$d/u.hi.outer/say-hi" "$d/bin"
-  # shellcheck disable=SC2016 # the shim's sh expands it
-  printf '%s\n' '#!/bin/sh' 'mkdir -p "$_HI_TEST_TMP/u.hi.probe" && printf "%s\n" "$_HI_TEST_TMP/u.hi.probe"' >"$d/bin/mktemp"
-  chmod +x "$d/bin/mktemp"
+  _hi_dead_pid dead
+  mkdir -p "$d/u.hi.dead/say-hi" "$d/u.hi.outer/say-hi"
+  _hi_keep_mktemp "$d"
   path="$d/bin:$(_hi_keep_shims):$PATH"
   printf '%s \n' "$dead" >"$d/u.hi.dead/say-hi/hi.kept"
   printf '%s %s\n' "$dead" "$$" >"$d/u.hi.outer/say-hi/hi.kept"
@@ -601,9 +594,7 @@ function test_keep_end_sweeps_the_tree_of_a_dead_owner_pane() {
 # hi --end's own line and status: ssh's 3 is "none", and hi's 1
 function test_keep_end_reports_what_the_target_answered() {
   local bin="$_HI_WORKDIR/endssh" out rc=0
-  mkdir -p "$bin"
-  printf '%s\n' '#!/bin/sh' 'exit "${_HI_TEST_SSH_RC:-0}"' >"$bin/ssh"
-  chmod +x "$bin/ssh"
+  _hi_script "$bin/ssh" '#!/bin/sh' 'exit "${_HI_TEST_SSH_RC:-0}"'
   out="$(
     PATH="$bin:$PATH" DOMAIN=box SSHARGS=()
     _hi_keep_record rec && : >"$rec"

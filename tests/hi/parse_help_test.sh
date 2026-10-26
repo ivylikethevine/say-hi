@@ -21,7 +21,7 @@ source "${BASH_SOURCE[0]%/*}/parse_test.sh"
 # "dash" (a real $_HI_SHELL_LADDER member, so the caller's own validation
 # against it passes) since which one hi picks is not what these cases are about.
 function _hi_plain_container_shim() {
-  local dir="$_HI_WORKDIR/plainshims"
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/plainshims"
   [ -d "$dir" ] && {
     printf '%s' "$dir"
     return 0
@@ -80,14 +80,10 @@ function test_plain_container_runs_rawcmd_with_dash_c() {
 # ssh itself is "just get me a shell" with no target, so --plain's ssh path
 # is real ssh with no bootstrap - asserted through a shim that echoes its own
 # argv, proving nothing beyond SSHARGS/DOMAIN/RAWCMD ever reaches it
-function _hi_plain_ssh_shim() {
-  mkdir -p "$_HI_WORKDIR/plainssh"
-  printf '#!/bin/sh\necho "SSH:$*"\n' >"$_HI_WORKDIR/plainssh/ssh"
-  chmod +x "$_HI_WORKDIR/plainssh/ssh"
-}
+function _hi_plain_ssh_shim() { [ -x "$1/ssh" ] || _hi_script "$1/ssh" '#!/bin/sh' 'echo "SSH:$*"'; }
 function test_plain_ssh_execs_real_ssh_with_rawcmd() {
-  local dir="$_HI_WORKDIR/plainssh" out
-  _hi_plain_ssh_shim
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/plainssh" out
+  _hi_plain_ssh_shim "$dir"
   out="$(
     DOMAIN=myhost SSHARGS=() RAWCMD="echo hi"
     PATH="$dir:$PATH" _say_hi_plain </dev/null
@@ -96,8 +92,8 @@ function test_plain_ssh_execs_real_ssh_with_rawcmd() {
 }
 
 function test_plain_ssh_with_no_command_passes_none() {
-  local dir="$_HI_WORKDIR/plainssh" out
-  _hi_plain_ssh_shim
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/plainssh" out
+  _hi_plain_ssh_shim "$dir"
   out="$(
     DOMAIN=myhost SSHARGS=()
     unset RAWCMD
@@ -130,10 +126,7 @@ function test_help_and_version_refuse_a_trailing_word() {
     rc=0
     # shellcheck disable=SC2086 # the spec is two words on purpose
     out="$(_hi_help_out $spec)" || rc=$?
-    [ "$rc" -eq 1 ] && [[ "$out" == *"${spec%% *} takes no arguments (got: ${spec#* })"* ]] || {
-      _hi_cecho " | hi $spec: rc $rc, said: $out" "$RED"
-      return 1
-    }
+    [ "$rc" -eq 1 ] && [[ "$out" == *"${spec%% *} takes no arguments (got: ${spec#* })"* ]] || _hi_because "hi $spec: rc $rc, said: $out" || return 1
   done
 }
 
@@ -323,11 +316,7 @@ function test_usage_line_matches_the_man_page_synopsis() {
   help="${_HI_USAGE#Usage: }"
   help="${help//[<> ]/}"
   help="${help//$'\n'/}"
-  [ "$page" = "$help" ] || {
-    _hi_cecho "   --help: $help" "$RED"
-    _hi_cecho "   hi.1:   $page" "$RED"
-    return 1
-  }
+  [ "$page" = "$help" ] || _hi_because "--help: $help"$'\n'"hi.1:   $page"
 }
 
 # _hi_flag_help wraps a wide label onto its own line so the block fits 80
@@ -337,10 +326,7 @@ function test_help_fits_eighty_columns() {
   local out wide
   out="$(_hi_help_out --help)" || _hi_why || return 1
   wide="$(printf '%s\n' "$out" | awk 'length > 80')"
-  [ -z "$wide" ] || {
-    _hi_cecho "   over 80 columns: $wide" "$RED"
-    return 1
-  }
+  [ -z "$wide" ] || _hi_because "over 80 columns: $wide"
 }
 
 # ...and that check asks only whether a flag appears in the page at all, so
@@ -459,9 +445,7 @@ function _hi_subcmd_stubs() {
   for stub in install:scripts/install.sh preview:scripts/preview.sh \
     doctor:scripts/doctor.sh; do
     dir="$home/say-hi/${stub#*:}"
-    printf '#!/bin/sh\nprintf %s\nfor a in "$@"; do printf " %%s" "$a"; done\nprintf "\\n"\n' \
-      "'STUB ${stub%%:*}'" >"$dir"
-    chmod +x "$dir"
+    _hi_script "$dir" '#!/bin/sh' "printf 'STUB ${stub%%:*}'" 'for a in "$@"; do printf " %s" "$a"; done' 'printf "\n"'
   done
   printf '%s' "$home"
 }
@@ -476,14 +460,8 @@ function test_local_subcommands_refuse_without_the_checkout() {
     # common/flags' row dispatch handles them all
     say="${flag%% *}"
     # shellcheck disable=SC2086 # "--preview colors" is two words on purpose
-    out="$(_hi_subcmd_run "$home" $flag)" && {
-      _hi_cecho " | $flag exited 0 without a checkout" "$RED"
-      return 1
-    }
-    [[ "$out" == *"hi $say needs the full say-hi checkout"* ]] || {
-      _hi_cecho " | $flag said: $out" "$RED"
-      return 1
-    }
+    ! out="$(_hi_subcmd_run "$home" $flag)" || _hi_because "$flag exited 0 without a checkout" || return 1
+    [[ "$out" == *"hi $say needs the full say-hi checkout"* ]] || _hi_because "$flag said: $out" || return 1
   done
 }
 
@@ -497,10 +475,7 @@ function test_joined_value_is_refused_where_nothing_is_positional() {
   for flag in --install=yes --uninstall=1 --configure=x --doctor=json --doctor=myhost; do
     rc=0
     out="$(_hi_subcmd_run "$home" "$flag")" || rc=$?
-    [ "$rc" -eq 1 ] && [[ "$out" == *"${flag%%=*} takes no joined value"* ]] && [[ "$out" != STUB* ]] || {
-      _hi_cecho " | $flag: rc $rc, said: $out" "$RED"
-      return 1
-    }
+    [ "$rc" -eq 1 ] && [[ "$out" == *"${flag%%=*} takes no joined value"* ]] && [[ "$out" != STUB* ]] || _hi_because "$flag: rc $rc, said: $out" || return 1
   done
 }
 
@@ -521,10 +496,7 @@ function test_local_subcommands_exec_the_right_script() {
     want="${spec#*|}"
     # shellcheck disable=SC2086 # "--preview colors" is two words on purpose
     out="$(_hi_subcmd_run "$home" $flag)" || _hi_why home flag || return 1
-    [ "$out" = "$want" ] || {
-      _hi_cecho " | $flag ran '$out', wanted '$want'" "$RED"
-      return 1
-    }
+    [ "$out" = "$want" ] || _hi_because "$flag ran '$out', wanted '$want'" || return 1
   done
 }
 
@@ -559,10 +531,7 @@ function test_use_words_match_the_backend_roster() {
   # shellcheck disable=SC2031
   want="$(printf '%s\n' ssh "${_HI_BACKENDS[@]%%|*}")"
   roster="$(sh "$_HI_ROOT/common/targets.sh" words --use | cut -f1)"
-  [ "$roster" = "$want" ] || {
-    _hi_cecho "   words --use: ${roster//$'\n'/ } - hi.sh: ${want//$'\n'/ }" "$RED"
-    return 1
-  }
+  [ "$roster" = "$want" ] || _hi_because "words --use: ${roster//$'\n'/ } - hi.sh: ${want//$'\n'/ }"
 }
 
 function test_local_subcommands_forward_extra_arguments() {
@@ -582,10 +551,7 @@ function test_local_subcommands_forward_extra_arguments() {
 function test_paths_defines_no_command_aliases() {
   local stray
   stray="$(grep -oE '^alias hi_[a-z_]+' "$_HI_ROOT/common/paths.sh" | grep -vx 'alias hi_info' || true)"
-  [ -z "$stray" ] || {
-    _hi_cecho " | paths.sh still defines: $stray" "$RED"
-    return 1
-  }
+  [ -z "$stray" ] || _hi_because "paths.sh still defines: $stray"
 }
 
 # _hi is the dispatch function itself: the missing-$_HI_ROOT exit, the
@@ -696,6 +662,8 @@ function test_hi_reports_failure_only_on_nonzero_with_arm_and_tmp() {
 
 function run_hi_parse_help_tests() {
   _hi_parse_begin
+  # --help's one launch, kept for every case that reads it
+  _hi_help_out --help >/dev/null || :
 
   _hi_h1 "Testing hi.sh: parsing and dispatch (the dispatch and --help)"
 

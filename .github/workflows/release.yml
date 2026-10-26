@@ -713,22 +713,25 @@ jobs:
         run: |
           set -euo pipefail
           # Body: the badges frozen above, what changed, then how to check it.
-          # The notes are generated because README.md's Roadmap and Release
-          # Stages delete finished entries and this is where the git-history ledger gets
-          # published. Asked for via the API and composed here rather than
-          # --generate-notes plus --notes, which would put the checklist first:
-          # gh appends generated notes *after* --notes.
+          # The generated notes list the PRs since the last tag; asked for via
+          # the API and composed here rather than --generate-notes plus
+          # --notes, which would put the checklist first: gh appends generated
+          # notes *after* --notes.
           notes="$(gh api --method POST \
             "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
             -f tag_name="$GITHUB_REF_NAME" --jq .body 2>/dev/null || true)"
           [ -n "$notes" ] || notes="_Release notes could not be generated for this tag._"
-          # What changed, in the words each PR's `## Release note` section
-          # (the template's) gave it: release_notes.sh reads the PR numbers
-          # out of the generated notes, so "since the last tag" is GitHub's
-          # own answer, and prints nothing when no PR said anything - the
-          # titles then stand alone as they always did.
-          printf '%s\n' "$notes" >"$RUNNER_TEMP/generated-notes.md"
-          changed="$(bash .github/scripts/release_notes.sh "$GITHUB_REPOSITORY" "$RUNNER_TEMP/generated-notes.md")"
+          # What changed: the tag's CHANGELOG.md entry, which the gate holds
+          # it to, so the release page and the tarball say the same. A debug
+          # tag the gate lets through without one falls back to each PR's
+          # `## Release note` section (release_notes.sh reads the PR numbers
+          # out of the generated notes), and to the titles alone when no PR
+          # said anything.
+          changed="$(bash .github/scripts/changelog.sh --entry "${GITHUB_REF_NAME#v}")"
+          if [ -z "$changed" ]; then
+            printf '%s\n' "$notes" >"$RUNNER_TEMP/generated-notes.md"
+            changed="$(bash .github/scripts/release_notes.sh "$GITHUB_REPOSITORY" "$RUNNER_TEMP/generated-notes.md")"
+          fi
           # The checklist: each command is the one docs/PACKAGING.md documents
           # under "Verifying a release download", and the public key is read
           # out of that file so a second literal copy cannot drift.

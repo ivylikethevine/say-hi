@@ -74,6 +74,27 @@ function _hi_dump_alloc_status() {
   nomad alloc status "$alloc" 2>&1 | sed 's/^/      /'
 }
 
+# _hi_nomad_job <job> {<task> <image> <command> <args>}... - a one-group
+# service job of docker tasks, as HCL; <args> is the list's body, quoted
+function _hi_nomad_job() {
+  printf 'job "%s" {\n  datacenters = ["dc1"]\n  type        = "service"\n\n  group "hitest" {\n    count = 1\n' "$1"
+  shift
+  printf '    task "%s" {
+      driver = "docker"
+      config {
+        image   = "%s"
+        command = "%s"
+        args    = [%s]
+      }
+      resources {
+        cpu    = 100
+        memory = 64
+      }
+    }
+' "$@"
+  printf '  }\n}\n'
+}
+
 function _hi_run_case() {
   local label="$1" image="$2" cmd="$3" timeout_s="${4:-30}"
   local job jobfile alloc ok=0
@@ -82,29 +103,7 @@ function _hi_run_case() {
   jobfile="$_HI_WORKDIR/$label.nomad.hcl"
   _hi_h3 "Testing driver shape: [$label]"
 
-  cat >"$jobfile" <<EOF
-job "$job" {
-  datacenters = ["dc1"]
-  type        = "service"
-
-  group "hitest" {
-    count = 1
-    task "hitest" {
-      driver = "docker"
-      config {
-        image   = "$image"
-        command = "sleep"
-        args    = ["infinity"]
-      }
-      resources {
-        cpu    = 100
-        memory = 64
-      }
-    }
-  }
-}
-EOF
-
+  _hi_nomad_job "$job" hitest "$image" sleep '"infinity"' >"$jobfile"
   if ! nomad job run -detach "$jobfile" >"$_HI_WORKDIR/$label.run.log" 2>&1; then
     _hi_dump_log "failed to submit job:" "$_HI_WORKDIR/$label.run.log"
     return 1
@@ -132,40 +131,8 @@ function _hi_nomad_multi_task_case() {
   local job="hi-nomadtest-multi-$$" jobfile="$_HI_WORKDIR/multi.nomad.hcl"
   local alloc got ok=0
   _hi_h3 "Testing driver shape: [multi-task]"
-  cat >"$jobfile" <<EOF
-job "$job" {
-  datacenters = ["dc1"]
-  type        = "service"
-
-  group "hitest" {
-    count = 1
-    task "app" {
-      driver = "docker"
-      config {
-        image   = "$_HI_PAIR_IMAGE_SH"
-        command = "sh"
-        args    = ["-c", "echo app >/tmp/who; sleep infinity"]
-      }
-      resources {
-        cpu    = 100
-        memory = 64
-      }
-    }
-    task "sidecar" {
-      driver = "docker"
-      config {
-        image   = "$_HI_PAIR_IMAGE_SH"
-        command = "sh"
-        args    = ["-c", "echo sidecar >/tmp/who; sleep infinity"]
-      }
-      resources {
-        cpu    = 100
-        memory = 64
-      }
-    }
-  }
-}
-EOF
+  _hi_nomad_job "$job" app "$_HI_PAIR_IMAGE_SH" sh '"-c", "echo app >/tmp/who; sleep infinity"' \
+    sidecar "$_HI_PAIR_IMAGE_SH" sh '"-c", "echo sidecar >/tmp/who; sleep infinity"' >"$jobfile"
   if ! nomad job run -detach "$jobfile" >"$_HI_WORKDIR/multi.run.log" 2>&1; then
     _hi_dump_log "failed to submit the multi-task job:" "$_HI_WORKDIR/multi.run.log"
     return 1

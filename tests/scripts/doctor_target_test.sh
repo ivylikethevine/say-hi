@@ -15,7 +15,7 @@ source "${BASH_SOURCE[0]%/*}/doctor_test.sh"
 
 # _hi_doc_target [NAME=VALUE...] <target> - doctor_target on the shims, no ssh config
 function _hi_doc_target() {
-  PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent doctor_target "$@"
+  PATH="$_HI_DOC_PATH" _HI_SSH_CONFIG=/nonexistent doctor_target "$@"
 }
 
 # the folded-in rc check: each rc or overlay file through its parser,
@@ -103,13 +103,13 @@ function test_target_names_the_config_d_file_a_tag_is_from() {
   printf 'Host web1\n\n# Tags: prod\nHost db1\n' >"$h/.ssh/config.d/acme"
   : >"$h/overlay/settings.acme.sh"
   unset _HI_TAG_NAME
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" \
-  _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 tar-z bash " doctor_target web1)"
+  out="$(PATH="$_HI_DOC_PATH" HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" \
+    _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 tar-z bash " doctor_target web1)"
   [[ "$out" == *"acme - the name of ~/.ssh/config.d/acme"* && "$out" == *"settings.acme.sh - read over settings.sh"* ]] ||
     _hi_why out h || return 1
   unset _HI_TAG_NAME
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" \
-  _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 tar-z bash " doctor_target db1)"
+  out="$(PATH="$_HI_DOC_PATH" HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" \
+    _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 tar-z bash " doctor_target db1)"
   [[ "$out" != *"the name of"* ]] || _hi_why out h
 }
 
@@ -163,14 +163,14 @@ function test_forced_ssh_overrides_a_real_container() {
 # say-hi the target happens to have is not read from here
 function test_ssh_target_reports_the_wire_cost() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" \
-  HI_FAKE_TOOLS="base64 tar-z bash " _hi_doc_rows doctor_transport_target ssh somewhere)"
+  out="$(PATH="$_HI_DOC_PATH" \
+    HI_FAKE_TOOLS="base64 tar-z bash " _hi_doc_rows doctor_transport_target ssh somewhere)"
   [[ "$out" == *install*"each session"* ]] || _hi_why out
 }
 
 function test_ssh_target_flags_a_missing_base64() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="bash " _hi_doc_rows doctor_transport_target ssh somewhere)"
+  out="$(PATH="$_HI_DOC_PATH" HI_FAKE_TOOLS="bash " _hi_doc_rows doctor_transport_target ssh somewhere)"
   [[ "$out" == *"no base64"* ]] || _hi_why out
 }
 
@@ -178,13 +178,13 @@ function test_ssh_target_flags_a_missing_base64() {
 # so in the boot probe's words
 function test_ssh_target_flags_a_missing_tar() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash sh " _hi_doc_rows doctor_transport_target ssh somewhere)"
+  out="$(PATH="$_HI_DOC_PATH" HI_FAKE_TOOLS="base64 bash sh " _hi_doc_rows doctor_transport_target ssh somewhere)"
   [[ "$out" == *"no tar that reads gzip"* && "$out" != *"full - bash is there"* ]] || _hi_why out
 }
 
 function test_ssh_target_flags_a_missing_bash() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 tar-z sh " _hi_doc_rows doctor_transport_target ssh somewhere)"
+  out="$(PATH="$_HI_DOC_PATH" HI_FAKE_TOOLS="base64 tar-z sh " _hi_doc_rows doctor_transport_target ssh somewhere)"
   [[ "$out" == *"no bash"* && "$out" == *"aliases only"* ]] || _hi_why out
 }
 
@@ -193,13 +193,7 @@ function test_ssh_target_flags_a_missing_bash() {
 # most: "why won't ssh connect". A dedicated failing ssh, not the shared shim.
 function test_ssh_target_reports_a_connect_failure() {
   local bin="$_HI_WORKDIR/sshfail.bin" out
-  mkdir -p "$bin"
-  cat >"$bin/ssh" <<'SHIM'
-#!/bin/sh
-echo "Permission denied (publickey)." >&2
-exit 255
-SHIM
-  chmod +x "$bin/ssh"
+  _hi_script "$bin/ssh" '#!/bin/sh' 'echo "Permission denied (publickey)." >&2' 'exit 255'
   out="$(
     # shellcheck disable=SC2030 # lives and dies in this $( )
     PATH="$bin:$(_hi_real_path sshfail-tools mktemp date rm cat sh bash awk grep sed printf wc tr sleep)"
@@ -238,7 +232,7 @@ function _hi_doctor_install_out() {
   local home="$1"
   shift
   mkdir -p "$home"
-  _hi_run_said --both "doctor.sh at ${home##*/}" env PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" "$@" HOME="$home" \
+  _hi_run_said --both "doctor.sh at ${home##*/}" env PATH="$_HI_DOC_PATH" "$@" HOME="$home" \
     _HI_SSH_CONFIG=/nonexistent _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR"
 }
 
@@ -283,10 +277,9 @@ function test_install_section_names_an_older_hi_block() {
   local home="$_HI_WORKDIR/inst-old" bin out path fishrc
   bin="$home/bin"
   fishrc="$home/.config/fish/config.fish"
-  path="$bin:$(_hi_doctor_shims):$(_hi_doctor_path)"
-  mkdir -p "$bin" "${fishrc%/*}"
-  printf '#!/bin/sh\nexit 0\n' >"$bin/fish"
-  chmod +x "$bin/fish"
+  path="$bin:$_HI_DOC_PATH"
+  mkdir -p "${fishrc%/*}"
+  _hi_script "$bin/fish" '#!/bin/sh' 'exit 0'
   # shellcheck disable=SC2016 # the old lines, verbatim
   _hi_wired_block "$(tmpdir_line sh)" '[[ $- != *i* ]] && return' "source \"$_HI_BASHRC\"" >"$home/.bashrc"
   _hi_wired_block "$(tmpdir_line fish)" 'if status is-interactive' "  source \"$_HI_FISH_CONFIG\"" end >"$fishrc"
@@ -360,14 +353,13 @@ function test_install_section_flags_a_foreign_link() {
 function test_install_section_reads_the_hi_on_path() {
   local home="$_HI_WORKDIR/inst-onpath" bin out path
   bin="$home/bin"
-  path="$bin:$(_hi_doctor_shims):$(_hi_doctor_path)"
+  path="$bin:$_HI_DOC_PATH"
   mkdir -p "$bin"
   ln -sfn "$_HI_LAUNCHER" "$bin/hi"
   out="$(_hi_doctor_install_out "$home" PATH="$path")" || _hi_why home path || return 1
   [[ "$out" == *"no ~/.local/bin/hi, none needed: ~/bin/hi runs this tree"* &&
     "$out" == *"hi on PATH is ~/bin/hi, and runs this tree"* ]] || _hi_why out || return 1
-  printf '#!/bin/sh\nexit 0\n' >"$bin/other"
-  chmod +x "$bin/other"
+  _hi_script "$bin/other" '#!/bin/sh' 'exit 0'
   ln -sfn "$bin/other" "$bin/hi"
   out="$(_hi_doctor_install_out "$home" PATH="$path")" || _hi_why home path || return 1
   [[ "$out" == *"hi on PATH is ~/bin/hi, which runs ~/bin/other - not this tree"* ]] || _hi_why out
@@ -448,6 +440,7 @@ function run_doctor_target_tests() {
 
   _hi_h2 "Testing: the install section"
   _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
+  _hi_check "...an older hi's block is named, the current one is not" test_install_section_names_an_older_hi_block
   _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
   _hi_check_capable symlink "...one naming this tree by another path is not" test_install_section_knows_this_tree_by_another_path
   _hi_check "Unwired shells, absent shells, and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link

@@ -51,15 +51,11 @@ function _hi_load_run() {
 function test_load_propagates_the_session_shells_exit_code() {
   local out rc=0
   out="$(_hi_load_run 'exit 42' SHELL=/bin/bash _HI_DISABLE_HEADER=1)" || rc=$?
-  [ "$rc" -eq 42 ] || {
-    _hi_cecho " | exit code $rc, want 42" "$RED"
-    return 1
-  }
+  [ "$rc" -eq 42 ] || _hi_because "exit code $rc, want 42" || return 1
   case "$(_hi_strip_ansi "$out")" in
   *"hi loaded:"*"| session: "*) return 0 ;;
   esac
-  _hi_cecho " | transcript missing its fixed lines: $out" "$RED"
-  return 1
+  _hi_because "transcript missing its fixed lines: $out"
 }
 
 # _HI_DISABLE_GREETING=1 takes that whole line - the greeting and its three
@@ -72,13 +68,11 @@ function test_load_greeting_toggle_hides_the_line() {
   out="$(_hi_strip_ansi "$out")"
   case "$out" in
   *"hi loaded:"* | *"init: "*)
-    _hi_cecho " | the greeting survived its toggle: $out" "$RED"
-    return 1
+    _hi_because "the greeting survived its toggle: $out" || return 1
     ;;
   esac
   case "$out" in *"| session: "*) return 0 ;; esac
-  _hi_cecho " | no closing line: $out" "$RED"
-  return 1
+  _hi_because "no closing line: $out"
 }
 
 # With the header on, the greeting line wraps at the draw width and every
@@ -98,13 +92,10 @@ function test_load_greeting_line_takes_the_right_edge() {
     else
       [ "${#line}" -eq "$width" ] && [ "${line: -2}" = " |" ] && continue
     fi
-    _hi_cecho " | ${#line} columns: '$line'" "$RED"
-    return 1
+    _hi_because "${#line} columns: '$line'" || return 1
   done < <(_hi_strip_ansi "$out" |
     awk '/hi loaded:/ { on = 1; print; next } on && /^ \| (init|copy|load): / { print; next } { on = 0 }')
-  [ "$n" -eq "$want" ] && return 0
-  _hi_cecho " | $n greeting lines, want $want: $out" "$RED"
-  return 1
+  [ "$n" -eq "$want" ] || _hi_because "$n greeting lines, want $want: $out"
 }
 
 # <shell> <greeting> - the "hi loaded:" line names the shell the user
@@ -115,61 +106,24 @@ function test_load_greets_the_chosen_shell() {
   case "$(_hi_strip_ansi "$out")" in
   *"$want"*) return 0 ;;
   esac
-  _hi_cecho " | wanted '$want' in: $out" "$RED"
-  return 1
+  _hi_because "wanted '$want' in: $out"
 }
 
-# VIMINIT is how the carried vimrc reaches the session without touching ~/.vimrc; a
-# faked vim on a prepended PATH makes "vim installed" true on any box. The
-# session shell itself reads the variable back, since load() exports it for
-# exactly that shell to inherit.
-function test_load_exports_viminit_for_vim_sessions() {
-  local out
+# VIMINIT is how the carried vimrc reaches the session without touching ~/.vimrc,
+# read back by the session shell load() exports it for. Faked editors on PATH
+# pick the form: each its own rc on a box with both (this box's own nvim can
+# make the vim case that form), init.lua's with nvim alone (nvim reads
+# $VIMINIT, and `:source` runs lua), vimrc's with vim alone; with both off, the
+# plugin list and not vim's absence keeps it unset. A whole PATH keeps this
+# box's editors out. _hi_load_viminit_on <glob> <PATH> [NAME=VALUE...].
+function _hi_load_viminit_on() {
+  local want="$1" path="$2" out
+  shift 2
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
-    "PATH=$(_hi_fake_path withvim vim):$PATH")" || _hi_why VIMINIT || return 1
-  # this box's own nvim, where it has one, makes it the two-editor form
-  case "$out" in *"VIM=let \$MYVIMRC"*"'$_HI_VIMRC'"*) return 0 ;; esac
-  _hi_cecho " | $out" "$RED"
-  return 1
-}
-
-# ...and a box with both has each editor read its own rc, so an $EDITOR set
-# bare, with no `-u`, never opens nvim on the vimrc
-function test_load_viminit_with_both_editors_picks_by_editor() {
-  local out
-  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
-    "PATH=$(_hi_fake_path withvimnvim vim nvim):$(_hi_editorless_path)")" || _hi_why VIMINIT || return 1
-  case "$out" in *"VIM=let \$MYVIMRC = has('nvim') ? '$_HI_NVIMRC' : '$_HI_VIMRC' | source"*) return 0 ;; esac
-  _hi_cecho " | $out" "$RED"
-  return 1
-}
-
-# ...and a box with nvim and no vim gets the lua rc through the same variable:
-# nvim reads $VIMINIT too, and `:source` runs a .lua file as lua. The PATH is
-# named whole rather than prepended, since a `:$PATH` tail would put this
-# box's own vim back and take the branch above.
-function test_load_exports_viminit_for_nvim_only_sessions() {
-  local out
-  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
-    "PATH=$(_hi_fake_path withnvimonly nvim):$(_hi_editorless_path)")" || _hi_why VIMINIT || return 1
-  case "$out" in *"VIM=let \$MYVIMRC='$_HI_NVIMRC'"*) return 0 ;; esac
-  _hi_cecho " | $out" "$RED"
-  return 1
-}
-
-# ...and the other half of the same pin: a vim-only box is what it always was,
-# vimrc through $VIMINIT and vimrc in $EDITOR's flags.
-function test_load_viminit_on_a_vim_only_box_is_vim_rc() {
-  local out
-  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
-    "PATH=$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)")" || _hi_why VIMINIT || return 1
-  case "$out" in *"VIM=let \$MYVIMRC='$_HI_VIMRC'"*) return 0 ;; esac
-  _hi_cecho " | $out" "$RED"
-  return 1
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 "$@" "PATH=$path")" || _hi_why VIMINIT || return 1
+  # shellcheck disable=SC2254 # <glob> is a pattern
+  case "$out" in $want) return 0 ;; esac
+  _hi_because "$out"
 }
 
 # $EDITOR/$VISUAL/$SUDO_EDITOR carry the alias's flags into git, crontab, and
@@ -192,24 +146,11 @@ function _hi_load_editor_on() {
   out="$(_hi_load_run 'printf "E=%s|V=%s|S=%s\n" "${EDITOR-unset}" "${VISUAL-unset}" "${SUDO_EDITOR-unset}"; exit 0' \
     SHELL=/bin/bash _HI_DISABLE_HEADER=1 "$@" "PATH=$path")" || return 1
   case "$out" in *"$want"*) return 0 ;; esac
-  _hi_cecho " | wanted '$want' in: $out" "$RED"
-  return 1
+  _hi_because "wanted '$want' in: $out"
 }
 
 function _hi_editorless_path() {
   _hi_real_path editorless bash sh date awk du mktemp rm mkdir cat sed grep tr cut id hostname uname cksum
-}
-
-# ...and the list is the gate, not vim's absence: same fake vim, its plugin
-# and nvim's off (a box may carry a real nvim), no export
-function test_load_vim_off_blocks_viminit() {
-  local out
-  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_PLUGINS_OFF=lazygit,vim,nvim \
-    "PATH=$(_hi_fake_path withvim vim):$PATH")" || _hi_why VIMINIT || return 1
-  case "$out" in *"VIM=unset"*) return 0 ;; esac
-  _hi_cecho " | $out" "$RED"
-  return 1
 }
 
 # A session of a disposable tree leaves its pid in hi.pid, and a watcher
@@ -346,7 +287,7 @@ function test_load_notes_the_name_and_directory_a_session_holds_under() {
           _HI_CLEANUP="$1" _HI_ROOT="$1/say-hi"; load' _ "$t"
   ) 2>&1 | tr -d '\r')" || true
   got="$(cat "$noted" 2>&1)"
-  want="$(printf 'hi-box\n%s' "$home")"
+  want="hi-box"$'\n'"$home"
   [ "$got" = "$want" ] || _hi_because "hi.hold and hi.cwd during the session: $got, want $want" || return 1
   case "$(_hi_strip_ansi "$out")" in *Resumed*) ;; *) _hi_because "a taken tree did not open as Resumed: $out" || return 1 ;; esac
   [ ! -d "$t" ] || _hi_because "an exit with its terminal left the tree"
@@ -361,14 +302,10 @@ function test_load_cleans_up_its_session_rc_dir() {
     SHELL=/bin/bash _HI_DISABLE_HEADER=1 || _hi_why marker _HI_SESSION_RC || return 1
   dir="$(cat "$marker" 2>/dev/null)"
   case "$dir" in live:?*) dir="${dir#live:}" ;; *)
-    _hi_cecho " | the session never saw a live rc dir" "$RED"
-    return 1
+    _hi_because "the session never saw a live rc dir" || return 1
     ;;
   esac
-  [ ! -e "$dir" ] || {
-    _hi_cecho " | $dir survived clean_all" "$RED"
-    return 1
-  }
+  [ ! -e "$dir" ] || _hi_because "$dir survived clean_all"
 }
 
 # The disconnect footer: tree size and whole-session duration on the banner
@@ -383,8 +320,7 @@ function test_load_prints_the_disconnect_banner_and_footer() {
   case "$(_hi_strip_ansi "$out")" in
   *"| session: "*" Disconnected ["*) return 0 ;;
   esac
-  _hi_cecho " | $out" "$RED"
-  return 1
+  _hi_because "$out"
 }
 
 # the session shell's last mark was C (its preexec fired for `exit`), so load
@@ -396,8 +332,7 @@ function test_load_closes_the_prompt_mark_pair_on_exit() {
   case "$out" in
   *$'\e]133;D;42\a'*) return 0 ;;
   esac
-  _hi_cecho " | no D mark in: $out" "$RED"
-  return 1
+  _hi_because "no D mark in: $out"
 }
 
 # the timestamp cells follow the connect header's order, not a toggle of their
@@ -408,20 +343,17 @@ function test_load_disconnect_timestamp_follows_the_header_order() {
   out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=utc)" || _hi_why || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected ["*" UTC"*) ;; *)
-    _hi_cecho " | no UTC cell under _HI_HEADER_ORDER=utc: $out" "$RED"
-    return 1
+    _hi_because "no UTC cell under _HI_HEADER_ORDER=utc: $out" || return 1
     ;;
   esac
   out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=os)" || _hi_why || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected ["*) ;; *)
-    _hi_cecho " | banner missing under _HI_HEADER_ORDER=os: $out" "$RED"
-    return 1
+    _hi_because "banner missing under _HI_HEADER_ORDER=os: $out" || return 1
     ;;
   esac
   case "${out#*Disconnected}" in *" UTC"*)
-    _hi_cecho " | clock row printed under _HI_HEADER_ORDER=os: $out" "$RED"
-    return 1
+    _hi_because "clock row printed under _HI_HEADER_ORDER=os: $out" || return 1
     ;;
   esac
 }
@@ -433,13 +365,11 @@ function test_load_disable_header_skips_the_banner() {
   out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1)" || _hi_why || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected"*)
-    _hi_cecho " | banner printed despite _HI_DISABLE_HEADER=1" "$RED"
-    return 1
+    _hi_because "banner printed despite _HI_DISABLE_HEADER=1" || return 1
     ;;
   esac
   case "$out" in *"| session: "*) return 0 ;; esac
-  _hi_cecho " | $out" "$RED"
-  return 1
+  _hi_because "$out"
 }
 
 # --- a kept session's owner pane (GLOSSARY: HI.65) ---------------------------
@@ -451,11 +381,10 @@ function test_load_disable_header_skips_the_banner() {
 # client for 1, the header alone for 0, nothing for `starting`, and a refusal
 # for `old`.
 function _hi_keep_tmux() {
-  local bin="$_HI_WORKDIR/keeptmux"
+  local bin="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/keeptmux"
   if [ ! -d "$bin" ]; then
-    mkdir -p "$bin"
-    printf '%s\n' '#!/bin/sh' 'printf '\''%s\n'\'' "$*" >>"$_HI_TEST_LOG"' \
-      'case "$1" in display-message) cat "$_HI_TEST_ATTACHED" ;; esac' >"$bin/tmux"
+    _hi_script "$bin/tmux" '#!/bin/sh' 'printf '\''%s\n'\'' "$*" >>"$_HI_TEST_LOG"' \
+      'case "$1" in display-message) cat "$_HI_TEST_ATTACHED" ;; esac'
     cat >"$bin/zellij" <<'SHIM'
 #!/bin/sh
 printf '%s\n' "$*" >>"$_HI_TEST_LOG"
@@ -470,8 +399,8 @@ case "$*" in
   ;;
 esac
 SHIM
-    printf '%s\n' '#!/bin/sh' 'printf '\''screen %s\n'\'' "$*" >>"$_HI_TEST_LOG"' >"$bin/screen"
-    chmod +x "$bin/tmux" "$bin/zellij" "$bin/screen"
+    _hi_script "$bin/screen" '#!/bin/sh' 'printf '\''screen %s\n'\'' "$*" >>"$_HI_TEST_LOG"'
+    chmod +x "$bin/zellij"
   fi
   printf '%s' "$bin"
 }
@@ -602,15 +531,11 @@ _hi_keep_stays; printf "RC=%s\n" "$?"' 2>&1 | grep -o -e 'RC=[0-9]*' -e 'own key
 # anything but y keeps the session: the client is detached and load() goes
 # round again. y closes it, and with nobody attached nobody is asked.
 function test_keep_stays_asks_before_the_owner_pane_closes() {
-  local got got2
+  local got want=$'RC=0\ndetach-client -s =hi-box'
   got="$(_hi_keep_stays_answer n 1)"
-  got2="$(printf 'RC=0\ndetach-client -s =hi-box')"
-  [ "$got" = "$got2" ] ||
-    _hi_because "n: $got" || return 1
+  [ "$got" = "$want" ] || _hi_because "n: $got" || return 1
   got="$(_hi_keep_stays_answer '' 1)"
-  got2="$(printf 'RC=0\ndetach-client -s =hi-box')"
-  [ "$got" = "$got2" ] ||
-    _hi_because "Enter: $got" || return 1
+  [ "$got" = "$want" ] || _hi_because "Enter: $got" || return 1
   got="$(_hi_keep_stays_answer y 1)"
   [ "$got" = "RC=1" ] || _hi_because "y: $got" || return 1
   got="$(_hi_keep_stays_answer n 0)"
@@ -620,11 +545,9 @@ function test_keep_stays_asks_before_the_owner_pane_closes() {
 # zellij has no command that detaches a client: an `n` keeps the session and
 # the client both, and names the key
 function test_keep_stays_names_zellij_s_detach_key() {
-  local got got2
+  local got
   got="$(_hi_keep_stays_answer n 1 zellij)"
-  got2="$(printf 'own key detaches\nRC=0')"
-  [ "$got" = "$got2" ] ||
-    _hi_because "n: $got" || return 1
+  [ "$got" = $'own key detaches\nRC=0' ] || _hi_because "n: $got" || return 1
   got="$(_hi_keep_stays_answer y 1 zellij)"
   [ "$got" = "RC=1" ] || _hi_because "y: $got"
 }
@@ -831,11 +754,11 @@ function run_load_session_tests() {
   _hi_check "The greeting line closes on the header's right edge" test_load_greeting_line_takes_the_right_edge 100 0 1
   _hi_check "...wraps its timers where they don't fit" test_load_greeting_line_takes_the_right_edge 60 0 2
   _hi_check "...and stays open under _HI_DISABLE_RIGHT_EDGE=1" test_load_greeting_line_takes_the_right_edge 60 1 2
-  _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
-  _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
-  _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
-  _hi_check "...each editor's own on a box with both" test_load_viminit_with_both_editors_picks_by_editor
-  _hi_check "vim and nvim off leave VIMINIT unset" test_load_vim_off_blocks_viminit
+  _hi_check "Exports VIMINIT when vim is present" _hi_load_viminit_on "*VIM=let \$MYVIMRC*'$_HI_VIMRC'*" "$(_hi_fake_path withvim vim):$PATH"
+  _hi_check "...init.lua's on a box with nvim and no vim" _hi_load_viminit_on "*VIM=let \$MYVIMRC='$_HI_NVIMRC'*" "$(_hi_fake_path withnvimonly nvim):$(_hi_editorless_path)"
+  _hi_check "...and vimrc's on a vim-only box" _hi_load_viminit_on "*VIM=let \$MYVIMRC='$_HI_VIMRC'*" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
+  _hi_check "...each editor's own on a box with both" _hi_load_viminit_on "*VIM=let \$MYVIMRC = has('nvim') \? '$_HI_NVIMRC' : '$_HI_VIMRC' | source*" "$(_hi_fake_path withvimnvim vim nvim):$(_hi_editorless_path)"
+  _hi_check "vim and nvim off leave VIMINIT unset" _hi_load_viminit_on "*VIM=unset*" "$(_hi_fake_path withvim vim):$PATH" _HI_PLUGINS_OFF=lazygit,vim,nvim
   _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "E=$nvim|V=$nvim|S=$nvim"
   _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$vim|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano

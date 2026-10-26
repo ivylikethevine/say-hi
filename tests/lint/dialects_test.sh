@@ -67,9 +67,7 @@ function lint_native() {
     if out="$("$shell" "$flag" "$_HI_ROOT/$file" 2>&1)"; then
       _hi_align " | $file ($shell $flag)" "OK" "$GREEN"
     else
-      _hi_align " | $file ($shell $flag)" "FAILED" "$RED"
-      printf '%s\n' "$out" | sed 's/^/      /'
-      _hi_note_failure "$file ($shell $flag)"
+      _hi_lint_fail " | $file ($shell $flag)" "$file ($shell $flag)" "$out"
       bad=$((bad + 1))
     fi
   done
@@ -163,9 +161,7 @@ function _hi_lint_fish_parse() {
     _hi_align " | $(printf '%s' "$out" | tail -n1): every fish file parses, paths.sh's gate runs" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | the fish files do not parse under the $what" "FAILED" "$RED"
-  printf '%s\n' "$out" | sed 's/^/      /'
-  _hi_note_failure "$what: $(printf '%s' "$out" | grep -Ec 'Mismatched|error|Error' || true) complaint(s)"
+  _hi_lint_fail " | the fish files do not parse under the $what" "$what: $(printf '%s' "$out" | grep -Ec 'Mismatched|error|Error' || true) complaint(s)" "$out"
   return 1
 }
 
@@ -218,9 +214,7 @@ function lint_zsh55() {
     _hi_align " | $(printf '%s' "$out" | tail -n1): parses, sources, and prompts" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | the zsh files do not hold up under the 5.5 floor" "FAILED" "$RED"
-  printf '%s\n' "$out" | sed 's/^/      /'
-  _hi_note_failure "zsh 5.5 floor"
+  _hi_lint_fail " | the zsh files do not hold up under the 5.5 floor" "zsh 5.5 floor" "$out"
   return 1
 }
 

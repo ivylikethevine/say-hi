@@ -178,22 +178,22 @@ function run_ssh_tests() {
 
   _HI_TEST_MARKER="HI_SSH_TEST_OK"
 
-  # see the registration in the bash32 block below for why this exists; the
-  # find runs inside the container so the file list and the parser agree on
-  # what a path is. The tree's own files only: the coverage drivers' reports
-  # (coverage.yml writes them into the checkout) hold kcov's *.sh entries,
-  # which resolve on the runner and not in here - the lint scans skip the same
+  # see the registration in the bash32 block below for why this exists. The
+  # lint scans' file list (_hi_lint_find) less local/, relative, as arguments
+  # to the container's loop, so nothing depends on how a filename quotes
   function test_bash32_parses_every_file() {
-    docker run --rm -v "$_HI_HOME/say-hi":/w:ro bash:3.2 bash -c '
+    local -a files=()
+    _hi_read_lines files < <(_hi_lint_find -name '*.sh' -not -path "$_HI_ROOT/local/*")
+    # shellcheck disable=SC2016 # $f and $@ belong to the bash inside the container
+    docker run --rm -v "$_HI_ROOT":/w:ro bash:3.2 bash -c '
       rc=0
-      for f in $(find /w -name "*.sh" -not -path "*/.git/*" -not -path "*/node_modules/*" \
-        -not -path "/w/dist/*" -not -path "/w/coverage-report/*" -not -path "/w/coverage-v2-report/*"); do
-        out=$(bash -n "$f" 2>&1) || {
+      for f in "$@"; do
+        out=$(bash -n "/w/$f" 2>&1) || {
           printf "%s\n%s\n" "$f" "$out"
           rc=1
         }
       done
-      exit $rc'
+      exit $rc' bash "${files[@]#"$_HI_ROOT"/}"
   }
 
   _hi_pty_stdin auto
@@ -211,20 +211,33 @@ function run_ssh_tests() {
       _hi_par_case "${_hi_pair%%:*}" _hi_ssh_run_case "${_hi_pair%%:*}" "$_HI_SSHD_IMAGE" "${_hi_pair#*:}" "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
     done
 
-    # The preamble's TERM fallback, all three arms: an unknown name (kitty's
-    # xterm-kitty is the common offender; ghostty's xterm-ghostty another)
-    # swapped for xterm-256color, a ubiquitous name skipped,
-    # and a name the skip list ignores but the target's terminfo has
-    # (xterm-mono ships in debian's ncurses-base) left alone on the probe's
-    # say-so. The env prefix is the client TERM ssh's pty request carries
-    # over; the trailing marker is the assertion, matched unanchored since
-    # the pty transcript ends lines in \r\n. SetEnv carries the same name, so
-    # a developer's own ssh config that rewrites TERM cannot answer for it:
-    # the command line's value is the first, and ssh keeps the first.
-    for _hi_term_spec in swap:xterm-kitty:xterm-256color known:xterm-256color:xterm-256color \
+    # The preamble's TERM fallback (GLOSSARY: HI.22): a name no target knows
+    # rides with the client's terminfo, compiled into the session tree where
+    # the target has `tic`, which this one does; a ubiquitous name is
+    # skipped; and a name the skip list ignores but the target's terminfo has
+    # (xterm-mono ships in debian's ncurses-base) is left alone on the
+    # probe's say-so. The name that rides is the suite's own, hi-test-term,
+    # compiled for the client alone under $TERMINFO, so the case needs no
+    # entry a runner may lack (xterm-kitty is ncurses-term's). The swap to
+    # xterm-256color, where no `tic` is, is the alpine case further down. The
+    # env prefix is the client TERM ssh's pty request carries over; the
+    # trailing marker is the assertion, matched unanchored since the pty
+    # transcript ends lines in \r\n. SetEnv carries the same name, so a
+    # developer's own ssh config that rewrites TERM cannot answer for it: the
+    # command line's value is the first, and ssh keeps the first.
+    _hi_term_db="$_HI_WORKDIR/terminfo"
+    if command -v tic >/dev/null 2>&1 && command -v infocmp >/dev/null 2>&1; then
+      printf '%s\n' 'hi-test-term|a terminal only this suite knows,' '  use=xterm-256color,' |
+        tic -x -o "$_hi_term_db" - >/dev/null 2>&1 || true
+    fi
+    for _hi_term_spec in ride:hi-test-term:hi-test-term known:xterm-256color:xterm-256color \
       terminfo:xterm-mono:xterm-mono; do
       IFS=: read -r _hi_label _hi_client _hi_want <<<"$_hi_term_spec"
-      TERM="$_hi_client" _HI_SSH_LAUNCH_OPTS="-o SetEnv=TERM=$_hi_client" \
+      if ! TERMINFO="$_hi_term_db" infocmp -x "$_hi_client" >/dev/null 2>&1; then
+        _hi_skip "[term-$_hi_label]" "no tic or infocmp on this client to describe $_hi_client with"
+        continue
+      fi
+      TERMINFO="$_hi_term_db" TERM="$_hi_client" _HI_SSH_LAUNCH_OPTS="-o SetEnv=TERM=$_hi_client" \
         _hi_par_case "term-$_hi_label" _hi_ssh_run_case "term-$_hi_label" "$_HI_SSHD_IMAGE" /bin/bash \
         "echo TERMPROBE=\$TERM; echo $_HI_TEST_MARKER" "" "TERMPROBE=$_hi_want"
     done
@@ -276,6 +289,14 @@ function run_ssh_tests() {
       _hi_par_case maxsessions1 _hi_ssh_run_case maxsessions1 "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
     _hi_par_case rbash _hi_ssh_run_case rbash "$_HI_SSHD_IMAGE" /bin/rbash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
     _hi_par_case configd _hi_ssh_configd_case "$_HI_SSHD_IMAGE"
+  fi
+
+  # the swap: an unknown TERM on a target with no `tic` (busybox's) is
+  # xterm-256color for the session, the client's entry sent or not
+  if [ "$(_hi_kv_get _HI_ALPINE_OK alpine)" = 1 ]; then
+    TERM=xterm-kitty _HI_SSH_LAUNCH_OPTS="-o SetEnv=TERM=xterm-kitty" \
+      _hi_par_case term-swap _hi_ssh_run_case term-swap "hi-sshtest-alpine-$$" /bin/ash \
+      "echo TERMPROBE=\$TERM; echo $_HI_TEST_MARKER" "" "TERMPROBE=xterm-256color"
   fi
 
   for _hi_case_spec in nobash:alpine:ssh_fallback nobash-zsh:alpine-zsh:ssh_fallback \

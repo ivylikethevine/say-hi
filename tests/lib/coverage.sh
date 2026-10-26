@@ -229,7 +229,7 @@ function _hi_cov_select_suites() {
   while read -r _hi_group _hi_name _hi_path; do
     [ -n "${_hi_path:-}" ] || continue
     [ "$_hi_name" = shellcheck ] && continue
-    case " ${_HI_COV_SKIP:-} " in *" $_hi_name "*) continue ;; esac
+    _hi_list_has "${_HI_COV_SKIP:-}" "$_hi_name" && continue
     _HI_NAMES+=("$_hi_name")
     _HI_PATHS+=("$_hi_path")
   done < <(_HI_SHARD_BY="${_HI_COV_TOOL:-}" "$_HI_RUNNER" "$@" --list-paths)

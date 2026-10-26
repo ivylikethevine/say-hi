@@ -62,42 +62,20 @@ function _hi_source_load() {
     'source "$1/load.sh"; printf "%s|%s" "${HI_LOAD_TEST_PROFILE:-}" "$PATH"' _ "$_HI_ROOT"
 }
 
-function test_source_restores_profile() {
-  local home="$_HI_WORKDIR/profilehome" out
-  mkdir -p "$home"
-  printf 'export HI_LOAD_TEST_PROFILE=1\n' >"$home/.profile"
-  out="$(_hi_source_load "$home" 0)"
-  [[ "${out%%|*}" == 1 ]] || _hi_why out
-}
-
-function test_no_init_guard_skips_profile() {
-  local home="$_HI_WORKDIR/profilehome" out
-  mkdir -p "$home"
-  printf 'export HI_LOAD_TEST_PROFILE=1\n' >"$home/.profile"
-  out="$(_hi_source_load "$home" 1)"
-  [[ -z "${out%%|*}" ]] || _hi_why out
-}
-
-# The elif ladder is login bash's documented order - .bash_profile, then
-# .bash_login, then .profile - and exactly *one* rung runs. A file writes its
-# own name into the marker, so the wrong rung names itself in the failure.
-function test_profile_prefers_bash_profile_first() {
-  local home="$_HI_WORKDIR/profilehome-bp" out
-  mkdir -p "$home"
-  printf 'export HI_LOAD_TEST_PROFILE=bash_profile\n' >"$home/.bash_profile"
-  printf 'export HI_LOAD_TEST_PROFILE=bash_login\n' >"$home/.bash_login"
-  printf 'export HI_LOAD_TEST_PROFILE=profile\n' >"$home/.profile"
-  out="$(_hi_source_load "$home" 0)"
-  [[ "${out%%|*}" == bash_profile ]] || _hi_why out
-}
-
-function test_profile_falls_back_to_bash_login() {
-  local home="$_HI_WORKDIR/profilehome-bl" out
-  mkdir -p "$home"
-  printf 'export HI_LOAD_TEST_PROFILE=bash_login\n' >"$home/.bash_login"
-  printf 'export HI_LOAD_TEST_PROFILE=profile\n' >"$home/.profile"
-  out="$(_hi_source_load "$home" 0)"
-  [[ "${out%%|*}" == bash_login ]] || _hi_why out
+# _hi_profile_rung <guard> <file...> - the rung of login bash's ladder that
+# ran: each <file> in a home of its own exports its name, and load.sh is
+# sourced under _HI_LOAD_NO_INIT=<guard>. The ladder is .bash_profile, then
+# .bash_login, then .profile, and exactly one rung runs, so the wrong rung
+# names itself in the failure.
+function _hi_profile_rung() {
+  local guard="$1" home f out
+  shift
+  home="$(mktemp -d "$_HI_WORKDIR/profilehome.XXXXXX")"
+  for f in "$@"; do
+    printf 'export HI_LOAD_TEST_PROFILE=%s\n' "${f#.}" >"$home/$f"
+  done
+  out="$(_hi_source_load "$home" "$guard")"
+  printf '%s' "${out%%|*}"
 }
 
 # A target that carries a say-hi of its own says so in this very chain - a
@@ -154,10 +132,7 @@ function test_tree_is_never_put_on_path() {
   printf 'export HI_LOAD_TEST_PROFILE=1\n' >"$home/.profile"
   for guard in 0 1; do
     out="$(_hi_source_load "$home" "$guard")"
-    [[ "${out#*|}" != *"$_HI_ROOT"* ]] || {
-      _hi_cecho " | _HI_LOAD_NO_INIT=$guard put $_HI_ROOT on PATH" "$RED"
-      return 1
-    }
+    [[ "${out#*|}" != *"$_HI_ROOT"* ]] || _hi_because "_HI_LOAD_NO_INIT=$guard put $_HI_ROOT on PATH" || return 1
   done
 }
 
@@ -188,24 +163,21 @@ function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
   local out dir rc zdot env_ first
   out="$(_hi_rc_setup_in_a_subshell)" || _hi_why || return 1
   case "$out" in *MISSING*)
-    _hi_cecho " | $out" "$RED"
-    return 1
+    _hi_because "$out" || return 1
     ;;
   esac
-  dir="$(printf '%s' "$out" | sed -n 1p)"
-  rc="$(printf '%s' "$out" | sed -n 2p)"
-  zdot="$(printf '%s' "$out" | sed -n 3p)"
-  env_="$(printf '%s' "$out" | sed -n 4p)"
-  first="$(printf '%s' "$out" | sed -n 5p)"
+  {
+    read -r dir
+    read -r rc
+    read -r zdot
+    read -r env_
+    IFS= read -r first
+  } <<<"$out"
   [ -n "$dir" ] || _hi_why dir || return 1
   # $_HI_SESSION_RC and $ZDOTDIR are the directory; $ENV is the POSIX rc in it
-  [ "$rc" = "$dir" ] && [ "$zdot" = "$dir" ] && [ "$env_" = "$dir/shrc" ] || {
-    _hi_cecho " | rc=$rc zdotdir=$zdot env=$env_ dir=$dir" "$RED"
-    return 1
-  }
+  [ "$rc" = "$dir" ] && [ "$zdot" = "$dir" ] && [ "$env_" = "$dir/shrc" ] || _hi_because "rc=$rc zdotdir=$zdot env=$env_ dir=$dir" || return 1
   case "$first" in *'$HOME/.bashrc'*) return 0 ;; esac
-  _hi_cecho " | the generated bashrc does not source the target's own first: $first" "$RED"
-  return 1
+  _hi_because "the generated bashrc does not source the target's own first: $first"
 }
 
 # A nested sh reads $ENV alone, so the settings come first there: their
@@ -307,20 +279,11 @@ function test_session_shell_cmd_points_each_shell_at_his_rc() {
   local -a shell_cmd=()
   local _HI_SESSION_RC_DIR="$_HI_WORKDIR/rcdir"
   _hi_session_shell_cmd bash
-  [ "${shell_cmd[*]}" = "bash --rcfile $_HI_SESSION_RC_DIR/bashrc -i" ] || {
-    _hi_cecho " | bash: ${shell_cmd[*]}" "$RED"
-    return 1
-  }
+  [ "${shell_cmd[*]}" = "bash --rcfile $_HI_SESSION_RC_DIR/bashrc -i" ] || _hi_because "bash: ${shell_cmd[*]}" || return 1
   _hi_session_shell_cmd zsh
-  [ "${shell_cmd[*]}" = "zsh -i" ] || {
-    _hi_cecho " | zsh: ${shell_cmd[*]}" "$RED"
-    return 1
-  }
+  [ "${shell_cmd[*]}" = "zsh -i" ] || _hi_because "zsh: ${shell_cmd[*]}" || return 1
   _hi_session_shell_cmd fish
-  [ "${shell_cmd[*]}" = "fish -C source $_HI_SESSION_RC_DIR/fish.config -i" ] || {
-    _hi_cecho " | fish: ${shell_cmd[*]}" "$RED"
-    return 1
-  }
+  [ "${shell_cmd[*]}" = "fish -C source $_HI_SESSION_RC_DIR/fish.config -i" ] || _hi_because "fish: ${shell_cmd[*]}"
 }
 
 # _hi_fishquote's contract is "one fish word, byte-identical after fish
@@ -374,10 +337,7 @@ function _hi_session_zsh_layers() {
   local out dir
   out="$(_hi_session_zsh_in "$1")"
   dir="${out##* dir:}"
-  [ "$out" = "target:$2 hi:$dir end:$dir:unset dir:$dir" ] || {
-    _hi_cecho " | $out" "$RED"
-    return 1
-  }
+  [ "$out" = "target:$2 hi:$dir end:$dir:unset dir:$dir" ] || _hi_because "$out"
 }
 
 function test_session_zsh_reads_the_home_zshrc_then_his() {
@@ -411,10 +371,9 @@ function test_hooks_run_once_a_shell_from_the_session_tree() {
   ln -sfn "$_HI_ROOT/load.sh" "$sess/say-hi/load.sh"
   ln -sfn "$_HI_ROOT/config" "$inst/say-hi/config"
   cp "$_HI_ROOT/config/colors" "$_HI_ROOT/config/packages" "$sess/say-hi/config/"
-  printf '%s\n' '#!/bin/sh' 'case "$1" in' \
+  _hi_script "$base/bin/hi-hook-tree" '#!/bin/sh' 'case "$1" in' \
     "fish) printf '%s\\n' 'set -g hi_hook_trees \"\$hi_hook_trees<\$_HI_ROOT>\"' ;;" \
-    "*) printf '%s\\n' 'hi_hook_trees=\"\${hi_hook_trees-}<\$_HI_ROOT>\"' ;;" 'esac' >"$base/bin/hi-hook-tree"
-  chmod +x "$base/bin/hi-hook-tree"
+    "*) printf '%s\\n' 'hi_hook_trees=\"\${hi_hook_trees-}<\$_HI_ROOT>\"' ;;" 'esac'
   printf '[mine.hi-hook-tree]\ninit = "hi-hook-tree {shell}"\n' >"$base/client/plugins"
   env PATH="$base/bin:$PATH" _HI_CONFIG_DIR="$base/client" _HI_PLUGINS_OFF= _HI_PLUGINS_ON= _HI_PROMPT_TOOL=hi \
     bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w && printf "%s\n" "$w"' \
@@ -456,40 +415,38 @@ function test_hooks_run_once_a_shell_from_the_session_tree() {
 # Which shell the session runs in - the login shell when hi styles it, else
 # the tree; load.sh's own comment says why `login` leads.
 
-# _hi_shell_answer <"bins..."> [NAME=VALUE ...] - the shell chosen when those
-# binaries, and only those, are on $PATH.
+# _hi_session_shell_on <PATH> [NAME=VALUE ...] - the shell chosen when the
+# shells on <PATH> are the only ones there are.
 #
 # $PATH is *replaced*, not prefixed: the question is which shells exist, and
 # this machine's real fish would answer for itself otherwise. The few real
 # tools _hi_login_shell needs ride a second _hi_real_path entry, and the
 # interpreter is named by absolute path since one of the fakes is called
 # `bash`.
-function _hi_shell_answer() {
-  local bins="$1" dir
+function _hi_session_shell_on() {
+  local where="$1"
   shift
-  # shellcheck disable=SC2086 # a deliberate word split into the fake list
-  dir="$(_hi_fake_path "shells-${bins// /-}" $bins)"
-  env -i "$@" PATH="$dir:$(_hi_real_path shell-tools id awk getent sh)" \
+  env -i "$@" PATH="$where:$(_hi_real_path shell-tools id awk getent sh)" \
     HOME="$_HI_WORKDIR" _HI_HOME="$_HI_HOME" "$BASH" -c '
     _HI_LOAD_NO_INIT=1
     source "$_HI_HOME/say-hi/load.sh"
     _hi_session_shell' 2>/dev/null
 }
 
+# _hi_shell_answer <"bins..."> [NAME=VALUE ...] - the same, over no-op fakes
+function _hi_shell_answer() {
+  local bins="$1"
+  shift
+  # shellcheck disable=SC2086 # a deliberate word split into the fake list
+  _hi_session_shell_on "$(_hi_fake_path "shells-${bins// /-}" $bins)" "$@"
+}
+
 # fish before 3.4 cannot parse hi's config.fish: a login fish that old gives
 # way to the next shell down, and 3.4 itself does not. <version> is what the
 # fake fish reports.
 function _hi_old_fish_answer() {
-  local dir="$_HI_WORKDIR/oldfish-$1" b
-  mkdir -p "$dir"
-  printf '#!/bin/sh\necho "fish, version %s"\n' "$1" >"$dir/fish"
-  for b in zsh bash; do printf '#!/bin/sh\nexit 0\n' >"$dir/$b"; done
-  chmod +x "$dir/fish" "$dir/zsh" "$dir/bash"
-  env -i SHELL=/usr/bin/fish PATH="$dir:$(_hi_real_path shell-tools id awk getent sh)" \
-    HOME="$_HI_WORKDIR" _HI_HOME="$_HI_HOME" "$BASH" -c '
-    _HI_LOAD_NO_INIT=1
-    source "$_HI_HOME/say-hi/load.sh"
-    _hi_session_shell' 2>/dev/null
+  _hi_script "$_HI_WORKDIR/oldfish-$1/fish" '#!/bin/sh' "echo \"fish, version $1\""
+  _hi_session_shell_on "$_HI_WORKDIR/oldfish-$1:$(_hi_fake_path shells-zsh-bash zsh bash)" SHELL=/usr/bin/fish
 }
 
 function test_session_shell_passes_over_a_fish_too_old() {
@@ -571,9 +528,7 @@ function test_login_shell_treats_an_empty_shell_as_unset() {
 # without-getent case above: /etc/passwd's own answer, empty or not.
 function test_login_shell_steps_past_a_silent_getent() {
   local stub="$_HI_WORKDIR/silent-getent" want got
-  mkdir -p "$stub"
-  printf '%s\n' '#!/bin/sh' 'exit 2' >"$stub/getent"
-  chmod +x "$stub/getent"
+  _hi_script "$stub/getent" '#!/bin/sh' 'exit 2'
   want="$(awk -F: -v u="$(id -un)" '$1 == u { print $NF }' /etc/passwd 2>/dev/null)"
   want="${want##*/}"
   got="$(
@@ -620,15 +575,9 @@ function test_nano_fallback_follows_the_target() {
   set -- /usr/share/nano/*.nanorc
   [ -f "$1" ] && want="$dropped"$'\n'"$fb"$'\nset tabsize 4'
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-a" "$dropped"$'\nset tabsize 4\n')"
-  [ "$out" = "$want" ] || {
-    _hi_cecho " | fresh: [$out]" "$RED"
-    return 1
-  }
+  [ "$out" = "$want" ] || _hi_because "fresh: [$out]" || return 1
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-b" "$dropped"$'\n'"$fb"$'\nset tabsize 4\n')"
-  [ "$out" = "$want" ] || {
-    _hi_cecho " | carried from a hop: [$out]" "$RED"
-    return 1
-  }
+  [ "$out" = "$want" ] || _hi_because "carried from a hop: [$out]" || return 1
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-c" $'set tabsize 4\n')"
   [ "$out" = "set tabsize 4" ] || _hi_why out || return 1
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-d" "$dropped"$'\n' "")"
@@ -656,16 +605,10 @@ function test_nano_fallback_resolves_extendsyntax() {
   local inc="include \"$syn/*.nanorc\""
   want="# hi dropped: $inc"$'\n'"$inc"$'\nsyntax mine "\\.x$"\nextendsyntax GO tabgives " "\nextendsyntax mine tabgives " "\n# hi dropped: extendsyntax JSX linter eslint'
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-e" "# hi dropped: $inc"$'\nsyntax mine "\\.x$"\nextendsyntax go tabgives " "\nextendsyntax mine tabgives " "\nextendsyntax JSX linter eslint\n')"
-  [ "$out" = "$want" ] || {
-    _hi_cecho " | resolved: [$out]" "$RED"
-    return 1
-  }
+  [ "$out" = "$want" ] || _hi_because "resolved: [$out]" || return 1
   printf 'syntax "JSX" "\\.jsx$"\n' >"$syn/jsx.nanorc"
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-f" "$want"$'\n')"
-  [ "$out" = "${want/\# hi dropped: extendsyntax/extendsyntax}" ] || {
-    _hi_cecho " | carried to a hop that has it: [$out]" "$RED"
-    return 1
-  }
+  [ "$out" = "${want/\# hi dropped: extendsyntax/extendsyntax}" ] || _hi_because "carried to a hop that has it: [$out]"
 }
 
 # _hi_load_begin - what every part of this suite starts from, and the tally
@@ -697,10 +640,10 @@ function run_load_tests() {
   _hi_check "Succeeds with nothing to clean" _hi_clean_all "$_HI_WORKDIR/never-created"
 
   _hi_h2 "Testing: profile restoration"
-  _hi_check "Sourcing restores the profile chain" test_source_restores_profile
-  _hi_check "_HI_LOAD_NO_INIT=1 skips it" test_no_init_guard_skips_profile
-  _hi_check ".bash_profile outranks .bash_login and .profile" test_profile_prefers_bash_profile_first
-  _hi_check ".bash_login outranks .profile" test_profile_falls_back_to_bash_login
+  _hi_check_eq "Sourcing restores the profile chain" profile _hi_profile_rung 0 .profile
+  _hi_check_eq "_HI_LOAD_NO_INIT=1 skips it" "" _hi_profile_rung 1 .profile
+  _hi_check_eq ".bash_profile outranks .bash_login and .profile" bash_profile _hi_profile_rung 0 .bash_profile .bash_login .profile
+  _hi_check_eq ".bash_login outranks .profile" bash_login _hi_profile_rung 0 .bash_login .profile
   _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
   _hi_check "A target's profile cannot move the session tree" test_profile_cannot_move_the_session_tree
   _hi_check "A target's aliases stay out of load.sh's functions" test_profile_aliases_stay_out_of_load_functions

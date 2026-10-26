@@ -19,20 +19,12 @@ source "${BASH_SOURCE[0]%/*}/rc_test.sh"
 # the prepended-PATH override wins over the baseline), so there is one `env -i`
 # block here rather than one per case.
 function test_defers_to_prompt_tool_when_asked() {
-  local shell="$1" tool="$2" script want out
+  local shell="$1" tool="$2" script want=PROMPT-STUB out
+  script='source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of "$shell")"'" 2>/dev/null; '
   case "$shell" in
-  bash)
-    script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf "%s|%s" "$PS1" "${HI_PS1:-unset}"'
-    want="PROMPT-STUB|unset"
-    ;;
-  zsh)
-    script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; printf %s "$PS1"'
-    want="PROMPT-STUB"
-    ;;
-  fish)
-    script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; fish_prompt'
-    want="*PROMPT-STUB*"
-    ;;
+  bash) script+='printf "%s|%s" "$PS1" "${HI_PS1:-unset}"' want="PROMPT-STUB|unset" ;;
+  zsh) script+='printf %s "$PS1"' ;;
+  fish) script+='fish_prompt' want="*PROMPT-STUB*" ;;
   esac
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" \
     PATH="$(_hi_prompt_stub_dir "$tool"):$PATH" _HI_PROMPT_TOOL="$tool")"
@@ -91,8 +83,7 @@ function test_remote_session_aliases_overlay_config() {
   rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux" "$_HI_WORKDIR/cfg/screenrc" "$_HI_WORKDIR/.tmux.conf" \
     "$_HI_WORKDIR/cfg/wiring.sh"
   if [[ "$out" != *"$want"* ]] || { [ -n "$bad" ] && [[ "$out" == *"$bad"* ]]; }; then
-    _hi_cecho " | $name is: [$out]" "$RED"
-    return 1
+    _hi_because "$name is: [$out]" || return 1
   fi
 }
 
@@ -113,16 +104,13 @@ function test_home_session_aliases_only_his_configs() {
     done
   }
   case "$shell" in
-  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; for a in '"$_HI_HOME_ALIASED"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
-  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; for a in '"$_HI_HOME_ALIASED"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; for a in '"$_HI_HOME_ALIASED"'; functions -q $a; and printf "%s " $a; end' ;;
+  *) script='source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of "$shell")"'" 2>/dev/null; for a in '"$_HI_HOME_ALIASED"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
   esac
   # shellcheck disable=SC2086 # one fake binary per word of the list
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" HOME="$home" \
     PATH="$(_hi_fake_path rc-home-tools $_HI_HOME_ALIASED):$PATH" 2>/dev/null)"
-  [ -z "$out" ] && return 0
-  _hi_cecho " | aliased: [$out], wanted none" "$RED"
-  return 1
+  [ -z "$out" ] || _hi_because "aliased: [$out], wanted none"
 }
 
 # extensions/ (GLOSSARY: HI.59), one fixture for every shell: 10 exports a value
@@ -131,7 +119,7 @@ function test_home_session_aliases_only_his_configs() {
 # 50 is a backup that is never a member. Each shell loads what it can parse,
 # in order, says what it skipped, and draws the segment.
 function _hi_extension_cfg() {
-  local d="$_HI_WORKDIR/extcfg/extensions"
+  local d="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/extcfg/extensions"
   [ -d "$d" ] || {
     mkdir -p "$d"
     printf '#!/bin/sh\nexport HI_A=a\nexport _HI_SEGMENT="printf kctx"\n' >"$d/10-kube"
@@ -144,28 +132,19 @@ function _hi_extension_cfg() {
 }
 
 function test_extensions_load_in_order_skip_loudly_and_draw() {
-  local shell="$1" script want out
+  local shell="$1" script want='[a|ab|c|]kctx ' out
+  script='source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of "$shell")"'" 2>&1; '
   case "$shell" in
-  bash)
-    script='source "$_HI_HOME/say-hi/common/bash.sh" 2>&1; __hi_ps1; printf "[%s|%s|%s|%s]" "$HI_A" "$HI_B" "${HI_C:-}" "${HI_D:-}"; printf "%s" "$__hi_env_info"'
-    want='[a|ab|c|]kctx '
-    ;;
-  zsh)
-    script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>&1; __hi_env_precmd; __hi_segment_precmd; print -rn -- "[$HI_A|$HI_B|${HI_C:-}|${HI_D:-}]$__hi_env_info"'
-    want='[a|ab|c|]kctx '
-    ;;
-  fish)
-    script='source $_HI_HOME/say-hi/common/config.fish 2>&1; echo -n "[$HI_A|$HI_B|$HI_C|$HI_D]"; fish_prompt'
-    want='[a|ab||]'
-    ;;
+  bash) script+='__hi_ps1; printf "[%s|%s|%s|%s]" "$HI_A" "$HI_B" "${HI_C:-}" "${HI_D:-}"; printf "%s" "$__hi_env_info"' ;;
+  zsh) script+='__hi_env_precmd; __hi_segment_precmd; print -rn -- "[$HI_A|$HI_B|${HI_C:-}|${HI_D:-}]$__hi_env_info"' ;;
+  fish) script+='echo -n "[$HI_A|$HI_B|$HI_C|$HI_D]"; fish_prompt' want='[a|ab||]' ;;
   esac
   out="$(_hi_rc_shell dumb "$shell" "$script" _HI_CONFIG_DIR="$(_hi_extension_cfg)")"
   # fish's drawn prompt sits between the values and the segment's lead space
   if [[ "$out" != *"extension 40-broken does not parse in $shell; skipped"* || "$out" == *50-x* ||
     "$out" != *"$want"* || "$out" != *"kctx "* ]] ||
     [[ "$shell" == fish && "$out" != *"extension 30-shonly does not parse in fish"* ]]; then
-    _hi_cecho " | $shell said: [$out]" "$RED"
-    return 1
+    _hi_because "$shell said: [$out]" || return 1
   fi
 }
 
@@ -177,8 +156,7 @@ function test_overlay_aliases_are_parsed_before_they_load() {
   mkdir -p "$cfg"
   case "$shell" in
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>&1; functions -q hi_guard_ok; and echo -n LOADED' ;;
-  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>&1; alias hi_guard_ok >/dev/null 2>&1 && printf LOADED' ;;
-  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>&1; alias hi_guard_ok >/dev/null 2>&1 && printf LOADED' ;;
+  *) script='source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of "$shell")"'" 2>&1; alias hi_guard_ok >/dev/null 2>&1 && printf LOADED' ;;
   esac
   printf '%s\n' 'alias hi_guard_ok="echo ok"' >"$cfg/aliases.sh"
   out="$(_hi_rc_shell dumb "$shell" "$script" _HI_CONFIG_DIR="$cfg")"
@@ -302,23 +280,15 @@ function test_foreign_prompt_stays_unless_hi_named() {
   local shell="$1" pre="$2" script x="$_HI_WORKDIR/ownprompt" theirs mine own=MINE
   mkdir -p "$x/fish/functions"
   printf 'function fish_prompt; echo -n MINE; end\n' >"$x/fish/functions/fish_prompt.fish"
+  script="$pre"'; PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of "$shell")"'" >/dev/null 2>&1; '
   case "$shell" in
-  bash)
-    own='\s-\v\$ '
-    script="$pre"'; PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "${PROMPT_COMMAND:-}" >/dev/null; printf %s "$PS1"'
-    ;;
-  zsh)
-    own='%m%# '
-    script="$pre"'; PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "$PS1"'
-    ;;
+  bash) own='\s-\v\$ ' script+='eval "${PROMPT_COMMAND:-}" >/dev/null; printf %s "$PS1"' ;;
+  zsh) own='%m%# ' script+='print -rn -- "$PS1"' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish >/dev/null 2>&1; fish_prompt' ;;
   esac
   theirs="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k XDG_CONFIG_HOME="$x" RC_PS1="$own")"
   mine="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=hi XDG_CONFIG_HOME="$x" RC_PS1="$own")"
-  [[ "$theirs" == "$own" && "$mine" != "$own" ]] || {
-    _hi_cecho " | $shell drew [$theirs] unnamed, [$mine] with hi named" "$RED"
-    return 1
-  }
+  [[ "$theirs" == "$own" && "$mine" != "$own" ]] || _hi_because "$shell drew [$theirs] unnamed, [$mine] with hi named"
 }
 
 # <shell> <stays|drawn> <PS1> [NAME=VALUE...] - the $PS1 the rc left before
@@ -335,10 +305,7 @@ function test_rc_prompt() {
   case "$want" in
   stays) [ "$out" = "$ps1" ] ;;
   *) [[ "$out" != "$ps1" && "$out" == *__hi_env_info* ]] ;;
-  esac || {
-    _hi_cecho " | $shell, wanting $want, drew [$out] over [$ps1]" "$RED"
-    return 1
-  }
+  esac || _hi_because "$shell, wanting $want, drew [$out] over [$ps1]"
 }
 
 # hi's own prompt from an earlier load is nobody's hand-written one: the rc
@@ -369,10 +336,7 @@ function test_prompt_program_draws() {
   out="$(_hi_rc_shell dumb "$shell" "$script" HOME="$h" _HI_CONFIG_DIR="$h/cfg" _HI_TOOL_ALIASES=1 \
     PATH="$(_hi_stub_bin powerline-go 'printf "PLGO %s" "$*"'):$PATH" "$@")"
   # shellcheck disable=SC2053 # $want is a pattern
-  [[ "$out" == $want && "$out" != *FW-LS* ]] || {
-    _hi_cecho " | $shell drew: [$out]" "$RED"
-    return 1
-  }
+  [[ "$out" == $want && "$out" != *FW-LS* ]] || _hi_because "$shell drew: [$out]"
 }
 
 # oh-my-bash, loaded by hi, takes every alias down with its own; the ones
@@ -390,8 +354,7 @@ function test_oh_my_bash_keeps_an_alias_with_a_quote() {
 # _hi_payload_excl), so a framework whose loader is missing is passed over
 # for the next in the list, hi's prompt at the end of it
 function test_prompt_framework_without_its_loader_is_passed_over() {
-  local shell="$1" fw="$2" want="$3" base
-  base="$(mktemp -d "$_HI_WORKDIR/noloader.XXXXXX")" || _hi_why base || return 1
+  local shell="$1" fw="$2" want="$3" base="$_HI_WORKDIR/noloader"
   mkdir -p "$base/say-hi"
   cp -R "$_HI_ROOT/common" "$_HI_ROOT/config" "$base/say-hi/"
   rm -f "$base/say-hi/common/fw_$fw".*
@@ -415,10 +378,7 @@ function test_zsh_target_list_colors_per_backend() {
     source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
     zstyle -g lc ":completion:*:hi-targets" list-colors; print -l -- $lc')"
   [[ "$out" == *"=* ssh - *=0;33"* && "$out" == *"docker|"*") - *=0;34"* &&
-    "$out" == *"=* nomad - *=0;32"* && "$out" == *"=* kube - *=1;35"* ]] || {
-    _hi_cecho " | list-colors: ${out//$'\n'/ }" "$RED"
-    return 1
-  }
+    "$out" == *"=* nomad - *=0;32"* && "$out" == *"=* kube - *=1;35"* ]] || _hi_because "list-colors: ${out//$'\n'/ }" || return 1
   out="$(_hi_rc_shell xterm-256color zsh '
     source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
     zstyle -g lc ":completion:*:hi-targets" list-colors; print -r -- ${#lc}' NO_COLOR=1)"
@@ -442,10 +402,7 @@ function test_zsh_completion_covers_the_alias_target() {
     source \$_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
     $after
     print -r -- \"\${_comps[hi]}:\${_comps[hi.sh]}\"")"
-  [ "$out" = "_hi:_hi" ] || {
-    _hi_cecho " | compinit $1: _comps[hi]:_comps[hi.sh] = $out" "$RED"
-    return 1
-  }
+  [ "$out" = "_hi:_hi" ] || _hi_because "compinit $1: _comps[hi]:_comps[hi.sh] = $out"
 }
 
 # ...and the target branch goes through _description with that tag, which is
@@ -461,10 +418,7 @@ function test_zsh_target_completion_uses_the_colored_tag() {
     words=(hi ""); CURRENT=2
     _hi')"
   [[ "$out" == *"desc -V hi-targets expl target"* &&
-    "$out" == *"compadd -V -default- -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS"* ]] || {
-    _hi_cecho " | got: ${out//$'\n'/ | }" "$RED"
-    return 1
-  }
+    "$out" == *"compadd -V -default- -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS"* ]] || _hi_because "got: ${out//$'\n'/ | }"
 }
 
 # _hi_bash_listing <COMP_TYPE> <word> [NAME=VALUE...] - _hi_complete's
@@ -489,25 +443,13 @@ function _hi_bash_listing() {
 function test_bash_target_symbols_only_when_listing() {
   local out
   out="$(_hi_bash_listing 63 '' LANG=C.UTF-8)"
-  [ "$out" = "web ▣|web2 ▣|jobx ◆|podx ⎈|sshy »|dup »▣" ] || {
-    _hi_cecho " | listing: $out" "$RED"
-    return 1
-  }
+  [ "$out" = "web ▣|web2 ▣|jobx ◆|podx ⎈|sshy »|dup »▣" ] || _hi_because "listing: $out" || return 1
   out="$(_hi_bash_listing 9 w LANG=C.UTF-8)"
-  [ "$out" = "web|web2" ] || {
-    _hi_cecho " | inserting: $out" "$RED"
-    return 1
-  }
+  [ "$out" = "web|web2" ] || _hi_because "inserting: $out" || return 1
   out="$(_hi_bash_listing 63 d LANG=C.UTF-8)"
-  [ "$out" = dup ] || {
-    _hi_cecho " | one shared name: $out" "$RED"
-    return 1
-  }
+  [ "$out" = dup ] || _hi_because "one shared name: $out" || return 1
   out="$(_hi_bash_listing 63 '')"
-  [ "$out" = "web #|web2 #|jobx *|podx @|sshy >|dup >#" ] || {
-    _hi_cecho " | ascii: $out" "$RED"
-    return 1
-  }
+  [ "$out" = "web #|web2 #|jobx *|podx @|sshy >|dup >#" ] || _hi_because "ascii: $out" || return 1
   out="$(_hi_bash_listing 63 '' LANG=C.UTF-8 _HI_SYMBOL_KUBE=k8s)"
   [[ "$out" == *"|podx k8s|"* ]] || _hi_why out
 }
@@ -520,20 +462,17 @@ function test_fish_target_symbols() {
   out="$(_hi_rc_shell dumb fish "source \$_HI_HOME/say-hi/common/config.fish 2>/dev/null
     set _HI_TARGETS $fixture
     __hi_targets" LANG=C.UTF-8 _HI_SYMBOL_SSH=S)"
-  [ "$out" = $'web\t▣ docker\njobx\t◆ nomad\npodx\t⎈ kube\nsshy\tS ssh' ] || {
-    _hi_cecho " | __hi_targets: ${out//$'\n'/ | }" "$RED"
-    return 1
-  }
+  [ "$out" = $'web\t▣ docker\njobx\t◆ nomad\npodx\t⎈ kube\nsshy\tS ssh' ] || _hi_because "__hi_targets: ${out//$'\n'/ | }"
 }
 
 # _hi_greet <shell> <i|c|s> [NAME=VALUE...] - how many times <shell> prints
 # the Online header sourcing hi's rc: typed in (i, from stdin), `-i -c` (c),
 # or as a script (s); settings.sh trims the header to one cell, no probes
 function _hi_greet() {
-  local shell="$1" rc=bash.sh cfg="$_HI_WORKDIR/greet"
+  local shell="$1" cfg="$_HI_WORKDIR/greet" src
   local -a args=(--norc)
-  [ "$shell" = zsh ] && rc=zsh.zsh args=(-f)
-  local src="source \"\$_HI_HOME/say-hi/common/$rc\""
+  [ "$shell" = zsh ] && args=(-f)
+  src="source \"\$_HI_HOME/say-hi/common/$(_hi_rc_of "$shell")\""
   case "$2" in i) args+=(-i) ;; c) args+=(-i -c "$src") ;; esac
   shift 2
   mkdir -p "$cfg" && printf 'export _HI_HEADER_ORDER=utc\n' >"$cfg/settings.sh"
@@ -569,8 +508,7 @@ function test_fish_flag_completion_offers_hi_options() {
   ')"
   printf '%s\n' "$out" | grep -q "^--plain$(printf '\t')a bare shell" || _hi_why out || return 1
   if printf '%s\n' "$out" | grep -qv '^-'; then
-    _hi_cecho "   a dash word also swept the targets" "$RED"
-    return 1
+    _hi_because "a dash word also swept the targets" || return 1
   fi
   return 0
 }
@@ -583,15 +521,15 @@ function test_fish_completes_the_word_after_preview() {
     source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
     complete -C "hi --preview "
   ')"
-  printf '%s\n' "$out" | grep -q "^header$(printf '\t')the connect header" || _hi_why out || return 1
-  printf '%s\n' "$out" | grep -q "^colors$(printf '\t')" || _hi_why out || return 1
+  printf '%s\n' "$out" | grep -q "^header"$'\t'"the connect header" || _hi_why out || return 1
+  printf '%s\n' "$out" | grep -q "^colors"$'\t' || _hi_why out || return 1
   got="$(printf '%s\n' "$out" | grep -c .)"
   [ "$got" -eq 3 ] || _hi_why got out
 }
 
 function _hi_rc_reentry() {
   local shell="$1" member="$2" probe="$3" cfg="$_HI_WORKDIR/reentry-$1" rc
-  rc="$(_hi_rc_of_member "$member")"
+  rc="$(_hi_rc_of "$shell")"
   mkdir -p "$cfg"
   printf 'source "%s"\n' "$_HI_HOME/say-hi/common/$rc" >"$cfg/$member"
   (exec env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" _HI_HOME="$_HI_HOME" _HI_PROMPT_TOOL=hi \
@@ -704,6 +642,24 @@ function test_fish_config_dir_explicit_value_wins() {
   [ "$out" = "$base/shipped" ] || _hi_why out base
 }
 
+# <exports|aliases>|<label>|<overlay file>|<variable or alias>|<wanted>[|<unwanted>] -
+# test_remote_session_<kind>_overlay_config's cases, the same in bash and fish
+_HI_OVERLAY_ROWS=(
+  "exports|a target points eza at the overlay's theme|eza/theme.yml|EZA_CONFIG_DIR|@cfg@/eza"
+  "exports|a target points bat at the overlay's config|bat/config|BAT_CONFIG_PATH|@cfg@/bat/config"
+  "exports|a target points readline at the overlay's inputrc|inputrc|INPUTRC|@cfg@/inputrc"
+  "exports|a target points ripgrep at the overlay's ripgreprc|ripgreprc|RIPGREP_CONFIG_PATH|@cfg@/ripgreprc"
+  "exports|a target points fzf at the overlay's fzfrc|fzfrc|FZF_DEFAULT_OPTS_FILE|@cfg@/fzfrc"
+  "exports|a target points lazygit at the overlay's config|lazygit/config.yml|LG_CONFIG_FILE|@cfg@/lazygit/config.yml"
+  "exports|a target points kakoune at the overlay's kakrc|kak/kakrc|KAKOUNE_CONFIG_DIR|@cfg@/kak"
+  "exports|a target's session is handed the overlay's vimrc|vim/vimrc|_HI_VIMRC|@cfg@/vim/vimrc"
+  "aliases|a target's tmux is common/mux.sh's to start|tmux/tmux.conf|tmux|common/mux.sh tmux"
+  "aliases|a target's screen is common/mux.sh's to start|screenrc|screen|common/mux.sh screen"
+  "aliases|a target's zellij is common/mux.sh's to start|zellij/config.kdl|zellij|common/mux.sh zellij"
+  "aliases|a target's micro is left alone without a micro/|-|micro||micro"
+  "aliases|a target's micro reads the overlay's micro/|micro/settings.json|micro|micro -backup false -savehistory false -config-dir @cfg@/micro"
+)
+
 function run_rc_prompt_tests() {
   _hi_rc_begin
 
@@ -714,41 +670,21 @@ function run_rc_prompt_tests() {
   _hi_check "[bash] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked bash oh-my-posh
   _hi_check "[bash] keeps hi's prompt without the setting" test_bash_keeps_hi_prompt_without_the_setting
   _hi_check "[bash] falls back silently when absent" test_bash_falls_back_when_starship_is_absent
-  _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config bash starship.toml STARSHIP_CONFIG "@cfg@/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
-  _hi_check "[bash] a target points eza at the overlay's theme" test_remote_session_exports_overlay_config bash eza/theme.yml EZA_CONFIG_DIR "@cfg@/eza"
-  _hi_check "[bash] a target points bat at the overlay's config" test_remote_session_exports_overlay_config bash bat/config BAT_CONFIG_PATH "@cfg@/bat/config"
-  _hi_check "[bash] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config bash inputrc INPUTRC "@cfg@/inputrc"
-  _hi_check "[bash] a target points ripgrep at the overlay's ripgreprc" test_remote_session_exports_overlay_config bash ripgreprc RIPGREP_CONFIG_PATH "@cfg@/ripgreprc"
-  _hi_check "[bash] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config bash fzfrc FZF_DEFAULT_OPTS_FILE "@cfg@/fzfrc"
-  _hi_check "[bash] a target points lazygit at the overlay's config" test_remote_session_exports_overlay_config bash lazygit/config.yml LG_CONFIG_FILE "@cfg@/lazygit/config.yml"
-  _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kak/kakrc KAKOUNE_CONFIG_DIR "@cfg@/kak"
-  _hi_check "[bash] a target's load.sh is handed the overlay's vimrc" test_remote_session_exports_overlay_config bash vim/vimrc _HI_VIMRC "@cfg@/vim/vimrc"
-  _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "@cfg@/oh-my-posh.yaml"
-  _hi_check "[bash] a target's tmux is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash tmux/tmux.conf tmux "common/mux.sh tmux"
-  _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
-  _hi_check "[bash] a target's screen is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash screenrc screen "common/mux.sh screen"
-  _hi_check "[bash] a target's zellij is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "common/mux.sh zellij"
-  _hi_check "[bash] a target's micro is left alone without a micro/" test_remote_session_aliases_overlay_config bash - micro "" micro
-  _hi_check "[bash] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config bash micro/settings.json micro "micro -backup false -savehistory false -config-dir @cfg@/micro"
+  local shell posh row kind label file var want bad
+  # oh-my-posh reads either form: bash's case takes yaml, fish's toml
+  for shell in bash=yaml fish=toml; do
+    posh="oh-my-posh.${shell#*=}" shell="${shell%=*}"
+    _hi_check_requires "$shell" "[$shell] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config "$shell" starship.toml STARSHIP_CONFIG "@cfg@/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
+    for row in "${_HI_OVERLAY_ROWS[@]}" "exports|a target points oh-my-posh at the overlay's config|$posh|POSH_CONFIG|@cfg@/$posh"; do
+      IFS='|' read -r kind label file var want bad <<<"$row"
+      _hi_check_requires "$shell" "[$shell] $label" "test_remote_session_${kind}_overlay_config" "$shell" "$file" "$var" "$want" ${bad:+"$bad"}
+    done
+  done
+  _hi_check "[bash] a target's tmux never reads the target's own .tmux.conf" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
   _hi_check_requires zsh "[zsh] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked zsh oh-my-posh
   _hi_check_requires fish "[fish] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked fish starship
   _hi_check_requires fish "[fish] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked fish oh-my-posh
-  _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config fish starship.toml STARSHIP_CONFIG "@cfg@/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
-  _hi_check_requires fish "[fish] a target points eza at the overlay's theme" test_remote_session_exports_overlay_config fish eza/theme.yml EZA_CONFIG_DIR "@cfg@/eza"
-  _hi_check_requires fish "[fish] a target points bat at the overlay's config" test_remote_session_exports_overlay_config fish bat/config BAT_CONFIG_PATH "@cfg@/bat/config"
-  _hi_check_requires fish "[fish] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config fish inputrc INPUTRC "@cfg@/inputrc"
-  _hi_check_requires fish "[fish] a target points ripgrep at the overlay's ripgreprc" test_remote_session_exports_overlay_config fish ripgreprc RIPGREP_CONFIG_PATH "@cfg@/ripgreprc"
-  _hi_check_requires fish "[fish] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config fish fzfrc FZF_DEFAULT_OPTS_FILE "@cfg@/fzfrc"
-  _hi_check_requires fish "[fish] a target points lazygit at the overlay's config" test_remote_session_exports_overlay_config fish lazygit/config.yml LG_CONFIG_FILE "@cfg@/lazygit/config.yml"
-  _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kak/kakrc KAKOUNE_CONFIG_DIR "@cfg@/kak"
-  _hi_check_requires fish "[fish] a target's session is handed the overlay's vimrc" test_remote_session_exports_overlay_config fish vim/vimrc _HI_VIMRC "@cfg@/vim/vimrc"
-  _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "@cfg@/oh-my-posh.toml"
-  _hi_check_requires fish "[fish] a target's tmux is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish tmux/tmux.conf tmux "common/mux.sh tmux"
-  _hi_check_requires fish "[fish] a target's screen is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish screenrc screen "common/mux.sh screen"
-  _hi_check_requires fish "[fish] a target's zellij is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "common/mux.sh zellij"
-  _hi_check_requires fish "[fish] a target's micro is left alone without a micro/" test_remote_session_aliases_overlay_config fish - micro "" micro
-  _hi_check_requires fish "[fish] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config fish micro/settings.json micro "micro -backup false -savehistory false -config-dir @cfg@/micro"
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
   _hi_check "[bash] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs bash own
   _hi_check "[bash] ...and with no config, none at all" test_home_session_aliases_only_his_configs bash none
