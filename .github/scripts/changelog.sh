@@ -4,12 +4,15 @@
 # never moves and the release never writes to main, so the source tarball, a
 # `git archive` of the tag, carries the entry from there. Two modes:
 #
-#   changelog.sh <owner/repo> <version>   # write the entry (gh + GH_TOKEN, pull-requests: read)
-#   changelog.sh --check <version>        # does the file open on it? (release.yml's gate)
+#   changelog.sh <owner/repo> <version> [<pr>]   # write the entry (gh + GH_TOKEN, pull-requests: read)
+#   changelog.sh --check <version>               # does the file open on it? (release.yml's gate)
 #
 # The entry is release_notes.sh's list over the PRs merged into main since the
 # last tag, as GitHub's generate-notes endpoint lists them; with no note at
-# all it says so. README's Roadmap moves each finished entry, as one sentence,
+# all it says so. [<pr>] is a pull request still open into main, whose note
+# joins the list as though it had merged: run on its branch just before the
+# merge, the entry rides that merge and the tag goes on it with no commit
+# after. README's Roadmap moves each finished entry, as one sentence,
 # into a `## Unreleased` section's `From the roadmap:` list, which a write
 # folds into the version's entry under the same line. A version already on top is replaced, so a run after a late
 # merge rewrites its own entry. A prerelease (1.0.0-rc.1) is held to the entry
@@ -39,11 +42,18 @@ check() {
 }
 
 write() {
-  local repo="$1" version="$2" notes tmp changed entry
+  local repo="$1" version="$2" pr="${3:-}" notes tmp changed entry
+  case "$pr" in *[!0-9]*)
+    echo "changelog.sh: '$pr' is not a pull request number" >&2
+    return 1
+    ;;
+  esac
   tmp="$(mktemp)"
   notes="$(gh api --method POST "repos/$repo/releases/generate-notes" \
     -f tag_name="v$version" -f target_commitish=main --jq .body)"
   printf '%s\n' "$notes" >"$tmp"
+  # the open one last, in merge order; release_notes.sh asks each PR once
+  [ -z "$pr" ] || printf '* the open pull request in https://github.com/%s/pull/%s\n' "$repo" "$pr" >>"$tmp"
   changed="$(bash "$_cl_dir/release_notes.sh" "$repo" "$tmp")"
   rm -f "$tmp"
   changed="${changed#\#\# What changed$'\n\n'}"
@@ -90,14 +100,14 @@ case "${1:-}" in
   check "$2"
   ;;
 "" | -h | --help)
-  echo "usage: changelog.sh <owner/repo> <version> | --check <version>" >&2
+  echo "usage: changelog.sh <owner/repo> <version> [<pr>] | --check <version>" >&2
   exit 1
   ;;
 *)
-  [ $# -eq 2 ] || {
-    echo "changelog.sh: expected <owner/repo> <version>" >&2
+  [ $# -eq 2 ] || [ $# -eq 3 ] || {
+    echo "changelog.sh: expected <owner/repo> <version> [<pr>]" >&2
     exit 1
   }
-  write "$1" "$2"
+  write "$@"
   ;;
 esac

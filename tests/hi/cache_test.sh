@@ -122,10 +122,11 @@ function test_runtime_dir_is_empty_when_the_owner_cannot_be_read() {
 # ---------------------------------------------------------------------------
 
 function test_overlay_cache_key_is_stable_for_one_member_list() {
-  local a b
+  local a b c=""
   a="$(_hi_overlay_cache_key settings.sh colors)"
   b="$(_hi_overlay_cache_key settings.sh colors)"
-  [ -n "$a" ] && [ "$a" = "$b" ] || _hi_why a b
+  _hi_overlay_cache_key -v c settings.sh colors
+  [ -n "$a" ] && [ "$a" = "$b" ] && [ "$c" = "$a" ] || _hi_why a b c
 }
 
 # the list is in the key precisely so a toggle that trims a member gets its

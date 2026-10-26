@@ -218,11 +218,14 @@ function run_ssh_tests() {
     # (xterm-mono ships in debian's ncurses-base) left alone on the probe's
     # say-so. The env prefix is the client TERM ssh's pty request carries
     # over; the trailing marker is the assertion, matched unanchored since
-    # the pty transcript ends lines in \r\n.
+    # the pty transcript ends lines in \r\n. SetEnv carries the same name, so
+    # a developer's own ssh config that rewrites TERM cannot answer for it:
+    # the command line's value is the first, and ssh keeps the first.
     for _hi_term_spec in swap:xterm-kitty:xterm-256color known:xterm-256color:xterm-256color \
       terminfo:xterm-mono:xterm-mono; do
       IFS=: read -r _hi_label _hi_client _hi_want <<<"$_hi_term_spec"
-      TERM="$_hi_client" _hi_par_case "term-$_hi_label" _hi_ssh_run_case "term-$_hi_label" "$_HI_SSHD_IMAGE" /bin/bash \
+      TERM="$_hi_client" _HI_SSH_LAUNCH_OPTS="-o SetEnv=TERM=$_hi_client" \
+        _hi_par_case "term-$_hi_label" _hi_ssh_run_case "term-$_hi_label" "$_HI_SSHD_IMAGE" /bin/bash \
         "echo TERMPROBE=\$TERM; echo $_HI_TEST_MARKER" "" "TERMPROBE=$_hi_want"
     done
 
