@@ -23,47 +23,25 @@ _HI_NO_CONFIG=""
 # Fake backend CLIs, each answering only the exact invocation targets.sh makes
 # and failing anything else, so a changed command shape shows up as a missing
 # row rather than a silently passing test.
+# shellcheck disable=SC2016 # the shims' own $1
 function _hi_write_shims() {
-  local dir="$_HI_SUITE_WORKDIR/shims" tool
-  mkdir -p "$dir"
+  local dir="$_HI_SUITE_WORKDIR/shims" ps='[ "$1" = ps ] || exit 1'
 
   # "beta compose-svc" is the compose-labeled shape: {{.Names}} {{.Label ...}}
   # separated by a space, an empty second field for a plain container
-  cat >"$dir/docker" <<'EOF'
-#!/bin/sh
-[ "$1" = ps ] || exit 1
-printf 'alpha\nbeta compose-svc\n'
-EOF
+  _hi_script "$dir/docker" '#!/bin/sh' "$ps" "printf 'alpha\nbeta compose-svc\n'"
 
   # podman renders the same {{.Label ...}} template docker does (verified
   # against a real podman), so its lane carries the compose column too
-  cat >"$dir/podman" <<'EOF'
-#!/bin/sh
-[ "$1" = ps ] || exit 1
-printf 'pod-one\npod-two compose-pod\n'
-EOF
+  _hi_script "$dir/podman" '#!/bin/sh' "$ps" "printf 'pod-one\npod-two compose-pod\n'"
 
   # a third family member (GLOSSARY: HI.51); finch is deliberately not
   # shimmed, so the default roster always carries one absent member
-  cat >"$dir/nerdctl" <<'EOF'
-#!/bin/sh
-[ "$1" = ps ] || exit 1
-printf 'nerd-one\n'
-EOF
+  _hi_script "$dir/nerdctl" '#!/bin/sh' "$ps" "printf 'nerd-one\n'"
 
   # two members fronting one daemon, podman-docker style: both answer `twin`
-  mkdir -p "$dir/twins"
-  cat >"$dir/twins/docker" <<'EOF'
-#!/bin/sh
-[ "$1" = ps ] || exit 1
-printf 'twin\nonly-docker\n'
-EOF
-  cat >"$dir/twins/podman" <<'EOF'
-#!/bin/sh
-[ "$1" = ps ] || exit 1
-printf 'twin\nonly-podman\n'
-EOF
-  chmod +x "$dir/twins/docker" "$dir/twins/podman"
+  _hi_script "$dir/twins/docker" '#!/bin/sh' "$ps" "printf 'twin\nonly-docker\n'"
+  _hi_script "$dir/twins/podman" '#!/bin/sh' "$ps" "printf 'twin\nonly-podman\n'"
   _HI_TWIN_PATH="$dir/twins:$PATH"
 
   # `nomad job status` (header row + one job), then `nomad job allocs` per job
@@ -87,9 +65,7 @@ get) printf 'default pod-a\ndefault pod-b\nother pod-c\n' ;;
 esac
 EOF
 
-  for tool in docker podman nerdctl nomad kubectl; do
-    chmod +x "$dir/$tool"
-  done
+  chmod +x "$dir/nomad" "$dir/kubectl"
   _HI_SHIM_PATH="$dir:$PATH"
 }
 
@@ -216,7 +192,7 @@ function _hi_targets() {
 }
 
 function _hi_has_row() {
-  printf '%s\n' "$1" | grep -qxF "$2"$'\t'"$3"
+  [[ $'\n'"$1"$'\n' == *$'\n'"$2"$'\t'"$3"$'\n'* ]]
 }
 
 function test_multi_alias_host_yields_one_row_each() {
@@ -365,7 +341,7 @@ function test_podman_kind_lists_compose_service_alias() {
 function test_docker_kind_omits_alias_row_when_label_is_empty() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" docker)"
-  ! printf '%s\n' "$out" | grep -qxF $'\t''docker' || _hi_why out
+  ! _hi_has_row "$out" '' docker || _hi_why out
 }
 
 # every member of the docker-compatible family is a kind of its own, and the
@@ -389,8 +365,8 @@ function test_family_order_is_emission_order() {
   out="$(_HI_CONTAINER_CLIS=podman _hi_targets "$_HI_CONFIG" | grep -v $'\tssh$')"
   got="$(printf '%s\n' "$out" | sed -n '1p')"
   [ "$got" = "alpha"$'\t'"docker" ] || _hi_why got out || return 1
-  printf '%s\n' "$out" | grep -qxF "pod-one"$'\t'"podman" || _hi_why out || return 1
-  printf '%s\n' "$out" | grep -qxF "nerd-one"$'\t'"nerdctl" || _hi_why out
+  _hi_has_row "$out" pod-one podman || _hi_why out || return 1
+  _hi_has_row "$out" nerd-one nerdctl || _hi_why out
 }
 
 # podman-docker's `docker` is podman: both lanes list the same container, and
@@ -492,9 +468,7 @@ function test_backends_are_swept_together() {
   _hi_has_row "$out" slow-podman podman || _hi_why out || return 1
   _hi_has_row "$out" slow-pod kube || _hi_why out || return 1
   first="$(head -n 3 "$_HI_PROBE_LOG" | grep -c ' start$')"
-  [ "$first" = 3 ] && return 0
-  _hi_cecho "   the backends ran in turn - the log opens: $(head -n 3 "$_HI_PROBE_LOG" | tr '\n' '/')" "$RED"
-  return 1
+  [ "$first" = 3 ] || _hi_because "the backends ran in turn - the log opens: $(head -n 3 "$_HI_PROBE_LOG" | tr '\n' '/')"
 }
 
 # ...and the documented degradation: no writable scratch dir means no fan-out,
@@ -563,7 +537,7 @@ function test_cache_is_bypassed_at_ttl_zero() {
   mkdir -p "$dir"
   printf '%s\nstale\tdocker\n' "$(date +%s)" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 0 docker)"
-  ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker" || _hi_why out
+  ! _hi_has_row "$out" stale docker || _hi_why out
 }
 
 function test_cache_expires_with_its_ttl() {
@@ -572,7 +546,7 @@ function test_cache_expires_with_its_ttl() {
   # stamped an hour ago, so any sane ttl has to treat it as a miss
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 3600))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
-  ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker" || _hi_why out
+  ! _hi_has_row "$out" stale docker || _hi_why out
 }
 
 # ...whereas one only just past the TTL is the answer *now*, and the sweep
@@ -625,7 +599,7 @@ function test_cache_ignores_a_file_with_no_timestamp() {
   mkdir -p "$dir"
   printf 'not-a-timestamp\nstale\tdocker\n' >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 60 docker)"
-  { _hi_has_row "$out" alpha docker && ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker"; } || _hi_why out
+  { _hi_has_row "$out" alpha docker && ! _hi_has_row "$out" stale docker; } || _hi_why out
 }
 
 # the timestamp is bookkeeping, not a target - it must never reach completion
@@ -700,10 +674,7 @@ function test_unwritable_cache_dir_still_answers() {
   _hi_has_row "$out" alpha docker || _hi_why out || return 1
   got="$(ls -A "$tmp/hi-$uid")"
   [ -z "$got" ] || _hi_why got tmp uid || return 1
-  [ ! -s "$err" ] || {
-    _hi_cecho "   stderr: $(cat "$err")" "$RED"
-    return 1
-  }
+  [ ! -s "$err" ] || _hi_because "stderr: $(cat "$err")"
 }
 
 function test_absent_backends_leave_only_ssh_rows() {

@@ -17,5 +17,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && mkdir -p /run/sshd \
     && useradd -m -s /bin/bash hitest
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

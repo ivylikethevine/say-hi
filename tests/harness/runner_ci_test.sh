@@ -18,16 +18,10 @@ source "${BASH_SOURCE[0]%/*}/runner_test.sh"
 function test_shipped_table_lists_a_group_and_name_per_suite() {
   local group name count=0
   while read -r group name; do
-    [ -n "$group" ] && [ -n "$name" ] || {
-      _hi_cecho " | malformed --list row: $group $name" "$RED"
-      return 1
-    }
+    [ -n "$group" ] && [ -n "$name" ] || _hi_because "malformed --list row: $group $name" || return 1
     count=$((count + 1))
   done < <(_hi_runner_list)
-  [ "$count" -gt 0 ] || {
-    _hi_cecho " | --list returned nothing" "$RED"
-    return 1
-  }
+  [ "$count" -gt 0 ] || _hi_because "--list returned nothing"
 }
 
 # --list-paths is --list plus the suite's absolute path, for tests/coverage.sh,
@@ -38,10 +32,7 @@ function test_shipped_table_lists_a_group_and_name_per_suite() {
 function test_list_paths_adds_a_readable_path_per_suite() {
   local group name path count=0
   while read -r group name path; do
-    [ -n "$path" ] && [ -f "$path" ] || {
-      _hi_cecho " | --list-paths row has no readable path: $group $name $path" "$RED"
-      return 1
-    }
+    [ -n "$path" ] && [ -f "$path" ] || _hi_because "--list-paths row has no readable path: $group $name $path" || return 1
     count=$((count + 1))
   done < <(printf '%s\n' "$_HI_LIST_PATHS_OUT")
   [ "$count" -gt 0 ] || _hi_why count
@@ -64,20 +55,14 @@ function test_ci_runs_every_group_in_the_table() {
   local -a groups=()
   [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   while read -r group name; do
-    [[ " ${groups[*]} " == *" $group "* ]] || groups+=("$group")
+    _hi_list_has "${groups[*]}" "$group" || groups+=("$group")
   done < <(_hi_runner_list)
-  [ "${#groups[@]}" -gt 0 ] || {
-    _hi_cecho " | couldn't read the suite table back out of the runner" "$RED"
-    return 1
-  }
+  [ "${#groups[@]}" -gt 0 ] || _hi_because "couldn't read the suite table back out of the runner" || return 1
   for group in "${groups[@]}"; do
     # a comma list names several
     grep -qE -- "--group ([a-z]+,)*$group(,[a-z]+)*( |\"|$)" "$workflow" || missing+=" $group"
   done
-  [ -z "$missing" ] || {
-    _hi_cecho " | groups in the runner but not run by CI:$missing" "$RED"
-    return 1
-  }
+  [ -z "$missing" ] || _hi_because "groups in the runner but not run by CI:$missing"
 }
 
 # `kcov --merge` re-reads every source file at the absolute path its shard
@@ -101,14 +86,8 @@ function test_coverage_merge_jobs_check_out_the_tree() {
     seen=$((seen + 1))
     printf '%s\n' "$block" | grep -q 'uses: actions/checkout' || missing="$missing $job"
   done < <(printf '%s\n' "$jobs" | sed -n 's/^  \([a-zA-Z][a-zA-Z0-9_-]*\):$/\1/p')
-  [ "$seen" -gt 0 ] || {
-    _hi_cecho " | no coverage.yml job calls tests/coverage.sh --merge - has it moved?" "$RED"
-    return 1
-  }
-  [ -z "$missing" ] || {
-    _hi_cecho " | coverage.yml jobs that merge kcov output without checking out the tree:$missing" "$RED"
-    return 1
-  }
+  [ "$seen" -gt 0 ] || _hi_because "no coverage.yml job calls tests/coverage.sh --merge - has it moved?" || return 1
+  [ -z "$missing" ] || _hi_because "coverage.yml jobs that merge kcov output without checking out the tree:$missing"
 }
 
 # Neither tracer follows a non-bash child, and ubuntu's sh is dash, so the
@@ -143,10 +122,7 @@ function test_coverage_drivers_shim_sh_to_bash() {
     [ -f "$driver" ] || continue
     grep -q '_hi_cov_shim_sh_to_bash' "$driver" || missing="$missing ${driver##*/}"
   done
-  [ -z "$missing" ] || {
-    _hi_cecho " | drivers that sweep without shimming sh to bash first:$missing" "$RED"
-    return 1
-  }
+  [ -z "$missing" ] || _hi_because "drivers that sweep without shimming sh to bash first:$missing"
 }
 
 # tests/coverage.sh --join, over two rankings as the drivers write them: a
@@ -261,11 +237,8 @@ function test_coverage_pr_runs_are_same_repo_only() {
   jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
   gate="$(printf '%s\n' "$jobs" | sed -n "/^  reuse:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
   # shellcheck disable=SC2016 # coverage.yml's literal source text
-  if [[ "$gate" != *"head.repo.full_name == github.repository"* ]] ||
-    [[ "$gate" != *'"$WR_EVENT" = push'* ]]; then
-    _hi_cecho " | reuse's gate step is missing the same-repo or green-push clause" "$RED"
-    return 1
-  fi
+  [[ "$gate" == *"head.repo.full_name == github.repository"* && "$gate" == *'"$WR_EVENT" = push'* ]] ||
+    _hi_because "reuse's gate step is missing the same-repo or green-push clause" || return 1
   while read -r job; do
     [ "$job" = reuse ] && continue
     block="$(printf '%s\n' "$jobs" | sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
@@ -274,14 +247,8 @@ function test_coverage_pr_runs_are_same_repo_only() {
     printf '%s\n' "$block" | grep -qE "head\.repo\.full_name == github\.repository|event_name != 'pull_request'" ||
       bad="$bad $job"
   done < <(printf '%s\n' "$jobs" | sed -n 's/^  \([a-zA-Z][a-zA-Z0-9_-]*\):$/\1/p')
-  [ "$seen" -gt 0 ] || {
-    _hi_cecho " | no jobs read out of coverage.yml - has the file moved?" "$RED"
-    return 1
-  }
-  [ -z "$bad" ] || {
-    _hi_cecho " | coverage.yml jobs a fork's PR could run:$bad" "$RED"
-    return 1
-  }
+  [ "$seen" -gt 0 ] || _hi_because "no jobs read out of coverage.yml - has the file moved?" || return 1
+  [ -z "$bad" ] || _hi_because "coverage.yml jobs a fork's PR could run:$bad"
 }
 
 # Each suite selectable on its own, and every group non-empty: together these
@@ -298,7 +265,7 @@ function test_coverage_pr_runs_are_same_repo_only() {
 # (windows-client.yml holds just the one).
 function _hi_shards_cover_group() {
   local workflow="$_HI_ROOT/.github/workflows/$1" job="$2" group="$3"
-  local where="$1" block entry slices="" by
+  local where="$1" block entry slices="" by got want
   [ "$job" = - ] || where="$1's $job"
   [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   if [ "$job" = - ]; then
@@ -311,10 +278,9 @@ function _hi_shards_cover_group() {
   for entry in $(printf '%s\n' "$block" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',"' '  '); do
     slices="$slices$(_HI_SHARD_BY="$by" "$_HI_TEST_RUN" --group "$group" --shard "$entry" --list 2>/dev/null)"$'\n'
   done
-  [ "$(printf '%s' "$slices" | sort)" = "$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)" ] || {
-    _hi_cecho " | $where's shard matrix does not partition the $group group" "$RED"
-    return 1
-  }
+  got="$(printf '%s' "$slices" | sort)"
+  want="$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)"
+  [ "$got" = "$want" ] || _hi_because "$where's shard matrix does not partition the $group group"
 }
 
 # The cost tables deal shards by suite name, so a suite renamed, removed, or
@@ -325,7 +291,7 @@ function _hi_shards_cover_group() {
 function test_cost_tables_name_the_suites_they_deal() {
   local spec var group keys want n bad=""
   local names
-  names=" $("$_HI_TEST_RUN" --list 2>/dev/null | awk '{ printf "%s ", $2 }') "
+  names=" $(_hi_runner_list | awk '{ printf "%s ", $2 }') "
   for spec in KCOV:- BASHCOV:- GITBASH:fast E2E:e2e; do
     var="_HI_TEST_COSTS_${spec%%:*}" group="${spec#*:}"
     keys=" $(sed -n "/^$var=\"\$/,/^\"\$/p" "$_HI_TEST_RUN" | tr ' ' '\n' | sed -n 's/^\([a-z0-9_]*\):[0-9]*$/\1/p' | tr '\n' ' ') "
@@ -337,7 +303,7 @@ function test_cost_tables_name_the_suites_they_deal() {
       case "$names" in *" $n "*) ;; *) bad="$bad $var:$n(stale)" ;; esac
     done
     if [ "$group" = - ]; then
-      want="$("$_HI_TEST_RUN" --list 2>/dev/null | awk '$2 != "shellcheck" { print $2 }')"
+      want="$(_hi_runner_list | awk '$2 != "shellcheck" { print $2 }')"
     else
       want="$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | awk '{ print $2 }')"
     fi
@@ -353,7 +319,7 @@ function test_cost_tables_name_the_suites_they_deal() {
 function test_coverage_shards_partition_by_cost() {
   local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job tool entry slices got want
   [ -f "$workflow" ] || return 0 # a shipped tree has no .github
-  want="$("$_HI_TEST_RUN" --list 2>/dev/null | sort)"
+  want="$(_hi_runner_list | sort)"
   for job in shard-kcov shard-bashcov; do
     tool="${job#shard-}" slices=""
     for entry in $(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',"' '  '); do
@@ -366,17 +332,12 @@ function test_coverage_shards_partition_by_cost() {
 }
 
 function test_every_group_selects_only_its_own_suites() {
-  local group rows
+  local group rows other
   while read -r group; do
     rows="$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null)"
-    [ -n "$rows" ] || {
-      _hi_cecho " | group selects nothing: $group" "$RED"
-      return 1
-    }
-    [ -z "$(printf '%s\n' "$rows" | awk -v g="$group" '$1 != g')" ] || {
-      _hi_cecho " | --group $group returned another group's suites" "$RED"
-      return 1
-    }
+    [ -n "$rows" ] || _hi_because "group selects nothing: $group" || return 1
+    other="$(printf '%s\n' "$rows" | awk -v g="$group" '$1 != g')"
+    [ -z "$other" ] || _hi_because "--group $group returned another group's suites: $other" || return 1
   done < <(_hi_runner_list | awk '!seen[$1]++ {print $1}')
 }
 
@@ -386,17 +347,12 @@ function test_every_shipped_suite_script_exists_and_is_executable() {
   _hi_read_lines entries < <(grep -oE '^[[:space:]]*"[^":]+:[^":]+:[^"]+\.sh"$' "$_HI_TEST_RUN" | tr -d '" ')
   while read -r _ _; do count=$((count + 1)); done < <(_hi_runner_list)
 
-  if [ "${#entries[@]}" -eq 0 ] || [ "${#entries[@]}" -ne "$count" ]; then
-    _hi_cecho " | parsed ${#entries[@]} table entries out of $_HI_TEST_RUN, runner reports $count suites" "$RED"
-    return 1
-  fi
+  [ "${#entries[@]}" -gt 0 ] && [ "${#entries[@]}" -eq "$count" ] ||
+    _hi_because "parsed ${#entries[@]} table entries out of $_HI_TEST_RUN, runner reports $count suites" || return 1
 
   for entry in "${entries[@]}"; do
     path="$_HI_ROOT/tests/${entry##*:}"
-    [ -x "$path" ] || {
-      _hi_cecho " | not executable: $path" "$RED"
-      return 1
-    }
+    [ -x "$path" ] || _hi_because "not executable: $path" || return 1
   done
 }
 
@@ -408,10 +364,7 @@ function test_every_suite_script_on_disk_is_in_the_table() {
   local path rel missing=""
   local -a entries=()
   _hi_read_lines entries < <(grep -oE '^[[:space:]]*"[^":]+:[^":]+:[^"]+\.sh"$' "$_HI_TEST_RUN" | tr -d '" ')
-  [ "${#entries[@]}" -gt 0 ] || {
-    _hi_cecho " | parsed no table entries out of $_HI_TEST_RUN" "$RED"
-    return 1
-  }
+  [ "${#entries[@]}" -gt 0 ] || _hi_because "parsed no table entries out of $_HI_TEST_RUN" || return 1
   for path in "$_HI_ROOT"/tests/*/*_test.sh; do
     rel="${path#"$_HI_ROOT/tests/"}"
     case " ${entries[*]} " in
@@ -419,10 +372,7 @@ function test_every_suite_script_on_disk_is_in_the_table() {
     *) missing="$missing $rel" ;;
     esac
   done
-  [ -z "$missing" ] || {
-    _hi_cecho " | suites on disk but not in the runner's table:$missing" "$RED"
-    return 1
-  }
+  [ -z "$missing" ] || _hi_because "suites on disk but not in the runner's table:$missing"
 }
 
 function run_runner_ci_tests() {
@@ -456,13 +406,8 @@ function run_runner_ci_tests() {
   _hi_check "coverage.yml runs a PR's sweep for same-repo PRs only" test_coverage_pr_runs_are_same_repo_only
   _hi_check "coverage.sh --join marks what the two tools disagree on" test_coverage_join_marks_what_the_tools_disagree_on
   _hi_check "coverage.sh --untested lists the changed lines both tools missed" test_coverage_untested_lists_changed_lines_both_tools_missed
-  if command -v ruby >/dev/null 2>&1; then
-    _hi_check "coverage_v2.sh --merge ranks and figures the subject alone" test_coverage_v2_merge_reports_the_subject_alone
-    _hi_check "...and writes no figure where the subject has no line" test_coverage_v2_merge_writes_no_figure_without_the_subject
-  else
-    _hi_skip "coverage_v2.sh --merge ranks and figures the subject alone" "no ruby"
-    _hi_skip "...and writes no figure where the subject has no line" "no ruby"
-  fi
+  _hi_check_requires ruby "coverage_v2.sh --merge ranks and figures the subject alone" test_coverage_v2_merge_reports_the_subject_alone
+  _hi_check_requires ruby "...and writes no figure where the subject has no line" test_coverage_v2_merge_writes_no_figure_without_the_subject
   _hi_check "Each group selects only its own" test_every_group_selects_only_its_own_suites
 
   _hi_suite_end "test_runner.sh (ci)"

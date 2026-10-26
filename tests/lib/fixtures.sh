@@ -30,21 +30,18 @@ function _hi_strip_ansi() {
 }
 
 # _hi_within_percent <got> <want> <pct> - is <got> within <pct>% of <want>?
-# The one drift band the wire figures (targets/ssh_wire_test.sh) and the
-# README payload badge (bench/bench_test.sh) are both held to, kept here so
-# the two gates cannot quietly diverge. The allowance is <pct>% of <want>
-# rounded up and never less than one unit - nothing these gates measure is
-# byte-stable, and a band that rounds to zero would turn jitter into a red
-# gate. It lands in $_HI_WITHIN_SLACK for a caller that prints the band.
-# 0 (the "no figure at all" case) is never within anything.
+# The drift band the wire figures (targets/ssh_wire_test.sh) are held to. The
+# allowance is <pct>% of <want> rounded up and never less than one unit -
+# nothing measured is byte-stable, and a band that rounds to zero would turn
+# jitter into a red gate. 0 (the "no figure at all" case) is never within
+# anything.
 function _hi_within_percent() {
-  local got="$1" want="$2" delta
-  _HI_WITHIN_SLACK=$(((want * $3 + 99) / 100))
-  [ "$_HI_WITHIN_SLACK" -gt 0 ] || _HI_WITHIN_SLACK=1
+  local got="$1" want="$2" delta slack=$((($2 * $3 + 99) / 100))
+  [ "$slack" -gt 0 ] || slack=1
   [ "$got" -gt 0 ] || return 1
   delta=$((got - want))
   [ "$delta" -lt 0 ] && delta=$((-delta))
-  [ "$delta" -le "$_HI_WITHIN_SLACK" ]
+  [ "$delta" -le "$slack" ]
 }
 
 # A scheme of the user's own: 24 or 48 six-digit hex words in the setting
@@ -272,9 +269,7 @@ function _hi_can_shape_netem() {
 function _hi_can_shim_applets() {
   local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/cap.applets" sh_bin out
   sh_bin="$(command -v sh)"
-  mkdir -p "$dir"
-  printf '%s\n' '#!/bin/sh' 'echo shim' >"$dir/tar"
-  chmod +x "$dir/tar"
+  _hi_script "$dir/tar" '#!/bin/sh' 'echo shim'
   out="$(PATH="$dir" "$sh_bin" -c tar 2>/dev/null)"
   [ "$out" = shim ]
 }
@@ -340,6 +335,13 @@ function _hi_capable() {
 # OK for a case that never ran.
 function _hi_check_capable() { _hi_par_capable_body "$1" _hi_check "${@:2}"; }
 
+# _hi_script <file> <line...> - <file> written as those lines, executable, its
+# directory made first when missing
+function _hi_script() {
+  [ -d "${1%/*}" ] || mkdir -p "${1%/*}"
+  printf '%s\n' "${@:2}" >"$1" && chmod +x "$1"
+}
+
 # _hi_fake_path <name> <bin...> - a $_HI_SUITE_WORKDIR/<name> directory of
 # no-op executables, printed - for suites that prove a resolution ladder
 # ("candidate X is missing, does it fall through to Y") against a PATH they
@@ -351,8 +353,7 @@ function _hi_fake_path() {
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     for bin in "$@"; do
-      printf '%s\n' '#!/bin/sh' 'exit 0' >"$dir/$bin"
-      chmod +x "$dir/$bin"
+      _hi_script "$dir/$bin" '#!/bin/sh' 'exit 0'
     done
   fi
   printf '%s' "$dir"
@@ -402,8 +403,7 @@ function _hi_real_path() {
         ln -sf "$real" "$dir/$tool" 2>/dev/null || :
         [ -L "$dir/$tool" ] && continue
       fi
-      printf '%s\n' '#!/bin/sh' "exec \"$real\" \"\$@\"" >"$dir/$tool"
-      chmod +x "$dir/$tool"
+      _hi_script "$dir/$tool" '#!/bin/sh' "exec \"$real\" \"\$@\""
     done
   fi
   printf '%s' "$dir"
@@ -638,16 +638,13 @@ function _hi_file_is() {
   return 1
 }
 
-# _hi_stub_tools <tool...> - a directory of do-nothing executables by those
-# names, printed, for a caller's $PATH: _hi_overlay_src ships home's config
-# only with its tool on this machine, and a runner has no micro or helix.
+# _hi_stub_tools <tool...> - a directory of do-nothing executables by exactly
+# those names, printed, for a caller's $PATH: _hi_overlay_src ships home's
+# config only with its tool on this machine, and a runner has no micro or
+# helix. One directory per set, so no case sees another's stubs.
 function _hi_stub_tools() {
-  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/stubtools" t
-  mkdir -p "$dir"
-  for t; do
-    [ -x "$dir/$t" ] || { printf '#!/bin/sh\nexit 0\n' >"$dir/$t" && chmod +x "$dir/$t"; }
-  done
-  printf '%s' "$dir"
+  local IFS=-
+  _hi_fake_path "stub-$*" "$@"
 }
 
 # _hi_trace_env - fills the caller's `local -a _hi_trace` with what a coverage

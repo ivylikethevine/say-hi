@@ -46,9 +46,7 @@ function _hi_edit_opened() { cat "$1.opened" 2>/dev/null; }
 # _hi_edit_recorder <name> - an editor of that name in the recorder's
 # directory: writes its arguments to $_HI_EDIT_LOG, preceded by its own name
 function _hi_edit_recorder() {
-  # shellcheck disable=SC2016 # the recorder's own script, expanded when it runs
-  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s" "$@" >"$_HI_EDIT_LOG"\n' "$1" >"$_HI_EDIT_BIN/$1"
-  chmod +x "$_HI_EDIT_BIN/$1"
+  _hi_script "$_HI_EDIT_BIN/$1" '#!/usr/bin/env bash' "printf \"%s\\n\" \"$1\" \"\$@\" >\"\$_HI_EDIT_LOG\""
 }
 
 # the overlay directory itself with no file named, made where there is none

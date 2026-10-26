@@ -43,15 +43,9 @@ function test_overlay_dereferences_symlinks() {
   ln -sfn "$real" "$whole"
   for shape in "$perfile" "$whole"; do
     out="$(_HI_CONFIG_DIR="$shape" _hi_overlay_tar | _hi_tar_cat settings.sh 2>/dev/null)"
-    [ "$out" = "export _HI_MAX_WIDTH=72" ] || {
-      _hi_cecho " | ${shape##*/}: symlinked overlay did not arrive as content: [$out]" "$RED"
-      return 1
-    }
+    [ "$out" = "export _HI_MAX_WIDTH=72" ] || _hi_because "${shape##*/}: symlinked overlay did not arrive as content: [$out]" || return 1
     # and as a regular file, not a link the target cannot resolve
-    _HI_CONFIG_DIR="$shape" _hi_overlay_tar | tar tvzf - 2>/dev/null | grep -q '^-' || {
-      _hi_cecho " | ${shape##*/}: overlay member is not a regular file" "$RED"
-      return 1
-    }
+    _HI_CONFIG_DIR="$shape" _hi_overlay_tar | tar tvzf - 2>/dev/null | grep -q '^-' || _hi_because "${shape##*/}: overlay member is not a regular file" || return 1
   done
   return 0
 }
@@ -72,11 +66,8 @@ function test_overlay_sends_nothing_outside_the_roster() {
   done
   while IFS= read -r f; do
     [ -n "$f" ] && [ "$f" != extensions/10-x ] || continue
-    case " ${_HI_OVERLAY_FILES[*]} " in
-    *" $f "*) continue ;;
-    esac
-    _hi_cecho " | the overlay stream carried $f, which is not in _HI_OVERLAY_FILES" "$RED"
-    return 1
+    [[ " ${_HI_OVERLAY_FILES[*]} " == *" $f "* ]] ||
+      _hi_because "the overlay stream carried $f, which is not in _HI_OVERLAY_FILES" || return 1
   done <<<"$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
   return 0
 }
@@ -92,10 +83,8 @@ function test_overlay_carries_packages_stripped() {
   got2="$(cd "$got" && printf '%s,' *)"
   [ "$got2" = packages, ] || _hi_why got2 got || return 1
   out="$(<"$got/packages")"
-  [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf '[core]\nbat = ["batcat"]\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []')" ] || {
-    _hi_cecho " | packages arrived as: [$out]" "$RED"
-    return 1
-  }
+  got2="$(printf '%s\n' "$out" | grep -v '^$')"
+  [ "$got2" = $'[core]\nbat = ["batcat"]\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []' ] || _hi_because "packages arrived as: [$out]"
 }
 
 # an extension rides as extensions/<name>, comment-stripped, and only the
@@ -112,10 +101,7 @@ function test_overlay_carries_extensions() {
   [ "$got2" = extensions,extensions/10-x, ] || _hi_why got2 got || return 1
   out="$(<"$got/extensions/10-x")"
   [ "$out" = '#!/bin/sh
-export _HI_SEGMENT="printf x"' ] || {
-    _hi_cecho " | extensions/10-x arrived as: [$out]" "$RED"
-    return 1
-  }
+export _HI_SEGMENT="printf x"' ] || _hi_because "extensions/10-x arrived as: [$out]"
 }
 
 function test_overlay_is_empty_without_one() {
@@ -160,10 +146,9 @@ function test_overlay_tar_carries_only_what_exists() {
 # (GLOSSARY: HI.62)
 # shellcheck disable=SC2016 # the wanted lines hold $_HI_CONFIG_DIR unexpanded
 function test_overlay_tar_wires_the_members_it_carries() {
-  local dir d want got
+  local dir d="$_HI_WORKDIR/wired-out" want got
   dir="$(_hi_overlay_fixture wired colors inputrc bat/config eza/theme.yml oh-my-posh.toml kak/kakrc)"
-  d="$(mktemp -d "$_HI_WORKDIR/wired-out.XXXXXX")" || _hi_why || return 1
-  _HI_PROMPT_TOOL=oh-my-posh _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || _hi_why dir d || return 1
+  mkdir "$d" && _HI_PROMPT_TOOL=oh-my-posh _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || _hi_why dir d || return 1
   want='export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR/kak"
 export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
 export EZA_CONFIG_DIR="$_HI_CONFIG_DIR/eza"
@@ -183,13 +168,12 @@ export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
 # aliased once for all its files
 # shellcheck disable=SC2016 # the wanted lines hold their $ unexpanded
 function test_overlay_tar_aliases_the_editors_and_multiplexers() {
-  local dir d want got
+  local dir d="$_HI_WORKDIR/aliased-out" want got
   dir="$(_hi_overlay_fixture aliased vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml tmux/tmux.conf)"
   mkdir -p "$dir/zellij/themes"
   printf 'x\n' >"$dir/zellij/config.kdl"
   printf 'x\n' >"$dir/zellij/themes/dark.kdl"
-  d="$(mktemp -d "$_HI_WORKDIR/aliased-out.XXXXXX")" || _hi_why || return 1
-  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || _hi_why dir d || return 1
+  mkdir "$d" && _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || _hi_why dir d || return 1
   want='export _HI_VIMRC="$_HI_CONFIG_DIR/vim/vimrc"
 command -v vim >/dev/null 2>&1 && alias vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_CONFIG_DIR/vim/vimrc" || true
 export _HI_NVIMRC="$_HI_CONFIG_DIR/nvim/init.lua"
@@ -623,41 +607,25 @@ function test_local_only_toggles_keep_nothing_home() {
 # each connect. settings.sh keeps its shebang; vim/vimrc loses its `"` lines and
 # nvim/init.lua its `--` ones.
 function test_overlay_strip_removes_comments() {
-  local dir="$_HI_WORKDIR/ovl-strip" out
-  mkdir -p "$dir"
+  local dir="$_HI_WORKDIR/ovl-strip" d="$_HI_WORKDIR/ovl-strip-sent" out
+  mkdir -p "$dir/vim" "$dir/nvim" "$d"
   printf '#!/bin/sh\n# a comment\nexport _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
   cp "$_HI_ROOT/config/colors" "$dir/colors"
-  mkdir -p "$dir/vim" "$dir/nvim"
   printf '" a comment\nset number\n' >"$dir/vim/vimrc"
   printf -- '-- a comment\nvim.opt.number = true\n' >"$dir/nvim/init.lua"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat settings.sh)"
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || _hi_why dir d || return 1
+  out="$(<"$d/settings.sh")"
   [ "$out" = '#!/bin/sh
-export _HI_MAX_WIDTH=72' ] || {
-    _hi_cecho " | settings.sh arrived as: [$out]" "$RED"
-    return 1
-  }
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat colors)"
+export _HI_MAX_WIDTH=72' ] || _hi_because "settings.sh arrived as: [$out]" || return 1
+  out="$(<"$d/colors")"
   [ -n "$out" ] || _hi_why out || return 1
-  case "$out" in *'#'*)
-    _hi_cecho " | colors kept a comment line through the strip" "$RED"
-    return 1
-    ;;
-  esac
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
+  [[ "$out" != *'#'* ]] || _hi_because "colors kept a comment line through the strip" || return 1
+  out="$(<"$d/vim/vimrc")"
   [ "$out" = "set number" ] || _hi_because "vim/vimrc arrived as: [$out]" || return 1
-  case "$out" in '"'* | *$'\n"'*)
-    _hi_cecho " | vim/vimrc kept a vim comment line through the strip" "$RED"
-    return 1
-    ;;
-  esac
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nvim/init.lua)"
+  [[ "$out" != '"'* && "$out" != *$'\n"'* ]] || _hi_because "vim/vimrc kept a vim comment line through the strip" || return 1
+  out="$(<"$d/nvim/init.lua")"
   [ "$out" = "vim.opt.number = true" ] || _hi_because "nvim/init.lua arrived as: [$out]" || return 1
-  case "$out" in '--'* | *$'\n--'*)
-    _hi_cecho " | nvim/init.lua kept a lua comment line through the strip" "$RED"
-    return 1
-    ;;
-  esac
-  return 0
+  [[ "$out" != '--'* && "$out" != *$'\n--'* ]] || _hi_because "nvim/init.lua kept a lua comment line through the strip"
 }
 
 # the user's own aliases ride the same stream under their bare name,

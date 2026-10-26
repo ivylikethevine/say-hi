@@ -192,34 +192,27 @@ function test_validators_for_the_advanced_values() {
   { _hi_is_truecolor_choice on && _hi_is_truecolor_choice auto && ! _hi_is_truecolor_choice 1; } || _hi_why
 }
 
-# the closing report: what this run wrote against what the block held, as
-# +/- lines, read through config_shell's own marker padding
+# _hi_diff_run <line...> - the closing report: what a run of the caller's
+# $_HI_SETTING_LINES wrote against a block of <line...>, as +/- lines, read
+# through config_shell's own marker padding
 function _hi_diff_run() {
-  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "export _HI_MAX_WIDTH=120")
-  mkdir -p "$_HI_CONFIG_DIR"
-  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_PROMPT=1" "export _HI_DISABLE_BANNER=1"
+  config_shell settings "$_HI_SETTINGS" "$@"
   settings_diff_before
   settings_diff_report >"$_HI_CONFIG_DIR/diff.out"
 }
 
 function test_settings_diff_reports_added_and_removed() {
   local out
-  _hi_settings_fixture diff _hi_diff_run
+  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "export _HI_MAX_WIDTH=120")
+  _hi_settings_fixture diff _hi_diff_run "export _HI_DISABLE_PROMPT=1" "export _HI_DISABLE_BANNER=1"
   out="$(cat "$_HI_WORKDIR/diff/overlay/diff.out")"
   [[ "$out" == *"+ export _HI_MAX_WIDTH=120"* && "$out" == *"- export _HI_DISABLE_BANNER=1"* &&
     "$out" != *"_HI_DISABLE_PROMPT"* ]] || _hi_why out
 }
 
-function _hi_diff_same_run() {
-  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1")
-  mkdir -p "$_HI_CONFIG_DIR"
-  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_PROMPT=1"
-  settings_diff_before
-  settings_diff_report >"$_HI_CONFIG_DIR/diff.out"
-}
-
 function test_settings_diff_says_no_changes() {
-  _hi_settings_fixture diff_same _hi_diff_same_run
+  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1")
+  _hi_settings_fixture diff_same _hi_diff_run "export _HI_DISABLE_PROMPT=1"
   grep -q 'no changes' "$_HI_WORKDIR/diff_same/overlay/diff.out" || _hi_why
 }
 
@@ -319,7 +312,6 @@ function test_preset_vocab_excludes_palette_and_order() {
 # preset does not name is gone. The fixture is written through config_shell,
 # so the before-state is the marked block a real run would find.
 function _hi_preset_run() {
-  mkdir -p "$_HI_CONFIG_DIR"
   config_shell settings "$_HI_SETTINGS" "export _HI_PLUGINS_OFF='nano'" "export _HI_MAX_WIDTH=120"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
@@ -338,7 +330,6 @@ function test_preset_run_writes_the_preset() {
 # rest, and a later preset that does not name them leaves them be. Its list
 # kept home is every plugin of config/plugins but the hooks, in its order.
 function _hi_preset_lean_run() {
-  mkdir -p "$_HI_CONFIG_DIR"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   run_configure lean </dev/null || return 1
@@ -540,20 +531,13 @@ function test_editor_preview_matches_its_alias() {
   path="$(_hi_fake_path "preview-bin-$bin" "$bin"):$PATH"
   # shellcheck disable=SC2016 # the child bash expands its own script
   from_alias="$(PATH="$path" bash -c '. "$1" && alias "$2"' _ "$dir/wiring.sh" "$tool" 2>/dev/null)"
-  [ -n "$from_alias" ] || {
-    _hi_cecho " | no $tool alias to compare" "$RED"
-    return 1
-  }
+  [ -n "$from_alias" ] || _hi_because "no $tool alias to compare" || return 1
   from_alias="${from_alias#alias "$tool"=\'}"
   from_alias="${from_alias%\'}"
   # the preview names the session tree as a target will, by its variable
   from_preview="$(_hi_editors_preview | sed -n "s/^$tool *-> //p" | tail -n 1)"
   from_preview="${from_preview//\$_HI_HOME/$_HI_HOME}"
-  [ "$from_alias" = "$from_preview" ] || {
-    _hi_cecho " | alias: [$from_alias]" "$RED"
-    _hi_cecho " | preview: [$from_preview]" "$RED"
-    return 1
-  }
+  [ "$from_alias" = "$from_preview" ] || _hi_because "alias: [$from_alias]"$'\n'"preview: [$from_preview]"
 }
 
 function test_bat_preview_names_the_bat_it_found() {
@@ -773,10 +757,10 @@ function test_plugins_rows_name_each_group() {
 # a number flips the plugin it stands for in the list kept home: one there
 # comes off it, one that rides goes on
 function test_plugin_flip_edits_the_list_kept_home() {
-  local dir out="" _HI_SETTINGS _HI_MENU_NOTE=""
+  local dir="$_HI_WORKDIR/pluginflip" out="" _HI_SETTINGS _HI_MENU_NOTE=""
   local -a _HI_SETTING_PENDING=()
   local -a _HI_MENU_PLUGINS=("cli|" "cli|bat|1|0" "editors|" "editors|nano|0|0" "editors|vim|0|0" "mux|" "mux|tmux|1|0")
-  dir="$(mktemp -d "$_HI_WORKDIR/pluginflip.XXXXXX")" || _hi_why || return 1
+  mkdir "$dir" || _hi_why dir || return 1
   _HI_SETTINGS="$dir/settings.sh"
   printf '#!/bin/sh\n%s\n' "export _HI_PLUGINS_OFF='nano, vim'" >"$_HI_SETTINGS"
   _hi_plugin_flip nano
@@ -790,10 +774,10 @@ function test_plugin_flip_edits_the_list_kept_home() {
 # --enable-plugin` moves it: switched on it is named there, and switched off it
 # is taken out
 function test_plugin_flip_moves_a_default_off_plugin_through_the_on_list() {
-  local dir out="" kept="" _HI_SETTINGS _HI_MENU_NOTE=""
+  local dir="$_HI_WORKDIR/pluginon" out="" kept="" _HI_SETTINGS _HI_MENU_NOTE=""
   local -a _HI_SETTING_PENDING=()
   local -a _HI_MENU_PLUGINS=("hooks|" "hooks|zoxide|0|1" "hooks|mise|0|1")
-  dir="$(mktemp -d "$_HI_WORKDIR/pluginon.XXXXXX")" || _hi_why || return 1
+  mkdir "$dir" || _hi_why dir || return 1
   _HI_SETTINGS="$dir/settings.sh"
   printf '#!/bin/sh\n' >"$_HI_SETTINGS"
   _hi_plugin_flip zoxide
@@ -812,7 +796,6 @@ function test_plugin_flip_moves_a_default_off_plugin_through_the_on_list() {
 # every question keeps what the file holds, and the rewrite reproduces the
 # block it found rather than dropping it
 function _hi_no_preset_run() {
-  mkdir -p "$_HI_CONFIG_DIR"
   config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_GIT_STATUS=1"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()

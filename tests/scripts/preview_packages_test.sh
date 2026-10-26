@@ -260,18 +260,11 @@ function test_marks_table_renders_the_glyph_set() {
 # checkout; $HOME is pointed at the workdir so no overlay of the user's can
 # win the automatic lookup. The ordinary path - the file the *tree* carries,
 # nothing exported - is pinned once, by test_preview_reads_the_trees_own_file
-# on a scratch tree below.
+# on a scratch tree below. Arguments ride after the subject.
 function _hi_render_packages() {
-  PATH="$(_hi_pkg_path)" HOME="$_HI_SUITE_WORKDIR/tree" \
-  _HI_CONFIG_DIR="$_HI_SUITE_WORKDIR/cfg" \
-    "$_HI_ROOT/scripts/preview.sh" packages 2>&1
-}
-
-# the help path: same PATH as the render, plus the one argument
-function _hi_render_packages_help() {
-  PATH="$(_hi_pkg_path)" HOME="$_HI_SUITE_WORKDIR/tree" \
-  _HI_CONFIG_DIR="$_HI_SUITE_WORKDIR/cfg" \
-    "$_HI_ROOT/scripts/preview.sh" packages "$1" 2>&1
+  PATH="$_HI_PKG_PATH" HOME="$_HI_SUITE_WORKDIR/tree" \
+    _HI_CONFIG_DIR="$_HI_SUITE_WORKDIR/cfg" \
+    "$_HI_ROOT/scripts/preview.sh" packages "$@" 2>&1
 }
 
 # the ordinary path: nothing exported, the tree's own config/packages is
@@ -279,8 +272,8 @@ function _hi_render_packages_help() {
 # fixture
 function test_preview_reads_the_trees_own_file() {
   local out
-  out="$(PATH="$(_hi_pkg_path)" HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
+  out="$(PATH="$_HI_PKG_PATH" HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
+    _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" packages 2>&1)" || _hi_why || return 1
   [[ "$out" == *hialpha* ]] && [[ "$out" == *'14 listed'* ]] || _hi_why out
 }
@@ -289,7 +282,7 @@ function test_preview_reads_the_trees_own_file() {
 # nothing of the legend itself
 function test_help_prints_usage_and_stops() {
   local out
-  out="$(_hi_render_packages_help --help)" || _hi_why || return 1
+  out="$(_hi_render_packages --help)" || _hi_why || return 1
   [[ "$out" == *"Usage: preview.sh packages"* ]] &&
     [[ "$out" == *"Takes no arguments"* ]] &&
     [[ "$out" == *"\$_HI_PACKAGES_GROUPS"* ]] &&
@@ -300,7 +293,7 @@ function test_help_prints_usage_and_stops() {
 # and a stray one must not be ignored
 function test_packages_stray_argument_is_refused() {
   local out rc=0
-  out="$(_hi_render_packages_help nonsense)" || rc=$?
+  out="$(_hi_render_packages nonsense)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* && "$out" != *"| GROUP"* ]] || _hi_why rc out
 }
 
@@ -392,8 +385,8 @@ function test_preview_reports_no_packages_file() {
   local home out
   home="$(_hi_scratch_tree nopackages common config link:scripts)"
   rm -f "$home/say-hi/config/packages"
-  ! out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
+  ! out="$(PATH="$_HI_PKG_PATH" HOME="$home" _HI_HOME="$home" \
+    _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     "$home/say-hi/scripts/preview.sh" packages 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"No packages file at $home/say-hi/config/packages"* ]] || _hi_why out home
 }
@@ -408,8 +401,8 @@ function test_preview_ignores_an_exported_packages() {
   cp "$_HI_SUITE_WORKDIR/packages" "$home/say-hi/config/packages"
   decoy="$_HI_WORKDIR/exported-packages"
   printf 'hionlyone\n' >"$decoy"
-  out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_PACKAGES="$decoy" \
+  out="$(PATH="$_HI_PKG_PATH" HOME="$home" _HI_HOME="$home" \
+    _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_PACKAGES="$decoy" \
     "$home/say-hi/scripts/preview.sh" packages 2>&1)" || _hi_why home decoy || return 1
   [[ "$out" == *hibravo* ]] && [[ "$out" != *hionlyone* ]] || _hi_why out
 }
@@ -458,7 +451,7 @@ function run_preview_packages_tests() {
   _hi_h2 "Testing: packages - the rendered preview"
   _hi_check "Help prints usage and stops" test_help_prints_usage_and_stops
   _hi_check "A stray argument is refused" test_packages_stray_argument_is_refused
-  _hi_check_eq "-h matches --help" "$(_hi_render_packages_help --help)" _hi_render_packages_help -h
+  _hi_check_eq "-h matches --help" "$(_hi_render_packages --help)" _hi_render_packages -h
   _hi_check "Renders without error" test_preview_renders_without_error
   _hi_check "Names the active palette" test_preview_names_the_active_palette
   _hi_check "Names a custom scheme, and its second bank" test_preview_names_a_custom_scheme_and_its_bank

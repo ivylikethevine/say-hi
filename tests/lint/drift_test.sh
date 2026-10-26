@@ -139,9 +139,7 @@ function _hi_lint_table() {
       _hi_align " | no $what" "OK" "$GREEN"
       continue
     fi
-    _hi_align " | $what" "FOUND" "$RED"
-    printf '%s\n' "$hits" | sed 's/^/      /'
-    _hi_note_failure "$label: $what"
+    _hi_lint_fail " | $what" "$label: $what" "$hits" FOUND
     bad=$((bad + 1))
   done
   return "$bad"
@@ -196,14 +194,12 @@ function lint_portable_pairs() {
   local f hits bad=0
   _hi_h2 "Checking the paired spellings (docs/SYNTAX.md)"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 3))
-  hits="$(cd "$_HI_ROOT" && grep -rnE --include='*.sh' '\bstat[[:space:]]+-c\b' . "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=.git 2>/dev/null |
+  hits="$(cd "$_HI_ROOT" && grep -rnE --include='*.sh' '\bstat[[:space:]]+-c\b' . "${_HI_LINT_NOT_OUTPUT[@]}" 2>/dev/null |
     grep -v ':[[:space:]]*#' | grep -vE '\bstat[[:space:]]+-f\b' || true)"
   if [ -z "$hits" ]; then
     _hi_align " | no stat -c without its stat -f twin" "OK" "$GREEN"
   else
-    _hi_align " | stat -c without its stat -f twin (BSD and macOS stat)" "FOUND" "$RED"
-    printf '%s\n' "$hits" | sed 's/^/      /'
-    _hi_note_failure "one-userland spelling: stat -c without stat -f"
+    _hi_lint_fail " | stat -c without its stat -f twin (BSD and macOS stat)" "one-userland spelling: stat -c without stat -f" "$hits" FOUND
     bad=$((bad + 1))
   fi
   hits=""
@@ -215,23 +211,20 @@ function lint_portable_pairs() {
   if [ -z "$hits" ]; then
     _hi_align " | every sourced file turns strict mode off again" "OK" "$GREEN"
   else
-    _hi_align " | strict mode left on in a sourced file: $hits" "FOUND" "$RED"
-    _hi_note_failure "strict mode left on (HI.15): $hits"
+    _hi_lint_fail " | strict mode left on in a sourced file: $hits" "strict mode left on (HI.15): $hits" "" FOUND
     bad=$((bad + 1))
   fi
   # the files that set pipefail, then the pipes into grep -q in them; `||`
   # before the grep is an alternative, not a pipe, so the bar wants a
   # non-bar before it
   hits="$(cd "$_HI_ROOT" && grep -rlE --include='*.sh' 'set -(euo|o) pipefail' . "${_HI_LINT_NOT_OUTPUT[@]}" \
-    --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=scratch --exclude-dir=tests 2>/dev/null |
+    --exclude-dir=node_modules --exclude-dir=scratch --exclude-dir=tests 2>/dev/null |
     xargs grep -nHE '[^|]\|[[:space:]]*grep[[:space:]]+(-[A-Za-z]+[[:space:]]+)*-[A-Za-z]*q[A-Za-z]*([[:space:]]|$)' 2>/dev/null |
     grep -v ':[[:space:]]*#' | sed 's|^\./||' || true)"
   if [ -z "$hits" ]; then
     _hi_align " | no pipe into grep -q under pipefail" "OK" "$GREEN"
   else
-    _hi_align " | a pipe into grep -q under pipefail (SIGPIPE on OpenBSD)" "FOUND" "$RED"
-    printf '%s\n' "$hits" | sed 's/^/      /'
-    _hi_note_failure "one-userland spelling: a pipe into grep -q under pipefail"
+    _hi_lint_fail " | a pipe into grep -q under pipefail (SIGPIPE on OpenBSD)" "one-userland spelling: a pipe into grep -q under pipefail" "$hits" FOUND
     bad=$((bad + 1))
   fi
   return "$bad"
@@ -275,6 +268,16 @@ function lint_home_default() {
   _hi_lint_table "$_HI_LINT_MIRROR" '' "tree default" "${_HI_HOME_LINT[@]}"
 }
 
+# "<image>:<tag> <digest>" per pinned FROM in tests/dockerfiles/, deduped:
+# read once, for lint_image_tags and lint_image_digests both
+_HI_PIN_ROWS=()
+function _hi_pin_rows() {
+  [ "${#_HI_PIN_ROWS[@]}" -gt 0 ] || _hi_read_lines _HI_PIN_ROWS < <(
+    sed -n 's/^FROM \([^:@ ]*\):\([^@ ]*\)@\(sha256:[0-9a-f]*\).*/\1:\2 \3/p' \
+      "$_HI_ROOT/tests/dockerfiles"/*.Dockerfile | sort -u
+  )
+}
+
 # The base images are digest-pinned in tests/dockerfiles/ (docs/TESTING.md says
 # why), but the same images are also named as plain tags in shell and YAML -
 # tests/lib/backend.sh, docs/tapes/fixtures.sh, ci.yml's packaging smoke. Those
@@ -306,14 +309,11 @@ function lint_image_tags() {
   local image tag ref re pinned images hit bad=0 hits line
   _hi_h2 "Checking image tags against the tests/dockerfiles pins"
 
-  # "<image>:<tag>" per pinned FROM, and the distinct image names among them
-  _hi_read_lines _HI_PINS < <(
-    sed -n 's/^FROM \([^:@ ]*\):\([^@ ]*\)@sha256:.*/\1:\2/p' \
-      "$_HI_ROOT/tests/dockerfiles"/*.Dockerfile | sort -u
-  )
+  # "<image>:<tag>" per pin, and the distinct image names among them
+  _hi_pin_rows
+  _hi_read_lines _HI_PINS < <(printf '%s\n' ${_HI_PIN_ROWS[@]+"${_HI_PIN_ROWS[@]%% *}"} | sort -u)
   pinned=" ${_HI_PINS[*]} "
-  _hi_read_lines images < <(printf '%s\n' ${_HI_PINS[@]+"${_HI_PINS[@]}"} |
-    sed 's/:.*//' | sort -u)
+  _hi_read_lines images < <(printf '%s\n' ${_HI_PINS[@]+"${_HI_PINS[@]%%:*}"} | sort -u)
 
   for image in ${images[@]+"${images[@]}"}; do
     [ -n "$image" ] || continue
@@ -334,8 +334,7 @@ function lint_image_tags() {
       hits="$hits$line
 "
     done < <(grep -rnE "[ =\"']${image}:[A-Za-z0-9][A-Za-z0-9._-]*" "$_HI_ROOT" \
-      --include='*.sh' --include='*.yml' \
-      --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=dockerfiles 2>/dev/null |
+      --include='*.sh' --include='*.yml' "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=dockerfiles 2>/dev/null |
       grep -vE '^[^:]*:[0-9]+:[[:space:]]*#' || true)
 
     hit="$(printf '%s' "$pinned" | tr ' ' '\n' | grep "^$image:" | tr '\n' ' ')"
@@ -362,29 +361,25 @@ function lint_image_tags() {
 # different digests - the exact way that claim could go quietly false. This
 # check reads the digest back in and catches that.
 function lint_image_digests() {
-  local pins pin image_tag digests dup bad=0
+  local pin image_tag digests dup bad=0
   _hi_h2 "Checking that every pinned image:tag agrees on one digest"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
 
-  # "<image>:<tag> <digest>" per pinned FROM, deduped - two files pinning the
-  # same tag to the same digest collapse to one row and never reach the dup
-  # check below.
-  _hi_read_lines pins < <(
-    sed -n 's/^FROM \([^:@ ]*\):\([^@ ]*\)@\(sha256:[0-9a-f]*\).*/\1:\2 \3/p' \
-      "$_HI_ROOT/tests/dockerfiles"/*.Dockerfile | sort -u
-  )
+  # deduped: two files pinning the same tag to the same digest collapse to
+  # one row and never reach the dup check below
+  _hi_pin_rows
 
   # a tag with more than one surviving digest is the drift this exists to
   # catch
   _hi_read_lines dup < <(
-    printf '%s\n' ${pins[@]+"${pins[@]}"} | awk '{print $1}' | sort | uniq -d
+    printf '%s\n' ${_HI_PIN_ROWS[@]+"${_HI_PIN_ROWS[@]}"} | awk '{print $1}' | sort | uniq -d
   )
 
   for image_tag in ${dup[@]+"${dup[@]}"}; do
     [ -n "$image_tag" ] || continue
     _hi_align " | $image_tag: more than one digest pinned" "FAILED" "$RED"
     digests=""
-    for pin in ${pins[@]+"${pins[@]}"}; do
+    for pin in ${_HI_PIN_ROWS[@]+"${_HI_PIN_ROWS[@]}"}; do
       case "$pin" in "$image_tag "*) digests="$digests${pin#* }
 " ;; esac
     done
@@ -534,7 +529,7 @@ function lint_runtime_dir() {
     fi
     [ -n "$first" ] || first="$name"
     # the three guards that make the shared name safe on a shared /tmp
-    local lost=0
+    lost=0
     for guard in 'XDG_RUNTIME_DIR' 'mkdir -m 700' 'ls -ldn'; do
       if ! grep -qF -- "$guard" "$_HI_ROOT/$file"; then
         _hi_lint_fail " | $file: lost the '$guard' guard" "runtime dir: $file lost '$guard'"
@@ -633,18 +628,15 @@ function lint_dockerfiles() {
   # Dockerfile naming another in a comment is not a caller, and would keep an
   # orphan looking used
   _hi_read_lines refs < <({
-    grep -rhoE "$call (\"[a-z0-9-]+\"|[a-z0-9-]+)" "$_HI_ROOT" \
-      --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --include='*.sh' 2>/dev/null |
+    grep -rhoE "$call (\"[a-z0-9-]+\"|[a-z0-9-]+)" "$_HI_ROOT" "${_HI_LINT_NOT_OUTPUT[@]}" --include='*.sh' 2>/dev/null |
       sed "s/.*$call \"\{0,1\}//;s/\"\$//"
-    grep -rhoE 'dockerfiles/[a-z0-9-]+\.Dockerfile' "$_HI_ROOT" \
-      --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=dockerfiles 2>/dev/null |
+    grep -rhoE 'dockerfiles/[a-z0-9-]+\.Dockerfile' "$_HI_ROOT" "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=dockerfiles 2>/dev/null |
       sed 's|.*/||;s|\.Dockerfile$||'
   } | sort -u)
 
   # the interpolated form, _hi_dockerfile "<prefix>$..." - the literal half is
   # all a grep can know, so every file it could name counts as referenced
-  _hi_read_lines prefixes < <(grep -rhoE "$call \"[a-z0-9-]*\\\$" "$_HI_ROOT" \
-    --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --include='*.sh' 2>/dev/null |
+  _hi_read_lines prefixes < <(grep -rhoE "$call \"[a-z0-9-]*\\\$" "$_HI_ROOT" "${_HI_LINT_NOT_OUTPUT[@]}" --include='*.sh' 2>/dev/null |
     sed "s/.*$call \"//;s/\\\$\$//" | sort -u)
 
   # every file has a caller
@@ -799,9 +791,23 @@ END { flush() }
 AWK
 }
 
-# _hi_reasons_rows <awk program> <file...> - its rows, paths under the tree
-function _hi_reasons_rows() {
-  awk "$1" "${@:2}" | sed "s|^$_HI_ROOT/||"
+# _hi_reasons_check <awk program> <found> <ok> <note> <file...> - the scan's
+# rows over <file...>, paths under the tree, each FOUND as <found> and added
+# to the caller's $bad, else one OK row saying <ok>
+function _hi_reasons_check() {
+  local row rows
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  rows="$(awk "$1" "${@:5}" | sed "s|^$_HI_ROOT/||")"
+  if [ -z "$rows" ]; then
+    _hi_align " | $3" "OK" "$GREEN"
+    return 0
+  fi
+  while IFS= read -r row; do
+    [ -n "$row" ] || continue
+    _hi_align " | ${row%%|*}: $2 - ${row#*|}" "FOUND" "$RED"
+    bad=$((bad + 1))
+  done <<<"$rows"
+  _hi_note_failure "$4"
 }
 
 # The scan is first run on a case written to fail it, so a scan that stopped
@@ -809,7 +815,7 @@ function _hi_reasons_rows() {
 # silent `|| return 1`, and a compared substitution are each named, and their
 # repaired twins are not.
 function lint_case_reasons() {
-  local dir="$_HI_WORKDIR/reasons" rows row bad=0
+  local dir="$_HI_WORKDIR/reasons" rows bad=0
   local -a suites=()
   _hi_h2 "Checking that every failing arm of a case says why"
   mkdir -p "$dir"
@@ -831,31 +837,15 @@ fixture_test.sh:14|test_fixture_compares_a_substitution|subst|[ "$(cat "$a")" = 
     bad=1
   fi
   _hi_read_lines suites < <(find "$_HI_ROOT/tests" -name '*_test.sh' | sort)
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  rows="$(_hi_reasons_rows "$(_hi_reasons_awk)" "${suites[@]}")"
-  while IFS= read -r row; do
-    [ -n "$row" ] || continue
-    _hi_align " | ${row%%|*}: says nothing, or not the value, when it fails - ${row#*|}" "FOUND" "$RED"
-    bad=$((bad + 1))
-  done <<<"$rows"
-  if [ -z "$rows" ]; then
-    _hi_align " | every failing arm of ${#suites[@]} suites' cases says why" "OK" "$GREEN"
-  else
-    _hi_note_failure "case reasons: an arm that says nothing, or compares a \$( ) it cannot show - end it in _hi_because \"<why>\" or _hi_why <variable>..., the substitution captured first"
-  fi
+  _hi_reasons_check "$(_hi_reasons_awk)" "says nothing, or not the value, when it fails" \
+    "every failing arm of ${#suites[@]} suites' cases says why" \
+    "case reasons: an arm that says nothing, or compares a \$( ) it cannot show - end it in _hi_because \"<why>\" or _hi_why <variable>..., the substitution captured first" \
+    "${suites[@]}"
   suites=("$_HI_ROOT"/tests/targets/*_test.sh)
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  rows="$(_hi_reasons_rows "$(_hi_transcripts_awk)" "${suites[@]}")"
-  while IFS= read -r row; do
-    [ -n "$row" ] || continue
-    _hi_align " | ${row%%|*}: a failure line with no transcript beside it - ${row#*|}" "FOUND" "$RED"
-    bad=$((bad + 1))
-  done <<<"$rows"
-  if [ -z "$rows" ]; then
-    _hi_align " | every end-to-end failure line has its session beside it" "OK" "$GREEN"
-  else
-    _hi_note_failure "case reasons: an end-to-end failure line alone - add _hi_show_transcript or _hi_show_target"
-  fi
+  _hi_reasons_check "$(_hi_transcripts_awk)" "a failure line with no transcript beside it" \
+    "every end-to-end failure line has its session beside it" \
+    "case reasons: an end-to-end failure line alone - add _hi_show_transcript or _hi_show_target" \
+    "${suites[@]}"
   return "$bad"
 }
 

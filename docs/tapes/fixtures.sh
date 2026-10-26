@@ -75,6 +75,7 @@ function demo_sshd_image() {
     printf '#!/bin/bash\nset -e\n'
     printf '%s\n' "${_HI_SSHD_ENTRYPOINT_BODY//hitest/$_HI_DEMO_SSH_USER}"
   } >"$_HI_DEMO_DIR/base/entrypoint.sh"
+  chmod +x "$_HI_DEMO_DIR/base/entrypoint.sh"
   demo_step "building the sshd base image (a cold runner fetches its packages here)"
   docker build --progress=plain -t hi-demo-sshd-base \
     -f "$_HI_ROOT/tests/dockerfiles/sshd-debian.Dockerfile" "$_HI_DEMO_DIR/base" >&2

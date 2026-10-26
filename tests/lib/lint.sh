@@ -25,10 +25,11 @@ function _hi_lint_find() {
     -not -path "$_HI_ROOT/coverage-report/*" -not -path "$_HI_ROOT/coverage-v2-report/*" | sort
 }
 
-# the coverage drivers' reports, which coverage.yml writes into the checkout:
-# SimpleCov's index.html embeds every traced source, GLOSSARY tags and image
-# pins included, and a scan of the tree read them as the tree's own
-_HI_LINT_NOT_OUTPUT=(--exclude-dir=coverage-report --exclude-dir=coverage-v2-report)
+# grep's half of _hi_lint_find's exclusions: git's store, mkpkg.sh's staged
+# copy, and the coverage drivers' reports, which coverage.yml writes into the
+# checkout - SimpleCov's index.html embeds every traced source, GLOSSARY tags
+# and image pins included, and a scan of the tree read them as the tree's own
+_HI_LINT_NOT_OUTPUT=(--exclude-dir=.git --exclude-dir=dist --exclude-dir=coverage-report --exclude-dir=coverage-v2-report)
 
 # The counted-file suite protocol - the lint twin of report.sh's
 # _hi_suite_begin/_hi_suite_end, reporting files where those report cases.
@@ -45,10 +46,12 @@ function _hi_lint_has() {
   return 1
 }
 
-# _hi_lint_fail <left> <label> - one red verdict row, and <label> named to
-# the runner's recap; the caller bumps its own counter.
+# _hi_lint_fail <left> <label> [text] [verdict] - one red verdict row (FAILED
+# unless named), <text> indented under it, and <label> named to the runner's
+# recap; the caller bumps its own counter.
 function _hi_lint_fail() {
-  _hi_align "$1" "FAILED" "$RED"
+  _hi_align "$1" "${4:-FAILED}" "$RED"
+  [ -z "${3:-}" ] || printf '%s\n' "$3" | sed 's/^/      /'
   _hi_note_failure "$2"
 }
 

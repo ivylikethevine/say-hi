@@ -63,8 +63,6 @@ function test_runtime_dir_takes_xdg_runtime_dir_as_is() {
 function test_runtime_dir_ignores_a_missing_xdg_runtime_dir() {
   local got
   local out=""
-  XDG_RUNTIME_DIR="$_HI_WORKDIR/rt.nope" TMPDIR="$_HI_WORKDIR/rt.tmp1" \
-    _hi_runtime_dir out
   mkdir -p "$_HI_WORKDIR/rt.tmp1"
   XDG_RUNTIME_DIR="$_HI_WORKDIR/rt.nope" TMPDIR="$_HI_WORKDIR/rt.tmp1" \
     _hi_runtime_dir out
@@ -411,7 +409,6 @@ function test_payload_file_is_byte_identical_off_a_warm_cache() {
 function test_payload_file_is_the_same_tree_with_the_cache_off() {
   local dir w="$_HI_WORKDIR/pf.off" warm="" cold="" a b
   dir="$(_hi_cache_rt pf.off)"
-  mkdir -p "$w"
   mkdir -p "$w/warm" "$w/cold"
   XDG_RUNTIME_DIR="$dir" _hi_payload_file warm "$w/warm" || _hi_why dir || return 1
   XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_payload_file cold "$w/cold" || _hi_why w || return 1
@@ -452,10 +449,9 @@ function _hi_ctl_has_opt() {
 }
 
 function test_ctl_open_shared_uses_the_runtime_dir() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
+  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.shared)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   [ "$ctl_shared" = 1 ] || _hi_why ctl_shared || return 1
@@ -467,10 +463,9 @@ function test_ctl_open_shared_uses_the_runtime_dir() {
 # the socket name is short on purpose - a sockaddr_un caps near 104 bytes and
 # macOS's per-user $TMPDIR already spends about half of it
 function test_ctl_open_shared_socket_name_stays_short() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared base
+  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0 base
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.short)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   base="${ctl_path##*/}"
@@ -512,10 +507,9 @@ function test_ctl_open_shared_key_splits_on_the_target() {
 
 # _HI_CTL_PERSIST=0 is the documented opt-out: back to a fresh per-run socket
 function test_ctl_open_shared_falls_back_when_persist_is_zero() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
+  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.zero)"
   XDG_RUNTIME_DIR="$dir" _HI_CTL_PERSIST=0 _hi_ctl_open 45 shared
   [ "$ctl_shared" = 0 ] || _hi_why ctl_shared || return 1
@@ -698,10 +692,9 @@ function test_tag_settings_fall_back_without_a_runtime_dir() {
 # _HI_DISABLE_CONTROLMASTER=1 passes ssh no option of hi's and makes no
 # socket; the caller's own options still go through
 function test_ctl_open_passes_nothing_when_disabled() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
+  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.off)"
   XDG_RUNTIME_DIR="$dir" _HI_DISABLE_CONTROLMASTER=1 _hi_ctl_open 60 shared -o BatchMode=yes
   [ -z "$ctl_path" ] && [ -z "$ctl_dir" ] && [ "${ctl_opts[*]}" = "-o BatchMode=yes" ] || _hi_why ctl_path ctl_dir ctl_opts
@@ -712,10 +705,9 @@ function test_ctl_open_passes_nothing_when_disabled() {
 # sharing is given up. The unreadable owner is the no-passwd-entry host
 # _hi_runtime_dir's own SC2012 comment names.
 function test_ctl_open_shared_falls_back_without_a_runtime_dir() {
-  local DOMAIN=liona ctl_dir ctl_path ctl_shared base="$_HI_WORKDIR/ctl.nodir" fake
+  local DOMAIN=liona ctl_dir="" ctl_path="" ctl_shared=0 base="$_HI_WORKDIR/ctl.nodir" fake
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   mkdir -p "$base"
   fake="$(_hi_fake_path noowner ls)"
   XDG_RUNTIME_DIR="" TMPDIR="$base" PATH="$fake:$PATH" _hi_ctl_open 60 shared
@@ -733,15 +725,12 @@ function test_ctl_open_shared_falls_back_without_a_runtime_dir() {
 # own terms - and that is hi's dependency to be free of, not the case's to
 # assert.
 function test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket() {
-  local DOMAIN=liona ctl_dir ctl_path ctl_shared bin="$_HI_WORKDIR/ctl.nomktemp"
+  local DOMAIN=liona ctl_dir="" ctl_path="" ctl_shared=0 bin="$_HI_WORKDIR/ctl.nomktemp"
   local base="$_HI_WORKDIR/ctl.nowhere"
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   printf 'not a directory\n' >"$base"
-  mkdir -p "$bin"
-  printf '%s\n' '#!/bin/sh' 'exit 1' >"$bin/mktemp"
-  chmod +x "$bin/mktemp"
+  _hi_script "$bin/mktemp" '#!/bin/sh' 'exit 1'
   XDG_RUNTIME_DIR="" TMPDIR="$base" PATH="$bin:$PATH" _hi_ctl_open 60 shared
   [ "$ctl_shared" = 0 ] && [ -z "$ctl_dir" ] && [ -z "$ctl_path" ] &&
     [ "${#ctl_opts[@]}" -eq 0 ] || _hi_why ctl_shared ctl_dir ctl_path ctl_opts
@@ -752,9 +741,8 @@ function test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket() {
 # does not carry them, so a ControlPath there kills the connection rather than
 # degrading it. $OSTYPE is bash's own, set at build time, so a case can set it.
 function test_ctl_open_declines_to_multiplex_on_msys() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
+  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
-  _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.msys)"
   OSTYPE=msys XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   [ "$ctl_shared" = 0 ] && [ -z "$ctl_dir" ] && [ -z "$ctl_path" ] &&
@@ -769,10 +757,9 @@ function test_ctl_open_declines_to_multiplex_on_msys() {
 # `run` never shares, even with a perfectly good runtime dir - scripts/doctor.sh
 # asks for it precisely so a diagnostic leaves no socket behind
 function test_ctl_open_run_never_shares() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
+  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.run)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run
   [ "$ctl_shared" = 0 ] || _hi_why ctl_shared || return 1
@@ -784,10 +771,9 @@ function test_ctl_open_run_never_shares() {
 # $TMPDIR: ControlMaster=auto would join a socket already at that path.
 # mode_bits for the same reason as the 0700 case above.
 function test_ctl_open_run_socket_dir_is_private() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared mode
+  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0 mode
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.priv)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run
   # shellcheck disable=SC2012 # as above: one path, one fixed column
@@ -796,10 +782,9 @@ function test_ctl_open_run_socket_dir_is_private() {
 }
 
 function test_ctl_open_appends_extra_ssh_options() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
+  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.extra)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared -o BatchMode=yes
   _hi_ctl_has_opt "BatchMode=yes" || _hi_why
@@ -808,10 +793,9 @@ function test_ctl_open_appends_extra_ssh_options() {
 # a shared socket outlives the call on purpose - that is the whole point of
 # _HI_CTL_PERSIST, and closing it here would give the next `hi` nothing to reuse
 function test_ctl_close_leaves_a_shared_socket_alone() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared fake
+  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0 fake
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.keep)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   fake="$(_hi_fake_path ctlssh ssh)"
@@ -820,10 +804,9 @@ function test_ctl_close_leaves_a_shared_socket_alone() {
 }
 
 function test_ctl_close_removes_a_run_socket_dir() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared fake
+  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0 fake
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.drop)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run
   [ -d "$ctl_dir" ] || _hi_why ctl_dir || return 1

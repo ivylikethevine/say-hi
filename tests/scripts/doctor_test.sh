@@ -41,36 +41,33 @@ function _hi_doctor_path() {
 # absent on a freshly pkg-installed FreeBSD root. bash is on every image this
 # suite runs on, so its rc alone guarantees the section is never empty.
 #
-# Once a suite, like the shims below: the json report one case makes is
-# compared by another, and names this $HOME.
+# Built once a suite ($_HI_DOC_HOME), like the shims below: the json report
+# one case makes is compared by another, and names this $HOME.
 function _hi_doctor_home() {
   local dir="$_HI_SUITE_WORKDIR/doctorhome"
-  if [ ! -f "$dir/.bashrc" ]; then
-    mkdir -p "$dir"
-    printf '# fixture rc for doctor_test.sh\n' >"$dir/.bashrc"
-  fi
+  mkdir -p "$dir"
+  printf '# fixture rc for doctor_test.sh\n' >"$dir/.bashrc"
   printf '%s' "$dir"
 }
 
 function _hi_doctor_shims() {
   local dir="$_HI_SUITE_WORKDIR/shims"
-  if [ ! -d "$dir" ]; then
-    # the docker half is test_lib.sh's predicate-shape shims, with
-    # "runningbox" as the one running target; nomad/kubectl stay off this
-    # PATH (the report's "not installed" rows are part of what's asserted)
-    # and podman is replaced by a dead CLI for the "not answering" case
-    _hi_probe_shims "$dir" runningbox
-    rm -f "$dir/nomad" "$dir/kubectl"
-    printf '#!/bin/sh\nexit 1\n' >"$dir/podman"
+  # the docker half is test_lib.sh's predicate-shape shims, with
+  # "runningbox" as the one running target; nomad/kubectl stay off this
+  # PATH (the report's "not installed" rows are part of what's asserted)
+  # and podman is replaced by a dead CLI for the "not answering" case
+  _hi_probe_shims "$dir" runningbox
+  rm -f "$dir/nomad" "$dir/kubectl"
+  printf '#!/bin/sh\nexit 1\n' >"$dir/podman"
 
-    # ...plus the container arm's own probe. _hi_probe_shims writes a shim that
-    # answers the *predicate* (`ps -q`, `container inspect`) and exits 1 on
-    # anything else, so `docker exec` never reached it. Wrapped rather than
-    # patched: the exec arm answers the tool inventory per $HI_FAKE_TOOLS the
-    # way the ssh shim below does, and everything else delegates to the
-    # generated shim, so the resolution rows other cases assert keep working.
-    mv "$dir/docker" "$dir/docker-probe"
-    cat >"$dir/docker" <<'EOF'
+  # ...plus the container arm's own probe. _hi_probe_shims writes a shim that
+  # answers the *predicate* (`ps -q`, `container inspect`) and exits 1 on
+  # anything else, so `docker exec` never reached it. Wrapped rather than
+  # patched: the exec arm answers the tool inventory per $HI_FAKE_TOOLS the
+  # way the ssh shim below does, and everything else delegates to the
+  # generated shim, so the resolution rows other cases assert keep working.
+  mv "$dir/docker" "$dir/docker-probe"
+  cat >"$dir/docker" <<'EOF'
 #!/bin/sh
 if [ "$1" = exec ]; then
   for a in "$@"; do
@@ -88,11 +85,11 @@ fi
 # on PATH here, so this resolves to the sibling and nothing else.
 exec docker-probe "$@"
 EOF
-    chmod +x "$dir/docker"
+  chmod +x "$dir/docker"
 
-    # connect ok; -O teardown ok; the tool-inventory loop answers per
-    # $HI_FAKE_TOOLS, matched on a string only that one script contains.
-    cat >"$dir/ssh" <<'EOF'
+  # connect ok; -O teardown ok; the tool-inventory loop answers per
+  # $HI_FAKE_TOOLS, matched on a string only that one script contains.
+  cat >"$dir/ssh" <<'EOF'
 #!/bin/sh
 for a in "$@"; do
   [ "$a" = -O ] && exit 0
@@ -103,8 +100,7 @@ for a in "$@"; do
 done
 exit 0
 EOF
-    chmod +x "$dir/podman" "$dir/ssh"
-  fi
+  chmod +x "$dir/podman" "$dir/ssh"
   printf '%s' "$dir"
 }
 
@@ -112,9 +108,7 @@ EOF
 # fixture $HOME. Through _hi_run_said: a whole report outlasts the 30s past
 # which a failed case gets no second try, so a silent run gets its own.
 function _hi_doctor_run() {
-  local home
-  home="$(_hi_doctor_home)"
-  _hi_run_said "doctor.sh $*" env PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
+  _hi_run_said "doctor.sh $*" env PATH="$_HI_DOC_PATH" HOME="$_HI_DOC_HOME" \
     _HI_SSH_CONFIG=/nonexistent _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" "$@"
 }
 
@@ -171,13 +165,7 @@ function _hi_nogzip_path() {
 function _hi_nogzip_tar() {
   local ec="$1" dir="$_HI_WORKDIR/nogzip-tar-$1" real
   real="$(type -P tar)"
-  mkdir -p "$dir"
-  {
-    printf '%s\n' '#!/bin/sh'
-    printf 'case " $* " in *" -z "*) exit %s ;; esac\n' "$ec"
-    printf 'exec "%s" "$@"\n' "$real"
-  } >"$dir/tar"
-  chmod +x "$dir/tar"
+  _hi_script "$dir/tar" '#!/bin/sh' "case \" \$* \" in *\" -z \"*) exit $ec ;; esac" "exec \"$real\" \"\$@\""
   printf '%s' "$dir"
 }
 
@@ -204,13 +192,13 @@ function test_backend_missing_reports_not_installed() {
 
 function test_backend_answering_reports_timing() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _hi_doc_rows doctor_backend docker docker ps -q)"
+  out="$(PATH="$_HI_DOC_PATH" _hi_doc_rows doctor_backend docker docker ps -q)"
   [[ "$out" == *"answering"* && "$out" == *s\)* ]] || _hi_why out
 }
 
 function test_backend_dead_reports_not_answering() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _hi_doc_rows doctor_backend podman podman ps -q)"
+  out="$(PATH="$_HI_DOC_PATH" _hi_doc_rows doctor_backend podman podman ps -q)"
   [[ "$out" == *"not answering"* ]] || _hi_why out
 }
 
@@ -220,7 +208,7 @@ function test_backends_count_literal_ssh_hosts() {
   local got
   local cfg="$_HI_WORKDIR/ssh_config" out
   printf 'Host alpha beta\n  HostName 192.0.2.1\nHost *.wild\n' >"$cfg"
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG="$cfg" doctor_backends)"
+  out="$(PATH="$_HI_DOC_PATH" _HI_SSH_CONFIG="$cfg" doctor_backends)"
   got="$(_hi_doc_path "$cfg")"
   [[ "$out" == *"2 literal host(s) in $got"* ]] || _hi_why got out cfg
 }
@@ -263,11 +251,8 @@ function test_doctor_row_counts_only_bad() {
     doctor_row label 'text with "quotes"' bad
     printf '%s' "$_HI_DOC_ROWS"
   )"
-  case "$out" in
-  *'"section": "probe"'*'"label": "label"'*'"text": "text with \"quotes\""'*'"severity": "bad"'*) return 0 ;;
-  esac
-  _hi_cecho " | json row was: [$out]" "$RED"
-  return 1
+  [[ "$out" == *'"section": "probe"'*'"label": "label"'*'"text": "text with \"quotes\""'*'"severity": "bad"'* ]] ||
+    _hi_because "json row was: [$out]"
 }
 
 # every severity wears its own mark in the first column - core.sh's one-column
@@ -397,23 +382,22 @@ function _hi_doctor_plain_report() {
   [ -z "$_HI_DOC_PLAIN_DONE" ] || return 0
   # the fixture $HOME, as --json's runs use: the install section reads the
   # rc files, and the real ones on a developer's box name another tree
-  local home trace="$_HI_WORKDIR/plain.trace" try
-  home="$(_hi_doctor_home)"
+  local trace="$_HI_WORKDIR/plain.trace" try
   for try in 1 2; do
     _HI_DOC_PLAIN_RC=0
     # bash 3.2 has no BASH_XTRACEFD, and a trace on stderr is no report
     if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 1))); then
-      _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
-      _HI_SSH_CONFIG=/nonexistent \
-      _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR")" || _HI_DOC_PLAIN_RC=$?
+      _HI_DOC_PLAIN_OUT="$(PATH="$_HI_DOC_PATH" HOME="$_HI_DOC_HOME" \
+        _HI_SSH_CONFIG=/nonexistent \
+        _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR")" || _HI_DOC_PLAIN_RC=$?
     else
       # traced to a file: Windows arm64 has ended this run inside a section,
       # exit 0 and nothing on stderr, and the trace's tail is the one word of
       # where
       # shellcheck disable=SC2016 # PS4 is the traced bash's to expand
-      _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
-      _HI_SSH_CONFIG=/nonexistent PS4='+ $BASHPID ${BASH_SOURCE[0]##*/}:${LINENO}: ' BASH_XTRACEFD=7 \
-      _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$BASH" -x "$_HI_DOCTOR" 7>"$trace")" || _HI_DOC_PLAIN_RC=$?
+      _HI_DOC_PLAIN_OUT="$(PATH="$_HI_DOC_PATH" HOME="$_HI_DOC_HOME" \
+        _HI_SSH_CONFIG=/nonexistent PS4='+ $BASHPID ${BASH_SOURCE[0]##*/}:${LINENO}: ' BASH_XTRACEFD=7 \
+        _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$BASH" -x "$_HI_DOCTOR" 7>"$trace")" || _HI_DOC_PLAIN_RC=$?
     fi
     if [[ "$_HI_DOC_PLAIN_OUT" == *"Nothing looks broken"* ]]; then
       _HI_DOC_PLAIN_DONE=1
@@ -435,6 +419,9 @@ function _hi_doctor_begin() {
   # and no runner has all of them
   # shellcheck disable=SC2031 # the $( ) swap above is its own; this one is the suite's
   PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$PATH"
+  # the shims and the toolbox every report runs on, and its fixture $HOME
+  _HI_DOC_PATH="$(_hi_doctor_shims):$(_hi_doctor_path)"
+  _HI_DOC_HOME="$(_hi_doctor_home)"
   _hi_suite_begin
 }
 

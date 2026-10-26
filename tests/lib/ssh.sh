@@ -55,15 +55,12 @@ function _hi_ssh_keypair() {
 }
 
 # _hi_sshd_entrypoint <ctx-dir> <shebang> [extra-line...] - the entrypoint.sh
-# every sshd image ships: shebang + set -e, any per-image lines, the shared body
+# every sshd image ships: shebang + set -e, any per-image lines, the shared
+# body; executable here, since COPY keeps the mode
 function _hi_sshd_entrypoint() {
   local ctx="$1" shebang="$2"
   shift 2
-  {
-    printf '#!%s\nset -e\n' "$shebang"
-    [ $# -eq 0 ] || printf '%s\n' "$@"
-    printf '%s\n' "$_HI_SSHD_ENTRYPOINT_BODY"
-  } >"$ctx/entrypoint.sh"
+  _hi_script "$ctx/entrypoint.sh" "#!$shebang" 'set -e' "$@" "$_HI_SSHD_ENTRYPOINT_BODY"
 }
 
 function _hi_sshd_image() {

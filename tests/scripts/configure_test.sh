@@ -330,7 +330,6 @@ function test_shebang_is_not_duplicated_on_reruns() {
 # a hand-edited shebang for the wrong shell is replaced, not left alongside:
 # dash and fish both source this file, so sh is the only correct one
 function _hi_shebang_wrong() {
-  mkdir -p "$_HI_CONFIG_DIR"
   printf '%s\n%s\n' '#!/bin/bash' 'export _HI_MAX_WIDTH=120' >"$_HI_SETTINGS"
   ensure_settings_shebang
 }
@@ -415,7 +414,6 @@ function test_packages_groups_kept_when_the_check_is_off() {
 # because $_HI_WORKDIR is the only channel back out - _hi_settings_fixture
 # swallows stdout and its $_HI_SETTINGS is local to its own call.
 function _hi_shebang_mode() {
-  mkdir -p "$_HI_CONFIG_DIR"
   printf 'X=1\n' >"$_HI_SETTINGS"
   chmod 604 "$_HI_SETTINGS"
   _hi_mode_string "$_HI_SETTINGS" >"$_HI_WORKDIR/shebang_mode.before"
@@ -435,7 +433,6 @@ function test_settings_shebang_preserves_mode() {
 # wipe the other two's lines
 function _hi_settings_one_write() {
   local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "" "export _HI_DISABLE_BANNER=1")
-  mkdir -p "$_HI_CONFIG_DIR"
   config_shell settings "$_HI_SETTINGS" "${_HI_SETTING_LINES[@]}"
 }
 
@@ -736,15 +733,11 @@ function _hi_configure_begin() {
   _hi_workdir configuretest
   # the editor configs an overlay carries: without them no editor has an alias
   # for the previews to read back
-  mkdir -p "$_HI_CONFIG_DIR"
   local _hi_f
-  for _hi_f in vim/vimrc nvim/init.lua helix/config.toml nano/nanorc emacs/init.el; do
+  for _hi_f in vim/vimrc nvim/init.lua helix/config.toml nano/nanorc emacs/init.el micro/settings.json micro/bindings.json; do
     mkdir -p "$_HI_CONFIG_DIR/${_hi_f%/*}"
     : >"$_HI_CONFIG_DIR/$_hi_f"
   done
-  mkdir -p "$_HI_CONFIG_DIR/micro"
-  : >"$_HI_CONFIG_DIR/micro/settings.json"
-  : >"$_HI_CONFIG_DIR/micro/bindings.json"
   _hi_items_load
   _hi_suite_begin
 }

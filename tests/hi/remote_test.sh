@@ -179,13 +179,11 @@ function test_remote_preamble_exports_the_version() {
 function _hi_lc_run() {
   local list="$1" dir="$_HI_WORKDIR/lc.$RANDOM"
   shift
-  mkdir -p "$dir"
   if [ -n "$list" ]; then
-    printf '#!/bin/sh\nprintf "%%s\\n" %s\n' "$list" >"$dir/locale"
+    _hi_script "$dir/locale" '#!/bin/sh' "printf \"%s\\n\" $list"
   else
-    printf '#!/bin/sh\nexit 127\n' >"$dir/locale"
+    _hi_script "$dir/locale" '#!/bin/sh' 'exit 127'
   fi
-  chmod +x "$dir/locale"
   env -u LC_ALL -u LC_CTYPE -u LANG -u _HI_CLIENT_LOCALE PATH="$dir:$PATH" "$@" \
     sh -c "$(_hi_locale_probe)"'
       printf "%s %s" "${_HI_ASCII:-}" "${LC_CTYPE:-}"'
@@ -366,15 +364,9 @@ function test_fallback_rc_points_config_dir_at_the_overlay() {
 function test_boot_probe_is_target_side() {
   local probe
   probe="$(_hi_boot_probe)"
-  case "$probe" in *'mktemp -d'*) ;; *)
-    _hi_cecho " | the probe does not mktemp on the target: $probe" "$RED"
-    return 1
-    ;;
-  esac
+  [[ "$probe" == *'mktemp -d'* ]] || _hi_because "the probe does not mktemp on the target: $probe" || return 1
   # ...and it has to say where, or the second call has nothing to run
-  case "$probe" in *'HIBOOT:%s'*) return 0 ;; esac
-  _hi_cecho " | the probe never reports the directory it made" "$RED"
-  return 1
+  [[ "$probe" == *'HIBOOT:%s'* ]] || _hi_because "the probe never reports the directory it made"
 }
 
 # The stronger half: run it under a $TMPDIR the way a Mac client has one, and
@@ -383,16 +375,9 @@ function test_boot_probe_is_target_side() {
 function test_boot_probe_bakes_no_client_path() {
   local probe fake="/var/folders/zz/9xk1n2j50000gn/T"
   probe="$(TMPDIR="$fake" _hi_boot_probe)"
-  case "$probe" in
-  *"$fake"*)
-    _hi_cecho " | the client's \$TMPDIR was baked into the probe: $probe" "$RED"
-    return 1
-    ;;
-  esac
+  [[ "$probe" != *"$fake"* ]] || _hi_because "the client's \$TMPDIR was baked into the probe: $probe" || return 1
   # the six X busybox mktemp insists on, still intact
-  case "$probe" in *'hi.boot.XXXXXX'*) return 0 ;; esac
-  _hi_cecho " | the template is not six X: $probe" "$RED"
-  return 1
+  [[ "$probe" == *'hi.boot.XXXXXX'* ]] || _hi_because "the template is not six X: $probe"
 }
 
 # Once `sh` is running, the probe's two failures each say which in the exit
@@ -458,8 +443,7 @@ function test_boot_probe_says_no_tar() {
   local ec sh_bin dir err nogz
   sh_bin="$(command -v sh)"
   nogz="$(_hi_real_path nogzip base64 openssl mktemp cat)"
-  printf '%s\n' '#!/bin/sh' 'echo "tar: gzip: Cannot exec" >&2' 'exit 2' >"$nogz/tar"
-  chmod +x "$nogz/tar"
+  _hi_script "$nogz/tar" '#!/bin/sh' 'echo "tar: gzip: Cannot exec" >&2' 'exit 2'
   for dir in "$(_hi_real_path notar base64 openssl mktemp cat)" "$nogz"; do
     ec=0
     err="$(PATH="$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>&1 >/dev/null)" || ec=$?
@@ -470,9 +454,7 @@ function test_boot_probe_says_no_tar() {
 function test_boot_probe_says_no_scratch_dir() {
   local ec=0 sh_bin dir="$_HI_WORKDIR/nomktemp"
   sh_bin="$(command -v sh)"
-  mkdir -p "$dir"
-  printf '%s\n' '#!/bin/sh' 'exit 1' >"$dir/mktemp"
-  chmod +x "$dir/mktemp"
+  _hi_script "$dir/mktemp" '#!/bin/sh' 'exit 1'
   PATH="$dir:$PATH" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null >/dev/null 2>&1 || ec=$?
   [ "$ec" -eq 65 ] || _hi_why ec
 }

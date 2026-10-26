@@ -114,9 +114,7 @@ EOF
 # is a file that must still be there to run
 function test_no_hi_session_left_passes_a_clean_tmpdir() {
   local dir="$_HI_WORKDIR/nosession"
-  mkdir -p "$dir"
-  printf '#!/bin/sh\n' >"$dir/hi.sh"
-  chmod +x "$dir/hi.sh"
+  _hi_script "$dir/hi.sh" '#!/bin/sh'
   TMPDIR="$dir" bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" || _hi_why dir || return 1
   TMPDIR="$dir" bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" "$dir/hi.sh" || _hi_why dir || return 1
   ! TMPDIR="$dir" bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" "$dir/gone.sh" || _hi_why dir
@@ -282,7 +280,10 @@ EOF
 function test_tool_versions_reports_each_pin() {
   local got
   local dir="$_HI_WORKDIR/toolversions" out rc=0 line a b c h
-  a="$(printf '%064d' 1)" b="$(printf '%064d' 2)" c="$(printf '%064d' 3)" h="$(printf '%040d' 1)"
+  printf -v a '%064d' 1
+  printf -v b '%064d' 2
+  printf -v c '%064d' 3
+  printf -v h '%040d' 1
   mkdir -p "$dir/bin" "$dir/.github/scripts" "$dir/.github/actions/setup-tool" "$dir/.github/workflows" \
     "$dir/pins" "$dir/split"
   cp "$_HI_ROOT/.github/scripts/check_tool_versions.sh" "$_HI_ROOT/.github/scripts/lib.sh" "$dir/.github/scripts/"
@@ -367,7 +368,9 @@ split|split/*.yml|ver: \([0-9.]*\)|github:o/old||' \
 function _hi_scan_fixture() {
   local dir="$_HI_WORKDIR/imagescan" a b c name
   [ -d "$dir" ] && printf '%s' "$dir" && return 0
-  a="$(printf '%064d' 1)" b="$(printf '%064d' 2)" c="$(printf '%064d' 3)"
+  printf -v a '%064d' 1
+  printf -v b '%064d' 2
+  printf -v c '%064d' 3
   mkdir -p "$dir/bin" "$dir/.github/scripts"
   cp "$_HI_ROOT/.github/scripts/scan_pinned_images.sh" "$_HI_ROOT/.github/scripts/lib.sh" "$dir/.github/scripts/"
   for name in clean nodata fail same nogain win tagfail; do
@@ -422,7 +425,8 @@ function _hi_scan() {
 # the tag-only reference in its own section
 function test_image_scan_reports_the_repin_that_closes_a_finding() {
   local dir out rc=0 report a c
-  a="$(printf '%064d' 1)" c="$(printf '%064d' 3)"
+  printf -v a '%064d' 1
+  printf -v c '%064d' 3
   dir="$(_hi_scan_fixture)" || _hi_why || return 1
   out="$(_hi_scan '*.Dockerfile')" || rc=$?
   report="$(cat "$dir/report.md")"
@@ -488,7 +492,9 @@ function test_image_scan_exits_by_what_it_found() {
 function test_tool_versions_reads_compose_runs_the_hook_and_caps_the_status() {
   local got
   local dir="$_HI_WORKDIR/toolhook" out rc=0 i a b c line
-  a="$(printf '%064d' 1)" b="$(printf '%064d' 2)" c="$(printf '%064d' 3)"
+  printf -v a '%064d' 1
+  printf -v b '%064d' 2
+  printf -v c '%064d' 3
   mkdir -p "$dir/bin" "$dir/.github/scripts" "$dir/.github/actions/setup-tool" "$dir/deploy"
   cp "$_HI_ROOT/.github/scripts/check_tool_versions.sh" "$_HI_ROOT/.github/scripts/lib.sh" "$dir/.github/scripts/"
   cp "$_HI_ROOT/.github/actions/setup-tool/lib.sh" "$dir/.github/actions/setup-tool/"
@@ -530,7 +536,7 @@ EOF
 # with the commit to pin
 function test_tool_versions_reads_the_manifests() {
   local dir="$_HI_WORKDIR/toolmanifests" out rc=0 line h o='"2020-01-01T00:00:00.123456Z"'
-  h="$(printf '%040d' 1)"
+  printf -v h '%040d' 1
   mkdir -p "$dir/bin" "$dir/.github/scripts" "$dir/.github/workflows" "$dir/app" "$dir/tf"
   cp "$_HI_ROOT/.github/scripts/check_tool_versions.sh" "$_HI_ROOT/.github/scripts/lib.sh" "$dir/.github/scripts/"
   printf '      - uses: actions/checkout@%s # v4.1.0\n' "$h" >"$dir/.github/workflows/w.yml"
@@ -605,7 +611,8 @@ EOF
 function test_local_tool_checks_name_each_parting() {
   local got
   local dir="$_HI_WORKDIR/localchecks" pins="$_HI_WORKDIR/localchecks/tests/dockerfiles" out a b
-  a="$(printf '%064d' 1)" b="$(printf '%064d' 2)"
+  printf -v a '%064d' 1
+  printf -v b '%064d' 2
   mkdir -p "$pins" "$dir/packaging" "$dir/.github/workflows"
   printf 'FROM bash:3.2@sha256:%s AS base\n' "$a" >"$pins/floor.Dockerfile"
   printf 'FROM ubuntu:24.04@sha256:%s\n' "$a" >"$pins/ubuntu.Dockerfile"
@@ -663,8 +670,7 @@ function test_srctar_builds_the_tarball_it_names() {
 # rewritten by a suite. _hi_badge_readme <badge> writes one holding that
 # badge between two lines the restamp must leave alone.
 function _hi_badge_readme() {
-  local f
-  f="$(mktemp "$_HI_WORKDIR/badge-readme.XXXXXX")"
+  local f="$_HI_WORKDIR/badge-readme"
   printf '# title\n[![payload](https://img.shields.io/badge/ssh_payload-%s-blue)](x)\nlast line\n' "$1" >"$f"
   printf '%s' "$f"
 }
@@ -718,40 +724,10 @@ function test_stamp_badge_check_fails_past_the_slack() {
 }
 
 function test_stamp_badge_refuses_a_readme_with_no_badge() {
-  local f out
-  f="$(mktemp "$_HI_WORKDIR/badge-none.XXXXXX")"
+  local f="$_HI_WORKDIR/badge-none" out
   printf '# no badge here\n' >"$f"
   ! out="$("$_HI_ROOT/packaging/stamp_badge.sh" "$f" 2>&1)" || _hi_why out f || return 1
   [[ "$out" == *"no ssh_payload-<n>KB badge in $f"* ]] || _hi_why out f
-}
-
-# _hi_in_mkrepo_gpg <dist> <out> <gpg-key> [gpg-public] - _hi_in_mkrepo's
-# shape for gpg_setup specifically: the two _HI_GPG_* variables it reads, and
-# the agent teardown its own trap (below the HI.06 source guard, so sourcing
-# it here never runs the trap) would otherwise have done - kill gpg-agent and
-# remove $_HI_GNUPGHOME once gpg_setup has run, whatever its verdict. Neither
-# gpg_setup's stdout nor its stderr is redirected here, so a caller composes
-# capture/discard on the call exactly as it would around a bare command
-# (`>/dev/null 2>"$err"`, `2>&1`, `2>/dev/null`, ...); the exit status is
-# gpg_setup's own.
-function _hi_in_mkrepo_gpg() {
-  local dist="$1" out="$2" key="$3" public="${4:-}" st
-  (
-    set -- # mkrepo.sh parses "$@" at source time; hand it none
-    # shellcheck source=../../packaging/mkrepo.sh
-    source "$_HI_PKG_DIR/mkrepo.sh"
-    _HI_DIST="$dist"
-    _HI_OUT="$out"
-    _HI_GPG_KEY="$key"
-    _HI_GPG_PUBLIC="$public"
-    gpg_setup
-    st=$?
-    [ -z "$_HI_GNUPGHOME" ] || {
-      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
-      rm -rf "$_HI_GNUPGHOME"
-    }
-    exit "$st"
-  )
 }
 
 function test_mkrepo_one_package_rule() {
@@ -781,8 +757,7 @@ function test_mkrepo_deb_control_reads_the_paragraph() {
   deb="$(_hi_fake_deb "$d")" || _hi_why d || return 1
   out="$(_hi_in_mkrepo "$d" "$d/repo" deb_control "$deb")" || _hi_why d deb || return 1
   case "$out" in *'Package: say-hi'*'Version: 9.9.9'*) return 0 ;; esac
-  _hi_cecho " | deb_control read: [$out]" "$RED"
-  return 1
+  _hi_because "deb_control read: [$out]"
 }
 
 # a compression the switch has no arm for (zstd, dpkg 1.21's default on
@@ -794,8 +769,7 @@ function test_mkrepo_deb_control_refuses_an_unknown_member() {
   out="$(_hi_in_mkrepo "$d" "$d/repo" deb_control "$deb" 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] || _hi_why rc || return 1
   case "$out" in *"unexpected control member in $deb: 'control.tar.zst'"*) return 0 ;; esac
-  _hi_cecho " | deb_control said: [$out]" "$RED"
-  return 1
+  _hi_because "deb_control said: [$out]"
 }
 
 function test_mkrepo_release_hashes_shape() {
@@ -847,8 +821,7 @@ function test_mkrepo_build_apt_offline() {
   case "$out" in
   *'Package: say-hi'*'Filename: pool/main/s/say-hi/say-hi_9.9.9_all.deb'*) ;;
   *)
-    _hi_cecho " | Packages paragraph is missing fields: [$out]" "$RED"
-    return 1
+    _hi_because "Packages paragraph is missing fields: [$out]" || return 1
     ;;
   esac
   printf '%s\n' "$out" | grep -qE '^SHA256: [0-9a-f]{64}$' || _hi_why out || return 1
@@ -856,8 +829,7 @@ function test_mkrepo_build_apt_offline() {
   case "$out" in
   *'Suite: stable'*'Architectures: amd64 arm64 all'*'MD5Sum:'*'SHA256:'*) ;;
   *)
-    _hi_cecho " | Release file is missing blocks" "$RED"
-    return 1
+    _hi_because "Release file is missing blocks" || return 1
     ;;
   esac
   # keyless: unsigned on purpose, and loud about it
@@ -868,28 +840,19 @@ function test_mkrepo_gpg_setup_verdicts() {
   local d="$_HI_WORKDIR/gpg-setup" err="$_HI_WORKDIR/gpg-setup.err"
   mkdir -p "$d/repo"
   # keyless is a quiet no-op...
-  _hi_in_mkrepo "$d" "$d/repo" gpg_setup || {
-    _hi_cecho " | a keyless gpg_setup should be a no-op" "$RED"
-    return 1
-  }
+  _hi_in_mkrepo "$d" "$d/repo" gpg_setup || _hi_because "a keyless gpg_setup should be a no-op" || return 1
   # ...a named-but-missing key is a refusal...
-  ! _hi_in_mkrepo_gpg "$d" "$d/repo" "$d/absent.key" 2>/dev/null || {
-    _hi_cecho " | a missing --gpg-key should have been refused" "$RED"
-    return 1
-  }
+  ! _hi_in_mkrepo "$d" "$d/repo" _hi_with_gpg "$d/absent.key" "" 2>/dev/null || _hi_because "a missing --gpg-key should have been refused" || return 1
   _hi_mkrepo_keys || _hi_why || return 1
   # ...the real key exports its public half beside the repo...
-  _hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$_HI_WORKDIR/gpg/main.asc" \
+  _hi_in_mkrepo "$d" "$d/repo" _hi_with_gpg "$_HI_KEYS/main.key" "$_HI_KEYS/main.asc" \
     >/dev/null 2>"$err" && [ -s "$d/repo/say-hi.asc" ] || {
     _hi_dump_log "the real key should have exported say-hi.asc" "$err"
     return 1
   }
   # ...and a key that is not the one --public-key names is refused
-  ! _hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$_HI_WORKDIR/gpg/other.asc" \
-    >/dev/null 2>&1 || {
-    _hi_cecho " | a mismatched --public-key should have been refused" "$RED"
-    return 1
-  }
+  ! _hi_in_mkrepo "$d" "$d/repo" _hi_with_gpg "$_HI_KEYS/main.key" "$_HI_KEYS/other.asc" \
+    >/dev/null 2>&1 || _hi_because "a mismatched --public-key should have been refused"
 }
 
 # --public-key naming a file gpg cannot read as a key is its own verdict,
@@ -900,12 +863,11 @@ function test_mkrepo_gpg_setup_refuses_a_public_key_that_is_not_one() {
   mkdir -p "$d/repo"
   _hi_mkrepo_keys || _hi_why || return 1
   printf 'this is not a key\n' >"$d/plain.asc"
-  out="$(_hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$d/plain.asc" 2>&1)" || rc=$?
+  out="$(_hi_in_mkrepo "$d" "$d/repo" _hi_with_gpg "$_HI_KEYS/main.key" "$d/plain.asc" 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] || _hi_why rc || return 1
   [ ! -f "$d/repo/say-hi.asc" ] || _hi_why d || return 1
   case "$out" in *"$d/plain.asc is missing or not a key"*) return 0 ;; esac
-  _hi_cecho " | gpg_setup said: [$out]" "$RED"
-  return 1
+  _hi_because "gpg_setup said: [$out]"
 }
 
 function run_packaging_ci_scripts_tests() {

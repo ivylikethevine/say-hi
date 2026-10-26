@@ -161,26 +161,6 @@ function _hi_par_overdue() {
   return 0
 }
 
-# _hi_par_tree <pid> - <pid> and every process under it, a "pid ppid ..."
-# row each, from one ps listing; nothing where ps cannot list parents
-function _hi_par_tree() {
-  local list
-  list="$(ps -A -o pid= -o ppid= -o args= 2>/dev/null)" || list=""
-  # Git Bash's ps has no -o: its -ef, where the header names PID and PPID
-  [ -n "$list" ] || list="$(ps -ef 2>/dev/null | awk 'NR == 1 { ok = $2 == "PID" && $3 == "PPID"; next } ok { $1 = ""; print }')"
-  printf '%s\n' "$list" | awk -v root="$1" '
-    { pid[NR] = $1; ppid[NR] = $2; row[NR] = $0 }
-    END {
-      keep[root] = 1
-      do {
-        grew = 0
-        for (i = 1; i <= NR; i++)
-          if (!(pid[i] in keep) && (ppid[i] in keep)) { keep[pid[i]] = 1; grew = 1 }
-      } while (grew)
-      for (i = 1; i <= NR; i++) if (pid[i] in keep) print row[i]
-    }'
-}
-
 # _hi_proc_table [pid] - every process, or <pid> with everything under it and
 # everything in its group, ps's header first: pid, ppid, pgid, then where ps
 # -o has them the controlling terminal, the state (T is stopped) and the
@@ -189,7 +169,8 @@ function _hi_par_tree() {
 # Both the tree and the group, because a `timeout` may have moved what it ran
 # into a group of its own (OpenBSD's does) and a daemon reparents to init.
 # -A on Linux, macOS and the BSDs (-e there is the environment), -e on a
-# busybox without -A, MSYS's plain ps elsewhere; pid, ppid and pgid lead all.
+# busybox without -A, MSYS's plain ps elsewhere; pid, ppid and pgid lead all,
+# after the one-letter status MSYS puts ahead of a waiting or stopped process.
 function _hi_proc_table() {
   local list
   list="$(ps -A -o pid,ppid,pgid,tty,stat,wchan,etime,args 2>/dev/null)" ||
@@ -202,6 +183,7 @@ function _hi_proc_table() {
   fi
   printf '%s\n' "$list" | awk -v root="$1" '
     NR == 1 { print; next }
+    $1 !~ /^[0-9]+$/ { sub(/^[ \t]*[^ \t]+/, "") }
     { n++; pid[n] = $1; ppid[n] = $2; pgid[n] = $3; row[n] = $0 }
     END {
       keep[root] = 1
@@ -219,9 +201,10 @@ function _hi_proc_table() {
 function _hi_par_stop() {
   local n="$1" pid="$2" tree p
   local -a pids=("$pid")
-  tree="$(_hi_par_tree "$pid")"
+  tree="$(_hi_proc_table "$pid")"
   while read -r p _; do
-    [ -z "$p" ] || [ "$p" = "$pid" ] || pids+=("$p")
+    case "$p" in '' | *[!0-9]* | "$pid") continue ;; esac
+    pids+=("$p")
   done <<<"$tree"
   kill -TERM "${pids[@]}" 2>/dev/null || true
   sleep 1
@@ -230,8 +213,8 @@ function _hi_par_stop() {
   # the subshell's own writes are done, so the note lands after them
   {
     _hi_align " | [${_HI_PAR_LABELS[n - 1]}] -- still running after ${3}s (_HI_PAR_CASE_LIMIT), stopped" "FAILED" "$RED"
-    printf '      its processes then (pid ppid, then what ps shows):\n'
-    printf '%s\n' "${tree:-(ps lists no parents here)}" | sed 's/^/      /'
+    printf '      its processes then:\n'
+    printf '%s\n' "$tree" | sed 's/^/      /'
   } >>"$_HI_PAR_DIR/$n.out"
   [ -s "$_HI_PAR_DIR/$n.res" ] || printf '124 0\n' >"$_HI_PAR_DIR/$n.res"
   printf '%s\n' "$3" >"$_HI_PAR_DIR/$n.late"
@@ -253,22 +236,14 @@ function _hi_par_check_eq() {
   _hi_par_case "$1" _hi_expect_eq "$@"
 }
 
-function _hi_par_check_requires() {
-  local bin="$1"
-  shift
-  _hi_par_case "$1" _hi_par_requires_body "$bin" _hi_assert "$@"
-}
+function _hi_par_check_requires() { _hi_par_case "$2" _hi_par_requires_body "$1" _hi_assert "${@:2}"; }
 
 # _hi_par_check_capable <capability> <label> <cmd...> - _hi_check_capable's
 # parallel twin, for the container-shaped suites. The probe runs inside the
 # case's subshell like the _requires guard's does, so the skip is reported and
 # tallied through the same .res file every other verdict here goes through -
 # a parent-side skip would print out of submission order.
-function _hi_par_check_capable() {
-  local cap="$1"
-  shift
-  _hi_par_case "$1" _hi_par_capable_body "$cap" _hi_assert "$@"
-}
+function _hi_par_check_capable() { _hi_par_case "$2" _hi_par_capable_body "$1" _hi_assert "${@:2}"; }
 
 function _hi_par_capable_body() {
   local cap="$1" assert="$2" rc=0
@@ -283,11 +258,7 @@ function _hi_par_capable_body() {
 
 # _hi_par_check_requires_eq <bin> <label> <want> <cmd...> - the _hi_expect_eq
 # arm of the same guard.
-function _hi_par_check_requires_eq() {
-  local bin="$1"
-  shift
-  _hi_par_case "$1" _hi_par_requires_body "$bin" _hi_expect_eq "$@"
-}
+function _hi_par_check_requires_eq() { _hi_par_case "$2" _hi_par_requires_body "$1" _hi_expect_eq "${@:2}"; }
 
 # The assertion is a parameter so both wrappers above share one guard: which of
 # _hi_assert / _hi_expect_eq runs is the only thing that differs between them.

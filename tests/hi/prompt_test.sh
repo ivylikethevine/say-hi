@@ -82,19 +82,13 @@ function test_fish_colors_match_core() {
     role="${pair%%:*}"
     var="${pair#*:}"
     fish_name="$(_hi_fish_settings color | sed -n "s/^$role=//p")"
-    [ -n "$fish_name" ] || {
-      _hi_cecho " | config.fish sets no color for $role" "$RED"
-      return 1
-    }
+    [ -n "$fish_name" ] || _hi_because "config.fish sets no color for $role" || return 1
     got="$(_hi_color_escape "$fish_name")"
     eval "want=\"\${$var}\""
     want="$(_hi_rendered "$want")"
     [ "$got" = "$want" ] || mismatch="$mismatch $role($fish_name vs $var)"
   done
-  [ -z "$mismatch" ] || {
-    _hi_cecho " | color roles disagree:$mismatch" "$RED"
-    return 1
-  }
+  [ -z "$mismatch" ] || _hi_because "color roles disagree:$mismatch"
 }
 
 # fish's default is `|`, bash's `\$`, zsh's `>` - three answers, and config.fish
@@ -104,10 +98,7 @@ function test_fish_prompt_end_default_matches_core() {
   fish_default="$(sed -n "s/^set -g _hi_prompt_end '\(.*\)'\$/\1/p" \
     "$_HI_ROOT/common/config.fish")"
   core_default="$(_hi_prompt_end_default FISH)"
-  [ -n "$fish_default" ] && [ "$fish_default" = "$core_default" ] || {
-    _hi_cecho " | config.fish: '$fish_default'  core.sh: '$core_default'" "$RED"
-    return 1
-  }
+  [ -n "$fish_default" ] && [ "$fish_default" = "$core_default" ] || _hi_because "config.fish: '$fish_default'  core.sh: '$core_default'"
 }
 
 # the branch is shortened at the same width in both implementations, or the
@@ -118,10 +109,7 @@ function test_branch_shorten_length_agrees() {
     missing="$missing config.fish"
   grep -q '#ref} > 32' "$_HI_ROOT/common/git_prompt.sh" ||
     missing="$missing git_prompt.sh"
-  [ -z "$missing" ] || {
-    _hi_cecho " | not shortening at 32:$missing" "$RED"
-    return 1
-  }
+  [ -z "$missing" ] || _hi_because "not shortening at 32:$missing"
 }
 
 # sh/ash/dash sessions get hi's prompt, not the host's own (on busybox a
@@ -244,10 +232,7 @@ function test_fish_env_sources_all_have_an_arm() {
     grep -q "^ *case $word\$" "$_HI_ROOT/common/config.fish" ||
       missing="$missing config.fish:$word"
   done
-  [ -z "$missing" ] || {
-    _hi_cecho " | source words with no branch:$missing" "$RED"
-    return 1
-  }
+  [ -z "$missing" ] || _hi_because "source words with no branch:$missing"
 }
 
 # every tool variable one file reads, the other has to read too
@@ -265,10 +250,7 @@ function test_fish_env_reads_the_same_variables() {
     grep -qF -e "\${$var" -e "\$$var" "$_HI_ROOT/common/config.fish" ||
       missing="$missing config.fish:$var"
   done
-  [ -z "$missing" ] || {
-    _hi_cecho " | tool variables read by only one copy:$missing" "$RED"
-    return 1
-  }
+  [ -z "$missing" ] || _hi_because "tool variables read by only one copy:$missing"
 }
 
 # the config filenames the mise walk stats, one per line, sorted: the bash copy
@@ -297,10 +279,7 @@ function test_fish_env_truncation_matches_core() {
   want_ascii="$(_hi_core_values _HI_GLYPH_ 1 ELLIPSIS | sed 's/^[A-Z_]*=//')"
   [ "$utf8" = "$want_utf8" ] || missing="$missing ellipsis($utf8 vs $want_utf8)"
   [ "$ascii" = "$want_ascii" ] || missing="$missing ascii-ellipsis($ascii vs $want_ascii)"
-  [ -z "$missing" ] || {
-    _hi_cecho " | truncation disagrees:$missing" "$RED"
-    return 1
-  }
+  [ -z "$missing" ] || _hi_because "truncation disagrees:$missing"
 }
 
 # one color for the segment, named the same way in each shell's own vocabulary:
@@ -311,10 +290,7 @@ function test_fish_env_color_matches_the_other_shells() {
   grep -q '\\\[\$BRCYAN\\\]' "$_HI_ROOT/common/bash.sh" || missing="$missing bash.sh"
   grep -q '%F{cyan}\${__hi_env_info}' "$_HI_ROOT/common/zsh.zsh" || missing="$missing zsh.zsh"
   grep -q 'set_color brcyan' "$_HI_ROOT/common/config.fish" || missing="$missing config.fish"
-  [ -z "$missing" ] || {
-    _hi_cecho " | the environment segment is uncolored in:$missing" "$RED"
-    return 1
-  }
+  [ -z "$missing" ] || _hi_because "the environment segment is uncolored in:$missing"
 }
 
 function run_hi_prompt_tests() {

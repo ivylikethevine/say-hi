@@ -232,7 +232,7 @@ function _hi_wedge_report() {
   fi
   [ -z "$load" ] || printf '      host: %s\n' "${load#"${load%%[![:space:]]*}"}"
   [ -s "${1:-}" ] || return 0
-  printf '      the last of its %s bytes:\n' "$(wc -c <"$1" | tr -d ' ')"
+  printf '      the last of its %s bytes:\n' "$(_hi_file_bytes "$1")"
   _hi_strip_ansi "$(tail -c 1500 "$1" | tr '\r' '\n')" | grep -v '^[[:space:]]*$' | tail -n 12 | sed 's/^/      | /' || true
 }
 

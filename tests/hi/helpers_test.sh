@@ -278,7 +278,7 @@ function test_require_refuses_and_names_a_missing_tool() {
 # label=...` logs its argv to $_HI_CS_LOG and prints $_HI_CS_MATCHES (%b).
 # Any other argv exits 1, so a changed command shape fails here.
 function _hi_compose_shim() {
-  _HI_COMPOSE_BIN="$_HI_WORKDIR/composebin"
+  _HI_COMPOSE_BIN="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/composebin"
   if [ ! -d "$_HI_COMPOSE_BIN" ]; then
     mkdir -p "$_HI_COMPOSE_BIN"
     cat >"$_HI_COMPOSE_BIN/docker" <<'SHIM'

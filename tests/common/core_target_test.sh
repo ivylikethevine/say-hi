@@ -89,9 +89,7 @@ function test_now_answers_without_date() {
 # seconds are the answer then, not a figure with an N in it
 function test_now_takes_whole_seconds_from_a_date_without_nanoseconds() {
   local dir="$_HI_WORKDIR/bsd-date" out
-  mkdir -p "$dir"
-  printf '%s\n' '#!/bin/sh' 'case "$1" in +%s.%N) echo 1700000000.N ;; *) echo 1700000000 ;; esac' >"$dir/date"
-  chmod +x "$dir/date"
+  _hi_script "$dir/date" '#!/bin/sh' 'case "$1" in +%s.%N) echo 1700000000.N ;; *) echo 1700000000 ;; esac'
   out="$(unset EPOCHREALTIME && PATH="$dir" _hi_now)"
   [ "$out" = 1700000000 ] || _hi_because "_hi_now: $out"
 }
@@ -103,26 +101,18 @@ function test_shell_table_rows_are_wellformed() {
   local row shell label tree home check dialect rest
   for row in "${_HI_SHELL_TABLE[@]}"; do
     IFS='|' read -r shell label tree home check dialect rest <<<"$row"
-    [ -n "$shell" ] && [ -n "$label" ] && [ -n "$check" ] || {
-      _hi_cecho " | thin row: $row" "$RED"
-      return 1
-    }
+    [ -n "$shell" ] && [ -n "$label" ] && [ -n "$check" ] || _hi_because "thin row: $row" || return 1
     case "$dialect" in
     sh | fish) ;;
     *)
-      _hi_cecho " | unknown rc dialect '$dialect': $row" "$RED"
-      return 1
+      _hi_because "unknown rc dialect '$dialect': $row" || return 1
       ;;
     esac
-    [ -z "$rest" ] || {
-      _hi_cecho " | too many fields: $row" "$RED"
-      return 1
-    }
+    [ -z "$rest" ] || _hi_because "too many fields: $row" || return 1
     case "$tree$home" in
     /*/*) ;;
     *)
-      _hi_cecho " | rc paths must be absolute: $row" "$RED"
-      return 1
+      _hi_because "rc paths must be absolute: $row" || return 1
       ;;
     esac
   done
@@ -137,19 +127,13 @@ function test_shell_table_covers_every_rc_path_var() {
   for var in _HI_BASHRC _HI_ZSHRC _HI_FISH_CONFIG \
     _HI_HOME_BASHRC _HI_HOME_ZSHRC _HI_HOME_FISH_CONFIG; do
     eval "value=\"\${$var:-}\""
-    [ -n "$value" ] || {
-      _hi_cecho " | paths.sh exports no $var" "$RED"
-      return 1
-    }
+    [ -n "$value" ] || _hi_because "paths.sh exports no $var" || return 1
     case "$(printf '%s\n' "${_HI_SHELL_TABLE[@]}")" in
     *"|$value|"* | *"|$value") ;;
     *) missing="$missing $var" ;;
     esac
   done
-  [ -z "$missing" ] || {
-    _hi_cecho " | in paths.sh but in no _HI_SHELL_TABLE row:$missing" "$RED"
-    return 1
-  }
+  [ -z "$missing" ] || _hi_because "in paths.sh but in no _HI_SHELL_TABLE row:$missing"
 }
 
 # OSC 7's path: unreserved bytes pass, every other byte is %XX in upper case,
@@ -291,10 +275,7 @@ function test_prompt_table_is_the_one_roster() {
   # shellcheck disable=SC2153 # core.sh's derived roster, not a typo of the setting
   [ "$tools" = "$_HI_PROMPT_TOOLS" ] || _hi_why tools _HI_PROMPT_TOOLS || return 1
   fish_have="$(sed -n 's/.*; and set _hi_plain \(.*\)$/\1/p' "$_HI_ROOT/common/config.fish")"
-  [ "$fish_have" = "$fish_want" ] || {
-    _hi_cecho " | config.fish: [$fish_have]  core.sh: [$fish_want]" "$RED"
-    return 1
-  }
+  [ "$fish_have" = "$fish_want" ] || _hi_because "config.fish: [$fish_have]  core.sh: [$fish_want]"
 }
 
 # ...and after it, the prompt plugins the client handed over as
@@ -334,9 +315,7 @@ function _hi_hooks_fresh() {
 # else with the `<program> init {shell}` shape (GLOSSARY: HI.67)
 function test_run_init_runs_what_the_tool_prints() {
   local p="$_HI_WORKDIR/init-bins" got=""
-  mkdir -p "$p"
-  printf '%s\n' '#!/bin/sh' 'printf "_hi_ri_got=\"%s\"\n" "$*"' >"$p/hi-init-tool"
-  chmod +x "$p/hi-init-tool"
+  _hi_script "$p/hi-init-tool" '#!/bin/sh' 'printf "_hi_ri_got=\"%s\"\n" "$*"'
   unset _hi_ri_got
   PATH="$p:$PATH" _hi_run_init zsh hi-init-tool init "{shell}" --flag || _hi_why p || return 1
   [ "${_hi_ri_got:-}" = "init zsh --flag" ] || _hi_because "ran: ${_hi_ri_got:-}" || return 1
@@ -365,9 +344,7 @@ function test_run_init_runs_what_the_tool_prints() {
 # and what the code it set up prints later still shows
 function test_run_hooks_runs_once_and_a_quiet_hook_silently() {
   local p="$_HI_WORKDIR/loud-bins" out
-  mkdir -p "$p"
-  printf '%s\n' '#!/bin/sh' "printf 'echo LOUD-%s >&2\\n_hi_ri_got=\"\${_hi_ri_got-}x\"\\nhi_later() { echo LATER >&2; }\\n' \"\$1\"" >"$p/hi-loud-tool"
-  chmod +x "$p/hi-loud-tool"
+  _hi_script "$p/hi-loud-tool" '#!/bin/sh' "printf 'echo LOUD-%s >&2\\n_hi_ri_got=\"\${_hi_ri_got-}x\"\\nhi_later() { echo LATER >&2; }\\n' \"\$1\""
   out="$(
     unset _hi_hooks_ran _hi_ri_got
     export PATH="$p:$PATH"
@@ -444,9 +421,9 @@ function test_release_or_describe_falls_back_to_git() {
 # snapshot-<sha> tag nearer than the v* one, which must not count
 function test_git_version_names_commits_past_the_tag() {
   local dir g got
-  dir="$(mktemp -d "$_HI_WORKDIR/gitversion.XXXXXX")"
-  g=(git -C "$dir" -c commit.gpgsign=false -c tag.gpgsign=false -c user.name=t -c user.email=t@t)
-  "${g[@]}" init -q && "${g[@]}" commit -q --allow-empty -m a && "${g[@]}" tag v1.2.3 || _hi_why g || return 1
+  dir="$(_hi_git_fixture)"
+  g=(git -C "$dir" -c commit.gpgsign=false -c tag.gpgsign=false)
+  "${g[@]}" tag v1.2.3 || _hi_why g || return 1
   got="$(_hi_git_version "$dir")"
   [ "$got" = v1.2.3 ] || _hi_why got dir || return 1
   "${g[@]}" commit -q --allow-empty -m b && "${g[@]}" tag snapshot-abc1234 &&
@@ -459,8 +436,8 @@ function test_git_version_names_commits_past_the_tag() {
 }
 
 function test_release_or_describe_empty_without_either() {
-  local dir
-  dir="$(mktemp -d "$_HI_WORKDIR/norelease.XXXXXX")"
+  local dir="$_HI_WORKDIR/norelease"
+  mkdir "$dir"
   (
     unset _HI_RELEASE
     _HI_ROOT="$dir"

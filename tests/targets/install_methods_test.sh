@@ -156,7 +156,62 @@ function _hi_brew_upgrade_case() {
   _hi_align " | [$label] -- one rc loaded ${from##*/}, then ${to##*/}, through opt" "OK ($(_hi_elapsed "$t0" "$(_hi_now)")s)" "$GREEN"
 }
 
-# shellcheck disable=SC2034 # the <method>_ok flags are read as ${!okvar} at the dispatch loop
+# The build chains, run by _hi_bg each under its own key; a step waits on the
+# one before it (rpm and apk on a base of their own, unann on prefix), and no
+# chain on another. $pkgs_ok and $debian_ok are the caller's.
+function _hi_chain_deb() {
+  local ctx
+  [ "$pkgs_ok" -eq 1 ] && [ "$debian_ok" -eq 1 ] && ctx="$(_hi_pkg_context deb '*.deb' pkg.deb)" &&
+    _hi_build_image deb "$_HI_SSH_CASE_PREFIX-deb-img-$$" "the .deb case" \
+      --build-arg "BASE=$_HI_SSHD_IMAGE" \
+      --build-arg "PKG=pkg.deb" -f "$(_hi_dockerfile installed-pkg)" "$ctx"
+}
+
+function _hi_chain_rpm() {
+  local ctx
+  [ "$pkgs_ok" -eq 1 ] && ctx="$(_hi_pkg_context rpm '*.rpm' pkg.rpm)" || return 1
+  mkdir -p "$_HI_WORKDIR/fedora"
+  # shellcheck disable=SC2016 # entrypoint.sh content, resolved on the container
+  _hi_sshd_entrypoint "$_HI_WORKDIR/fedora" /bin/bash 'usermod -s "${LOGIN_SHELL:-/bin/bash}" hitest'
+  _hi_build_image fedora "$_HI_SSH_CASE_PREFIX-fedora-$$" "the .rpm case's base" \
+    -f "$(_hi_dockerfile sshd-fedora)" "$_HI_WORKDIR/fedora" &&
+    _hi_build_image rpm "$_HI_SSH_CASE_PREFIX-rpm-img-$$" "the .rpm case" \
+      --build-arg "BASE=$_HI_SSH_CASE_PREFIX-fedora-$$" \
+      --build-arg "PKG=pkg.rpm" -f "$(_hi_dockerfile installed-pkg)" "$ctx"
+}
+
+function _hi_chain_apk() {
+  local ctx
+  [ "$pkgs_ok" -eq 1 ] && ctx="$(_hi_pkg_context apk '*.apk' pkg.apk)" || return 1
+  mkdir -p "$_HI_WORKDIR/alpine"
+  _hi_sshd_entrypoint "$_HI_WORKDIR/alpine" /bin/sh
+  _hi_build_image alpine "$_HI_SSH_CASE_PREFIX-alpine-$$" "the .apk case's base" \
+    --build-arg "PKGS=" \
+    -f "$(_hi_dockerfile sshd-alpine)" "$_HI_WORKDIR/alpine" &&
+    _hi_build_image apk "$_HI_SSH_CASE_PREFIX-apk-img-$$" "the .apk case" \
+      --build-arg "BASE=$_HI_SSH_CASE_PREFIX-alpine-$$" \
+      --build-arg "PKG=pkg.apk" -f "$(_hi_dockerfile installed-pkg)" "$ctx"
+}
+
+function _hi_chain_brew() {
+  [ "$debian_ok" -eq 1 ] && _hi_build_image brew "$_HI_SSH_CASE_PREFIX-brew-img-$$" "the Homebrew keg case" \
+    --build-arg "BASE=$_HI_SSHD_IMAGE" \
+    -f "$(_hi_dockerfile installed-brew)" "$_HI_ROOT"
+}
+
+# ...and the unannounced tree on prefix's image, under a key of its own so
+# each has its verdict
+function _hi_chain_prefix() {
+  [ "$debian_ok" -eq 1 ] && _hi_build_image prefix "$_HI_SSH_CASE_PREFIX-prefix-img-$$" "the --prefix case" \
+    --build-arg "BASE=$_HI_SSHD_IMAGE" \
+    -f "$(_hi_dockerfile installed-prefix)" "$_HI_ROOT" || return 1
+  mkdir -p "$_HI_WORKDIR/unann"
+  _hi_bg unann _hi_build_image unann "$_HI_SSH_CASE_PREFIX-unann-img-$$" "the unannounced-tree case" \
+    --build-arg "BASE=$_HI_SSH_CASE_PREFIX-prefix-img-$$" \
+    -f "$(_hi_dockerfile installed-unannounced)" "$_HI_WORKDIR/unann"
+  wait
+}
+
 function run_install_methods_tests() {
   _hi_require_backend docker
 
@@ -167,8 +222,7 @@ function run_install_methods_tests() {
   _HI_TEST_MARKER="HI_INSTALL_METHOD_OK"
 
   _hi_h2 "Building test images"
-  local debian_ok=1 fedora_ok=0 alpine_ok=0 pkgs_ok=0
-  local deb_ok=0 rpm_ok=0 apk_ok=0 brew_ok=0 prefix_ok=0 unann_ok=0 ctx
+  local debian_ok pkgs_ok
 
   # All eight possible image names, registered upfront rather than as each
   # build is attempted: a chain that never ran (its prerequisite failed, or
@@ -193,87 +247,19 @@ function run_install_methods_tests() {
   _hi_bg_ok debian debian_ok
   _hi_bg_ok pkgs pkgs_ok
 
-  # Five chains, independent of each other (none reads another's image or
-  # verdict), backgrounded together: within one, a step still waits on the
-  # step before it (rpm on fedora, unann on prefix) - that ordering is real
-  # and stays inside the chain's own subshell. Each writes its verdict(s) to
-  # $_HI_WORKDIR/<suffix>.built (one flag=value line per step of the chain)
-  # and its own heading/log-dump text to <suffix>.par.log, replayed in table
-  # order below once every chain is done.
-  (
-    if [ "$pkgs_ok" -eq 1 ] && [ "$debian_ok" -eq 1 ] &&
-      ctx="$(_hi_pkg_context deb '*.deb' pkg.deb)"; then
-      if _hi_build_image deb "$_HI_SSH_CASE_PREFIX-deb-img-$$" "the .deb case" \
-        --build-arg "BASE=$_HI_SSHD_IMAGE" \
-        --build-arg "PKG=pkg.deb" -f "$(_hi_dockerfile installed-pkg)" "$ctx"; then
-        printf 'deb_ok=1\n' >"$_HI_WORKDIR/deb.built"
-      fi
-    fi
-  ) >"$_HI_WORKDIR/deb.par.log" 2>&1 &
-
-  (
-    if [ "$pkgs_ok" -eq 1 ] && ctx="$(_hi_pkg_context rpm '*.rpm' pkg.rpm)"; then
-      mkdir -p "$_HI_WORKDIR/fedora"
-      # shellcheck disable=SC2016 # entrypoint.sh content, resolved on the container
-      _hi_sshd_entrypoint "$_HI_WORKDIR/fedora" /bin/bash 'usermod -s "${LOGIN_SHELL:-/bin/bash}" hitest'
-      if _hi_build_image fedora "$_HI_SSH_CASE_PREFIX-fedora-$$" "the .rpm case's base" \
-        -f "$(_hi_dockerfile sshd-fedora)" "$_HI_WORKDIR/fedora"; then
-        printf 'fedora_ok=1\n' >"$_HI_WORKDIR/rpm.built"
-        if _hi_build_image rpm "$_HI_SSH_CASE_PREFIX-rpm-img-$$" "the .rpm case" \
-          --build-arg "BASE=$_HI_SSH_CASE_PREFIX-fedora-$$" \
-          --build-arg "PKG=pkg.rpm" -f "$(_hi_dockerfile installed-pkg)" "$ctx"; then
-          printf 'rpm_ok=1\n' >>"$_HI_WORKDIR/rpm.built"
-        fi
-      fi
-    fi
-  ) >"$_HI_WORKDIR/rpm.par.log" 2>&1 &
-
-  (
-    if [ "$pkgs_ok" -eq 1 ] && ctx="$(_hi_pkg_context apk '*.apk' pkg.apk)"; then
-      mkdir -p "$_HI_WORKDIR/alpine"
-      _hi_sshd_entrypoint "$_HI_WORKDIR/alpine" /bin/sh
-      if _hi_build_image alpine "$_HI_SSH_CASE_PREFIX-alpine-$$" "the .apk case's base" \
-        --build-arg "PKGS=" \
-        -f "$(_hi_dockerfile sshd-alpine)" "$_HI_WORKDIR/alpine"; then
-        printf 'alpine_ok=1\n' >"$_HI_WORKDIR/apk.built"
-        if _hi_build_image apk "$_HI_SSH_CASE_PREFIX-apk-img-$$" "the .apk case" \
-          --build-arg "BASE=$_HI_SSH_CASE_PREFIX-alpine-$$" \
-          --build-arg "PKG=pkg.apk" -f "$(_hi_dockerfile installed-pkg)" "$ctx"; then
-          printf 'apk_ok=1\n' >>"$_HI_WORKDIR/apk.built"
-        fi
-      fi
-    fi
-  ) >"$_HI_WORKDIR/apk.par.log" 2>&1 &
-
-  (
-    if [ "$debian_ok" -eq 1 ] && _hi_build_image brew "$_HI_SSH_CASE_PREFIX-brew-img-$$" "the Homebrew keg case" \
-      --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      -f "$(_hi_dockerfile installed-brew)" "$_HI_ROOT"; then
-      printf 'brew_ok=1\n' >"$_HI_WORKDIR/brew.built"
-    fi
-  ) >"$_HI_WORKDIR/brew.par.log" 2>&1 &
-
-  (
-    if [ "$debian_ok" -eq 1 ] && _hi_build_image prefix "$_HI_SSH_CASE_PREFIX-prefix-img-$$" "the --prefix case" \
-      --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      -f "$(_hi_dockerfile installed-prefix)" "$_HI_ROOT"; then
-      printf 'prefix_ok=1\n' >"$_HI_WORKDIR/prefix.built"
-      mkdir -p "$_HI_WORKDIR/unann"
-      if _hi_build_image unann "$_HI_SSH_CASE_PREFIX-unann-img-$$" "the unannounced-tree case" \
-        --build-arg "BASE=$_HI_SSH_CASE_PREFIX-prefix-img-$$" \
-        -f "$(_hi_dockerfile installed-unannounced)" "$_HI_WORKDIR/unann"; then
-        printf 'unann_ok=1\n' >>"$_HI_WORKDIR/prefix.built"
-      fi
-    fi
-  ) >"$_HI_WORKDIR/prefix.par.log" 2>&1 &
-
+  # The five chains backgrounded together, their headings and log dumps
+  # replayed in table order once every chain is done, and the keys of the
+  # images that built kept in $built
+  local key ok built=""
+  for key in deb rpm apk brew prefix; do
+    _hi_bg "$key" "_hi_chain_$key"
+  done
   wait
-
-  local chain assign
-  for chain in deb rpm apk brew prefix; do
-    cat "$_HI_WORKDIR/$chain.par.log"
-    [ -f "$_HI_WORKDIR/$chain.built" ] || continue
-    while IFS= read -r assign; do eval "$assign"; done <"$_HI_WORKDIR/$chain.built"
+  for key in deb rpm apk brew prefix unann; do
+    # unann's build starts only once prefix's has passed
+    [ "$key" != unann ] || _hi_list_has "$built" prefix || continue
+    _hi_bg_ok "$key" ok
+    [ "$ok" -eq 0 ] || built="$built $key"
   done
 
   _hi_suite_begin
@@ -287,7 +273,7 @@ function run_install_methods_tests() {
   local intact='! ls -d /tmp/*.hi.* >/dev/null 2>&1'
 
   # <label>:<suffix>:<installed root>:<skip reason>:<extra post-check>. The
-  # suffix names both the <suffix>_ok flag the build phase above set and the
+  # suffix names both the key the build phase above kept in $built and the
   # $_HI_SSH_CASE_PREFIX-<suffix>-img-$$ image it built; the extra post-check
   # (last field, so its spaces survive the split) joins $intact with &&. Each
   # case checks the installer's own hi.sh is still executable where it put it,
@@ -301,11 +287,10 @@ function run_install_methods_tests() {
     "unannounced:unann:/usr/local/share/say-hi:the --prefix image it builds on is missing:test -f /usr/local/share/say-hi/.installed_sentinel && ! test -e /etc/profile.d/say-hi.sh"
   )
 
-  local spec label suffix root reason extra okvar
+  local spec label suffix root reason extra
   for spec in "${methods[@]}"; do
     IFS=: read -r label suffix root reason extra <<<"$spec"
-    okvar="${suffix}_ok" # ${!okvar} is bash 2, not a bash-4 form
-    if [ "${!okvar}" -eq 1 ]; then
+    if _hi_list_has "$built" "$suffix"; then
       _hi_par_case "$label" _hi_method_case "$label" "$_HI_SSH_CASE_PREFIX-$suffix-img-$$" /bin/bash \
         "$root" "$intact && test -x $root/hi.sh${extra:+ && $extra}"
     else
@@ -313,7 +298,7 @@ function run_install_methods_tests() {
     fi
   done
 
-  if [ "$brew_ok" -eq 1 ]; then
+  if _hi_list_has "$built" brew; then
     _hi_par_case brew-upgrade _hi_brew_upgrade_case brew-upgrade "$_HI_SSH_CASE_PREFIX-brew-img-$$"
   else
     _hi_skip "[brew-upgrade]" "the sshd image failed"

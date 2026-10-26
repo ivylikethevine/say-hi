@@ -104,7 +104,7 @@ function _hi_platform_header() {
 # an Apple Silicon mac: sysctl has no hw.cpufrequency (the cpu cell fails
 # closed to "?"), and vm_stat's page size is 16K and read from its own header
 function _hi_mac_shims() {
-  local dir="$_HI_WORKDIR/mac-shims"
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/mac-shims"
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     printf '#!/bin/sh\necho "Darwin arm64"\n' >"$dir/uname"
@@ -147,7 +147,7 @@ EOF
 # git-bash on Windows: the MINGW kernel string, wmic's two-line answers
 # (header, then the value) and ipconfig's CRLF lines
 function _hi_windows_shims() {
-  local dir="$_HI_WORKDIR/windows-shims"
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/windows-shims"
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     printf '#!/bin/sh\necho "MINGW64_NT-10.0-22631 x86_64"\n' >"$dir/uname"
@@ -176,7 +176,7 @@ EOF
 # pointing it at nothing, and there is no third way to reach this branch.
 # shellcheck disable=SC2016 # the probe expands in the child bash, not here
 function _hi_linux_header() {
-  local shims="$1" probe="$2" rel="$_HI_WORKDIR/os-release"
+  local shims="$1" probe="$2" rel="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/os-release"
   shift 2
   [ -f "$rel" ] || printf 'PRETTY_NAME="Test Linux 1.0"\n' >"$rel"
   env "$@" PATH="$shims:$(_hi_real_path platform-tools bash sh awk sed date fold mktemp rm sleep)" \
@@ -189,7 +189,7 @@ function _hi_linux_header() {
 # where that prints nothing. Both answer the field layout header.sh's awk
 # reads, so a wrong field number changes the answer.
 function _hi_linux_ip_shims() {
-  local dir="$_HI_WORKDIR/linux-ip-shims"
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/linux-ip-shims"
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     printf '#!/bin/sh\necho "Linux x86_64"\n' >"$dir/uname"
@@ -212,10 +212,7 @@ function test_ip_cell_on_linux_reads_iproute2() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_cell_ip i; printf "[%s]" "$i"')"
-  [[ "$out" == *"[IP: 10.0.0.5, 192.0.2.10]"* ]] || {
-    _hi_cecho " | got: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == *"[IP: 10.0.0.5, 192.0.2.10]"* ]] || _hi_because "got: $out"
 }
 
 # `ip` exists and answers nothing on a host with no routable address on an
@@ -226,10 +223,7 @@ function test_ip_cell_on_linux_falls_back_to_hostname() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_FAKE_IP_SILENT=1)"
-  [[ "$out" == *"[IP: 198.51.100.7, 198.51.100.8]"* ]] || {
-    _hi_cecho " | got: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == *"[IP: 198.51.100.7, 198.51.100.8]"* ]] || _hi_because "got: $out"
 }
 
 # The five sysinfo cells share one memoized probe ($_HI_SI_PROBED), which
@@ -256,10 +250,7 @@ EOF
   probe="$probe; post=\$(awk 'END { print NR }' '$count')"
   probe="$probe; printf 'delta=%s' \$((post - pre))"
   out="$(_hi_platform_header "$dir:$(_hi_mac_shims)" "$probe")"
-  [[ "$out" == *"delta=1"* ]] || {
-    _hi_cecho " | five cells cost more than one probe: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == *"delta=1"* ]] || _hi_because "five cells cost more than one probe: $out"
 }
 
 function test_system_info_on_a_mac() {
@@ -268,10 +259,7 @@ function test_system_info_on_a_mac() {
   # used = (200000 + 50000 + 12500) pages * 16K = 4.0G of 16G; 2.00 on 8
   # cores is 25%; sysctl answered no clock, so the cpu cell fails closed
   [[ "$out" == *"macOS 15.1"* && "$out" == *"arm64"* && "$out" == *"Cores: 8 (25%)"* &&
-    "$out" == *"RAM: 4/16G"* && "$out" == *"CPU: ? GHz"* ]] || {
-    _hi_cecho " | got: $out" "$RED"
-    return 1
-  }
+    "$out" == *"RAM: 4/16G"* && "$out" == *"CPU: ? GHz"* ]] || _hi_because "got: $out"
 }
 
 function test_uptime_and_ip_cells_on_a_mac() {
@@ -279,10 +267,7 @@ function test_uptime_and_ip_cells_on_a_mac() {
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_platform_header "$(_hi_mac_shims)" '_hi_cell_uptime u; _hi_cell_ip i; printf "%s\n%s\n" "$u" "$i"')"
   # kern.boottime 5430s ago; ifconfig's inet line, not inet6 and not lo0
-  [[ "$out" == *"Up: 1h 30m"* && "$out" == *"IP: 192.0.2.10"* ]] || {
-    _hi_cecho " | got: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == *"Up: 1h 30m"* && "$out" == *"IP: 192.0.2.10"* ]] || _hi_because "got: $out"
 }
 
 function test_system_info_on_windows() {
@@ -290,10 +275,7 @@ function test_system_info_on_windows() {
   out="$(_hi_platform_header "$(_hi_windows_shims)" "$_HI_ROW_FNS; _hi_sysinfo_row" NUMBER_OF_PROCESSORS=4)"
   # wmic exposes the rated clock
   [[ "$out" == *"Windows (MINGW64_NT-10.0-22631)"* && "$out" == *"Cores: 4"* &&
-    "$out" == *"RAM: 16G"* && "$out" == *"CPU: 2.4 GHz"* ]] || {
-    _hi_cecho " | got: $out" "$RED"
-    return 1
-  }
+    "$out" == *"RAM: 16G"* && "$out" == *"CPU: 2.4 GHz"* ]] || _hi_because "got: $out"
 }
 
 # _HI_IP_HIDE: a docker bridge address is noise on any box that runs
@@ -333,28 +315,17 @@ function test_ip_filter_takes_a_glob_list() {
 # "?", which still means no routable address was found at all
 function test_ip_cell_is_empty_when_every_address_is_hidden() {
   local dir="$_HI_WORKDIR/ip-hide-shims" out
-  mkdir -p "$dir"
-  printf '#!/bin/sh\necho "Darwin arm64"\n' >"$dir/uname"
-  printf '#!/bin/sh\nprintf "\tinet 127.0.0.1 netmask 0xff000000\n\tinet 172.17.0.2 netmask 0xffff0000\n\tinet 10.0.0.5 netmask 0xffffff00\n"\n' >"$dir/ifconfig"
-  chmod +x "$dir/uname" "$dir/ifconfig"
+  _hi_script "$dir/uname" '#!/bin/sh' 'echo "Darwin arm64"'
+  _hi_script "$dir/ifconfig" '#!/bin/sh' 'printf "\tinet 127.0.0.1 netmask 0xff000000\n\tinet 172.17.0.2 netmask 0xffff0000\n\tinet 10.0.0.5 netmask 0xffffff00\n"'
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"')"
-  [[ "$out" == *"[IP: 10.0.0.5]"* ]] || {
-    _hi_cecho " | default got: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == *"[IP: 10.0.0.5]"* ]] || _hi_because "default got: $out" || return 1
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_IP_HIDE="10.* 172.*")"
-  [[ "$out" == *"[]"* ]] || {
-    _hi_cecho " | all hidden got: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == *"[]"* ]] || _hi_because "all hidden got: $out" || return 1
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_IP_HIDE=none)"
-  [[ "$out" == *"[IP: 172.17.0.2, 10.0.0.5]"* ]] || {
-    _hi_cecho " | none got: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == *"[IP: 172.17.0.2, 10.0.0.5]"* ]] || _hi_because "none got: $out"
 }
 
 # ...and the header itself then prints no IP cell at all. Shimmed the same
@@ -366,16 +337,11 @@ function test_ip_cell_is_empty_when_every_address_is_hidden() {
 # has nothing to do with the hiding this test means to check.
 function test_header_omits_the_ip_cell_when_hidden() {
   local dir="$_HI_WORKDIR/ip-hide-header-shims" out
-  mkdir -p "$dir"
-  printf '#!/bin/sh\necho "Darwin arm64"\n' >"$dir/uname"
-  printf '#!/bin/sh\nprintf "\tinet 127.0.0.1 netmask 0xff000000\n\tinet 10.0.0.5 netmask 0xffffff00\n"\n' >"$dir/ifconfig"
-  chmod +x "$dir/uname" "$dir/ifconfig"
+  _hi_script "$dir/uname" '#!/bin/sh' 'echo "Darwin arm64"'
+  _hi_script "$dir/ifconfig" '#!/bin/sh' 'printf "\tinet 127.0.0.1 netmask 0xff000000\n\tinet 10.0.0.5 netmask 0xffffff00\n"'
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_platform_header "$dir" 'hi_header Connected' _HI_HEADER_ORDER='utc ip' _HI_IP_HIDE='*')"
-  [[ "$out" == *"Connected"* && "$out" == *" UTC"* && "$out" != *"IP:"* ]] || {
-    _hi_cecho " | got: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == *"Connected"* && "$out" == *" UTC"* && "$out" != *"IP:"* ]] || _hi_because "got: $out"
 }
 
 function test_uptime_and_ip_cells_on_windows() {
@@ -383,10 +349,7 @@ function test_uptime_and_ip_cells_on_windows() {
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_platform_header "$(_hi_windows_shims)" '_hi_cell_uptime u; _hi_cell_ip i; printf "%s\n%s\n" "$u" "$i"')"
   # no sysctl on git-bash: uptime is not probed at all; ipconfig's CR is gone
-  [[ "$out" == *"Up: ?"* && "$out" == *"IP: 10.0.0.5"* && "$out" != *$'\r'* ]] || {
-    _hi_cecho " | got: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == *"Up: ?"* && "$out" == *"IP: 10.0.0.5"* && "$out" != *$'\r'* ]] || _hi_because "got: $out"
 }
 
 # no uname and no /etc/os-release: nothing says what this box is, and the
@@ -411,10 +374,7 @@ function test_no_lead_space_drops_only_the_leading_space() {
   # the pad still budgets for the leading space this toggle drops, so the
   # closed row lands one column short of the banner rather than at it - a
   # pre-existing wrinkle of the toggle, not this case's concern
-  [[ "$out" == "| alpha | beta"*"|" ]] && [ "${#out}" -eq 79 ] || {
-    _hi_cecho " | got: [$out]" "$RED"
-    return 1
-  }
+  [[ "$out" == "| alpha | beta"*"|" ]] && [ "${#out}" -eq 79 ] || _hi_because "got: [$out]" || return 1
   out="$(NO_COLOR=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
   [[ "$out" == " | alpha | beta"*"|" ]] && [ "${#out}" -eq 80 ] || _hi_why out
 }
@@ -450,10 +410,7 @@ function test_identity_masks_the_git_email_domain() {
   printf '[user]\n\temail = alice@example.com\n' >"$cfg"
   out="$(cd "$_HI_WORKDIR" && NO_COLOR=1 _HI_ASCII=1 GIT_CONFIG_GLOBAL="$cfg" \
     PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 bash -c "source \"\$_HI_HEADER\"; $_HI_ROW_FNS; _hi_identity_row")"
-  [[ "$out" == *'alice@***********'[!*]* && "$out" != *example.com* ]] || {
-    _hi_cecho "   identity row: $out" "$RED"
-    return 1
-  }
+  [[ "$out" == *'alice@***********'[!*]* && "$out" != *example.com* ]] || _hi_because "identity row: $out"
 }
 
 # the alternate-hue table's two ends: a word with an entry, and one without,

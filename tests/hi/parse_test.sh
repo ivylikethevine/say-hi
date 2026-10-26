@@ -78,13 +78,7 @@ function test_parse_leaves_cmdarg_empty_for_a_plain_session() {
 function test_parse_dashdash_does_not_end_option_parsing() {
   local got
   local bin="$_HI_WORKDIR/dashdash.bin" log="$_HI_WORKDIR/dashdash.log" rc=0
-  mkdir -p "$bin"
-  cat >"$bin/ssh" <<SHIM
-#!/bin/sh
-printf '%s\n' "\$*" >"$log"
-exit 3
-SHIM
-  chmod +x "$bin/ssh"
+  _hi_script "$bin/ssh" '#!/bin/sh' "printf '%s\n' \"\$*\" >\"$log\"" 'exit 3'
   (PATH="$bin:$PATH" _hi_parse -- -oddtarget >/dev/null 2>&1) || rc=$?
   [ "$rc" -eq 3 ] || _hi_why rc || return 1
   got="$(cat "$log")"
@@ -141,10 +135,7 @@ function test_parse_every_bare_flag_refuses_a_value() {
   for flag in $(sed -n 's/^\(--[a-z-]*\)||.*/\1/p' "$_HI_ROOT/common/flags") -h -V; do
     rc=0
     out="$( (_hi_parse "$flag=1" myhost 2>&1 >/dev/null) )" || rc=$?
-    [ "$rc" -eq 1 ] && [[ "$out" == *"$flag takes no value"* ]] || {
-      _hi_cecho " | $flag=1: exit $rc, [$out]" "$RED"
-      return 1
-    }
+    [ "$rc" -eq 1 ] && [[ "$out" == *"$flag takes no value"* ]] || _hi_because "$flag=1: exit $rc, [$out]" || return 1
   done
 }
 
@@ -170,7 +161,7 @@ function test_bare_help_and_version_words_are_targets() {
 # tag walker itself keeps matching wildcards (core_test pins that), since
 # a `# Tags:` comment over `Host prod-*` is how a whole fleet gets a color.
 function _hi_wild_ssh_config() {
-  local f="$_HI_WORKDIR/wild_ssh_config"
+  local f="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/wild_ssh_config"
   [ -f "$f" ] || printf 'Host *\n    ForwardAgent no\n\nHost literal\n    HostName 1.2.3.4\n' >"$f"
   printf '%s' "$f"
 }
@@ -244,11 +235,8 @@ function test_bare_hi_prints_help_on_a_terminal_too() {
 # `hi -V` has to stay `ssh -V`. The stub prints its argv, so the case can say
 # the flag arrived.
 function test_an_ssh_option_without_a_target_reaches_ssh() {
-  local dir out rc=0
-  dir="$_HI_WORKDIR/sshstub"
-  mkdir -p "$dir"
-  printf '%s\n' '#!/bin/sh' 'echo "ssh-stub: $*"' >"$dir/ssh"
-  chmod +x "$dir/ssh"
+  local dir="$_HI_WORKDIR/sshstub" out rc=0
+  _hi_script "$dir/ssh" '#!/bin/sh' 'echo "ssh-stub: $*"'
   out="$(PATH="$dir:$(_hi_real_path sshbare bash sh sed cat)" bash -c '
     source "$_HI_LAUNCHER"
     _hi_parse -4' </dev/null 2>&1)" || rc=$?
@@ -688,8 +676,7 @@ function _hi_attach_is() {
   $want) [ "$negate" -eq 0 ] && return 0 ;;
   *) [ "$negate" -eq 1 ] && return 0 ;;
   esac
-  _hi_cecho " | $2 $3: attach was '$attach', $why '$want'" "$RED"
-  return 1
+  _hi_because "$2 $3: attach was '$attach', $why '$want'"
 }
 
 # `pod/container` and `alloc/task`: one spelling for both, because a task and a
@@ -721,12 +708,8 @@ function test_container_cmds_drop_the_tty_without_one() {
   # ...and the copy stream never wanted a tty in the first place, either way.
   # Matched on the *enabled* spellings, not a bare "-t": nomad's cp line says
   # `-t=false` on purpose, and a glob for "-t" calls that a tty.
-  case "$_HI_ATTACH_CP" in
-  *"-it"* | *"-t=true"*)
-    _hi_cecho " | the cp stream grew a tty: '$_HI_ATTACH_CP'" "$RED"
-    return 1
-    ;;
-  esac
+  [[ "$_HI_ATTACH_CP" != *"-it"* && "$_HI_ATTACH_CP" != *"-t=true"* ]] ||
+    _hi_because "the cp stream grew a tty: '$_HI_ATTACH_CP'" || return 1
 
   # ssh asks for no pty without a terminal, and its cp never does
   _hi_attach_is 0 ssh box 'ssh box' || _hi_why || return 1
@@ -750,21 +733,14 @@ function test_kube_prefixes_become_kubectl_flags() {
 # reaches ssh, rather than falling through to ssh's own usage block.
 
 # --help is asserted four separate ways and its output cannot differ between
-# them, so it is launched once and kept; the ssh shim that makes a stray
-# connect attempt loud is built once for the same reason.
+# them, so it is launched once, outside a case's $( ), and kept; the ssh shim
+# that makes a stray connect attempt loud is built once a suite for the same
+# reason.
 _HI_HELP_OUT=""
 
 function _hi_help_out() {
-  local dir="$_HI_WORKDIR/nossh" out rc=0
-  [ -x "$dir/ssh" ] || {
-    mkdir -p "$dir"
-    cat >"$dir/ssh" <<'EOF'
-#!/bin/sh
-echo "ssh was called: $*" >&2
-exit 97
-EOF
-    chmod +x "$dir/ssh"
-  }
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/nossh" out rc=0
+  [ -x "$dir/ssh" ] || _hi_script "$dir/ssh" '#!/bin/sh' 'echo "ssh was called: $*" >&2' 'exit 97'
   if [ "$*" = "--help" ] && [ -n "$_HI_HELP_OUT" ]; then
     printf '%s\n' "$_HI_HELP_OUT"
     return 0

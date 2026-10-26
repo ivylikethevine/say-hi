@@ -30,8 +30,7 @@ function lint_glossary_tags() {
   _hi_h2 "Checking GLOSSARY tags against docs/GLOSSARY.md"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   _hi_read_lines headings < <(sed -n 's/^## \(HI\.[0-9][0-9]\).*/\1/p' "$glossary")
-  _hi_read_lines tags < <(grep -rn "${pat}: " "$_HI_ROOT" \
-    --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --exclude='*.md' 2>/dev/null || true)
+  _hi_read_lines tags < <(grep -rn "${pat}: " "$_HI_ROOT" "${_HI_LINT_NOT_OUTPUT[@]}" --exclude='*.md' 2>/dev/null || true)
   for line in "${tags[@]}"; do
     [ -n "$line" ] || continue
     tag="${line#*"${pat}": }"

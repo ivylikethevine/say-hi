@@ -52,8 +52,8 @@ function _hi_git_diverge() {
 }
 
 function test_outside_a_repo_produces_no_output() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/plain.XXXXXX")"
+  local dir="$_HI_WORKDIR/plain" out
+  mkdir "$dir"
   out="$(cd "$dir" && _hi_git_prompt)"
   [ -z "$out" ] || _hi_why out
 }
@@ -286,8 +286,8 @@ function test_out_var_is_precleared_when_disabled() {
 }
 
 function test_out_var_is_precleared_outside_a_repo() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/plain.XXXXXX")"
+  local dir="$_HI_WORKDIR/plain" out
+  mkdir "$dir"
   out="$(
     cd "$dir"
     # shellcheck disable=SC2030 # the write and the read below both live in

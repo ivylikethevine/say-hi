@@ -38,10 +38,7 @@ function _hi_gate() {
 function _hi_all_gated() {
   local out="$1" want="$2" v
   for v in "${_HI_GATED_VARS[@]}"; do
-    printf '%s\n' "$out" | grep -qxF "$v=$want" || {
-      _hi_cecho " | $v is not $want: $(printf '%s\n' "$out" | grep "^$v=")" "$RED"
-      return 1
-    }
+    printf '%s\n' "$out" | grep -qxF "$v=$want" || _hi_because "$v is not $want: $(printf '%s\n' "$out" | grep "^$v=")" || return 1
   done
 }
 
@@ -71,15 +68,9 @@ function test_local_only_leaves_a_remote_session_alone() {
 function test_local_only_turns_the_opt_ins_off_locally() {
   local out
   out="$(_HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _hi_gate 1 0 _HI_TOOL_ALIASES _HI_SUDO_ALIAS)"
-  [ "$out" = "$(printf '_HI_TOOL_ALIASES=0\n_HI_SUDO_ALIAS=0')" ] || {
-    _hi_cecho " | at home: $(printf '%s' "$out" | tr '\n' ' ')" "$RED"
-    return 1
-  }
+  [ "$out" = $'_HI_TOOL_ALIASES=0\n_HI_SUDO_ALIAS=0' ] || _hi_because "at home: ${out//$'\n'/ }" || return 1
   out="$(_HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _hi_gate 1 1 _HI_TOOL_ALIASES _HI_SUDO_ALIAS)"
-  [ "$out" = "$(printf '_HI_TOOL_ALIASES=1\n_HI_SUDO_ALIAS=1')" ] || {
-    _hi_cecho " | on a target: $(printf '%s' "$out" | tr '\n' ' ')" "$RED"
-    return 1
-  }
+  [ "$out" = $'_HI_TOOL_ALIASES=1\n_HI_SUDO_ALIAS=1' ] || _hi_because "on a target: ${out//$'\n'/ }"
 }
 
 function test_toggles_stay_on_without_local_only() {
@@ -102,26 +93,18 @@ function test_gate_list_matches_the_toggle_roster() {
     case "$t" in _HI_DISABLE_LOCAL | _HI_REMOTE_SESSION) continue ;; esac
     want+=("$t")
   done
-  [ "${want[*]}" = "${_HI_GATED_VARS[*]}" ] || {
-    _hi_cecho " | roster (minus gate inputs): ${want[*]}" "$RED"
-    _hi_cecho " | gated:                      ${_HI_GATED_VARS[*]}" "$RED"
-    return 1
-  }
+  [ "${want[*]}" = "${_HI_GATED_VARS[*]}" ] || _hi_because "roster (minus gate inputs): [${want[*]}], gated: [${_HI_GATED_VARS[*]}]"
 }
 
 # config.fish can't read the roster either (fish parses no bash), so it
 # carries a hand-written mirror in its toggle-defaulting loop - this is the
 # whole-list drift guard that mirror never had
 function test_fish_toggle_list_matches_core() {
-  local fish_list core_list
+  local fish_list
   fish_list="$(awk '/^for _hi_toggle in /{p=1} p{print; if ($0 !~ /\\$/) exit}' \
     "$_HI_ROOT/common/config.fish" | grep -oE '_HI_[A-Z0-9_]+')"
-  core_list="$(printf '%s\n' "${_HI_TOGGLES[@]}")"
-  [ "$fish_list" = "$core_list" ] || {
-    _hi_cecho " | config.fish: $(printf '%s' "$fish_list" | tr '\n' ' ')" "$RED"
-    _hi_cecho " | core.sh:     ${_HI_TOGGLES[*]}" "$RED"
-    return 1
-  }
+  fish_list="${fish_list//$'\n'/ }"
+  [ "$fish_list" = "${_HI_TOGGLES[*]}" ] || _hi_because "config.fish: [$fish_list], core.sh: [${_HI_TOGGLES[*]}]"
 }
 
 # the gate is the last thing paths.sh does and it ends in `|| true`, so a
@@ -166,8 +149,7 @@ function _hi_none_unset() {
   local out="$1" v
   for v in "${_HI_GATED_VARS[@]}" _HI_DISABLE_LOCAL _HI_REMOTE_SESSION; do
     printf '%s\n' "$out" | grep -qxF "$v=UNSET" && {
-      _hi_cecho " | $v is still unset" "$RED"
-      return 1
+      _hi_because "$v is still unset" || return 1
     }
   done
   return 0
@@ -323,25 +305,21 @@ function _hi_full_overlay_dir() {
 # resolves to the overlay's copy, with none to the tree's - never to the
 # export.
 function test_an_exported_path_does_not_survive() {
-  local dir i var want
+  local dir i var want got
   dir="$(_hi_full_overlay_dir)"
   rm -f "$dir/settings.sh"
   for i in "${!_HI_OVERLAY_PATH_VARS[@]}"; do
     var="${_HI_OVERLAY_PATH_VARS[i]}"
     # shellcheck disable=SC2016 # ${!1} is the child bash's to expand, not ours
-    [ "$(HOME="$(_hi_bare_home)" _HI_XDG_CONFIG="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$dir" env "$var=/anywhere/hi-$i" bash -c \
-      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
-      _hi_cecho " | $var kept an exported path over the overlay's copy" "$RED"
-      return 1
-    }
+    got="$(HOME="$(_hi_bare_home)" _HI_XDG_CONFIG="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$dir" env "$var=/anywhere/hi-$i" bash -c \
+      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")"
+    [ "$got" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || _hi_because "$var kept an exported path over the overlay's copy: $got" || return 1
     want="$_HI_ROOT/config/${_HI_OVERLAY_PATH_FILES[i]}"
     [ -f "$want" ] || want=""
     # shellcheck disable=SC2016 # same again, against no overlay at all
-    [ "$(HOME="$(_hi_bare_home)" _HI_XDG_CONFIG="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" env "$var=/anywhere/hi-$i" bash -c \
-      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$want" ] || {
-      _hi_cecho " | $var kept an exported path over the tree's copy" "$RED"
-      return 1
-    }
+    got="$(HOME="$(_hi_bare_home)" _HI_XDG_CONFIG="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" env "$var=/anywhere/hi-$i" bash -c \
+      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")"
+    [ "$got" = "$want" ] || _hi_because "$var kept an exported path over the tree's copy: $got" || return 1
   done
 }
 
@@ -358,15 +336,13 @@ function test_a_settings_path_does_not_survive() {
 # with nothing exported, the overlay's copy wins over the tree's, which is the
 # behaviour every install has
 function test_unset_still_prefers_the_overlay() {
-  local dir i var
+  local dir i var got
   dir="$(_hi_full_overlay_dir)"
   rm -f "$dir/settings.sh"
   for i in "${!_HI_OVERLAY_PATH_VARS[@]}"; do
     var="${_HI_OVERLAY_PATH_VARS[i]}"
-    [ "$(_hi_resolved "$var" "$dir")" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
-      _hi_cecho " | $var did not resolve to the overlay" "$RED"
-      return 1
-    }
+    got="$(_hi_resolved "$var" "$dir")"
+    [ "$got" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || _hi_because "$var did not resolve to the overlay: $got" || return 1
   done
 }
 
@@ -386,10 +362,7 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
     _HI_CONFIG_DIR="$1" bash -c '"'"'
       source "$_HI_HOME/say-hi/common/core.sh"
       printf "%s\n%s" "$_HI_COLORS" "$_HI_PACKAGES"'"'"'' _ "$second")"
-  [ "$out" = "$second/colors"$'\n'"$_HI_ROOT/config/packages" ] || {
-    _hi_cecho " | re-resolved to [$out], not the second overlay" "$RED"
-    return 1
-  }
+  [ "$out" = "$second/colors"$'\n'"$_HI_ROOT/config/packages" ] || _hi_because "re-resolved to [$out], not the second overlay"
 }
 
 # Every overlay file hi ships (pack.sh's _HI_OVERLAY_FILES and the plugins
@@ -417,10 +390,7 @@ function test_overlay_guards_match_the_roster() {
       ;;
     bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | kak/colors/ | bin/ | ssh_tags) continue ;;
     esac
-    grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
-      _hi_cecho " | overlay file $f has no overlay lookup in paths.sh" "$RED"
-      return 1
-    }
+    grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || _hi_because "overlay file $f has no overlay lookup in paths.sh" || return 1
   done <<<"$roster"
 }
 

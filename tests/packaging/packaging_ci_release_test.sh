@@ -50,10 +50,7 @@ function test_release_requires_green_ci_before_build() {
   local gate build
   gate="$(_hi_wf_job "$_HI_RELEASE_WF" gate)"
   build="$(_hi_wf_job "$_HI_RELEASE_WF" build)"
-  [ -n "$gate" ] || {
-    _hi_cecho " | release.yml has no gate job" "$RED"
-    return 1
-  }
+  [ -n "$gate" ] || _hi_because "release.yml has no gate job" || return 1
   [[ "$gate" != *"    needs:"* ]] &&
     [[ "$gate" == *"environment: \${{ github.event_name == 'workflow_dispatch' && 'manual-dispatch' || '' }}"* ]] &&
     [[ "$gate" == *"actions: read"* ]] &&
@@ -83,8 +80,7 @@ function test_upgrade_path_goes_red_on_a_restored_load_guard() {
   cp -R "$d/prev/." "$d/new/"
   if ! grep -qx 'unset _hi_core_loaded' "$d/new/common/bash.sh" ||
     ! grep -qF '"$_HI_ROOT/config/colors"' "$d/new/common/paths.sh"; then
-    _hi_cecho " | bash.sh's unset or paths.sh's config/colors line moved; this case needs both" "$RED"
-    return 1
+    _hi_because "bash.sh's unset or paths.sh's config/colors line moved; this case needs both" || return 1
   fi
   mv "$d/new/config/colors" "$d/new/config/colors.moved"
   sed 's#"$_HI_ROOT/config/colors"#"$_HI_ROOT/config/colors.moved"#' "$d/prev/common/paths.sh" >"$d/new/common/paths.sh"
@@ -157,23 +153,17 @@ function test_release_signing_keys_are_read_under_the_release_environment() {
 # pass actionlint runs reports a file it was never told where to find.
 # shellcheck disable=SC2016 # matching the workflows' literal source text
 function test_release_assets_go_through_the_helper() {
-  local publish attach wf n
+  local publish attach wf n got
   [ -f "$_HI_ROOT/.github/scripts/gh_asset.sh" ] || _hi_why || return 1
   publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   attach="$(_hi_wf_job "$_HI_DEMOS_WF" attach)"
-  [[ "$publish" != *'gh release upload'* && "$attach" != *'gh release upload'* ]] || {
-    _hi_cecho " | a workflow still attaches its assets as one gh release upload list" "$RED"
-    return 1
-  }
+  [[ "$publish" != *'gh release upload'* && "$attach" != *'gh release upload'* ]] || _hi_because "a workflow still attaches its assets as one gh release upload list" || return 1
   [[ "$publish" == *'_ci_upload_assets "$GITHUB_REF_NAME" "${files[@]}"'* ]] &&
     [[ "$attach" == *'_ci_upload_assets "$TAG" "$RUNNER_TEMP/demo.gif"'* ]] || _hi_why publish attach || return 1
   for wf in "$_HI_RELEASE_WF" "$_HI_DEMOS_WF"; do
     n="$(grep -c '^ *source \.github/scripts/gh_asset\.sh$' "$wf")"
-    [ "$n" -gt 0 ] &&
-      [ "$n" = "$(grep -c '^ *# shellcheck source=\.github/scripts/gh_asset\.sh$' "$wf")" ] || {
-      _hi_cecho " | ${wf##*/} sources gh_asset.sh without the shellcheck directive above it" "$RED"
-      return 1
-    }
+    got="$(grep -c '^ *# shellcheck source=\.github/scripts/gh_asset\.sh$' "$wf")"
+    [ "$n" -gt 0 ] && [ "$n" = "$got" ] || _hi_because "${wf##*/} sources gh_asset.sh without the shellcheck directive above it ($n sources, $got directives)" || return 1
   done
 }
 
@@ -336,9 +326,7 @@ EOF
 # ...and nothing at all when no PR wrote one: the titles then stand alone
 function test_release_notes_are_silent_without_a_note() {
   local dir="$_HI_WORKDIR/relnotes-none" out
-  mkdir -p "$dir/bin"
-  printf '#!/usr/bin/env bash\nprintf "no section\\n"\n' >"$dir/bin/gh"
-  chmod +x "$dir/bin/gh"
+  _hi_script "$dir/bin/gh" '#!/usr/bin/env bash' 'printf "no section\n"'
   printf '* x in https://github.com/o/r/pull/1\n' >"$dir/notes.md"
   out="$(PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/scripts/release_notes.sh" o/r "$dir/notes.md")"
   [ -z "$out" ] || _hi_why out
@@ -355,18 +343,14 @@ function test_release_workflow_only_runs_on_tags() {
 function test_release_minisign_pubkey_sed_matches_packaging_md() {
   local prog key
   prog="$(sed -n 's/.*sed -n "\(s\/^minisign[^"]*\)".*/\1/p' "$_HI_RELEASE_WF" | head -1)"
-  [ -n "$prog" ] || {
-    _hi_cecho " | could not extract the pubkey sed program from release.yml" "$RED"
-    return 1
-  }
+  [ -n "$prog" ] || _hi_because "could not extract the pubkey sed program from release.yml" || return 1
   key="$(sed -n "$prog" "$_HI_ROOT/docs/PACKAGING.md" | head -1)"
   # a minisign public key: 56 chars of base64 starting RW; anything else
   # means the PACKAGING.md line moved or reflowed out from under the sed
   case "$key" in
   RW[A-Za-z0-9+/=]*) [ "${#key}" -eq 56 ] ;;
   *)
-    _hi_cecho " | the workflow's sed read [$key] out of docs/PACKAGING.md" "$RED"
-    return 1
+    _hi_because "the workflow's sed read [$key] out of docs/PACKAGING.md" || return 1
     ;;
   esac
 }
@@ -518,10 +502,7 @@ function test_write_checksums_lists_the_artifacts() {
     _HI_DIST="$d"
     write_checksums >/dev/null 2>&1
   ) || _hi_why d _HI_PKG_DIR || return 1
-  [ -f "$d/ARTIFACTS" ] || {
-    _hi_cecho " | write_checksums wrote no ARTIFACTS" "$RED"
-    return 1
-  }
+  [ -f "$d/ARTIFACTS" ] || _hi_because "write_checksums wrote no ARTIFACTS" || return 1
   # every built file, plus SHA256SUMS, basenames only - and nothing else
   diff <(sort "$d/ARTIFACTS") \
     <(printf '%s\n' say-hi-1.0.0.apk say-hi-1.0.0.x86_64.rpm say-hi_1.0.0_amd64.deb SHA256SUMS | sort) ||
@@ -594,10 +575,7 @@ function test_write_checksums_ships_the_source_tarball() {
     write_checksums >/dev/null 2>&1
   ) || _hi_why d _HI_PKG_DIR || return 1
   # copied in beside the packages, listed, and summed
-  [ -f "$d/say-hi-1.0.0.tar.gz" ] || {
-    _hi_cecho " | the source tarball was not copied into the outdir" "$RED"
-    return 1
-  }
+  [ -f "$d/say-hi-1.0.0.tar.gz" ] || _hi_because "the source tarball was not copied into the outdir" || return 1
   diff <(sort "$d/ARTIFACTS") \
     <(printf '%s\n' say-hi-1.0.0.apk say-hi-1.0.0.tar.gz say-hi-1.0.0.x86_64.rpm say-hi_1.0.0_amd64.deb SHA256SUMS | sort) ||
     _hi_why d || return 1

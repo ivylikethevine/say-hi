@@ -264,9 +264,7 @@ _HI_PROF_RAN=0
 for _hi_i in "${!_HI_PROF_NAMES[@]}"; do
   _hi_name="${_HI_PROF_NAMES[_hi_i]}"
   # no names given means all of them; otherwise only the ones asked for
-  if [ "${#_HI_PROF_WANT[@]}" -gt 0 ]; then
-    case " ${_HI_PROF_WANT[*]} " in *" $_hi_name "*) ;; *) continue ;; esac
-  fi
+  [ "${#_HI_PROF_WANT[@]}" -eq 0 ] || _hi_list_has "${_HI_PROF_WANT[*]}" "$_hi_name" || continue
   _HI_PROF_RAN=$((_HI_PROF_RAN + 1))
   # once more on a failure: timep's log post-processing reads its workers'
   # finished-log numbers off a pipe on a timeout, and a number cut in two

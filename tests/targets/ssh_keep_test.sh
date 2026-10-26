@@ -124,14 +124,21 @@ function _hi_keep_state() {
 
 function _hi_keep_is() { [ "$(_hi_keep_state)" = "$1" ]; }
 
-# how many session trees the target holds
-function _hi_keep_trees() {
-  { docker exec "$_HI_KEEPTEST_C" sh -c 'ls -d /tmp/*.hi.* 2>/dev/null' || true; } | awk 'END { print NR }'
+# _hi_keep_count <trees|links|shells> - how many the target holds: session
+# trees, sshd sessions holding a pty, or shells reading hi's session rc, the
+# last two off /proc
+function _hi_keep_count() {
+  # shellcheck disable=SC2016 # the container's sh expands it
+  { docker exec "$_HI_KEEPTEST_C" sh -c 'case $1 in
+      trees) ls -d /tmp/*.hi.* ;;
+      links) grep -ls "hitest@pt[s]" /proc/[0-9]*/cmdline ;;
+      shells) grep -ls "hi[.]rc[.].*/bashrc" /proc/[0-9]*/cmdline ;;
+      esac 2>/dev/null' sh "$1" 2>/dev/null || true; } | awk 'END { print NR }'
 }
 
-function _hi_keep_trees_are() { [ "$(_hi_keep_trees)" = "$1" ]; }
+function _hi_keep_count_is() { [ "$(_hi_keep_count "$1")" = "$2" ]; }
 
-function _hi_keep_gone() { _hi_keep_is "" && _hi_keep_trees_are 0; }
+function _hi_keep_gone() { _hi_keep_is "" && _hi_keep_count_is trees 0; }
 
 # sshd has reaped the session's connection: no process of it is left holding
 # the pty. Read off /proc, since asking zellij for its clients redraws them,
@@ -140,25 +147,10 @@ function _hi_keep_link_gone() {
   ! docker exec "$_HI_KEEPTEST_C" sh -c 'grep -qs "hitest@pt[s]" /proc/[0-9]*/cmdline'
 }
 
-# how many of sshd's sessions on the target hold a pty, off /proc
-function _hi_keep_links() {
-  { docker exec "$_HI_KEEPTEST_C" sh -c 'grep -ls "hitest@pt[s]" /proc/[0-9]*/cmdline' 2>/dev/null || true; } |
-    awk 'END { print NR }'
-}
-
 # a retry is back in: the cut link's session gone, the retry's up, and the
 # kept session attached. Not "detached first": a retry can reattach between
 # two polls, so that state may never be seen.
-function _hi_keep_retried() { _hi_keep_links_are 1 && _hi_keep_is attached; }
-function _hi_keep_links_are() { [ "$(_hi_keep_links)" = "$1" ]; }
-
-# how many shells on the target are reading hi's session rc, off /proc
-function _hi_keep_shells() {
-  { docker exec "$_HI_KEEPTEST_C" sh -c 'grep -ls "hi[.]rc[.].*/bashrc" /proc/[0-9]*/cmdline' 2>/dev/null || true; } |
-    awk 'END { print NR }'
-}
-
-function _hi_keep_shells_are() { [ "$(_hi_keep_shells)" = "$1" ]; }
+function _hi_keep_retried() { _hi_keep_count_is links 1 && _hi_keep_is attached; }
 
 # a pane more in the kept session, opened the way its multiplexer's own key
 # would: on the session's default shell
@@ -316,7 +308,7 @@ function _hi_keep_feed_pane() {
   printf '%s\n' '[ -n "$_HI_SESSION_RC" ] && alias hi >/dev/null && [ -z "${_hi_keep_mark:-}" ] && : >/tmp/keep.pane'
   _hi_keep_await 60 _hi_keep_left keep.pane || return 1
   printf 'exit\n'
-  _hi_keep_await 60 _hi_keep_shells_are 1 || return 1
+  _hi_keep_await 60 _hi_keep_count_is shells 1 || return 1
   _hi_keep_feed_exit "$1" y || return 1
 }
 
@@ -342,7 +334,7 @@ function _hi_keep_feed_lost() {
   # shellcheck disable=SC2016 # the new shell expands it
   printf '%s\n' 'printf "%s\n" "${_hi_keep_mark:-fresh}" >/tmp/keep.back'
   _hi_keep_await 60 _hi_keep_left keep.back || return 1
-  _hi_keep_trees >"$1.trees"
+  _hi_keep_count trees >"$1.trees"
   _hi_keep_feed_exit "$1" y || return 1
 }
 
@@ -362,7 +354,7 @@ function _hi_keep_feed_resume() {
   _hi_keep_await 240 _hi_keep_last "$1" "$_HI_SESSION_LOADED_RE" 'retrying for' || return 1
   printf '%s\n' 'pwd >/tmp/keep.back'
   _hi_keep_await 60 _hi_keep_left keep.back || return 1
-  _hi_keep_trees >"$1.trees"
+  _hi_keep_count trees >"$1.trees"
   printf 'exit\n'
 }
 
@@ -370,7 +362,7 @@ function _hi_keep_feed_resume() {
 # session is up, then `exit`
 function _hi_keep_feed_count() {
   _hi_keep_await 120 _hi_session_ready "$1" || return 1
-  _hi_keep_trees >"$1.trees"
+  _hi_keep_count trees >"$1.trees"
   printf 'exit\n'
 }
 
@@ -391,18 +383,33 @@ function _hi_keep_feed_back() {
   # shellcheck disable=SC2016 # the kept shell expands it
   printf '%s\n' 'printf "%s\n" "$_hi_keep_mark" >/tmp/keep.back'
   _hi_keep_await 60 _hi_keep_left keep.back || return 1
-  _hi_keep_trees >"$1.trees"
+  _hi_keep_count trees >"$1.trees"
   _hi_keep_feed_exit "$1" y || return 1
 }
 
-# _hi_keep_up <label> <transcript> - the session a feeder marked is there:
-# kept, under hi's name, attached, on one tree
-function _hi_keep_up() {
+# _hi_keep_came_up <label> <transcript> - the feeder marked its session up
+function _hi_keep_came_up() {
   _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
-    _hi_keep_fail "$1" "the session never came up" "$2" || return 1
-  _hi_poll_bool 40 0.5 _hi_keep_is attached ||
+    _hi_keep_fail "$1" "the session never came up" "$2"
+}
+
+# _hi_keep_up <label> <transcript> - the session a feeder marked is there:
+# kept, under hi's name, attached where a multiplexer keeps it, on one tree
+function _hi_keep_up() {
+  _hi_keep_came_up "$1" "$2" || return 1
+  [ -z "$_HI_KEEPTEST_MUX" ] || _hi_poll_bool 40 0.5 _hi_keep_is attached ||
     _hi_keep_fail "$1" "no $_HI_KEEPTEST_MUX session named $_HI_KEEP_SESSION holds it" "$2" || return 1
-  _hi_keep_trees_are 1 || _hi_keep_fail "$1" "$(_hi_keep_trees) session trees, not 1"
+  _hi_keep_count_is trees 1 || _hi_keep_fail "$1" "$(_hi_keep_count trees) session trees, not 1"
+}
+
+# _hi_keep_back <label> <transcript> <keep.back> <not that shell> <a tree of
+# its own> [left behind] - a later connect's shell wrote <keep.back> and
+# counted one tree, and its exit closed the session and the tree; each step
+# that fails says the why given for it
+function _hi_keep_back() {
+  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.back 2>/dev/null)" = "$3" ] || _hi_keep_fail "$1" "$4" "$2" || return 1
+  [ "$(cat "$2.trees" 2>/dev/null)" = 1 ] || _hi_keep_fail "$1" "$5" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_gone || _hi_keep_fail "$1" "${6:-exit and y left the session or its tree}" "$2"
 }
 
 # _hi_keep_ended <label> <transcript> <budget_s> <what never happened> - the
@@ -434,7 +441,7 @@ function _hi_keep_drop() {
     _hi_keep_fail "$label" "sshd never reaped the frozen connection" "$out" || return 1
   _hi_poll_bool 40 0.5 _hi_keep_is detached ||
     _hi_keep_fail "$label" "the session did not outlive its connection" "$out" || return 1
-  _hi_keep_trees_are 1 || _hi_keep_fail "$label" "the dropped connection took the session's tree" || return 1
+  _hi_keep_count_is trees 1 || _hi_keep_fail "$label" "the dropped connection took the session's tree" || return 1
   _hi_thaw_frozen
   _hi_wait_pid "$_HI_KEEPTEST_PID" 10
   _HI_KEEPTEST_PID=""
@@ -443,12 +450,8 @@ function _hi_keep_drop() {
   _hi_ssh_launch "$_HI_SSH_PORT"
   _hi_keep_typed "$out.back" _hi_keep_feed_back "${_HI_SSH_LAUNCH_BARE[@]}"
   _hi_keep_ended "$label" "$out.back" 240 "the reattached session never closed" || return 1
-  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.back 2>/dev/null)" = owner ] ||
-    _hi_keep_fail "$label" "the next connect was not back in the kept shell" "$out.back" || return 1
-  [ "$(cat "$out.back.trees" 2>/dev/null)" = 1 ] ||
-    _hi_keep_fail "$label" "reattaching unpacked a tree of its own" || return 1
-  _hi_poll_bool 40 0.5 _hi_keep_gone ||
-    _hi_keep_fail "$label" "exit and y left the session or its tree" "$out.back"
+  _hi_keep_back "$label" "$out.back" owner "the next connect was not back in the kept shell" \
+    "reattaching unpacked a tree of its own"
 }
 
 function _hi_keep_end() {
@@ -459,7 +462,7 @@ function _hi_keep_end() {
   grep -q 'detached, the session on .* is kept' "$out" ||
     _hi_keep_fail "$label" "detaching did not say the session is kept" "$out" || return 1
   _hi_keep_is detached || _hi_keep_fail "$label" "exit and n closed the session" "$out" || return 1
-  _hi_keep_trees_are 1 || _hi_keep_fail "$label" "exit and n took the session's tree" || return 1
+  _hi_keep_count_is trees 1 || _hi_keep_fail "$label" "exit and n took the session's tree" || return 1
 
   _hi_ssh_launch "$_HI_SSH_PORT" --end
   said="$("${_HI_SSH_LAUNCH_BARE[@]}" </dev/null 2>&1)" || rc=$?
@@ -506,17 +509,13 @@ function _hi_keep_inside() {
   grep -q 'detached, the session on .* is kept' "$out" ||
     _hi_keep_fail "$label" "detaching did not say the session is kept" "$out" || return 1
   _hi_keep_is detached || _hi_keep_fail "$label" "the kept session went with the one it was typed in" "$out" || return 1
-  _hi_keep_trees_are 1 || _hi_keep_fail "$label" "$(_hi_keep_trees) session trees, not the one the two share" || return 1
+  _hi_keep_count_is trees 1 || _hi_keep_fail "$label" "$(_hi_keep_count trees) session trees, not the one the two share" || return 1
 
   _hi_ssh_launch "$_HI_SSH_PORT"
   _hi_keep_typed "$out.back" _hi_keep_feed_back "${_HI_SSH_LAUNCH_BARE[@]}"
   _hi_keep_ended "$label" "$out.back" 240 "the reattached session never closed" || return 1
-  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.back 2>/dev/null)" = owner ] ||
-    _hi_keep_fail "$label" "the next connect was not in the kept shell" "$out.back" || return 1
-  [ "$(cat "$out.back.trees" 2>/dev/null)" = 1 ] ||
-    _hi_keep_fail "$label" "reattaching unpacked a tree of its own" || return 1
-  _hi_poll_bool 40 0.5 _hi_keep_gone ||
-    _hi_keep_fail "$label" "exit and y left the session or its tree" "$out.back"
+  _hi_keep_back "$label" "$out.back" owner "the next connect was not in the kept shell" \
+    "reattaching unpacked a tree of its own"
 }
 
 # the multiplexer's own name typed bare where `hi --keep` was: the same
@@ -532,8 +531,8 @@ function _hi_keep_pane() {
   _hi_keep_typed "$out" _hi_keep_feed_pane "${_HI_SSH_LAUNCH_BARE[@]}"
   _hi_keep_up "$label" "$out" || return 1
   _hi_keep_new_pane >/dev/null 2>&1 || _hi_keep_fail "$label" "$_HI_KEEPTEST_MUX would not open a pane" "$out" || return 1
-  _hi_poll_bool 40 0.5 _hi_keep_shells_are 2 ||
-    _hi_keep_fail "$label" "$(_hi_keep_shells) shells on hi's rc with a second pane open, not 2" "$out" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_count_is shells 2 ||
+    _hi_keep_fail "$label" "$(_hi_keep_count shells) shells on hi's rc with a second pane open, not 2" "$out" || return 1
   : >"$out.go"
   _hi_keep_ended "$label" "$out" 240 "the session never closed" || return 1
   _hi_keep_left keep.pane ||
@@ -556,7 +555,7 @@ function _hi_keep_dead() {
   docker exec -u hitest "$_HI_KEEPTEST_C" sh -c 'kill -9 -1' || true
   _hi_poll_bool 40 0.5 _hi_keep_is "" ||
     _hi_keep_fail "$label" "the session outlived its processes" || return 1
-  _hi_keep_trees_are 1 || _hi_keep_fail "$label" "$(_hi_keep_trees) trees after the kill, not the one it leaves" || return 1
+  _hi_keep_count_is trees 1 || _hi_keep_fail "$label" "$(_hi_keep_count trees) trees after the kill, not the one it leaves" || return 1
 
   _hi_ssh_launch "$_HI_SSH_PORT"
   _hi_keep_typed "$out.next" _hi_keep_feed_count "${_HI_SSH_LAUNCH_BARE[@]}"
@@ -589,12 +588,7 @@ function _hi_keep_retry() {
   _hi_keep_ended "$label" "$out" 240 "the retried session never closed" || return 1
   grep -q 'lost \[.*retrying for' "$out" ||
     _hi_keep_fail "$label" "the dropped connect did not say it was retrying" "$out" || return 1
-  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.back 2>/dev/null)" = owner ] ||
-    _hi_keep_fail "$label" "the retry was not back in the kept shell" "$out" || return 1
-  [ "$(cat "$out.trees" 2>/dev/null)" = 1 ] ||
-    _hi_keep_fail "$label" "the retry unpacked a tree of its own" || return 1
-  _hi_poll_bool 40 0.5 _hi_keep_gone ||
-    _hi_keep_fail "$label" "exit and y left the session or its tree" "$out"
+  _hi_keep_back "$label" "$out" owner "the retry was not back in the kept shell" "the retry unpacked a tree of its own"
 }
 
 function _hi_keep_lost() {
@@ -624,9 +618,7 @@ function _hi_keep_held() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
   _hi_ssh_launch "$_HI_SSH_PORT" --keep
   _hi_keep_typed "$out" _hi_keep_feed_resume "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
-    _hi_keep_fail "$label" "the session never came up" "$out" || return 1
-  _hi_keep_trees_are 1 || _hi_keep_fail "$label" "$(_hi_keep_trees) session trees, not 1" || return 1
+  _hi_keep_up "$label" "$out" || return 1
 
   _hi_keep_cut_link || _hi_keep_fail "$label" "no connection to cut" "$out" || return 1
   _hi_keep_ended "$label" "$out" 240 "the retried session never closed" || return 1
@@ -634,12 +626,8 @@ function _hi_keep_held() {
     _hi_keep_fail "$label" "the dropped connect did not say it was retrying" "$out" || return 1
   grep -q 'Resumed' "$out" ||
     _hi_keep_fail "$label" "the retry's header does not say it resumed" "$out" || return 1
-  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.back 2>/dev/null)" = "$_HI_KEEPTEST_DIR" ] ||
-    _hi_keep_fail "$label" "the retry's shell is not where the first one stood" "$out" || return 1
-  [ "$(cat "$out.trees" 2>/dev/null)" = 1 ] ||
-    _hi_keep_fail "$label" "the retry unpacked a tree of its own" || return 1
-  _hi_poll_bool 40 0.5 _hi_keep_gone ||
-    _hi_keep_fail "$label" "exit left the tree" "$out"
+  _hi_keep_back "$label" "$out" "$_HI_KEEPTEST_DIR" "the retry's shell is not where the first one stood" \
+    "the retry unpacked a tree of its own" "exit left the tree"
 }
 
 # ...and with no retry, the tree is there past the drop and gone once its
@@ -651,13 +639,12 @@ function _hi_keep_expired() {
   printf 'export _HI_HOLD_TIMEOUT=%s\nexport _HI_WATCH_STEP=%s\n' "$_HI_KEEPTEST_LIMIT" "$_HI_KEEPTEST_STEP" >"$_HI_CONFIG_DIR/settings.sh"
   _hi_ssh_launch "$_HI_SSH_PORT" --keep
   _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
-    _hi_keep_fail "$label" "the session never came up" "$out" || return 1
+  _hi_keep_came_up "$label" "$out" || return 1
 
   _hi_keep_cut_link || _hi_keep_fail "$label" "no connection to cut" "$out" || return 1
   _hi_keep_ended "$label" "$out" 120 "the dropped connect never ended" || return 1
-  _hi_keep_trees_are 1 ||
-    _hi_keep_fail "$label" "the drop took the tree: $(_hi_keep_trees) left" "$out" || return 1
+  _hi_keep_count_is trees 1 ||
+    _hi_keep_fail "$label" "the drop took the tree: $(_hi_keep_count trees) left" "$out" || return 1
   _hi_poll_bool 200 0.5 _hi_keep_gone ||
     _hi_keep_fail "$label" "the tree outlived its ${_HI_KEEPTEST_LIMIT}s window" "$out"
 }
@@ -692,9 +679,7 @@ function _hi_keep_killed() {
   printf 'export _HI_WATCH_STEP=%s\n' "$_HI_KEEPTEST_STEP" >"$_HI_CONFIG_DIR/settings.sh"
   _hi_ssh_launch "$_HI_SSH_PORT"
   _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
-    _hi_keep_fail "$label" "the session never came up" "$out" || return 1
-  _hi_keep_trees_are 1 || _hi_keep_fail "$label" "$(_hi_keep_trees) session trees, not 1" || return 1
+  _hi_keep_up "$label" "$out" || return 1
 
   _hi_keep_kill_session ||
     _hi_keep_fail "$label" "no claim, shell, or bootstrap of the session's to kill" "$out" || return 1
@@ -710,14 +695,13 @@ function _hi_keep_orphan() {
   local -x _HI_KEEP_RETRY=0
   _hi_ssh_launch "$_HI_SSH_PORT"
   _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
-    _hi_keep_fail "$label" "the session never came up" "$out" || return 1
+  _hi_keep_came_up "$label" "$out" || return 1
 
   docker exec "$_HI_KEEPTEST_C" sh -c 'test -s /tmp/*.hi.*/say-hi/hi.pid' ||
     _hi_keep_fail "$label" "the session left no claim to find it dead by" "$out" || return 1
   docker exec -u hitest "$_HI_KEEPTEST_C" sh -c 'kill -9 -1' || true
   _hi_keep_ended "$label" "$out" 120 "the killed session's connect never ended" || return 1
-  _hi_keep_trees_are 1 || _hi_keep_fail "$label" "$(_hi_keep_trees) trees after the kill, not the one it leaves" || return 1
+  _hi_keep_count_is trees 1 || _hi_keep_fail "$label" "$(_hi_keep_count trees) trees after the kill, not the one it leaves" || return 1
 
   _hi_ssh_launch "$_HI_SSH_PORT"
   _hi_keep_typed "$out.next" _hi_keep_feed_count "${_HI_SSH_LAUNCH_BARE[@]}"

@@ -319,9 +319,9 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
 
 - [ ] **The session starts once the core files land** — on a fresh
       connection a script past about 45 KB costs two extra round trips over
-      a small one, and one under 40 KB costs one (`scratch/wire_rtt.sh`,
-      150 ms added); the unarmored script is about 64 KB, while the tree a
-      bash session needs to start is a fraction of what ships: without
+      a small one, and one under 40 KB costs one (at 150 ms added); the
+      unarmored script is about 64 KB, while the tree a bash session needs
+      to start is a fraction of what ships: without
       `hi.sh`, the completion files, the fish and zsh files, and `keep.sh`,
       it is 29.4 KB gzipped against 56.6 KB, a script of about 35 KB.
       **Do:** the core members first on the boot call's stdin and the rest
@@ -350,9 +350,9 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
 - [ ] **The target side measured on a slow box** — the header and unpack
       took 17 ms on this machine (16CPU/60GB, measured while the payload was
       still armored), which says nothing about a Raspberry Pi or a busy VM.
-      **Do:** `scratch/connect_lag.sh`'s cells on a Pi-class target. **Ticks
-      when:** this entry holds the figure, and an entry exists for whatever
-      costs more than the network does.
+      **Do:** time a cold connect's target side on a Pi-class target.
+      **Ticks when:** this entry holds the figure, and an entry exists for
+      whatever costs more than the network does.
 
 - [ ] **`git describe` runs once per commit, not per connect** — a clone
       stamps the header's version with it on every connect, about 5 ms, which

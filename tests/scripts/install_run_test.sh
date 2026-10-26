@@ -120,10 +120,7 @@ function test_install_copies_no_default_into_the_overlay() {
   out="$(_hi_run_install_here ovl-mode --link none --yes 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"Installed!"* ]] || _hi_why rc out || return 1
   for f in colors packages vim nvim nano emacs; do
-    [ ! -e "$ovl/$f" ] || {
-      _hi_cecho " | $f was copied into the overlay" "$RED"
-      return 1
-    }
+    [ ! -e "$ovl/$f" ] || _hi_because "$f was copied into the overlay" || return 1
   done
   [ ! -d "$ovl/.git" ] || _hi_why ovl
 }
@@ -604,10 +601,7 @@ function test_a_switch_outside_its_mode_is_refused() {
 function _hi_mode_help_is_its_own() {
   local mode="$1" usage="$2" phrase="$3" out rc=0
   out="$(_HI_ARGV0="hi --$mode" bash "$_HI_ROOT/scripts/install.sh" "--$mode" --help)" || rc=$?
-  [ "$rc" -eq 0 ] || {
-    _hi_cecho " | hi --$mode --help exited $rc" "$RED"
-    return 1
-  }
+  [ "$rc" -eq 0 ] || _hi_because "hi --$mode --help exited $rc" || return 1
   [[ "$out" == "$usage"* && "$out" == *"$phrase"* && "$out" != *"Wires up"* ]] || {
     _hi_cecho " | hi --$mode --help was:" "$RED"
     printf '%s\n' "$out" | sed 's/^/      /'

@@ -276,9 +276,7 @@ function test_hi_header_launches_probes_for_a_backend_word() {
 function test_draw_width_reads_columns_then_tput_under_a_tty() {
   local dir out
   dir="$_HI_WORKDIR/drawwidth"
-  mkdir -p "$dir"
-  printf '#!/bin/sh\n[ "$1" = cols ] && echo 50\n' >"$dir/tput"
-  chmod +x "$dir/tput"
+  _hi_script "$dir/tput" '#!/bin/sh' '[ "$1" = cols ] && echo 50'
   out="$(env _HI_HOME="$_HI_HOME" PATH="$dir:$PATH" "${_HI_PTY_FORCED[@]}" bash -c '
     source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_HEADER"
@@ -300,8 +298,7 @@ function test_probe_launch_takes_podman_when_docker_is_absent() {
   dir="$_HI_WORKDIR/podman-only"
   [ -d "$dir" ] || _hi_probe_shims "$dir" runningbox
   rm -f "$dir/docker" "$dir/nomad" "$dir/kubectl"
-  printf '#!/bin/sh\necho abc123\n' >"$dir/podman"
-  chmod +x "$dir/podman"
+  _hi_script "$dir/podman" '#!/bin/sh' 'echo abc123'
   out="$(
     PATH="$dir:$(_hi_identity_path)"
     _HI_PROBE_DIR=""
@@ -321,8 +318,7 @@ function test_probe_launch_skips_a_backend_switched_off() {
   dir="$_HI_WORKDIR/podman-off"
   [ -d "$dir" ] || _hi_probe_shims "$dir" runningbox
   rm -f "$dir/docker" "$dir/nomad" "$dir/kubectl"
-  printf '#!/bin/sh\necho abc123\n' >"$dir/podman"
-  chmod +x "$dir/podman"
+  _hi_script "$dir/podman" '#!/bin/sh' 'echo abc123'
   out="$(
     PATH="$dir:$(_hi_identity_path)"
     _HI_PROBE_DIR=""

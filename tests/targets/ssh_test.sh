@@ -178,22 +178,22 @@ function run_ssh_tests() {
 
   _HI_TEST_MARKER="HI_SSH_TEST_OK"
 
-  # see the registration in the bash32 block below for why this exists; the
-  # find runs inside the container so the file list and the parser agree on
-  # what a path is. The tree's own files only: the coverage drivers' reports
-  # (coverage.yml writes them into the checkout) hold kcov's *.sh entries,
-  # which resolve on the runner and not in here - the lint scans skip the same
+  # see the registration in the bash32 block below for why this exists. The
+  # lint scans' file list (_hi_lint_find) less local/, relative, as arguments
+  # to the container's loop, so nothing depends on how a filename quotes
   function test_bash32_parses_every_file() {
-    docker run --rm -v "$_HI_HOME/say-hi":/w:ro bash:3.2 bash -c '
+    local -a files=()
+    _hi_read_lines files < <(_hi_lint_find -name '*.sh' -not -path "$_HI_ROOT/local/*")
+    # shellcheck disable=SC2016 # $f and $@ belong to the bash inside the container
+    docker run --rm -v "$_HI_ROOT":/w:ro bash:3.2 bash -c '
       rc=0
-      for f in $(find /w -name "*.sh" -not -path "*/.git/*" -not -path "*/node_modules/*" \
-        -not -path "/w/dist/*" -not -path "/w/coverage-report/*" -not -path "/w/coverage-v2-report/*" -not -path "/w/local/*"); do
-        out=$(bash -n "$f" 2>&1) || {
+      for f in "$@"; do
+        out=$(bash -n "/w/$f" 2>&1) || {
           printf "%s\n%s\n" "$f" "$out"
           rc=1
         }
       done
-      exit $rc'
+      exit $rc' bash "${files[@]#"$_HI_ROOT"/}"
   }
 
   _hi_pty_stdin auto

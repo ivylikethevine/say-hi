@@ -54,17 +54,8 @@ function test_payload_ships_everything_by_default() {
   local dir="$_HI_WORKDIR/notrim" listing
   mkdir -p "$dir"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/config/colors*) ;; *)
-    _hi_cecho " | a default client did not ship config/colors" "$RED"
-    return 1
-    ;;
-  esac
-  case "$listing" in *say-hi/config/packages*) ;; *)
-    _hi_cecho " | a default client did not ship config/packages" "$RED"
-    return 1
-    ;;
-  esac
-  return 0
+  [[ "$listing" == *say-hi/config/colors* ]] || _hi_because "a default client did not ship config/colors" || return 1
+  [[ "$listing" == *say-hi/config/packages* ]] || _hi_because "a default client did not ship config/packages"
 }
 
 # No toggle changes what ships: every one of them on at once still ships the
@@ -79,9 +70,8 @@ function test_payload_always_ships_aliases() {
     printf "export %s='1'\n" "$t" >>"$dir/settings.sh"
   done
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/common/aliases.sh*) return 0 ;; esac
-  _hi_cecho " | every toggle off dropped common/aliases.sh, which carries the whole alias set" "$RED"
-  return 1
+  [[ "$listing" == *say-hi/common/aliases.sh* ]] ||
+    _hi_because "every toggle off dropped common/aliases.sh, which carries the whole alias set"
 }
 
 # starship's, eza's, and bat's configs ride from where each tool reads them
@@ -91,15 +81,13 @@ function test_payload_always_ships_aliases() {
 
 # _hi_tool_home_unpacked <overlay> [NAME=value...] - _hi_overlay_tar's stream
 # unpacked into a fresh directory, which is printed. HOME and XDG_CONFIG_HOME
-# point at a fixture home and the tools' own variables start unset, so the
-# developer's real configs never answer.
+# point at a fixture home and the tools' own variables start unset (the
+# harness clears them), so the developer's real configs never answer.
 function _hi_tool_home_unpacked() {
   local dir="$1" d
   shift
   d="$(mktemp -d "$_HI_WORKDIR/toolhome.XXXXXX")" || return 1
   (
-    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME POSH_CONFIG POSH_THEME INPUTRC \
-      RIPGREP_CONFIG_PATH FZF_DEFAULT_OPTS_FILE LG_CONFIG_FILE
     export HOME="$_HI_WORKDIR/tool-home" XDG_CONFIG_HOME="$_HI_WORKDIR/tool-home/.config" \
       _HI_PROMPT_TOOL=starship _HI_CONFIG_DIR="$dir" ${1+"$@"}
     _hi_overlay_tar | tar -x -z -f - -C "$d"
@@ -131,15 +119,9 @@ function _hi_fw_home_fixture() {
 # every member (so a rename can't quietly ship an empty payload).
 function test_payload_ships_exactly_the_travelled_paths() {
   local m
-  [ "${_HI_PAYLOAD[*]}" = "common config load.sh hi.sh" ] || {
-    _hi_cecho " | payload list changed: ${_HI_PAYLOAD[*]} - update this guard deliberately" "$RED"
-    return 1
-  }
+  [ "${_HI_PAYLOAD[*]}" = "common config load.sh hi.sh" ] || _hi_because "payload list changed: ${_HI_PAYLOAD[*]} - update this guard deliberately" || return 1
   for m in "${_HI_PAYLOAD[@]}"; do
-    [ -e "$_HI_ROOT/$m" ] || {
-      _hi_cecho " | payload member missing from the tree: $m" "$RED"
-      return 1
-    }
+    [ -e "$_HI_ROOT/$m" ] || _hi_because "payload member missing from the tree: $m" || return 1
   done
 }
 
@@ -194,18 +176,11 @@ function test_overlay_is_well_under_one_block() {
 
 # tar shimmed to bsdtar for the duration of one call: same libarchive macOS's
 # /usr/bin/tar is built on, so this reproduces the client the bug belonged to
-# without a macOS runner.
+# without a macOS runner. An exec wrapper, which every filesystem runs.
 function _hi_bsdtar_shim() {
   local shim="$_HI_WORKDIR/bsdtar-shim" real
   real="$(command -v bsdtar 2>/dev/null)" || return 1
-  mkdir -p "$shim"
-  # a link where the filesystem makes them, an exec wrapper where it does not -
-  # _hi_real_path's rule, for the same reason (tests/lib/fixtures.sh)
-  ln -sf "$real" "$shim/tar" 2>/dev/null || :
-  [ -e "$shim/tar" ] || {
-    printf '%s\n' '#!/bin/sh' "exec \"$real\" \"\$@\"" >"$shim/tar"
-    chmod +x "$shim/tar"
-  }
+  _hi_script "$shim/tar" '#!/bin/sh' "exec \"$real\" \"\$@\""
   printf '%s' "$shim"
 }
 
@@ -280,10 +255,7 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   printf 'set ruler\n' >"$dir/nano.rc"
   _hi_read_lines members < <(_HI_CONFIG_DIR="$dir" _hi_overlay_files)
   _hi_payload_excl "${members[@]}"
-  [ "${payload_excl[*]}" = "say-hi/config/colors say-hi/config/packages" ] || {
-    _hi_cecho " | cut: [${payload_excl[*]}]" "$RED"
-    return 1
-  }
+  [ "${payload_excl[*]}" = "say-hi/config/colors say-hi/config/packages" ] || _hi_because "cut: [${payload_excl[*]}]" || return 1
   listing="$(_hi_payload_tar | tar tzf -)"
   [[ "$listing" != *config/colors* && "$listing" != *config/packages* ]] &&
     [[ "$listing" == *common/aliases.sh* ]] || _hi_why listing || return 1
@@ -381,10 +353,8 @@ function test_a_prompt_loader_rides_only_where_handed() {
 function test_the_shadow_roster_matches_paths_sh() {
   local f
   for f in $_HI_OVERLAY_SHADOWS; do
-    if ! [ -e "$_HI_ROOT/config/$f" ] || ! grep -q "^\[ -[fd] \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh"; then
-      _hi_cecho " | $f is in _HI_OVERLAY_SHADOWS without a tree default and an overlay guard in paths.sh" "$RED"
-      return 1
-    fi
+    [ -e "$_HI_ROOT/config/$f" ] && grep -q "^\[ -[fd] \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" ||
+      _hi_because "$f is in _HI_OVERLAY_SHADOWS without a tree default and an overlay guard in paths.sh" || return 1
   done
   for f in "$_HI_ROOT"/config/*; do
     case "${f##*/}" in aliases.sh | plugins) continue ;; esac
@@ -392,8 +362,9 @@ function test_the_shadow_roster_matches_paths_sh() {
   done || _hi_why -6 f _HI_OVERLAY_SHADOWS
 }
 
+# _hi_strip_unpack <name> - the payload unpacked, once a suite
 function _hi_strip_unpack() {
-  local dir="$_HI_WORKDIR/$1"
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/$1"
   [ -d "$dir" ] || {
     mkdir -p "$dir"
     _hi_payload_tar | tar -x -z -f - -C "$dir"
@@ -485,19 +456,10 @@ function test_strip_trims_whitespace_outside_heredocs() {
   local dir n
   dir="$(_hi_strip_unpack stripped)"
   n="$(grep -c '^[[:space:]]*$' "$dir/say-hi/common/core.sh" || true)"
-  [ "$n" -eq 0 ] || {
-    _hi_cecho " | core.sh kept $n blank line(s) through the strip" "$RED"
-    return 1
-  }
+  [ "$n" -eq 0 ] || _hi_because "core.sh kept $n blank line(s) through the strip" || return 1
   n="$(grep -c '^[[:space:]]' "$dir/say-hi/common/core.sh" || true)"
-  [ "$n" -eq 0 ] || {
-    _hi_cecho " | core.sh kept $n indented line(s) through the strip" "$RED"
-    return 1
-  }
-  grep -q '^      mkdir "\\\$_HI_ROOT"$' "$dir/say-hi/hi.sh" || {
-    _hi_cecho " | a heredoc body lost its indentation through the strip" "$RED"
-    return 1
-  }
+  [ "$n" -eq 0 ] || _hi_because "core.sh kept $n indented line(s) through the strip" || return 1
+  grep -q '^      mkdir "\\\$_HI_ROOT"$' "$dir/say-hi/hi.sh" || _hi_because "a heredoc body lost its indentation through the strip"
 }
 
 function test_strip_leaves_valid_shell() {
@@ -546,9 +508,10 @@ function test_a_read_only_tree_packs_and_unpacks_writable() {
 # A session's tree is the payload unpacked: no scripts/, so no packer, and
 # its hi.sh relays the tree as it stands. The fixture is one hop's tree, the
 # way a session leaves it: the bootloader beside the payload, and an include
-# the client carried, fixed up to this hop's path.
+# the client carried, fixed up to this hop's path. Built once a suite; a case
+# that writes into it takes a copy.
 function _hi_session_tree() {
-  local dir="$_HI_WORKDIR/session"
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/session"
   [ -d "$dir" ] || {
     mkdir -p "$dir"
     _hi_payload_tar | tar -x -z -f - -C "$dir"
@@ -589,11 +552,9 @@ function test_keep_off_keeps_both_its_files_home() {
 # sourced load.sh, which runs `hi <target> <cmd>` and starts the session's
 # shell, and the directory is last on its $PATH
 function test_a_session_runs_the_overlay_s_bin_by_name() {
-  local dir out
-  dir="$(_hi_session_tree)"
-  mkdir -p "$dir/say-hi/config/bin"
-  printf '#!/bin/sh\necho ran-mine\n' >"$dir/say-hi/config/bin/hi-test-mine"
-  chmod +x "$dir/say-hi/config/bin/hi-test-mine"
+  local dir="$_HI_WORKDIR/own-session" out
+  cp -R "$(_hi_session_tree)" "$dir" || _hi_why dir || return 1
+  _hi_script "$dir/say-hi/config/bin/hi-test-mine" '#!/bin/sh' 'echo ran-mine'
   out="$(env _HI_HOME="$dir" _HI_CONFIG_DIR="$dir/say-hi/config" \
     bash -c 'source "$_HI_HOME/say-hi/load.sh" && hi-test-mine && printf "%s\n" "${PATH##*:}"' 2>&1)" ||
     _hi_because "the session's shell: $out" || return 1
@@ -701,13 +662,7 @@ function test_strip_keeps_every_data_line() {
 # isolates the branch choice from whether this box's tar can gzip on its own.
 function test_tar_gz_falls_back_to_tars_own_z_without_gzip() {
   local bin="$_HI_WORKDIR/nogzip.bin" log="$_HI_WORKDIR/nogzip.tar.log"
-  mkdir -p "$bin"
-  cat >"$bin/tar" <<SHIM
-#!/bin/sh
-echo "\$*" >"$log"
-exit 0
-SHIM
-  chmod +x "$bin/tar"
+  _hi_script "$bin/tar" '#!/bin/sh' "echo \"\$*\" >\"$log\"" 'exit 0'
   PATH="$bin" _hi_tar_gz somefile >/dev/null 2>&1 || _hi_why bin || return 1
   case "$(cat "$log")" in '-c -z -f'*) ;; *) return 1 ;; esac || _hi_why bin log
 }
@@ -719,15 +674,12 @@ SHIM
 function test_can_gzip_reads_the_tar_it_has() {
   local bin="$_HI_WORKDIR/cangzip.bin" real
   real="$(type -P tar)"
-  mkdir -p "$bin"
-  printf '%s\n' '#!/bin/sh' 'exit 0' >"$bin/tar"
-  chmod +x "$bin/tar"
+  _hi_script "$bin/tar" '#!/bin/sh' 'exit 0'
   PATH="$bin" _hi_can_gzip || _hi_why bin || return 1
   printf '%s\n' '#!/bin/sh' 'exit 1' >"$bin/tar"
   PATH="$bin" _hi_can_gzip && return 1
   # gzip present: the answer is yes whatever that tar says
-  printf '%s\n' '#!/bin/sh' 'exit 0' >"$bin/gzip"
-  chmod +x "$bin/gzip"
+  _hi_script "$bin/gzip" '#!/bin/sh' 'exit 0'
   PATH="$bin" _hi_can_gzip || _hi_why bin || return 1
   [ -n "$real" ] || _hi_why real
 }
