@@ -128,8 +128,6 @@ _site/
 !.moxide.toml
 # lychee's link-check config, read by ci.yml and link-check.yml
 !lychee.toml
-# the development tools at CI's pins, read by mise and the drift lint
-!mise.toml
 # the advisories Scorecard's Vulnerabilities check skips in package-lock.json
 !.github/osv-scanner.toml
 # the REUSE licensing data, which the blanket *.toml and *.txt above would swallow
