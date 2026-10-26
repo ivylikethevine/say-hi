@@ -1,31 +1,23 @@
-# The README demo, as a script instead of a stale recording: render with
-# `vhs docs/tapes/demo.tape` (https://github.com/charmbracelet/vhs) from the
-# repo root, with docker running and hi installed on PATH. Regenerate whenever
-# the header or prompt changes. Not rendered in CI - docs/tapes/demo.gif is a
-# manual artifact, reviewed by eye before committing.
+# The README's top GIF: the pitch as a task. A web host's site answers 502,
+# and the box is one its on-call engineer never set up: `hi web-prod`, and
+# her own aliases are there (`site`, `errs`, `restart`, from the overlay's
+# aliases.sh), and so is her vimrc, under `sudo vim` too. She reads the error
+# log, fixes the upstream port in the nginx config, restarts nginx through
+# systemd, and the site answers 200. Render with docs/tapes/generate.sh (see
+# docs/RELEASING.md), with docker running. Not rendered in CI -
+# docs/tapes/demo.gif is a manual artifact, reviewed by eye before committing.
 #
-# The pitch in one frame: your shell follows you. Every other tape turns a knob
-# (docs/tapes/fixtures.sh writes each one a settings.sh); this is the shot that
-# shows the shipped defaults with everything on, so it must stay stock to mean
-# anything - but for the two lines its settings.sh sets: the tool aliases,
-# and `hi` as the prompt, so a prompt program on the renderer draws at
-# neither end.
-# What it *uses* is the point, not what it connects to: the header
-# says what the box is missing, the prompt carries the git segment inside a
-# checkout on the target, `cat` falls through to the bat the box happens to
-# have, and the target's /tmp - hi's tree in it while the session runs,
-# nothing once it ends - proves the session took its files with it.
-#
-# The target is the `tools` debian docs/tapes/fixtures.sh builds
-# (tests/dockerfiles/demo-debian.Dockerfile), the same box packages.tape and
-# editors.tape use, so the top of the README cannot drift from the set below.
+# Everything on screen is real: the box (tests/dockerfiles/demo-web.Dockerfile,
+# docs/tapes/fixtures.sh's up:demo) runs systemd as init and nginx under it,
+# the 502 is nginx's own for an upstream on the wrong port, and `restart` is
+# `systemctl restart`. Stock settings but for the prompt, `hi` at both ends,
+# and the sudo alias that keeps the vimrc under sudo.
 #
 # The Hide block paces itself with Wait+Screen on sentinel text instead of
 # fixed sleeps; the quoted split in fixture-o''k keeps the typed command from
 # matching its own sentinel. Visible sleeps are reading time only. The exit
 # waits on /Disconnected/, which banner() prints, rather than load.sh's own
-# last line: the teardown reliably beats vhs's scrape to that line and the
-# wait times out, on every backend and not only nomad's.
+# last line: the teardown reliably beats vhs's scrape to that line.
 
 Output docs/tapes/demo.gif
 
@@ -37,7 +29,7 @@ Require docker
 Hide
 Type "docs/tapes/fixtures.sh up demo >/tmp/hi-demo.log 2>&1 && echo fixture-o''k"
 Enter
-Wait+Screen@180s /fixture-ok/
+Wait+Screen@240s /fixture-ok/
 Type "source /tmp/hi-demo/clientrc.bash"
 Enter
 # stand in a throwaway $HOME: the client prompt then reads ~ rather than the
@@ -49,31 +41,45 @@ Enter
 Show
 
 Sleep 500ms
-Type "hi db-prod"
+Type "hi web-prod"
 Enter
 Wait+Screen@60s /hi loaded:/
-Sleep 3s
+Sleep 2s
 
-# a checkout on the target: the git segment, then `cat` through the box's bat
-Type "cd ~/app && cat main.py"
+Type "site"
+Type@5ms "   # my alias, on a box I never set up"
+Enter
+Wait+Screen@15s /502/
+Sleep 2s
+
+Type "errs"
 Enter
 Sleep 4s
 
-# `echo` and not `ls`: the tool aliases make `ls` the list ladder's
-Type "echo /tmp/*"
-Type@5ms "   # hi's tree, for this session only"
+Type "sudo vim /etc/nginx/sites-enabled/app"
+Type@5ms "   # my vimrc, as root"
 Enter
+Sleep 3s
+Type ":%s/8081/8080/"
+Enter
+Sleep 2s
+Type ":wq"
+Enter
+Sleep 1s
+
+Type "restart"
+Enter
+Wait+Screen@30s /active/
+Sleep 1s
+
+Type "site"
+Enter
+Wait+Screen@15s /200 OK/
 Sleep 3s
 
 Type "exit"
 Enter
 Wait+Screen@30s /Disconnected/
-Sleep 1s
-
-# the proof, from outside: hi's tree on the target is gone with the session
-Type "docker exec db-prod sh -c 'ls -A /tmp | wc -l'"
-Type@5ms "   # files hi left behind"
-Enter
-Sleep 4s
+Sleep 3s
 
 # No in-tape cleanup: run `docs/tapes/fixtures.sh down` after rendering.

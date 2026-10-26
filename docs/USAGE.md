@@ -73,7 +73,7 @@ No image: what it does shows in a session, not in output of its own.
 
 `hi --keep`: keep the session on the target through a dropped link. Works in a session too.
 
-It changes how a connect runs, which [the README's demo](../README.md#survive-a-dropped-link) shows.
+It changes how a connect runs, which [the tour's story](TOUR.md#survive-a-dropped-link) shows.
 
 ### `hi --no-keep`
 

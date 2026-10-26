@@ -226,15 +226,18 @@ function test_prerelease_tags_reach_no_channel() {
   [ "$bad" = 0 ] || _hi_why bad
 }
 
-# The release page's "What changed" list is each PR's `## Release note`
-# section: the template carries the section (a roster line), the publish job
-# runs the extractor over the generated notes with the permission that needs,
-# and the extractor's grammar holds - the section to the next heading,
-# comments and `none` as nothing, a body without the section as nothing.
+# The release page's "What changed" list is the tag's CHANGELOG.md entry,
+# and, for a tag with none, each PR's `## Release note` section: the publish
+# job asks changelog.sh for the entry first, then runs the extractor over the
+# generated notes with the permission that needs, and the extractor's grammar
+# holds - the section to the next heading, comments and `none` as nothing, a
+# body without the section as nothing.
 function test_release_workflow_publishes_release_notes() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
-  [[ "$job" == *"release_notes.sh"* ]] && [[ "$job" == *"pull-requests: read"* ]] || _hi_why job
+  # shellcheck disable=SC2016 # the workflow's own text, matched literally
+  [[ "$job" == *'changelog.sh --entry "${GITHUB_REF_NAME#v}"'* ]] && [[ "$job" == *"release_notes.sh"* ]] &&
+    [[ "$job" == *"pull-requests: read"* ]] || _hi_why job
 }
 
 # The body opens with the tag's own figures as static shields badges: three
@@ -681,7 +684,7 @@ function test_src_tarball_ships_an_executable_hi_sh() {
 
 # _hi_changelog_run <dir> <args...> - changelog.sh over <dir>/CHANGELOG.md, a
 # copy of this tree's header alone, with a stand-in gh: PR 12 says something
-# (a backslash in it), PR 13 says none, and PR 14, still open, something else
+# (a backslash in it), PR 13 says none
 function _hi_changelog_run() {
   local dir="$1"
   shift
@@ -694,7 +697,6 @@ case "$*" in
 *generate-notes*) printf '* a by @x in https://github.com/o/r/pull/12\n* b by @x in https://github.com/o/r/pull/13\n' ;;
 *pulls/12*) printf '## Release note\n\nhi keeps your prompt, a \\ and all.\n' ;;
 *pulls/13*) printf '## Release note\n\nnone\n' ;;
-*pulls/14*) printf '## Release note\n\nhi says hello sooner.\n' ;;
 *) exit 1 ;;
 esac
 EOF
@@ -716,36 +718,36 @@ function test_changelog_writes_one_entry_a_version() {
   [ -n "$got" ] || _hi_because "CHANGELOG.md ends on a blank line"
 }
 
-# an open pull request named after the version joins the entry, after the
-# merged ones, so the entry can ride that PR's merge; a word that is no PR
-# number is refused before anything is written
-function test_changelog_takes_the_open_pr_s_note() {
-  local dir="$_HI_WORKDIR/changelog-p" got
-  _hi_changelog_run "$dir" o/r 1.0.0 14 >/dev/null || _hi_why dir || return 1
-  got="$(grep -E '^- ' "$dir/CHANGELOG.md")"
-  [ "$got" = $'- hi keeps your prompt, a \\ and all. (#12)\n- hi says hello sooner. (#14)' ] ||
-    _hi_because "the entry reads: $got" || return 1
-  ! got="$(_hi_changelog_run "$dir" o/r 1.1.0 dev 2>&1)" && [[ "$got" == *"'dev' is not a pull request number"* ]] ||
-    _hi_because "a non-number was taken: $got"
-}
-
-# the roadmap's finished items wait under `## Unreleased`, which no tag
-# passes, and land at the foot of the next version's entry, the section
-# gone; a rewrite of that version keeps them, and the next version starts
-# with none
-function test_changelog_folds_the_roadmap_s_finished_items_in() {
+# what waits under `## Unreleased`, which no tag passes, lands in the next
+# version's entry, the section gone: its own bullets beside the merged PRs'
+# notes, the roadmap's finished items at the foot; a rewrite of that version
+# keeps both, and the next version starts with neither
+function test_changelog_folds_the_unreleased_items_in() {
   local dir="$_HI_WORKDIR/changelog-r" got
   _hi_changelog_run "$dir" --check 0.0.1 || _hi_why dir || return 1
-  printf '\n## Unreleased\n\nFrom the roadmap:\n\n- One thing was done.\n- Another was too.\n' >>"$dir/CHANGELOG.md"
+  printf '\n## Unreleased\n\n- hi says hello sooner.\n\nFrom the roadmap:\n\n- One thing was done.\n- Another was too.\n' >>"$dir/CHANGELOG.md"
   ! got="$(_hi_changelog_run "$dir" --check 1.0.0 2>&1)" && [[ "$got" == *"still holds a ## Unreleased section"* ]] ||
     _hi_because "a tag passed with items still unfolded: $got" || return 1
   { _hi_changelog_run "$dir" o/r 1.0.0 && _hi_changelog_run "$dir" o/r 1.0.0 &&
     _hi_changelog_run "$dir" o/r 1.1.0 && _hi_changelog_run "$dir" --check 1.1.0; } >/dev/null || _hi_why dir || return 1
   got="$(grep -E '^## |^- |^From' "$dir/CHANGELOG.md" | sed 's/ - [0-9-]*$//')"
-  [ "$got" = $'## 1.1.0\n- hi keeps your prompt, a \\ and all. (#12)\n## 1.0.0\n- hi keeps your prompt, a \\ and all. (#12)\nFrom the roadmap:\n- One thing was done.\n- Another was too.' ] ||
+  [ "$got" = $'## 1.1.0\n- hi keeps your prompt, a \\ and all. (#12)\n## 1.0.0\n- hi keeps your prompt, a \\ and all. (#12)\n- hi says hello sooner.\nFrom the roadmap:\n- One thing was done.\n- Another was too.' ] ||
     _hi_because "the entries read: $got" || return 1
   got="$(tail -n 1 "$dir/CHANGELOG.md")"
   [ -n "$got" ] || _hi_because "CHANGELOG.md ends on a blank line"
+}
+
+# --entry prints a version's entry as the release body's "What changed", its
+# date line gone and its inner blank lines kept; a prerelease's is the version
+# it leads to, and a version with no entry is nothing
+function test_changelog_entry_is_the_release_body_s_what_changed() {
+  local dir="$_HI_WORKDIR/changelog-e" got
+  mkdir -p "$dir"
+  printf '# Changelog\n\n## 1.1.0 - 2026-01-02\n\n- b\n\nFrom the roadmap:\n\n- c\n\n## 1.0.0 - 2026-01-01\n\n- a\n' >"$dir/CHANGELOG.md"
+  got="$(HI_CHANGELOG="$dir/CHANGELOG.md" bash "$_HI_ROOT/.github/scripts/changelog.sh" --entry 1.1.0-rc.1)"
+  [ "$got" = $'## What changed\n\n- b\n\nFrom the roadmap:\n\n- c' ] || _hi_why got || return 1
+  got="$(HI_CHANGELOG="$dir/CHANGELOG.md" bash "$_HI_ROOT/.github/scripts/changelog.sh" --entry 2.0.0)"
+  [ -z "$got" ] || _hi_why got
 }
 
 # --check holds a tag to the top entry: its own version, the version a
@@ -799,7 +801,7 @@ function run_packaging_ci_release_tests() {
   _hi_check "A prerelease tag is marked as one" test_release_workflow_marks_prerelease_tags
   _hi_check "...and reaches no channel, never refreshes Pages" test_prerelease_tags_reach_no_channel
   _hi_check "The PR template carries a release-note section" grep -q '^## Release note' "$_HI_PR_TEMPLATE"
-  _hi_check "publish runs release_notes.sh with pull-requests: read" test_release_workflow_publishes_release_notes
+  _hi_check "publish takes the changelog entry, release_notes.sh where none" test_release_workflow_publishes_release_notes
   _hi_check "publish freezes the tag's badges into the body" test_release_body_carries_frozen_badges
   _hi_check "release_notes.sh --extract takes the section" test_release_note_extract_takes_the_section
   _hi_check "release_notes.sh --extract treats none as empty" test_release_note_extract_treats_none_as_empty
@@ -826,9 +828,9 @@ function run_packaging_ci_release_tests() {
   _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
   _hi_check "src_tarball ships an executable hi.sh, and CHANGELOG.md" test_src_tarball_ships_an_executable_hi_sh
   _hi_check "changelog.sh writes one entry a version, newest first" test_changelog_writes_one_entry_a_version
-  _hi_check "changelog.sh folds the roadmap's finished items into the next entry" test_changelog_folds_the_roadmap_s_finished_items_in
-  _hi_check "changelog.sh takes an open pull request's note" test_changelog_takes_the_open_pr_s_note
+  _hi_check "changelog.sh folds what waits under Unreleased into the next entry" test_changelog_folds_the_unreleased_items_in
   _hi_check "changelog.sh --check holds a tag to the top entry" test_changelog_check_holds_the_tag_to_the_top_entry
+  _hi_check "changelog.sh --entry is the release body's What changed" test_changelog_entry_is_the_release_body_s_what_changed
   _hi_check "the gate runs changelog.sh --check" test_release_gate_checks_the_changelog
   _hi_check "publish's minisign-pubkey sed still reads the key" test_release_minisign_pubkey_sed_matches_packaging_md
   _hi_check "every workflow chained off CI carries the green-push gate" test_ci_chained_workflows_carry_the_green_push_gate

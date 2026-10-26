@@ -125,13 +125,12 @@ it): `packaging/srctar.sh` writes a `git archive --prefix say-hi-<version>/`
 of the tag, and that one file is what `bump.sh` checksums, what `mkpkg.sh`
 lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
 
-1. `.github/scripts/changelog.sh ivylikethevine/say-hi 1.0.0 <pr>` writes the
+1. On `dev`, before the release's pull request is pushed:
+   `.github/scripts/changelog.sh ivylikethevine/say-hi 1.0.0` writes the
    release's `CHANGELOG.md` entry from the PRs merged since the last tag and
-   the open `dev` → `main` pull request `<pr>`, and folds in the roadmap's
-   finished items waiting under `## Unreleased`. Run it on `dev` just before
-   that merge, read the entry, commit it to the PR, and merge: the entry rides
-   the merge, and the merge commit is the one to tag. Without `<pr>` it lists
-   the merged PRs alone, for an entry merged on its own. Then
+   everything waiting under `## Unreleased`, the sentences of the work that
+   pull request carries among it. Read it, commit it, and push: the PR's CI
+   covers the entry, and its merge commit is the one to tag. Then
    `git tag -s v1.0.0 -m v1.0.0 && git push origin v1.0.0` — `release.yml`
    starts.
 2. The `gate` job refuses a tag that is not `vX.Y.Z` or `vX.Y.Z-<pre>`, whose
@@ -196,14 +195,15 @@ you have, and it downloads the published asset only when neither is available
 (during a release the asset does not exist yet). `bump.sh --check 1.0.0`
 confirms the manifests match a cut release.
 
-**Release notes are the PRs' `## Release note` sections.** `CHANGELOG.md`
-holds the same list, written before the tag (step 1) so the source tarball
-carries it; the release body is built afresh from the PRs. `publish` asks
-GitHub's `releases/generate-notes` endpoint for the PRs merged since the last
-tag, and `.github/scripts/release_notes.sh` puts each one's section (the pull
-request template's) into a "What changed" list at the top of the body, above
-the generated titles and the
-[verification checklist](PACKAGING.md#verifying-a-release-download). A section
+**Release notes are the tag's `CHANGELOG.md` entry.** It is written before
+the tag (step 1) so the source tarball carries it, and the release body's
+"What changed" is the same entry, so the two never disagree; a debug tag
+with no entry falls back to the PRs' `## Release note` sections. Either way
+the list sits at the top of the body, above the generated titles of the PRs
+merged since the last tag (`releases/generate-notes`) and the
+[verification checklist](PACKAGING.md#verifying-a-release-download); for the
+fallback, `.github/scripts/release_notes.sh` reads each of those PRs'
+sections (the pull request template's). A section
 reading `none` contributes nothing; a release with no notes falls back to the
 titles. `release-note.yml` (the `release note (pr body)` check, re-run on each
 body edit) fails any non-draft PR, `dev` → `main` included and only

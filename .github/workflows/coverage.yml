@@ -426,7 +426,9 @@ jobs:
       !cancelled() && needs.reuse.outputs.sweep_kcov == 'true' && needs.shard-kcov.result == 'success' &&
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-26.04
-    timeout-minutes: 15
+    # a merge takes a minute at most, so a runner that stalls (a harden-runner
+    # setup that never returns) is cut off at five, not left to fifteen
+    timeout-minutes: 5
     concurrency:
       group: coverage-kcov-gather-${{ github.event.pull_request.number || 'main' }}
       cancel-in-progress: true
@@ -520,7 +522,9 @@ jobs:
       !cancelled() && needs.reuse.outputs.sweep == 'true' && needs.shard-bashcov.result == 'success' &&
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-26.04
-    timeout-minutes: 15
+    # a merge takes a minute at most, so a runner that stalls (a harden-runner
+    # setup that never returns) is cut off at five, not left to fifteen
+    timeout-minutes: 5
     concurrency:
       group: coverage-bashcov-gather-${{ github.event.pull_request.number || 'main' }}
       cancel-in-progress: true

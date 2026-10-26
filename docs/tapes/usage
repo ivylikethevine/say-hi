@@ -7,7 +7,7 @@
 # <example> is the words after the flag, one space apart (no quoting, no
 # expansion); empty runs the bare flag, and `-` shows no image - a connect
 # modifier, or a command whose output is the network's - and `-#<anchor>` none
-# either, linking README.md's demo at <anchor>.
+# either, linking docs/TOUR.md's story at <anchor>.
 # <setup> is a hi command run first, unseen, in the same throwaway home.
 # docs/tapes/usage.sh renders each example as usage-<flag>[-<n>].svg, <n>
 # counting a flag's second row and on.

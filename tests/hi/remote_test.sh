@@ -172,6 +172,58 @@ function test_remote_preamble_exports_the_version() {
 
 # ...and so does the client's glyph verdict: the glyphs render in the
 # client's terminal, so the target must not re-probe its own locale
+# _hi_lc_run <locales> <env...> - _hi_locale_probe under sh, a stand-in
+# `locale -a` listing <locales> (empty: no `locale` at all), the env pairs
+# set, and what it left: "<_HI_ASCII> <LC_CTYPE>"
+function _hi_lc_run() {
+  local list="$1" dir="$_HI_WORKDIR/lc.$RANDOM"
+  shift
+  mkdir -p "$dir"
+  [ -z "$list" ] || printf '#!/bin/sh\nprintf "%%s\\n" %s\n' "$list" >"$dir/locale"
+  [ -z "$list" ] || chmod +x "$dir/locale"
+  env -u LC_ALL -u LC_CTYPE -u LANG -u _HI_CLIENT_LOCALE PATH="$dir:$PATH" "$@" \
+    sh -c "$(_hi_locale_probe)"'
+      printf "%s %s" "${_HI_ASCII:-}" "${LC_CTYPE:-}"'
+}
+
+# the target's half of the glyph decision: a session locale the target has
+# stands; one it lacks takes the client's, then C.UTF-8, as LC_CTYPE; none
+# installed, or an LC_ALL of the user's that is no UTF-8 one, is ASCII; a
+# target with no `locale`, or a client already in ASCII, is left alone
+function test_locale_probe_finds_a_utf8_locale_or_ascii() {
+  local a b c d e f g
+  a="$(_hi_lc_run "C C.utf8 en_US.utf8" _HI_ASCII=0 LANG=en_US.UTF-8)"
+  b="$(_hi_lc_run "C C.utf8" _HI_ASCII=0 LANG=en_US.UTF-8)"
+  c="$(_hi_lc_run "C POSIX" _HI_ASCII=0 LANG=en_US.UTF-8)"
+  d="$(_hi_lc_run "C C.utf8" _HI_ASCII=0 LC_ALL=C)"
+  e="$(_hi_lc_run "C C.utf8 de_DE.utf8" _HI_ASCII=0 _HI_CLIENT_LOCALE=de_DE.UTF-8)"
+  f="$(_hi_lc_run "" _HI_ASCII=0 LANG=en_US.UTF-8)"
+  g="$(_hi_lc_run "C POSIX" _HI_ASCII=1)"
+  [ "$a|$b|$c|$d|$e|$f|$g" = "0 |0 C.UTF-8|1 |1 |0 de_DE.UTF-8|0 |1 " ] || _hi_why a b c d e f g
+}
+
+# a TERM the preamble swapped comes back with the client's entry compiled
+# into the session tree, where the target has `tic`, and stays swapped where
+# it has none
+function test_terminfo_line_puts_the_client_term_back() {
+  local root="$_HI_WORKDIR/ti" line got found nottic
+  command -v infocmp >/dev/null 2>&1 && command -v tic >/dev/null 2>&1 && infocmp -x xterm-kitty >/dev/null 2>&1 ||
+    return 0
+  mkdir -p "$root"
+  TERM=xterm-kitty _hi_terminfo_line line
+  [ -n "$line" ] || _hi_because "no line for an xterm-kitty client" || return 1
+  got="$(env _HI_ROOT="$root" TERM=xterm-256color sh -c '_hi_ti_was=xterm-kitty; '"$line"'
+    printf "%s %s" "$TERM" "${TERMINFO_DIRS:-}"')"
+  found="$(find "$root/terminfo" -name xterm-kitty 2>/dev/null)"
+  { [ "$got" = "xterm-kitty $root/terminfo:" ] && [ -n "$found" ]; } || _hi_why got found || return 1
+  nottic="$(_hi_real_path nottic base64 openssl tr mkdir)"
+  got="$(env _HI_ROOT="$root.none" TERM=xterm-256color PATH="$nottic" "$(command -v sh)" -c '_hi_ti_was=xterm-kitty; '"$line"'
+    printf "%s" "$TERM"')"
+  [ "$got" = xterm-256color ] || _hi_why got || return 1
+  TERM=xterm-256color _hi_terminfo_line line
+  [ -z "$line" ] || _hi_because "a line for a TERM every target knows: $line"
+}
+
 function test_remote_preamble_ships_the_glyph_verdict() {
   local got got2
   got="$(DOMAIN=host _HI_ASCII=1 _hi_remote_preamble)"
@@ -206,7 +258,12 @@ function test_session_env_carries_the_editor_names() {
     printf '%s\n' "$out" | grep -qx "$(printf '_HI_CLIENT_VISUAL\thx')" || _hi_why out || return 1
   # shellcheck disable=SC2016 # the literal text is the point
   out="$(DOMAIN=host EDITOR='$(true)' VISUAL='' _hi_session_env)"
-  [[ "$out" != *_HI_CLIENT_* ]] || _hi_why out
+  [[ "$out" != *_HI_CLIENT_EDITOR* && "$out" != *_HI_CLIENT_VISUAL* ]] || _hi_why out || return 1
+  # ...and the client's locale, a UTF-8 one alone, for the target's probe
+  out="$(DOMAIN=host LC_ALL='' LC_CTYPE='' LANG=de_DE.UTF-8 _hi_session_env)"
+  printf '%s\n' "$out" | grep -qx "$(printf '_HI_CLIENT_LOCALE\tde_DE.UTF-8')" || _hi_why out || return 1
+  out="$(DOMAIN=host LC_ALL='' LC_CTYPE='' LANG=C _hi_session_env)"
+  [[ "$out" != *_HI_CLIENT_LOCALE* ]] || _hi_why out
 }
 
 # Every value the preamble exports is data the client picked up rather than
@@ -545,9 +602,11 @@ function run_hi_remote_tests() {
   _hi_check "Candid with no stamp and no git" test_version_is_candid_without_stamp_or_git
   _hi_check "The preamble exports it" test_remote_preamble_exports_the_version
   _hi_check "The preamble ships the glyph verdict" test_remote_preamble_ships_the_glyph_verdict
+  _hi_check "...and finds a UTF-8 locale on the target, or says ASCII" test_locale_probe_finds_a_utf8_locale_or_ascii
+  _hi_check "A swapped TERM comes back with the client's terminfo, where tic is" test_terminfo_line_puts_the_client_term_back
   _hi_check "The preamble ships the truecolor verdict" test_remote_preamble_ships_the_truecolor_verdict
   _hi_check "user@host exports the host's tag" test_session_env_tags_a_user_at_host_target
-  _hi_check "\$EDITOR and \$VISUAL ride by name alone" test_session_env_carries_the_editor_names
+  _hi_check "\$EDITOR and \$VISUAL ride by name alone, and a UTF-8 locale by its" test_session_env_carries_the_editor_names
 
   _hi_h2 "Testing: what the client bakes in stays data"
   _hi_check_eq "A hostile hostname survives the ssh preamble" "$_HI_MEAN" _hi_preamble_env_value _HI_LOCAL_HOSTNAME
