@@ -173,10 +173,11 @@ function _hi_bg_ok() {
 # the `<&3` contract below is stated once. $_HI_SSH_CASE_PREFIX names the
 # containers, so two suites running at once cannot collide on one.
 #
-# Two more knobs ride in the environment rather than the argument list, since
-# one case in one suite wants them and every other call site would carry two
-# empty slots: $_HI_SSH_RUN_ARGS is word-split into `docker run` ahead of the
-# image (`--cpus 0.1 --memory 64m`, say), and $_HI_SSH_SHAPE_CMD is run inside
+# Three more knobs ride in the environment rather than the argument list,
+# since one case in one suite wants each and every other call site would
+# carry empty slots: $_HI_SSH_RUN_ARGS is word-split into `docker run` ahead
+# of the image (`--cpus 0.1 --memory 64m`, say), $_HI_SSH_LAUNCH_OPTS into
+# hi's ssh options, and $_HI_SSH_SHAPE_CMD is run inside
 # the container, as root, once sshd answers and before the session starts -
 # after, so the reachability poll is not itself made against the shaped link.
 # A shaping command that fails is a failed case: a starved target that was
@@ -205,7 +206,8 @@ function _hi_ssh_run_case() {
   fi
 
   _hi_cecho " | Running: $_HI_LAUNCHER -p $_HI_SSH_PORT hitest@127.0.0.1 $cmd"
-  _hi_ssh_launch "$_HI_SSH_PORT"
+  # shellcheck disable=SC2086 # the launch opts are a flag list, split on purpose
+  _hi_ssh_launch "$_HI_SSH_PORT" ${_HI_SSH_LAUNCH_OPTS:-}
   # Backgrounded and waited on rather than a bare command substitution: a
   # target that never returns has to fail this case, not hang the suite. A
   # one-line mistake in the fallback rc left the `nobash` case sitting in a

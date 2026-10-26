@@ -200,11 +200,16 @@ function _hi_overlay_tar() {
 # overlay's path as the tree's cache is on its own: two overlays of the same
 # members share the runtime dir, and staleness is only "no file newer than
 # the cache", so one keyed by its list alone was served the other's files.
-# Hashed, not spelled out, to keep the cache filename short.
+# Hashed, not spelled out, to keep the cache filename short. `-v <outvar>`
+# fills it rather than printing it, the connect's way, with no subshell.
 function _hi_overlay_cache_key() {
-  local _hi_ok_w
+  local _hi_ok_w _hi_ok_out=""
+  if [ "${1:-}" = -v ]; then
+    _hi_ok_out="$2"
+    shift 2
+  fi
   _hi_overlay_wiring _hi_ok_w "$@"
-  _hi_hash "${_HI_CONFIG_DIR:-}|$*$_hi_ok_w"
+  _hi_hash "${_HI_CONFIG_DIR:-}|$*$_hi_ok_w" "$_hi_ok_out"
 }
 
 # _hi_cached <outvar> <tag> <key> <builder> <watch...> - one cache, two
@@ -255,7 +260,7 @@ function _hi_overlay_cached() {
     _hi_overlay_src "$_hi_oc_f" _hi_oc_src && [ "$_hi_oc_src" != "$_HI_CONFIG_DIR/$_hi_oc_f" ] &&
       cache_also+=("$_hi_oc_src")
   done
-  _hi_oc_key="$(_hi_overlay_cache_key "$@" ${cache_also[@]+"${cache_also[@]}"})"
+  _hi_overlay_cache_key -v _hi_oc_key "$@" ${cache_also[@]+"${cache_also[@]}"}
   _hi_runtime_dir _hi_oc_dir
   if [ -n "$_hi_oc_dir" ]; then
     _hi_carry_list="$_hi_oc_dir/hi.overlay.$_hi_oc_key.carry"

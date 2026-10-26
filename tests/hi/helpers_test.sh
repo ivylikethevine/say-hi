@@ -141,15 +141,20 @@ function test_file_bytes_counts() {
 }
 
 # FNV-1a's published vectors, across the 64-character slice boundary, with an
-# empty PATH: Git for Windows has no cksum, and an empty key merges caches
+# empty PATH: Git for Windows has no cksum, and an empty key merges caches;
+# and the remembered last value answers only its own input, asked twice
 function test_hash_is_fnv1a_in_the_shell() {
-  local ten=0123456789 long a b c d
+  local ten=0123456789 long a b c d e f g
   long="$ten$ten$ten$ten$ten$ten$ten$ten$ten$ten$ten$ten$ten"
   PATH="" _hi_hash "" a
   PATH="" _hi_hash foobar b
   PATH="" _hi_hash "$long" c
   d="$(PATH="" _hi_hash "$long!")"
-  [ "$a $b $c $d" = "2166136261 3214735720 1422867810 3309138041" ] || _hi_why a b c d
+  [ "$a $b $c $d" = "2166136261 3214735720 1422867810 3309138041" ] || _hi_why a b c d || return 1
+  _hi_hash foobar e
+  _hi_hash foobar f
+  _hi_hash "" g
+  [ "$e $f $g" = "$b $b $a" ] || _hi_why e f g
 }
 
 function test_target_color_memoizes_the_domain() {

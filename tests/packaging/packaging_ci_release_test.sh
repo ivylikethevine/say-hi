@@ -681,7 +681,7 @@ function test_src_tarball_ships_an_executable_hi_sh() {
 
 # _hi_changelog_run <dir> <args...> - changelog.sh over <dir>/CHANGELOG.md, a
 # copy of this tree's header alone, with a stand-in gh: PR 12 says something
-# (a backslash in it), PR 13 says none
+# (a backslash in it), PR 13 says none, and PR 14, still open, something else
 function _hi_changelog_run() {
   local dir="$1"
   shift
@@ -694,6 +694,7 @@ case "$*" in
 *generate-notes*) printf '* a by @x in https://github.com/o/r/pull/12\n* b by @x in https://github.com/o/r/pull/13\n' ;;
 *pulls/12*) printf '## Release note\n\nhi keeps your prompt, a \\ and all.\n' ;;
 *pulls/13*) printf '## Release note\n\nnone\n' ;;
+*pulls/14*) printf '## Release note\n\nhi says hello sooner.\n' ;;
 *) exit 1 ;;
 esac
 EOF
@@ -713,6 +714,19 @@ function test_changelog_writes_one_entry_a_version() {
     _hi_because "the entries read: $got" || return 1
   got="$(tail -n 1 "$dir/CHANGELOG.md")"
   [ -n "$got" ] || _hi_because "CHANGELOG.md ends on a blank line"
+}
+
+# an open pull request named after the version joins the entry, after the
+# merged ones, so the entry can ride that PR's merge; a word that is no PR
+# number is refused before anything is written
+function test_changelog_takes_the_open_pr_s_note() {
+  local dir="$_HI_WORKDIR/changelog-p" got
+  _hi_changelog_run "$dir" o/r 1.0.0 14 >/dev/null || _hi_why dir || return 1
+  got="$(grep -E '^- ' "$dir/CHANGELOG.md")"
+  [ "$got" = $'- hi keeps your prompt, a \\ and all. (#12)\n- hi says hello sooner. (#14)' ] ||
+    _hi_because "the entry reads: $got" || return 1
+  ! got="$(_hi_changelog_run "$dir" o/r 1.1.0 dev 2>&1)" && [[ "$got" == *"'dev' is not a pull request number"* ]] ||
+    _hi_because "a non-number was taken: $got"
 }
 
 # the roadmap's finished items wait under `## Unreleased`, which no tag
@@ -813,6 +827,7 @@ function run_packaging_ci_release_tests() {
   _hi_check "src_tarball ships an executable hi.sh, and CHANGELOG.md" test_src_tarball_ships_an_executable_hi_sh
   _hi_check "changelog.sh writes one entry a version, newest first" test_changelog_writes_one_entry_a_version
   _hi_check "changelog.sh folds the roadmap's finished items into the next entry" test_changelog_folds_the_roadmap_s_finished_items_in
+  _hi_check "changelog.sh takes an open pull request's note" test_changelog_takes_the_open_pr_s_note
   _hi_check "changelog.sh --check holds a tag to the top entry" test_changelog_check_holds_the_tag_to_the_top_entry
   _hi_check "the gate runs changelog.sh --check" test_release_gate_checks_the_changelog
   _hi_check "publish's minisign-pubkey sed still reads the key" test_release_minisign_pubkey_sed_matches_packaging_md

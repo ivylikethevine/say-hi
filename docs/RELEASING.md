@@ -125,10 +125,13 @@ it): `packaging/srctar.sh` writes a `git archive --prefix say-hi-<version>/`
 of the tag, and that one file is what `bump.sh` checksums, what `mkpkg.sh`
 lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
 
-1. `.github/scripts/changelog.sh ivylikethevine/say-hi 1.0.0` writes the
-   release's `CHANGELOG.md` entry from the PRs merged since the last tag, and
-   folds in the roadmap's finished items waiting under `## Unreleased`; read
-   it, and merge it to `main` like any change. Then
+1. `.github/scripts/changelog.sh ivylikethevine/say-hi 1.0.0 <pr>` writes the
+   release's `CHANGELOG.md` entry from the PRs merged since the last tag and
+   the open `dev` → `main` pull request `<pr>`, and folds in the roadmap's
+   finished items waiting under `## Unreleased`. Run it on `dev` just before
+   that merge, read the entry, commit it to the PR, and merge: the entry rides
+   the merge, and the merge commit is the one to tag. Without `<pr>` it lists
+   the merged PRs alone, for an entry merged on its own. Then
    `git tag -s v1.0.0 -m v1.0.0 && git push origin v1.0.0` — `release.yml`
    starts.
 2. The `gate` job refuses a tag that is not `vX.Y.Z` or `vX.Y.Z-<pre>`, whose

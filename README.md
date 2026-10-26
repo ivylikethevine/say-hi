@@ -408,48 +408,12 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
 `## Unreleased` section. What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **The default preset leaves this machine alone** — shipped: `balanced`
-      sets `_HI_DISABLE_LOCAL=1` and is a first install's default, its
-      fallback for a name off the roster, and what one with no terminal
-      writes; `everything` stays the shipped defaults, local styling
-      included. `tests/scripts/install_run_test.sh` holds all three.
-      **Ticks when:** the fast group runs green.
-
-- [ ] **`hi --update` verifies by default** — shipped: only a tag signed by a
-      key the checkout trusts moves it, and `_HI_UPDATE_UNSIGNED=1`, which
-      replaces `_HI_UPDATE_SIGNED`, takes an unsigned or unknown one.
-      `tests/scripts/update_test.sh` refuses each by default and takes each
-      under the opt-out. **Ticks when:** that suite has run green on Linux,
-      macOS, and Git Bash.
-
-- [ ] **Every default and preset audited before the tag** —
-      [CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
-      freezes the name and default of all 45 rows of
-      [SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting) and the
-      five presets, and a toggle removal is a 2.0. **Do:** read each row's
-      default as a stranger's first run, with the two entries above as the
-      known changes. **Ticks when:** the 1.0.0 release note lists the defaults
-      that moved, or says none did.
-
-- [ ] **The bootstrap names a missing `tar`** — shipped: the boot probe lists
-      a 64-byte gzipped archive and exits 67 when the target's `tar` cannot,
-      `hi` says "no tar that reads gzip" and hands over the host's session,
-      and `hi --doctor <target>` says the same.
-      `tests/hi/remote_test.sh` and `tests/hi/container_test.sh` hold both
-      halves. **Ticks when:** the fast group and `--group bench` run green,
-      and the payload badge is current.
-
-- [ ] **fish 3.3 lands a fish session** — shipped: the floor is 3.3,
-      Ubuntu 22.04's, through `tests/dockerfiles/fish33.Dockerfile`.
-      `aliases.sh`'s sh-tier lookups are backticks, which fish reads as text,
-      with a `command -v ... | read` rung for fish beside each
-      ([HI.13](docs/GLOSSARY.md#hi13-command--v-fallthrough)), and the
-      re-entry `return` became an `if` around `config.fish`.
-      3.2 has no `--no-config` for the overlay parse gate, and 3.1's `-n`
-      refuses every `export`, so both stay below it
-      ([COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
-      **Ticks when:** the lint group's fish 3.3 floor and fish 4 ceiling, and
-      the fast group, run green.
+- [ ] **The README opens with the pitch** — six persona stories run before
+      _Installation_, 442 lines in all, and a stranger skims. **Do:** ten lines
+      of what hi is, the install, one GIF; the stories move to
+      [GETTING-STARTED.md](docs/GETTING-STARTED.md) or a tour page, their
+      published GIF links unchanged. **Ticks when:** _Installation_ is on the
+      first screen of the rendered README.
 
 - [ ] **The client's terminfo rides** — an unknown `TERM`
       ([HI.22](docs/GLOSSARY.md#hi22-term-fallback-probe)) is swapped for
@@ -469,78 +433,18 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       exists, else ASCII. **Ticks when:** a target with no UTF-8 locale draws
       the header in ASCII, unwrapped, in a case.
 
-- [ ] **The README opens with the pitch** — six persona stories run before
-      _Installation_, 442 lines in all, and a stranger skims. **Do:** ten lines
-      of what hi is, the install, one GIF; the stories move to
-      [GETTING-STARTED.md](docs/GETTING-STARTED.md) or a tour page, their
-      published GIF links unchanged. **Ticks when:** _Installation_ is on the
-      first screen of the rendered README.
-
-- [ ] **A `CHANGELOG.md` ships in the tarball** — shipped:
-      `.github/scripts/changelog.sh` writes a release's entry from its PRs'
-      release notes before the tag, and `release.yml`'s gate refuses a tag
-      whose `CHANGELOG.md` does not open on its version
-      ([RELEASING.md](docs/RELEASING.md#cutting-a-release)). **Ticks when:**
-      the next release's tarball holds a `CHANGELOG.md` whose top entry is
-      that release's note.
-
-- [ ] **Apple's `container` CLI is proven, not read** — the row in
-      [COMPATIBILITY.md's _Targets weighed and not shipped_](docs/COMPATIBILITY.md#targets-weighed-and-not-shipped)
-      is written from Apple's command reference, and
-      `.github/workflows/apple-container.yml` checks it on a hosted `macos-26`
-      runner. **Do:** dispatch it. **Ticks when:** its grammar step is green
-      and the row says what its runtime step found.
-
-- [ ] **The client's plugin and overlay work is cut** — about 95 ms of
-      client work runs before the first ssh call (16CPU/60GB), all of it ahead
-      of a cold connect's handshake. Shipped: the plugins files' reading is
-      kept between connects ([HI.63](docs/GLOSSARY.md#hi63-plugins-rows)),
-      `_hi_plugins_load` answers its memo before declaring its locals, and
-      `_hi_overlay_row`'s index is built in one pass and read with one scan a
-      name. On a quiet machine the plugins load went from 18 to 3 ms and the
-      overlay listing from 45 to 33 ms, and a cold connect from a client that
-      has connected before is 10-13 ms shorter at 0, 50, and 150 ms of added
-      round trip (`scratch/lag_ab.sh`); a client's first connect ever is about
-      as much longer, writing the cache. Left: the per-member work of `_hi_plugin_off`,
-      `_hi_row_col`, `_hi_path_list`, and `_hi_prompt_row`, and the 13 ms of
-      sourcing hi's files. At a terminal the overlapped boot call now starts
-      17 ms into a connect and the rest rides its handshake
-      (`scratch/client_prep.sh`), so this work delays a cold connect only
-      where the handshake is the shorter. **Ticks when:** the client work
-      has halved in `scratch/connect_lag.sh` on a quiet machine, with
-      `--group bench` green.
-
-- [ ] **`_hi_hash` forks less and loops less** — `hi.sh`'s FNV hash runs a
-      `printf` per character over the connection and cache keys on every
-      connect, though at a terminal it now rides the overlapped boot call's
-      handshake and delays a connect only on a link fast enough to finish
-      that first. **Do:** `cksum`, one POSIX fork, for keys past a length
-      where the loop costs more. **Ticks when:** the hash's share of a traced
-      connect falls, and the keys stay stable across platforms.
-
-- [ ] **`git describe` runs once per commit, not per connect** — a clone
-      stamps the header's version with it on every connect, about 5 ms,
-      hidden behind the handshake as the hash is. **Do:** cache it keyed on `.git/HEAD` and the ref it names. **Ticks
-      when:** a warm connect from a clone runs no git.
-
-- [ ] **The target side measured on a slow box** — the header and unpack
-      took 17 ms on this machine (16CPU/60GB), which says nothing about a
-      Raspberry Pi or a busy VM. **Do:** `scratch/connect_lag.sh`'s cells on
-      a Pi-class target. **Ticks when:** this entry holds the figure, and an
-      entry exists for whatever costs more than the network does.
-
-- [ ] **The tree is cached on the target** — on a fresh connection a script
-      past about 45 KB costs two extra round trips over a small one, and one
-      under 40 KB costs one (`scratch/wire_rtt.sh`, 150 ms added); the
-      script is 83.5 KB, 76.7 KB of it the armored tree, which unarmored is
-      about 63 KB and under xz 50 KB, so neither alone saves a round trip.
-      **Open, the user's to decide:** a tree that outlives its session in
-      the target's temp directory, keyed by its hash, against
-      [SECURITY.md's](docs/SECURITY.md#footprint-and-cleanup-on-the-target)
-      promise that nothing does. **Do, if so:** the script ahead of the
-      tree on the boot call's stdin, and the session's stub starting from a
-      cached tree without waiting for the rest. **Ticks when:** a cold
-      connect to a host visited before is two round trips shorter.
+- [ ] **The session starts once the core files land** — on a fresh
+      connection a script past about 45 KB costs two extra round trips over
+      a small one, and one under 40 KB costs one (`scratch/wire_rtt.sh`,
+      150 ms added); the unarmored script is about 64 KB, while the tree a
+      bash session needs to start is a fraction of what ships: without
+      `hi.sh`, the completion files, the fish and zsh files, and `keep.sh`,
+      it is 29.4 KB gzipped against 56.6 KB, a script of about 35 KB.
+      **Do:** the core members first on the boot call's stdin and the rest
+      after, the stub starting once the core is in while the rest lands
+      behind it. **Ticks when:** a cold connect is a round trip shorter at
+      150 ms added, with nothing dropped from the tree, and the relay, fish,
+      zsh, and kept-session suites pass.
 
 - [ ] **A connect without a tty overlaps too** — a scripted `hi host cmd`
       keeps the two calls in series, since a failed boot leaves the stub
@@ -550,38 +454,45 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       round trips shorter, and the forced-command and `maxsessions1` cases
       pass that way.
 
-- [ ] **The session starts once the core files land** — a script past
-      about 45 KB costs a cold connect two extra round trips, one under 40 KB
-      one (`scratch/wire_rtt.sh`), and the tree a bash session needs to
-      start is a fraction of what ships: without `hi.sh`, the completion
-      files, the fish and zsh files, and `keep.sh`, the tree is 29.4 KB
-      gzipped against 56.6 KB. **Do:** the core members first on the boot
-      call's stdin and the rest after, the stub starting once the core is
-      in while the rest lands behind it; unarmored, the core's script is
-      about 35 KB. **Ticks when:** a cold connect is a
-      round trip shorter at 150 ms added, with nothing dropped from the
-      tree, and the relay, fish, zsh, and kept-session suites pass.
+- [ ] **A `CHANGELOG.md` ships in the tarball** — shipped:
+      `.github/scripts/changelog.sh` writes a release's entry from its PRs'
+      release notes and the roadmap's finished items before the tag, and
+      `release.yml`'s gate refuses a tag whose `CHANGELOG.md` does not open
+      on its version or still holds `## Unreleased`
+      ([RELEASING.md](docs/RELEASING.md#cutting-a-release)). **Ticks when:**
+      the next release's tarball holds a `CHANGELOG.md` whose top entry is
+      that release's.
 
-- [ ] **The two 10 ms polls wake on the event** — the client polls for the
-      master's socket and the target's stub for the script, each every
-      10 ms with a fork, about 10 ms a connect on average. **Do:** a FIFO
-      on each side that the landing or the socket's maker writes. **Ticks
-      when:** the poll loops are gone and a cold connect is that much
-      shorter at 0 ms added.
+- [ ] **The target side measured on a slow box** — the header and unpack
+      took 17 ms on this machine (16CPU/60GB, measured while the payload was
+      still armored), which says nothing about a Raspberry Pi or a busy VM.
+      **Do:** `scratch/connect_lag.sh`'s cells on a Pi-class target. **Ticks
+      when:** this entry holds the figure, and an entry exists for whatever
+      costs more than the network does.
 
-- [ ] **The boot call starts sooner still** — 17 ms pass before it
-      (`scratch/client_prep.sh`): bash's start, sourcing hi's files, the
-      parse, the arm's choice, then the tag settings and the prompt list.
-      **Do:** the boot call started ahead of the tag settings and the
-      prompt list, which the script needs only once built. **Ticks when:**
-      the first ssh call comes measurably sooner and the per-tag settings
-      still reach the session.
+- [ ] **`git describe` runs once per commit, not per connect** — a clone
+      stamps the header's version with it on every connect, about 5 ms, which
+      at a terminal rides the boot call's handshake. **Do:** cache it keyed on
+      `.git/HEAD` and the ref it names. **Ticks when:** a warm connect from a
+      clone runs no git.
+
+- [ ] **Every default and preset audited before the tag** —
+      [CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
+      freezes the name and default of all 45 rows of
+      [SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting) and the
+      five presets, and a toggle removal is a 2.0. **Do:** read each row's
+      default as a stranger's first run, with the `balanced` first-install
+      default and `hi --update`'s verification as the known changes.
+      **Ticks when:** the 1.0.0 release note lists the defaults that moved,
+      or says none did.
 
 ## Release Stages
 
-What the 1.0 tag and the releases after it wait on, in order. An entry is
-deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
-checkout: an account or an upstream review that lands when it lands.
+What the 1.0 tag and the releases after it wait on, in order. Once its
+**Ticks when** holds, an entry leaves as one sentence for
+[CHANGELOG.md](CHANGELOG.md)'s `## Unreleased` section, as the roadmap's do.
+_Post 1.0_ entries are outside this checkout: an account or an upstream
+review that lands when it lands.
 
 - [ ] **I.** _At the 1.0.0 tag:_ **A stability contract is written down** —
       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).

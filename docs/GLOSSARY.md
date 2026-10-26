@@ -312,7 +312,10 @@ script, which reaches it through a FIFO with its byte count on the first
 line. The client names the directory (`hi.boot.` and 16 random hex digits),
 `cp` makes it with `mkdir` under `umask 077`, which refuses one that exists, and
 renames the script in whole; the stub runs it only from a
-directory of this user's. Saved: about two round trips a cold connect. A
+directory of this user's. The stub sleeps on a FIFO the probe writes once the
+script is whole, held open before its last look so the word cannot slip past,
+and the client's writer on one the client writes once the script is built;
+only the master's socket, which nothing announces, is still looked for. Saved: about two round trips a cold connect. A
 failed probe stops the stub, a forced command's program is already the
 session and is only named, and a `MaxSessions 1` host's refusal of either
 channel is made again in series.

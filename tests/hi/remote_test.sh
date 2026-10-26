@@ -464,6 +464,27 @@ function test_boot_probe_lands_in_a_named_dir() {
   [ "$ec" -eq 65 ] || _hi_why ec
 }
 
+# _hi_overlap_stub waits for the script and runs it: woken by the probe's
+# FIFO when it starts first, and straight through when it comes after the
+# landing; either way the script ran and its directory went with it
+function test_the_stub_runs_the_script_once_it_lands() {
+  local d="$_HI_WORKDIR/stub.boot" out="$_HI_WORKDIR/stub.out" ct=0 got order
+  for order in stub-first probe-first; do
+    : >"$out"
+    if [ "$order" = stub-first ]; then
+      sh -c "$(_hi_overlap_stub "$d.$order")" >"$out" 2>&1 &
+      _hi_boot_feed | sh -c "$(_hi_boot_probe "$d.$order")" >/dev/null 2>&1 || _hi_why order || return 1
+    else
+      _hi_boot_feed | sh -c "$(_hi_boot_probe "$d.$order")" >/dev/null 2>&1 || _hi_why order || return 1
+      sh -c "$(_hi_overlap_stub "$d.$order")" >"$out" 2>&1 &
+    fi
+    _hi_wait_pid "$!" 10
+    got="$(cat "$out")"
+    { [ "$_HI_WAIT_EXIT" = 0 ] && [ "$got" = boot ] && [ ! -e "$d.$order" ]; } ||
+      _hi_why order _HI_WAIT_EXIT got || return 1
+  done
+}
+
 # ...and whether the target has a multiplexer to keep a session in, on a line
 # ahead of the directory's
 function test_boot_probe_says_whether_a_multiplexer_is_there() {
@@ -497,6 +518,7 @@ function run_hi_remote_tests() {
   _hi_check "...and reports its directory when both are there" test_boot_probe_reports_its_dir_on_success
   _hi_check "...and splits the archives out beside the script, byte for byte" test_boot_probe_splits_the_archives_out
   _hi_check "...or lands whole in the 0700 one it was named, refusing one there or a short landing" test_boot_probe_lands_in_a_named_dir
+  _hi_check "...where the session's stub runs it, before or after it lands" test_the_stub_runs_the_script_once_it_lands
   _hi_check "...and whether a multiplexer is there" test_boot_probe_says_whether_a_multiplexer_is_there
   _hi_check "A session calls load" test_bootloader_calls_load_for_a_session
   _hi_check "A command replaces load" test_bootloader_replaces_load_with_the_command

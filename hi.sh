@@ -384,9 +384,16 @@ function _hi_require_packer() {
 
 # _hi_hash <value> [outvar] - 32-bit FNV-1a of <value>, in decimal: a cache or
 # socket name, never verified. Arithmetic, not cksum(1): Git for Windows ships
-# none, and a fork per key is what Git Bash is slowest at. Sliced 64 characters
-# at a time because `${s:i:1}` walks from the start of $s.
+# none, a fork per key is what Git Bash is slowest at, and a connect's keys,
+# 10 to 200 characters, hash faster here than a fork takes. Sliced 64
+# characters at a time because `${s:i:1}` walks from the start of $s. The
+# last value is remembered, since a connect asks for its payload's and its
+# socket's keys twice each.
 function _hi_hash() {
+  if [ "${_HI_HASH_IN+x}" = x ] && [ "$1" = "$_HI_HASH_IN" ]; then
+    _hi_out "${2:-}" "$_HI_HASH_OUT"
+    return 0
+  fi
   local _hi_hs_h=2166136261 _hi_hs_s="$1" _hi_hs_p _hi_hs_i _hi_hs_c
   while [ -n "$_hi_hs_s" ]; do
     _hi_hs_p="${_hi_hs_s:0:64}" _hi_hs_s="${_hi_hs_s:64}"
@@ -395,6 +402,7 @@ function _hi_hash() {
       _hi_hs_h=$((((_hi_hs_h ^ (_hi_hs_c & 0xFFFFFFFF)) * 16777619) & 0xFFFFFFFF))
     done
   done
+  _HI_HASH_IN="$1" _HI_HASH_OUT="$_hi_hs_h"
   _hi_out "${2:-}" "$_hi_hs_h"
 }
 
@@ -648,7 +656,7 @@ function _hi_boot_probe() {
   _hi_targz_check
   printf '%s\n' 'if [ "$z" != x ]; then exit 67; fi'
   if [ -n "${1:-}" ]; then
-    printf '%s\n' "d=$1" 'if ! (umask 077 && mkdir "$d") 2>/dev/null; then exit 65; fi'
+    printf '%s\n' "d=$1" 'if ! (umask 077 && mkdir "$d") 2>/dev/null; then exit 65; fi' 'mkfifo "$d/go" 2>/dev/null || :'
   else
     printf '%s\n' 'if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi'
   fi
@@ -663,6 +671,9 @@ if [ "$((o))" -gt 0 ]; then tail -c +"$((t + 1))" "$d/rest" >"$d/overlay.tgz"; f
 rm -f "$d/all" "$d/rest"
 mv "$d/part" "$d/bootloader"
 PROBE
+  # the waiting stub's wake (_hi_overlap_stub); read-write, so it never
+  # blocks on a stub that is not there
+  [ -z "${1:-}" ] || printf '%s\n' 'printf "x\n" 1<>"$d/go" 2>/dev/null || :'
   printf '%s\n' "m=0; for s in $_HI_MUXES; do if command -v \"\$s\" >/dev/null 2>&1; then m=1; fi; done" \
     'printf "\nHIMUX:%s\nHIBOOT:%s\n" "$m" "$d"'
 }
@@ -1095,18 +1106,23 @@ function _hi_ctl_alive() {
 function _hi_overlap_start() {
   local r
   ov_dir="$(mktemp -d -t hi.boot.XXXXXX 2>/dev/null)" || ov_dir=""
-  if [ -z "$ov_dir" ] || ! mkfifo "$ov_dir/in" 2>/dev/null; then
+  if [ -z "$ov_dir" ] || ! mkfifo "$ov_dir/in" "$ov_dir/go" "$ov_dir/tick" 2>/dev/null; then
+    [ -z "$ov_dir" ] || rm -f "$ov_dir/in" "$ov_dir/go" "$ov_dir/tick"
     [ -z "$ov_dir" ] || rmdir "$ov_dir" 2>/dev/null || :
     ov_dir=""
     return 1
   fi
+  # the writer wakes on `go`, held open across its check so no word written
+  # after it looked is lost, and every second asks whether hi is still there
   local self=$$
   (
     exec >"$ov_dir/in"
-    while [ ! -f "$ov_dir/ready" ]; do
-      kill -0 "$self" 2>/dev/null || exit 0
-      sleep 0.01
-    done
+    {
+      while [ ! -f "$ov_dir/ready" ]; do
+        kill -0 "$self" 2>/dev/null || exit 0
+        read -r -t 1 _ || :
+      done
+    } <>"$ov_dir/go"
     cat "$ov_dir/script"
   ) &
   r="$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')" || r=""
@@ -1114,6 +1130,23 @@ function _hi_overlap_start() {
   ov_d='${TMPDIR:-/tmp}/hi.boot.'"${r:-$RANDOM$RANDOM$RANDOM}"
   _hi_on_target cp "$(_hi_boot_probe "$ov_d")" <"$ov_dir/in" >"$ov_dir/out" &
   ov_boot=$!
+}
+
+# _hi_overlap_stub <dir> - the session's command under _hi_connect_overlap:
+# wait for the script in <dir>, on the FIFO the boot probe writes once it is
+# whole, held open before the last look so the word cannot slip past, after a
+# poll for the FIFO itself while the probe checks the target; then run it
+# from a directory of this user's, claimed first.
+function _hi_overlap_stub() {
+  printf 'd=%s\n' "$1"
+  cat <<'STUB'
+while [ ! -p "$d/go" ] && [ ! -f "$d/bootloader" ]; do sleep 0.01 2>/dev/null || sleep 1; done
+if [ ! -f "$d/bootloader" ]; then exec 3<>"$d/go"; [ -f "$d/bootloader" ] || read -r _hi_go <&3; exec 3>&-; fi
+[ -O "$d" ] || { echo "hi: $d is not this user's" >&2; exit 1; }
+: >"$d/claimed"
+STUB
+  # shellcheck disable=SC2016 # the target's to expand
+  _hi_attach_cmd '$d'
 }
 
 # _hi_connect_overlap - the session opened while the boot call is still
@@ -1134,13 +1167,19 @@ function _hi_overlap_start() {
 # ec, booted, boot_out, boot_ec, and boot_tmp from _say_hi.
 function _hi_connect_overlap() {
   local d="$ov_d" boot="$ov_boot" sess=""
-  _hi_boot_stream >"$ov_dir/script" && : >"$ov_dir/ready"
-  while [ ! -S "$ctl_path" ] && kill -0 "$boot" 2>/dev/null; do sleep 0.01; done
+  _hi_boot_stream >"$ov_dir/script" && : >"$ov_dir/ready" && printf 'x\n' 1<>"$ov_dir/go"
+  # nothing announces the socket, so it is looked for: every 5 ms through a
+  # builtin where bash reads a fractional timeout, else a `sleep` a look
+  if ((BASH_VERSINFO[0] >= 4)); then
+    while [ ! -S "$ctl_path" ] && kill -0 "$boot" 2>/dev/null; do read -r -t 0.005 _ <>"$ov_dir/tick" || :; done
+  else
+    while [ ! -S "$ctl_path" ] && kill -0 "$boot" 2>/dev/null; do sleep 0.01; done
+  fi
   if [ -S "$ctl_path" ]; then
     ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
     _HI_LINK_UP=1
     # shellcheck disable=SC2016 # the target's to expand
-    _hi_on_target attach "d=$d; while [ ! -f \"\$d/bootloader\" ]; do sleep 0.01 2>/dev/null || sleep 1; done; [ -O \"\$d\" ] || { echo \"hi: \$d is not this user's\" >&2; exit 1; }; : >\"\$d/claimed\"; $(_hi_attach_cmd '$d')" exec <&0 &
+    _hi_on_target attach "$(_hi_overlap_stub "$d")" exec <&0 &
     sess=$!
   fi
   boot_ec=0
@@ -1286,9 +1325,12 @@ function _say_hi() {
     _hi_ctl_open 30 shared ${retry[@]+"${retry[@]}"}
   fi
   _hi_transport_cmds "$arm"
-  # the overlapped boot call first, so its handshake rides all that follows
+  # the overlapped boot call first, so its handshake rides all that follows:
+  # the target's color and prompt list among it, primed here for the script
+  # builders (_hi), the latter the longest of a connect's client work
   local ov_dir="" ov_d="" ov_boot=""
   ! _hi_overlap_ok || _hi_overlap_start || :
+  _hi_target_color >/dev/null && _hi_prompt_list >/dev/null
 
   # local-only, so resolved once here and reused by the warm below and the
   # real stream
@@ -1397,7 +1439,7 @@ function _say_hi() {
 function _hi_wire_done() {
   [ -n "$wire_dir" ] || wire_dir="$ov_dir"
   [ -n "$wire_dir" ] || return 0
-  rm -f "$wire_dir/in" "$wire_dir/out" "$wire_dir/script" "$wire_dir/ready" \
+  rm -f "$wire_dir/in" "$wire_dir/go" "$wire_dir/tick" "$wire_dir/out" "$wire_dir/script" "$wire_dir/ready" \
     "$wire_dir/tree.tgz" "$wire_dir/overlay.tgz"
   rmdir "$wire_dir" 2>/dev/null || :
 }
@@ -1695,10 +1737,10 @@ function _hi() {
   _hi_keep_refuse
   # Primed in the shell that keeps them: a caller that reads one through $( )
   # would fill the memo in a subshell and lose it there, and the script
-  # builders ask six times between them. GLOSSARY: HI.05
+  # builders ask six times between them. GLOSSARY: HI.05. The target's color
+  # and prompt list wait for _say_hi, behind its boot call.
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
-  _hi_target_color >/dev/null && _hi_prompt_list >/dev/null
   if [ "${END:-0}" = 1 ]; then
     # closing a kept session runs no command
     [ -z "${RAWCMD:-}" ] || _hi_die "--end takes a target and nothing after it"
