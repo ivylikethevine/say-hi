@@ -173,14 +173,19 @@ function test_remote_preamble_exports_the_version() {
 # ...and so does the client's glyph verdict: the glyphs render in the
 # client's terminal, so the target must not re-probe its own locale
 # _hi_lc_run <locales> <env...> - _hi_locale_probe under sh, a stand-in
-# `locale -a` listing <locales> (empty: no `locale` at all), the env pairs
-# set, and what it left: "<_HI_ASCII> <LC_CTYPE>"
+# `locale -a` listing <locales> (empty: one that fails as a missing command
+# does, since the real one may be on PATH), the env pairs set, and what it
+# left: "<_HI_ASCII> <LC_CTYPE>"
 function _hi_lc_run() {
   local list="$1" dir="$_HI_WORKDIR/lc.$RANDOM"
   shift
   mkdir -p "$dir"
-  [ -z "$list" ] || printf '#!/bin/sh\nprintf "%%s\\n" %s\n' "$list" >"$dir/locale"
-  [ -z "$list" ] || chmod +x "$dir/locale"
+  if [ -n "$list" ]; then
+    printf '#!/bin/sh\nprintf "%%s\\n" %s\n' "$list" >"$dir/locale"
+  else
+    printf '#!/bin/sh\nexit 127\n' >"$dir/locale"
+  fi
+  chmod +x "$dir/locale"
   env -u LC_ALL -u LC_CTYPE -u LANG -u _HI_CLIENT_LOCALE PATH="$dir:$PATH" "$@" \
     sh -c "$(_hi_locale_probe)"'
       printf "%s %s" "${_HI_ASCII:-}" "${LC_CTYPE:-}"'

@@ -187,7 +187,7 @@ function run_ssh_tests() {
     docker run --rm -v "$_HI_HOME/say-hi":/w:ro bash:3.2 bash -c '
       rc=0
       for f in $(find /w -name "*.sh" -not -path "*/.git/*" -not -path "*/node_modules/*" \
-        -not -path "/w/dist/*" -not -path "/w/coverage-report/*" -not -path "/w/coverage-v2-report/*"); do
+        -not -path "/w/dist/*" -not -path "/w/coverage-report/*" -not -path "/w/coverage-v2-report/*" -not -path "/w/local/*"); do
         out=$(bash -n "$f" 2>&1) || {
           printf "%s\n%s\n" "$f" "$out"
           rc=1
@@ -211,26 +211,33 @@ function run_ssh_tests() {
       _hi_par_case "${_hi_pair%%:*}" _hi_ssh_run_case "${_hi_pair%%:*}" "$_HI_SSHD_IMAGE" "${_hi_pair#*:}" "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
     done
 
-    # The preamble's TERM fallback (GLOSSARY: HI.22): an unknown name (kitty's
-    # xterm-kitty is the common offender) rides with the client's terminfo,
-    # compiled into the session tree where the target has `tic`, which this
-    # one does; a ubiquitous name is skipped; and a name the skip list
-    # ignores but the target's terminfo has (xterm-mono ships in debian's
-    # ncurses-base) is left alone on the probe's say-so. The swap to
+    # The preamble's TERM fallback (GLOSSARY: HI.22): a name no target knows
+    # rides with the client's terminfo, compiled into the session tree where
+    # the target has `tic`, which this one does; a ubiquitous name is
+    # skipped; and a name the skip list ignores but the target's terminfo has
+    # (xterm-mono ships in debian's ncurses-base) is left alone on the
+    # probe's say-so. The name that rides is the suite's own, hi-test-term,
+    # compiled for the client alone under $TERMINFO, so the case needs no
+    # entry a runner may lack (xterm-kitty is ncurses-term's). The swap to
     # xterm-256color, where no `tic` is, is the alpine case further down. The
     # env prefix is the client TERM ssh's pty request carries over; the
     # trailing marker is the assertion, matched unanchored since the pty
     # transcript ends lines in \r\n. SetEnv carries the same name, so a
     # developer's own ssh config that rewrites TERM cannot answer for it: the
     # command line's value is the first, and ssh keeps the first.
-    for _hi_term_spec in kitty:xterm-kitty:xterm-kitty known:xterm-256color:xterm-256color \
+    _hi_term_db="$_HI_WORKDIR/terminfo"
+    if command -v tic >/dev/null 2>&1 && command -v infocmp >/dev/null 2>&1; then
+      printf '%s\n' 'hi-test-term|a terminal only this suite knows,' '  use=xterm-256color,' |
+        tic -x -o "$_hi_term_db" - >/dev/null 2>&1 || true
+    fi
+    for _hi_term_spec in ride:hi-test-term:hi-test-term known:xterm-256color:xterm-256color \
       terminfo:xterm-mono:xterm-mono; do
       IFS=: read -r _hi_label _hi_client _hi_want <<<"$_hi_term_spec"
-      if ! infocmp -x "$_hi_client" >/dev/null 2>&1; then
-        _hi_skip "[term-$_hi_label]" "no $_hi_client terminfo on this client to send (ncurses-term)"
+      if ! TERMINFO="$_hi_term_db" infocmp -x "$_hi_client" >/dev/null 2>&1; then
+        _hi_skip "[term-$_hi_label]" "no tic or infocmp on this client to describe $_hi_client with"
         continue
       fi
-      TERM="$_hi_client" _HI_SSH_LAUNCH_OPTS="-o SetEnv=TERM=$_hi_client" \
+      TERMINFO="$_hi_term_db" TERM="$_hi_client" _HI_SSH_LAUNCH_OPTS="-o SetEnv=TERM=$_hi_client" \
         _hi_par_case "term-$_hi_label" _hi_ssh_run_case "term-$_hi_label" "$_HI_SSHD_IMAGE" /bin/bash \
         "echo TERMPROBE=\$TERM; echo $_HI_TEST_MARKER" "" "TERMPROBE=$_hi_want"
     done
