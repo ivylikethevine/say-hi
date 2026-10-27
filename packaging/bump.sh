@@ -39,7 +39,7 @@ _HI_USAGE="Usage: bump.sh [--check] [--tarball <file>] <version>"
 # than from GitHub's /archive/ tarball: the asset is one this release built, so
 # it is in SHA256SUMS and under the build-provenance attestation, which the
 # auto-generated archive never was. The filename is $pkgname-$pkgver.tar.gz, so
-# the AUR source= needs no `::` rename to get the name prepare() expects.
+# the AUR source= needs no `::` rename to get the name package() expects.
 # The repo half comes from the PKGBUILD's url= (lib.sh's pkgbuild_url), the
 # same line makepkg expands into source= - a private copy here would drift on
 # a repo rename with --check still green on the no-makepkg release runner.
@@ -176,8 +176,7 @@ function write_manifests() {
 # the three lines a bump changes are derivable, so rewrite them in place. The
 # \([[:space:]]*\) capture keeps .SRCINFO's leading tab.
 function rewrite_srcinfo_lines() {
-  local b2="$1" url="${2:-}"
-  [ -n "$url" ] || url="$(asset_url "$_HI_VERSION")"
+  local b2="$1" url="$2"
   _hi_rewrite "$_HI_SRCINFO" \
     "s/^\\([[:space:]]*\\)pkgver = .*/\\1pkgver = $_HI_VERSION/" \
     "s|^\\([[:space:]]*\\)source = .*|\\1source = $url|" \
@@ -189,16 +188,11 @@ function rewrite_srcinfo_lines() {
 
 _HI_CHECK_ONLY=""
 _HI_TARBALL=""
+_HI_ME=bump.sh
 while [ $# -gt 0 ]; do
-  # --x=y becomes --x y first, so each flag below is spelled once
-  case "$1" in --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;; esac
   case "$1" in
   --check) _HI_CHECK_ONLY=1 ;;
-  --tarball)
-    _hi_need_value bump.sh "$1" "$#"
-    _HI_TARBALL="$2"
-    shift
-    ;;
+  --tarball | --tarball=*) _hi_flag_word_or_die _HI_TARBALL "--tarball requires a value" "$@" || shift ;;
   -h | --help)
     cat <<EOF
 $_HI_USAGE

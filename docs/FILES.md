@@ -126,7 +126,7 @@ All **dev**: the inputs a release builds from.
 | `packaging/srctar.sh`                            | The release source tarball.                                                       |
 | `packaging/bump.sh`                              | Sets the version and checksums in the AUR and Homebrew manifests at release time. |
 | `packaging/stamp.sh`                             | Stamps `_HI_RELEASE` for `hi --version`, the same way in every channel.           |
-| `packaging/lib.sh`                               | Shared plumbing for the scripts above but `stamp.sh`, which is standalone.        |
+| `packaging/lib.sh`                               | Shared plumbing for the scripts above.                                            |
 | `packaging/stamp_badge.sh`                       | Stamps README's payload badge as measured; bench runs its `--check`.              |
 | `packaging/homebrew/say-hi.rb`                   | The tap formula template.                                                         |
 | `packaging/nix/package.nix`, `home-manager.nix`  | The flake's package, and the home-manager module that writes the rc block.        |

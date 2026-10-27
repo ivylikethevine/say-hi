@@ -16,7 +16,7 @@ pkgbase = say-hi-git
 	optdepends = kubectl: pod targets
 	provides = say-hi
 	conflicts = say-hi
-	source = say-hi::git+https://github.com/ivylikethevine/say-hi.git#branch=main
+	source = git+https://github.com/ivylikethevine/say-hi.git#branch=main
 	b2sums = SKIP
 
 pkgname = say-hi-git

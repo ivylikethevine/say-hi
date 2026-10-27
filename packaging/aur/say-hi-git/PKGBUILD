@@ -1,7 +1,8 @@
 # Maintainer: Ivy Duggan <ivylikethevine@gmail.com>
 #
 # The VCS package, built from the branch. Identical to ../say-hi/ except for
-# where the source comes from - keep package() in the two in step.
+# where the source comes from and the directory it unpacks to - keep package()
+# in the two in step.
 
 pkgname=say-hi-git
 pkgver=r0.0000000
@@ -22,10 +23,7 @@ optdepends=('zsh: zsh support on the client'
   'podman: container targets'
   'nomad: allocation targets'
   'kubectl: pod targets')
-# The `say-hi::` alias is load-bearing, not cosmetic: install.sh looks for a
-# checkout named exactly say-hi under $srcdir, and without the alias git would
-# clone to say-hi-git. It is also why this one needs no prepare().
-source=("say-hi::git+$url.git#branch=main")
+source=("git+$url.git#branch=main")
 # SKIP is correct for a VCS source - there is no fixed tarball to sum
 b2sums=('SKIP')
 

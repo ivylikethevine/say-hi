@@ -8,9 +8,8 @@
 # keys a client needs. The three index builders that are not plain shell run
 # in throwaway containers (apk-tools from Alpine, createrepo_c from Debian),
 # so a dev box needs docker and gpg and nothing else, and builds the bytes CI
-# does. The
-# apt indexes are written here directly - apt-ftparchive is Debian-only and
-# the Packages/Release format is small.
+# does. The apt indexes are written here directly - apt-ftparchive is
+# Debian-only and the Packages/Release format is small.
 #
 # Signing: --gpg-key takes an armored, passphrase-free secret key and signs
 # the apt Release (InRelease and Release.gpg) and the rpm repomd.xml; its
@@ -29,8 +28,8 @@
 #   apk/{x86_64,aarch64}/{<apk>,APKINDEX.tar.gz}
 #   say-hi.asc  say-hi.rsa.pub  say-hi.repo
 
-# the locator, core.sh, strict mode, and the shared primitives (need/gpg_fpr/
-# sha256_of) all come from lib.sh, found beside this script
+# the locator, core.sh, strict mode, and the shared primitives (need/gpg_fpr)
+# all come from lib.sh, found beside this script
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -45,8 +44,9 @@ _HI_TARBALL=""
 _HI_DEB_ARCHES="amd64 arm64 all"
 _HI_APK_ARCHES="x86_64 aarch64"
 # By digest, the same pins as tests/dockerfiles (sshd-alpine, sshd-debian);
-# check_tool_versions.local.sh reports when these fall behind them. createrepo_c: Alpine 3.24 does not package it, Debian bookworm
-# (oldstable) does. Not trixie yet: its createrepo_c 1.2 writes .zst repodata
+# check_tool_versions.local.sh reports when these fall behind them.
+# createrepo_c: Alpine 3.24 does not package it, Debian bookworm (oldstable)
+# does. Not trixie yet: its createrepo_c 1.2 writes .zst repodata
 # where bookworm's writes .gz, a change to what every existing dnf/yum client
 # of the published repository reads.
 _HI_ALPINE_IMAGE="alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
@@ -74,23 +74,16 @@ $_HI_DEBIAN_IMAGE) and gpg.
 EOF
 }
 
+_HI_ME=mkrepo.sh
 while [ $# -gt 0 ]; do
-  # --x=y becomes --x y first, so each flag below is spelled once
-  case "$1" in --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;; esac
   case "$1" in
-  --dist | --outdir | --gpg-key | --public-key | --apk-key | --base-url | --tarball)
-    _hi_need_value mkrepo.sh "$1" "$#"
-    case "$1" in
-    --dist) _HI_DIST="$2" ;;
-    --outdir) _HI_OUT="$2" ;;
-    --gpg-key) _HI_GPG_KEY="$2" ;;
-    --public-key) _HI_GPG_PUBLIC="$2" ;;
-    --apk-key) _HI_APK_KEY="$2" ;;
-    --base-url) _HI_BASE_URL="$2" ;;
-    --tarball) _HI_TARBALL="$2" ;;
-    esac
-    shift
-    ;;
+  --dist | --dist=*) _hi_flag_word_or_die _HI_DIST "--dist requires a value" "$@" || shift ;;
+  --outdir | --outdir=*) _hi_flag_word_or_die _HI_OUT "--outdir requires a value" "$@" || shift ;;
+  --gpg-key | --gpg-key=*) _hi_flag_word_or_die _HI_GPG_KEY "--gpg-key requires a value" "$@" || shift ;;
+  --public-key | --public-key=*) _hi_flag_word_or_die _HI_GPG_PUBLIC "--public-key requires a value" "$@" || shift ;;
+  --apk-key | --apk-key=*) _hi_flag_word_or_die _HI_APK_KEY "--apk-key requires a value" "$@" || shift ;;
+  --base-url | --base-url=*) _hi_flag_word_or_die _HI_BASE_URL "--base-url requires a value" "$@" || shift ;;
+  --tarball | --tarball=*) _hi_flag_word_or_die _HI_TARBALL "--tarball requires a value" "$@" || shift ;;
   -h | --help)
     usage
     exit 0
@@ -160,6 +153,7 @@ function gpg_sign() {
 # archive: ar and tar are everywhere, dpkg-deb is not
 function deb_control() {
   local deb="$1" member scratch rc
+  local -a unpack
   member="$(ar t "$deb" | grep '^control\.tar' | head -1)"
   case "$deb" in /*) : ;; *) deb="$PWD/$deb" ;; esac
   # `ar x` to a scratch file, not `ar p` through a pipe: some Windows ar
@@ -172,17 +166,18 @@ function deb_control() {
     rm -rf "$scratch"
     return 1
   fi
-  # unpacked beside the member and read back: OpenBSD's tar has no -O
   case "$member" in
-  control.tar.gz) gzip -dc "$scratch/$member" | tar -x -f - -C "$scratch" ./control && cat "$scratch/control" ;;
-  control.tar.xz) xz -dc "$scratch/$member" | tar -x -f - -C "$scratch" ./control && cat "$scratch/control" ;;
-  control.tar) tar -x -f "$scratch/$member" -C "$scratch" ./control && cat "$scratch/control" ;;
+  control.tar.gz) unpack=(gzip -dc) ;;
+  control.tar.xz) unpack=(xz -dc) ;;
+  control.tar) unpack=(cat) ;;
   *)
     _hi_cecho " unexpected control member in $deb: '$member'" "$RED" >&2
     rm -rf "$scratch"
     return 1
     ;;
   esac
+  # unpacked beside the member and read back: OpenBSD's tar has no -O
+  "${unpack[@]}" "$scratch/$member" | tar -x -f - -C "$scratch" ./control && cat "$scratch/control"
   rc=$?
   rm -rf "$scratch"
   return "$rc"
@@ -205,7 +200,7 @@ function build_apt() {
     printf 'Size: %s\n' "$(wc -c <"$deb" | tr -d ' ')"
     printf 'MD5sum: %s\n' "$(dgst_of md5 "$deb")"
     printf 'SHA1: %s\n' "$(dgst_of sha1 "$deb")"
-    printf 'SHA256: %s\n' "$(sha256_of "$deb")"
+    printf 'SHA256: %s\n' "$(dgst_of sha256 "$deb")"
     printf '\n'
   } >"$packages"
   # gzipped once: -n makes it deterministic, and the same package is listed

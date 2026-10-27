@@ -14,13 +14,6 @@ stdenvNoCC.mkDerivation {
   pname = "say-hi";
   inherit version src;
 
-  # install.sh finds the tree as $_HI_HOME/say-hi, so the unpacked source has
-  # to be a directory of that name
-  postUnpack = ''
-    mv "$sourceRoot" say-hi
-    sourceRoot=say-hi
-  '';
-
   dontConfigure = true;
   dontBuild = true;
 

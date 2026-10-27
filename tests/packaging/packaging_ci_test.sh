@@ -50,7 +50,6 @@ function test_nfpm_staging_sources_all_exist() {
   dest="$(stage_fixture)"
   while IFS= read -r src; do
     rel="${src#./dist/staging}"
-    rel="${rel%/\*}" # the apk entries glob a directory; existence-check the dir
     [ -e "$dest$rel" ] || {
       _hi_cecho "   missing from the staged tree: $rel" "$RED"
       bad=1
@@ -78,70 +77,8 @@ function test_nfpm_symlink_matches_install_tree() {
 }
 
 # no $DESTDIR may leak into a link target - it does not exist at runtime.
-# Only the symlink entry's own src line is checked: the apk workaround ships
-# legitimate staged hi.sh/load.sh file entries elsewhere in the manifest.
 function test_nfpm_symlink_target_is_absolute_and_unstaged() {
   ! grep -B1 'dst: /usr/bin/hi' "$_HI_NFPM" | grep 'dist/staging' >/dev/null || _hi_why _HI_NFPM
-}
-
-# _hi_apk_dsts - the dst of every apk-only entry in nfpm.yaml
-function _hi_apk_dsts() {
-  awk '
-    /^  - src:/ { dst = "" }
-    /^    dst:/ { dst = $2 }
-    /packager: apk/ && dst { print dst }
-  ' "$_HI_NFPM"
-}
-
-# The apk cannot use the tree entry (nfpm 2.47.0 mode-bit bug, see nfpm.yaml),
-# so it repeats _HI_PACKAGE_CONTENTS as per-member entries - a second copy of
-# the list, kept honest here the way the formula's copy is.
-function test_nfpm_apk_entries_match_package_contents() {
-  local m src dst
-  for m in "${_HI_PACKAGE_CONTENTS[@]}"; do
-    if [ -d "$_HI_ROOT/$m" ]; then
-      src="./dist/staging/usr/share/say-hi/$m/*"
-    else
-      # install_tree's cp lands file entries flat by basename, so the apk entry
-      # carries the flat name too - which is every entry's own name today, but
-      # stays correct if a nested one is ever added back
-      src="./dist/staging/usr/share/say-hi/${m##*/}"
-    fi
-    grep -qF -- "- src: $src" "$_HI_NFPM" || _hi_because "no apk entry for $m" || return 1
-  done
-  # every apk entry traces back to a real member too, so a stray one can't
-  # ship what the list doesn't name - a member with a nested directory of its
-  # own (a config/ subdirectory, say) legitimately needs more than one entry,
-  # which is why this is traceability rather than a bare count
-  while IFS= read -r dst; do
-    [ -n "$dst" ] || continue
-    for m in "${_HI_PACKAGE_CONTENTS[@]}"; do
-      case "$dst" in "/usr/share/say-hi/$m" | "/usr/share/say-hi/$m/"*) continue 2 ;; esac
-    done
-    _hi_because "apk entry $dst does not trace back to any _HI_PACKAGE_CONTENTS member" || return 1
-  done < <(_hi_apk_dsts) || _hi_why
-}
-
-# ...and the globs are one level deep, so a nested directory appearing under a
-# tree member would silently fall out of the apk. Fail here first, with names.
-# A nested directory (a config/ subdirectory, say) is fine as long as apk has
-# its own glob entry for it - the ModeDir-leak workaround the comment above
-# the apk entries explains means every directory level needs its own glob,
-# not just the top-level members _HI_PACKAGE_CONTENTS names.
-function test_nfpm_apk_globs_cover_the_staged_depth() {
-  local dest deep dst_list d rel
-  dest="$(stage_fixture)"
-  deep="$(find "$dest/usr/share/say-hi" -mindepth 2 -type d)"
-  [ -n "$deep" ] || return 0
-  dst_list="$(_hi_apk_dsts)"
-  while IFS= read -r d; do
-    [ -n "$d" ] || continue
-    rel="${d#"$dest"}"
-    case $'\n'"$dst_list"$'\n' in
-    *$'\n'"$rel/"$'\n'* | *$'\n'"$rel"$'\n'*) continue ;;
-    esac
-    _hi_because "$d has no apk glob entry of its own in $_HI_NFPM" || return 1
-  done <<<"$deep"
 }
 
 # the apk signature block: key file from the env (unset = unsigned, exactly
@@ -183,13 +120,11 @@ function test_formula_ships_a_wrapper_that_exports_hi_home() {
 }
 
 # The nix package stages through install.sh and stamps through stamp.sh, as
-# the PKGBUILDs do, so it holds no copy of _HI_PACKAGE_CONTENTS; the unpacked
-# source is renamed because install.sh wants a checkout named say-hi.
-# shellcheck disable=SC2016 # $stage and $sourceRoot are the nix build's
+# the PKGBUILDs do, so it holds no copy of _HI_PACKAGE_CONTENTS.
+# shellcheck disable=SC2016 # $stage and $version are the nix build's
 function test_nix_package_calls_install_sh() {
   { grep -qF 'DESTDIR="$stage" bash scripts/install.sh --prefix /usr/share' "$_HI_NIX_PKG" &&
-    grep -qF 'bash packaging/stamp.sh --root "$stage" --version "$version" --date' "$_HI_NIX_PKG" &&
-    grep -qF 'mv "$sourceRoot" say-hi' "$_HI_NIX_PKG"; } || _hi_why _HI_NIX_PKG
+    grep -qF 'bash packaging/stamp.sh --root "$stage" --version "$version" --date' "$_HI_NIX_PKG"; } || _hi_why _HI_NIX_PKG
 }
 
 # The wrapper exports _HI_HOME, as the formula's does, and the tree keeps its
@@ -272,13 +207,12 @@ function test_pkgbuilds_call_install_sh() {
   done
 }
 
-# install.sh resolves $_HI_HOME as <checkout>/.. and then wants $_HI_HOME/say-hi,
-# so each PKGBUILD has to arrange for a $srcdir/say-hi - by symlink in the
-# versioned one, by the `say-hi::` source alias in the git one.
+# each PKGBUILD runs install.sh from the directory its source unpacks to:
+# src_tarball's say-hi-<version>/ prefix, and makepkg's clone named after the URL
 # shellcheck disable=SC2016 # makepkg's variables as literal text, see above
-function test_pkgbuilds_give_install_sh_a_say_hi_named_checkout() {
-  { grep -qF 'ln -sfn "$srcdir/$pkgname-$pkgver" "$srcdir/say-hi"' "$_HI_PKGBUILD" &&
-    grep -qF 'source=("say-hi::git+' "$_HI_PKGBUILD_GIT"; } || _hi_why _HI_PKGBUILD _HI_PKGBUILD_GIT
+function test_pkgbuilds_run_install_sh_from_the_unpacked_source() {
+  { grep -qF '"$srcdir/$pkgname-$pkgver/scripts/install.sh"' "$_HI_PKGBUILD" &&
+    grep -qF '"$srcdir/say-hi/scripts/install.sh"' "$_HI_PKGBUILD_GIT"; } || _hi_why _HI_PKGBUILD _HI_PKGBUILD_GIT
 }
 
 # a VCS package that does not conflict with the versioned one gets both installed
@@ -444,8 +378,6 @@ function run_packaging_ci_tests() {
   _hi_check "References the staging root" test_nfpm_references_the_staging_root
   _hi_check_capable symlink "Symlink matches install_tree's" test_nfpm_symlink_matches_install_tree
   _hi_check "Link target carries no staging prefix" test_nfpm_symlink_target_is_absolute_and_unstaged
-  _hi_check "apk entries match _HI_PACKAGE_CONTENTS" test_nfpm_apk_entries_match_package_contents
-  _hi_check "apk globs cover the staged depth" test_nfpm_apk_globs_cover_the_staged_depth
   _hi_check "apk signature block is declared" test_nfpm_declares_the_apk_signature
   _hi_check "rpm signature block is declared" test_nfpm_declares_the_rpm_signature
   _hi_check "No private key under packaging/" test_no_private_key_is_committed
@@ -469,7 +401,7 @@ function run_packaging_ci_tests() {
 
   _hi_h2 "Testing: the PKGBUILDs"
   _hi_check "Both call install.sh --prefix" test_pkgbuilds_call_install_sh
-  _hi_check "Both give it a say-hi-named checkout" test_pkgbuilds_give_install_sh_a_say_hi_named_checkout
+  _hi_check "Both run it from the unpacked source" test_pkgbuilds_run_install_sh_from_the_unpacked_source
   _hi_check "say-hi-git provides/conflicts say-hi" test_git_pkgbuild_provides_and_conflicts
 
   _hi_h2 "Testing: versions agree"

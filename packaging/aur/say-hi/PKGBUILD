@@ -33,31 +33,22 @@ source=("$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
 # copy, and never commits it back here
 b2sums=('SKIP')
 
-prepare() {
-  # scripts/install.sh derives $_HI_HOME as <checkout>/.. and then looks for
-  # $_HI_HOME/say-hi, so the checkout has to be named exactly say-hi - and the
-  # tarball unpacks to say-hi-$pkgver (packaging/lib.sh's src_tarball builds it
-  # with exactly that prefix). A symlink rather than a mv: it is idempotent, so
-  # `makepkg -e` over an existing $srcdir stays a no-op.
-  ln -sfn "$srcdir/$pkgname-$pkgver" "$srcdir/say-hi"
-}
-
 package() {
   # install.sh's packaging mode is the whole of package(): it copies
   # $_HI_PACKAGE_CONTENTS to $DESTDIR/usr/share/say-hi, links /usr/bin/hi at the
   # *installed* location (no $pkgdir in the link target), and writes the
   # /etc/profile.d snippet that exports _HI_HOME=/usr/share. Copying by hand
   # here instead would be a second copy of that list, free to drift.
-  DESTDIR="$pkgdir" "$srcdir/say-hi/scripts/install.sh" --prefix /usr/share
+  DESTDIR="$pkgdir" "$srcdir/$pkgname-$pkgver/scripts/install.sh" --prefix /usr/share
 
   # `hi --version` and `man hi`'s footer answer with pkgver. Stamped at build
   # time because the tarball cannot carry it: bump.sh's manifest pass runs
   # after the tag exists, so a committed stamp would always be stale here.
   # packaging/stamp.sh is the one implementation every channel calls; makepkg
   # sets SOURCE_DATE_EPOCH, so the man page's date is reproducible.
-  "$srcdir/say-hi/packaging/stamp.sh" --root "$pkgdir" --version "$pkgver"
+  "$srcdir/$pkgname-$pkgver/packaging/stamp.sh" --root "$pkgdir" --version "$pkgver"
 
   # Arch wants the licence here as well; install_tree's copy lives inside the
   # tree, where it is what `hi` ships to a target rather than what pacman reads.
-  install -Dm644 "$srcdir/say-hi/LICENSE.md" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.md"
+  install -Dm644 "$srcdir/$pkgname-$pkgver/LICENSE.md" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.md"
 }
