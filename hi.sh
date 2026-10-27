@@ -203,7 +203,7 @@ function _hi_session_env() {
   printf '_HI_LOCAL_USER\t%s\n' "$_HI_WHOAMI_CACHE"
   printf '_HI_LOCAL_HOSTNAME\t%s\n' "$_HI_HOSTNAME_CACHE"
   local _hi_se_v
-  _hi_version _hi_se_v
+  _hi_wire_version _hi_se_v
   printf '_HI_RELEASE\t%s\n' "$_hi_se_v"
   _hi_prompt_list >/dev/null
   printf '_HI_PROMPT_TOOL\t%s\n' "$_HI_PROMPT_LIST_MEMO"
@@ -857,6 +857,41 @@ function _hi_version() {
     fi
   fi
   if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_VERSION_MEMO"; else printf '%s\n' "$_HI_VERSION_MEMO"; fi
+}
+
+# _hi_wire_version <outvar> - _hi_version for the session env, which a
+# checkout reads back from .git/hi-version while that is newer than all
+# describe reads: HEAD, its branch, the tags, and the index, whose refresh
+# by any git command is the -dirty signal. A stale one asks git, stamped
+# with the time before the ask, so a change landing during it reads stale.
+function _hi_wire_version() {
+  local _hi_wv_g="$_HI_ROOT/.git" _hi_wv_h="" _hi_wv_f _hi_wv_v="" _hi_wv_fresh=1
+  local _hi_wv_c="$_hi_wv_g/hi-version"
+  if [ -n "${_HI_RELEASE:-}" ] || [ ! -d "$_hi_wv_g" ]; then
+    _hi_version "$1"
+    return 0
+  fi
+  IFS= read -r _hi_wv_h <"$_hi_wv_g/HEAD" 2>/dev/null || true
+  for _hi_wv_f in HEAD "${_hi_wv_h#ref: }" packed-refs refs/tags index; do
+    if [ -z "$_hi_wv_f" ] || { [ -e "$_hi_wv_g/$_hi_wv_f" ] && [ ! "$_hi_wv_c" -nt "$_hi_wv_g/$_hi_wv_f" ]; }; then
+      _hi_wv_fresh=""
+      break
+    fi
+  done
+  if [ -n "$_hi_wv_fresh" ] && IFS= read -r _hi_wv_v <"$_hi_wv_c" 2>/dev/null && [ -n "$_hi_wv_v" ]; then
+    printf -v "$1" '%s' "$_hi_wv_v"
+    return 0
+  fi
+  _hi_wv_f="$_hi_wv_c.$$"
+  { : >"$_hi_wv_f"; } 2>/dev/null || _hi_wv_f=""
+  _hi_version _hi_wv_v
+  printf -v "$1" '%s' "$_hi_wv_v"
+  [ -n "$_hi_wv_f" ] || return 0
+  case "$_hi_wv_v" in
+  'unknown ('*) ;;
+  *) { printf '%s\n' "$_hi_wv_v" >"$_hi_wv_c" && touch -r "$_hi_wv_f" "$_hi_wv_c"; } 2>/dev/null ;;
+  esac
+  command rm -f "$_hi_wv_f"
 }
 
 # What `hi --version` prints: the version, then which kind of tree answered

@@ -330,7 +330,9 @@ into place.
 
 fish also keeps `__hi_color_user`, `__hi_color_host`, and `__hi_colors_key` as
 universal variables in its own store, so a color is only resolved once per
-change.
+change. A checkout keeps `.git/hi-version`, the `git describe` a connect sends
+as the version, asked again once `HEAD`, its branch, the tags, or the index
+is newer.
 
 ### Temporary files
 

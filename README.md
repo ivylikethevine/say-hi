@@ -338,27 +338,12 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       round trips shorter, and the forced-command and `maxsessions1` cases
       pass that way.
 
-- [ ] **A `CHANGELOG.md` ships in the tarball** — shipped:
-      `.github/scripts/changelog.sh` writes a release's entry from its PRs'
-      release notes and the roadmap's finished items before the tag, and
-      `release.yml`'s gate refuses a tag whose `CHANGELOG.md` does not open
-      on its version or still holds `## Unreleased`
-      ([RELEASING.md](docs/RELEASING.md#cutting-a-release)). **Ticks when:**
-      the next release's tarball holds a `CHANGELOG.md` whose top entry is
-      that release's.
-
 - [ ] **The target side measured on a slow box** — the header and unpack
       took 17 ms on this machine (16CPU/60GB, measured while the payload was
       still armored), which says nothing about a Raspberry Pi or a busy VM.
       **Do:** time a cold connect's target side on a Pi-class target.
       **Ticks when:** this entry holds the figure, and an entry exists for
       whatever costs more than the network does.
-
-- [ ] **`git describe` runs once per commit, not per connect** — a clone
-      stamps the header's version with it on every connect, about 5 ms, which
-      at a terminal rides the boot call's handshake. **Do:** cache it keyed on
-      `.git/HEAD` and the ref it names. **Ticks when:** a warm connect from a
-      clone runs no git.
 
 - [ ] **Every default and preset audited before the tag** —
       [CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)

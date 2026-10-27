@@ -10,6 +10,13 @@ each; they, and the sentences of work not yet merged, wait under
 entry list theirs on
 [the releases page](https://github.com/ivylikethevine/say-hi/releases).
 
+## Unreleased
+
+From the roadmap:
+
+- Every release's source tarball carries a `CHANGELOG.md` that opens on that release's own entry.
+- A connect from a git checkout no longer runs `git describe` each time: the version it sends is kept in `.git/hi-version` until a commit, a checkout, a tag, or the index changes it.
+
 ## 0.8.0 - 2026-10-26
 
 - Connecting is faster. hi opens the session while its files are still on the way, starts ssh's handshake as soon as it knows the target, and sends 65 KB instead of 82 KB; a cold connect takes about half as long on a fast link, and about 0.4 s less over a 150 ms one.
