@@ -713,7 +713,8 @@ EOF
   # overlay, the way a user's would ride
   demo_overlay vim/vimrc <"$_HI_ROOT/docs/tapes/editors/vimrc"
   demo_overlay nano/nanorc <"$_HI_ROOT/docs/tapes/editors/nanorc"
-  # the credential helper is there to stay home: the git dialect strips it
+  # the credential helper is there to stay home: the git dialect strips it.
+  # lg never pages, or the tape's `exit` lands in less
   demo_overlay git/config <<'EOF'
 [user]
   name = Maya
@@ -721,6 +722,8 @@ EOF
 [alias]
   st = status -sb
   lg = log --oneline --graph --decorate -5
+[pager]
+  lg = false
 [credential]
   helper = osxkeychain
 EOF

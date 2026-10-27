@@ -126,7 +126,7 @@ All **dev**: the inputs a release builds from.
 | `packaging/srctar.sh`                            | The release source tarball.                                                       |
 | `packaging/bump.sh`                              | Sets the version and checksums in the AUR and Homebrew manifests at release time. |
 | `packaging/stamp.sh`                             | Stamps `_HI_RELEASE` for `hi --version`, the same way in every channel.           |
-| `packaging/lib.sh`                               | Shared plumbing for the scripts above but `stamp.sh`, which is standalone.        |
+| `packaging/lib.sh`                               | Shared plumbing for the scripts above.                                            |
 | `packaging/stamp_badge.sh`                       | Stamps README's payload badge as measured; bench runs its `--check`.              |
 | `packaging/homebrew/say-hi.rb`                   | The tap formula template.                                                         |
 | `packaging/nix/package.nix`, `home-manager.nix`  | The flake's package, and the home-manager module that writes the rc block.        |
@@ -330,7 +330,9 @@ into place.
 
 fish also keeps `__hi_color_user`, `__hi_color_host`, and `__hi_colors_key` as
 universal variables in its own store, so a color is only resolved once per
-change.
+change. A checkout keeps `.git/hi-version`, the `git describe` a connect sends
+as the version, asked again once `HEAD`, its branch, the tags, or the index
+is newer.
 
 ### Temporary files
 

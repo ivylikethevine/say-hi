@@ -46,11 +46,10 @@ one) has nothing else to read.
 `scripts/install.sh --prefix /usr/share` (with `$DESTDIR`) does all of this; its
 `_HI_PACKAGE_CONTENTS` and `install_tree()` decide what a packaged install
 contains, and the AUR PKGBUILDs, `mkpkg.sh`, and the flake's package
-([Nix flake](#nix-flake)) all call it. Two places repeat the
-list, and `tests/packaging/packaging_ci_test.sh` (the `packaging_ci` suite, ci
-group) fails if either drifts: the Homebrew formula, because `install_tree`
-hardcodes `/usr/bin` and `/etc/profile.d` and neither exists in a brew prefix,
-and `nfpm.yaml`'s apk entries ([deb / rpm / apk](#deb--rpm--apk)).
+([Nix flake](#nix-flake)) all call it. The Homebrew formula repeats the list,
+because `install_tree` hardcodes `/usr/bin` and `/etc/profile.d` and neither
+exists in a brew prefix, and `tests/packaging/packaging_ci_test.sh` (the
+`packaging_ci` suite, ci group) fails if the two drift.
 
 ## Layout
 
@@ -411,11 +410,8 @@ and a capitalised `desc` is in its own comments.
 Built by `mkpkg.sh` and attached to every release; how a user installs one is
 [PACKAGING.md's deb / rpm / apk](PACKAGING.md#deb--rpm--apk).
 
-`nfpm.yaml` lists the apk's contents per `_HI_PACKAGE_CONTENTS` member rather
-than through the `type: tree` entry deb and rpm use, because nfpm 2.47.0's tree
-walker writes directory modes apk-tools rejects. The `packaging_ci` suite keeps
-that copy honest, and `ci.yml`'s `packaging-smoke` installs the signed apk on
-Alpine on every code PR.
+`nfpm.yaml` takes the staged tree in one `type: tree` entry for all three, and
+`ci.yml`'s `packaging-smoke` installs the signed apk on Alpine on every code PR.
 
 ### Package repository
 

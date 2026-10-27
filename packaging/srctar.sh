@@ -22,7 +22,7 @@ case "${1:-}" in
 $_HI_USAGE
 
 Writes a say-hi-<version>.tar.gz of <ref> to <outfile>, with the
-say-hi-<version>/ prefix the AUR package's prepare() expects. <ref> is a tag
+say-hi-<version>/ prefix the AUR package's package() expects. <ref> is a tag
 on a release and HEAD on a rehearsal.
 USAGE
   exit 0

@@ -316,6 +316,12 @@ function gen_preflight() {
 # names no error at all is itself the finding.
 function gen_log_errors() { # <log>
   local hits
+  # a Wait timeout's last value is the screen vhs read, a row a line, and only
+  # its first row matches the error words below
+  if grep -q 'timeout waiting for' "$1" 2>/dev/null; then
+    sed -n '/timeout waiting for/,/recording failed/p' "$1" | sed 's/^/      /'
+    return 0
+  fi
   hits="$(grep -n -i -E 'error|cannot|can.t|no such|invalid|unable|fail|panic|not set|not found' "$1" 2>/dev/null | head -20)"
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits" | sed 's/^/      /'

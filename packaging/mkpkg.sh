@@ -24,30 +24,11 @@ _HI_VERSION=""
 _HI_SRC_TARBALL=""
 _HI_USAGE="Usage: mkpkg.sh [--version <x.y.z>] [--stage-only] [--outdir <dir>] [--source-tarball <file>]"
 
-# install.sh insists on a checkout named exactly say-hi ($_HI_HOME/say-hi is how it
-# finds everything). A clone directory called anything else - say-hi-main, a
-# worktree, a CI checkout path - would otherwise fail here rather than in the
-# packager's build, so give it the name it wants under a scratch parent.
-function staged_launcher() {
-  local shim
-  if [ "$(basename "$_HI_ROOT")" = say-hi ]; then
-    printf '%s' "$_HI_ROOT/scripts/install.sh"
-    return 0
-  fi
-  shim="$_HI_DIST/shim"
-  rm -rf "$shim"
-  mkdir -p "$shim"
-  ln -sfn "$_HI_ROOT" "$shim/say-hi"
-  printf '%s' "$shim/say-hi/scripts/install.sh"
-}
-
 function stage_tree() {
-  local installer
-  installer="$(staged_launcher)"
   _hi_h2 "Staging the tree"
   rm -rf "$_HI_DIST/staging"
   mkdir -p "$_HI_DIST/staging"
-  DESTDIR="$_HI_DIST/staging" "$installer" --prefix /usr/share
+  DESTDIR="$_HI_DIST/staging" "$_HI_ROOT/scripts/install.sh" --prefix /usr/share
   # `hi --version` and `man hi`'s footer, stamped at build time by the one
   # script every channel calls - never in git, because bump.sh only runs after
   # the tag exists and a committed stamp would always be a release stale.
@@ -131,20 +112,13 @@ function write_checksums() {
 # GLOSSARY: HI.06
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
+_HI_ME=mkpkg.sh
 while [ $# -gt 0 ]; do
-  # --x=y becomes --x y first, so each flag below is spelled once
-  case "$1" in --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;; esac
   case "$1" in
   --stage-only) _HI_STAGE_ONLY=1 ;;
-  --version | --outdir | --source-tarball)
-    _hi_need_value mkpkg.sh "$1" "$#"
-    case "$1" in
-    --version) _HI_VERSION="$2" ;;
-    --outdir) _HI_DIST="$2" ;;
-    --source-tarball) _HI_SRC_TARBALL="$2" ;;
-    esac
-    shift
-    ;;
+  --version | --version=*) _hi_flag_word_or_die _HI_VERSION "--version requires a value" "$@" || shift ;;
+  --outdir | --outdir=*) _hi_flag_word_or_die _HI_DIST "--outdir requires a value" "$@" || shift ;;
+  --source-tarball | --source-tarball=*) _hi_flag_word_or_die _HI_SRC_TARBALL "--source-tarball requires a value" "$@" || shift ;;
   -h | --help)
     cat <<EOF
 $_HI_USAGE

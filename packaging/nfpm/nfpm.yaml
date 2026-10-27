@@ -61,45 +61,9 @@ rpm:
     key_file: ${HI_GPG_KEY}
 
 contents:
-  # deb and rpm take the whole staged tree in one entry. The apk cannot: nfpm
-  # 2.47.0's tree walker leaks Go's ModeDir bit (0o20000000000) into the tar
-  # mode of directory entries on the apk path, and apk-tools rejects the
-  # package outright ("package file format error"). Until that is fixed
-  # upstream, the apk gets per-directory globs below - same files, same modes,
-  # walked by the glob writer that masks modes correctly.
   - src: ./dist/staging/usr/share/say-hi
     dst: /usr/share/say-hi
     type: tree
-    packager: deb
-  - src: ./dist/staging/usr/share/say-hi
-    dst: /usr/share/say-hi
-    type: tree
-    packager: rpm
-
-  # The apk copy of the tree, one entry per _HI_PACKAGE_CONTENTS member (the
-  # packaging suite keeps this list honest against install.sh's, the same way
-  # it keeps the Homebrew formula's copy).
-  - src: ./dist/staging/usr/share/say-hi/common/*
-    dst: /usr/share/say-hi/common/
-    packager: apk
-  - src: ./dist/staging/usr/share/say-hi/scripts/*
-    dst: /usr/share/say-hi/scripts/
-    packager: apk
-  - src: ./dist/staging/usr/share/say-hi/config/*
-    dst: /usr/share/say-hi/config/
-    packager: apk
-  - src: ./dist/staging/usr/share/say-hi/hi.sh
-    dst: /usr/share/say-hi/hi.sh
-    packager: apk
-  - src: ./dist/staging/usr/share/say-hi/load.sh
-    dst: /usr/share/say-hi/load.sh
-    packager: apk
-  - src: ./dist/staging/usr/share/say-hi/LICENSE.md
-    dst: /usr/share/say-hi/LICENSE.md
-    packager: apk
-  - src: ./dist/staging/usr/share/say-hi/README.md
-    dst: /usr/share/say-hi/README.md
-    packager: apk
 
   # Deliberately no staging prefix in src: this is the link target on the
   # *installed* system, and dist/staging is not there at runtime - the same

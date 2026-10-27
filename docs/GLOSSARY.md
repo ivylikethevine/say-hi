@@ -150,10 +150,10 @@ Rewrites go `sed > tmpfile` then write back — see HI.09 for why with `cat`.
 ## HI.09 cat-over-mv
 
 A tempfile goes back over an existing file through the existing inode:
-`cat "$tmp" > "$target"; rm -f "$tmp"` (`_hi_write_back` in `scripts/lib.sh`;
-`rewrite` in `packaging/stamp.sh` is the boundary-forced copy). `mv` would
-transplant mktemp's 0600 mode onto the target and sever any hardlink/ACL — a
-dotfile manager's hardlinked `~/.bashrc` must see the new content.
+`cat "$tmp" > "$target"; rm -f "$tmp"` (`_hi_write_back` in `scripts/lib.sh`).
+`mv` would transplant mktemp's 0600 mode onto the target and sever any
+hardlink/ACL — a dotfile manager's hardlinked `~/.bashrc` must see the new
+content.
 Non-atomicity is fine for single-user rc files; `common/targets.sh`'s cache
 swap keeps `mv` for atomicity over a file it owns, and the payload stager
 keeps it over a stage nothing links to (HI.39).

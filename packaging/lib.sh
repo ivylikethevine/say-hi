@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Shared plumbing for packaging/'s entry points (bump.sh, mkpkg.sh, mkrepo.sh,
-# srctar.sh): locate
-# the tree, source core.sh, and hold the primitives they share.
+# srctar.sh, stamp.sh): locate the tree, source core.sh, and hold the
+# primitives they share.
 # scripts/install.sh keeps its own locator on purpose - it ships in packages
 # *without* packaging/, so it cannot source this file; that boundary-forced
 # copy is documented there, as is hi.sh's - the third copy, for the same reason.
@@ -47,22 +47,6 @@ function need_file() {
   [ -f "$1" ] || {
     _hi_cecho " no such $2: $1" "$RED" >&2
     return 1
-  }
-}
-
-# _hi_need_value <me> <flag> <remaining-arg-count> - the "$flag requires a
-# value" refusal bump.sh/mkpkg.sh/mkrepo.sh each spelled for themselves; the
-# count is the caller's own $# (not yet shifted past <flag>), since a
-# function's own $# cannot see the loop it was called from. The "--x=y
-# becomes --x y" split ahead of it, and the unknown-argument arm after it,
-# stay local to each script: the former needs `set --` on the caller's own
-# positional parameters, which a function cannot reach into, and the latter
-# genuinely differs (bump.sh takes a bare <version>, the others take no
-# positional argument at all).
-function _hi_need_value() {
-  [ "$3" -ge 2 ] || {
-    _hi_cecho "$1: $2 requires a value" "$RED" >&2
-    exit 1
   }
 }
 
@@ -206,8 +190,8 @@ function touch_epoch() {
 # Built here rather than fetched: GitHub's auto-generated /archive/ tarball is
 # the one released artifact with nothing signed over it, and its bytes are not
 # promised stable across changes to GitHub's own gzip. This is the same shape -
-# `git archive` with a say-hi-<version>/ prefix, which is what the AUR
-# package's prepare() symlink expects - so nothing downstream can tell the
+# `git archive` with a say-hi-<version>/ prefix, which is where the AUR
+# package's package() runs install.sh from - so nothing downstream can tell the
 # difference except that this one is in SHA256SUMS and under the attestation.
 #
 # Deterministic for a given commit: git picks the format from the .tar.gz

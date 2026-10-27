@@ -14,9 +14,7 @@
 # the rpm names its openssh dependency `openssh-clients` (nfpm.yaml's rpm
 # override) - resolving it would pull a mirror for packages already there.
 #
-# apk: the musl/busybox channel, and the one whose contents nfpm lays out
-# file-by-file rather than as one tree (see nfpm.yaml's note about apk-tools
-# rejecting the directory mode bits). --allow-untrusted because a local build
+# apk: the musl/busybox channel. --allow-untrusted because a local build
 # is unsigned unless mkpkg.sh was given HI_APK_KEY; CI signs it, this fixture
 # must work either way. The login shell then moves to bash because the package
 # depends on bash and apk just installed it: alpine's `adduser -D -s /bin/ash`

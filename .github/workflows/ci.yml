@@ -984,7 +984,7 @@ jobs:
         run: packaging/mkpkg.sh
 
       # Catches "apk-tools rejects what nfpm built" (nfpm 2.47.0's tree entries
-      # did) and proves the signature chain: the pubkey lands in /etc/apk/keys
+      # once did) and proves the signature chain: the pubkey lands in /etc/apk/keys
       # under the name nfpm.yaml stamps into the signature, and apk add must
       # accept the package with NO --allow-untrusted. The image is
       # tests/dockerfiles' alpine pin, by digest (check_tool_versions.local.sh

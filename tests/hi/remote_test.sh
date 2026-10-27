@@ -163,6 +163,30 @@ function test_version_is_candid_without_stamp_or_git() {
   [[ "$got" == unknown* ]] || _hi_why got
 }
 
+# a connect from a checkout stamps its version from .git/hi-version while
+# nothing describe reads has moved: a warm one runs no git, a commit goes stale
+function test_wire_version_caches_the_describe() {
+  local dir g stub="$_HI_WORKDIR/wire-gitstub"
+  dir="$(_hi_git_fixture)"
+  g=(git -C "$dir" -c commit.gpgsign=false -c tag.gpgsign=false)
+  "${g[@]}" tag v1.2.3 || _hi_why g || return 1
+  # the tree, the index refreshed against it, then .git, all in the past, so
+  # a cache written now is newer than everything it keys on
+  { find "$dir" -path "$dir/.git" -prune -o -exec touch -t 199901010000 {} + &&
+    "${g[@]}" update-index -q --refresh &&
+    find "$dir/.git" -exec touch -t 200001010000 {} +; } || _hi_why dir || return 1
+  _hi_script "$stub/git" '#!/bin/sh' 'echo "git ran: $*" >&2' 'exit 1'
+  (
+    v="" _HI_RELEASE="" _HI_ROOT="$dir"
+    { _hi_wire_version v && [ "$v" = v1.2.3 ]; } || _hi_why v dir || exit 1
+    unset _HI_VERSION_KEY
+    { PATH="$stub:$PATH" _hi_wire_version v && [ "$v" = v1.2.3 ]; } || _hi_why v dir || exit 1
+    "${g[@]}" commit -q --allow-empty -m b || _hi_why g || exit 1
+    unset _HI_VERSION_KEY
+    { _hi_wire_version v && [ "$v" = v1.2.3+1 ]; } || _hi_why v dir
+  )
+}
+
 # the version rides the preamble so the target's header can show it
 function test_remote_preamble_exports_the_version() {
   local got
@@ -587,6 +611,7 @@ function run_hi_remote_tests() {
   _hi_check "A stamp wins" test_version_stamp_wins
   _hi_check "A checkout answers with git describe" test_version_falls_back_to_git_describe
   _hi_check "Candid with no stamp and no git" test_version_is_candid_without_stamp_or_git
+  _hi_check_requires git "A warm connect from a checkout runs no git" test_wire_version_caches_the_describe
   _hi_check "The preamble exports it" test_remote_preamble_exports_the_version
   _hi_check "The preamble ships the glyph verdict" test_remote_preamble_ships_the_glyph_verdict
   _hi_check "...and finds a UTF-8 locale on the target, or says ASCII" test_locale_probe_finds_a_utf8_locale_or_ascii

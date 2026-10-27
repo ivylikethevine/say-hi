@@ -242,8 +242,8 @@ function test_stamp_keeps_the_launcher_exec_bit() {
   [ "$before" = "$after" ] || _hi_why before after
 }
 
-# the --x=y spelling, normalized at the top of the parse loop the same way
-# in every packaging entry point
+# the --x=y spelling, which _hi_flag_word takes the same way in every
+# packaging entry point
 function test_stamp_accepts_the_equals_form() {
   local d
   d="$(_hi_stamp_fixture)"

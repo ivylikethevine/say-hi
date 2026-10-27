@@ -170,7 +170,7 @@ function test_bump_srcinfo_fallback_rewrites_the_three_lines() {
   bump_fixture
   (
     _hi_bump_env
-    rewrite_srcinfo_lines feedbeef
+    rewrite_srcinfo_lines feedbeef "$(asset_url 9.9.9)"
     grep -qF 'pkgver = 9.9.9' "$_HI_SRCINFO" &&
       grep -qF "source = $(asset_url 9.9.9)" "$_HI_SRCINFO" &&
       grep -qF 'b2sums = feedbeef' "$_HI_SRCINFO" &&
@@ -414,22 +414,6 @@ function test_package_sh_version_flag_wins() {
 
 function test_package_sh_rejects_unknown_arguments() {
   ! "$_HI_PKG_DIR/mkpkg.sh" --bogus >/dev/null 2>&1 || _hi_why _HI_PKG_DIR
-}
-
-# a checkout not named say-hi (CI paths, worktrees) gets the shim
-function test_staged_launcher_shims_a_misnamed_checkout() {
-  ln -sfn "$_HI_ROOT" "$_HI_WORKDIR/checkout"
-  (
-    set -- # mkpkg.sh reads "$@" when executed; make sure sourcing sees none
-    # shellcheck source=../../packaging/mkpkg.sh
-    source "$_HI_PKG_DIR/mkpkg.sh"
-    # shellcheck disable=SC2030 # local to the subshell on purpose: the
-    # fixture _HI_ROOT must not leak into the rest of the suite
-    _HI_ROOT="$_HI_WORKDIR/checkout"
-    _HI_DIST="$_HI_WORKDIR/pkgdist3"
-    out="$(staged_launcher)"
-    [ "$out" = "$_HI_DIST/shim/say-hi/scripts/install.sh" ] && [ -x "$out" ]
-  ) || _hi_why -6 out _HI_PKG_DIR _HI_DIST
 }
 
 function test_release_workflow_uploads_sha256sums() {
@@ -726,7 +710,6 @@ function run_packaging_ci_mkpkg_tests() {
   _hi_check_capable symlink "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
   _hi_check "--version beats the PKGBUILD's" test_package_sh_version_flag_wins
   _hi_check "Unknown arguments are an error" test_package_sh_rejects_unknown_arguments
-  _hi_check_capable symlink "staged_launcher shims a misnamed checkout" test_staged_launcher_shims_a_misnamed_checkout
   _hi_check "release.yml ships SHA256SUMS" test_release_workflow_uploads_sha256sums
   _hi_check "build signs the rpm with the checked GPG key" test_build_job_signs_the_rpm
   _hi_check "publish ships package-repo.tar.gz" test_publish_job_ships_the_package_repository
