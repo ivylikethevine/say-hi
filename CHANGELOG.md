@@ -14,7 +14,9 @@ entry list theirs on
 
 From the roadmap:
 
+- The README opens with the pitch, the sixty-second install, and a GIF of a 502 fixed on a web host with the aliases and vimrc that ride in; the seven stories moved to [TOUR.md](docs/TOUR.md).
 - Every release's source tarball carries a `CHANGELOG.md` that opens on that release's own entry.
+- The target side is measured on a Pi-class box, simulated by holding the target to an eighth of one core: a cold connect reaches its prompt in 632 ms there, against 271 ms at a full core, and hi's share of it is 473 ms against 143 ms.
 - A connect from a git checkout no longer runs `git describe` each time: the version it sends is kept in `.git/hi-version` until a commit, a checkout, a tag, or the index changes it.
 
 ## 0.8.0 - 2026-10-26

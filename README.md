@@ -309,18 +309,20 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
 `## Unreleased` section. What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **The README opens with the pitch** — shipped: the pitch, the
-      sixty-second install, then the top GIF, with the seven stories moved
-      to [TOUR.md](docs/TOUR.md), their GIF links unchanged, and a line each
-      left here. The top GIF is now a task: a 502 on a systemd web host,
-      worked with the aliases and vimrc that ride in
-      (`docs/tapes/demo.tape`, `tests/dockerfiles/demo-web.Dockerfile`).
-      **Ticks when:** `demo.gif` is rendered from that tape.
+- [ ] **Every default and preset audited before the tag** —
+      [CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
+      freezes the name and default of all 46 rows of
+      [SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting) and the
+      five presets, and a toggle removal is a 2.0. **Do:** read each row's
+      default as a stranger's first run, with the `balanced` first-install
+      default and `hi --update`'s verification as the known changes.
+      **Ticks when:** the 1.0.0 release note lists the defaults that moved,
+      or says none did.
 
 - [ ] **The session starts once the core files land** — on a fresh
       connection a script past about 45 KB costs two extra round trips over
       a small one, and one under 40 KB costs one (at 150 ms added); the
-      unarmored script is about 64 KB, while the tree a bash session needs
+      unarmored script is about 65 KB (the payload badge), while the tree a bash session needs
       to start is a fraction of what ships: without
       `hi.sh`, the completion files, the fish and zsh files, and `keep.sh`,
       it is 29.4 KB gzipped against 56.6 KB, a script of about 35 KB.
@@ -338,22 +340,18 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       round trips shorter, and the forced-command and `maxsessions1` cases
       pass that way.
 
-- [ ] **The target side measured on a slow box** — the header and unpack
-      took 17 ms on this machine (16CPU/60GB, measured while the payload was
-      still armored), which says nothing about a Raspberry Pi or a busy VM.
-      **Do:** time a cold connect's target side on a Pi-class target.
-      **Ticks when:** this entry holds the figure, and an entry exists for
-      whatever costs more than the network does.
-
-- [ ] **Every default and preset audited before the tag** —
-      [CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
-      freezes the name and default of all 45 rows of
-      [SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting) and the
-      five presets, and a toggle removal is a 2.0. **Do:** read each row's
-      default as a stranger's first run, with the `balanced` first-install
-      default and `hi --update`'s verification as the known changes.
-      **Ticks when:** the 1.0.0 release note lists the defaults that moved,
-      or says none did.
+- [ ] **The target side keeps up on a starved CPU** — with the target held
+      to an eighth of one core (`scratch/slow_target.sh`: a CFS quota on the
+      suites' sshd image, loopback, no netem; 16CPU/60GB host, at b55dacb8),
+      what a cold connect adds over a plain `ssh host true` grows from
+      143 ms to 473 ms, while sshd's own handshake moves from 128 ms to
+      159 ms. That is about what the connect's round trips cost at 150 ms
+      added. It grows faster than the cap does: a quarter core to an eighth
+      doubles the shell work but takes hi's share from 215 ms to 473 ms, so
+      some of the target side runs side by side or waits out a slice.
+      **Do:** profile the target side under the cap and cut what scales.
+      **Ticks when:** the same script puts hi's share at an eighth of a core
+      within twice its full-core figure.
 
 ## Release Stages
 
