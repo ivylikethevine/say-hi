@@ -148,6 +148,7 @@ _HI_PROBE_TIMEOUT_DEFAULT=2
 _HI_TARGETS_TTL_DEFAULT=5
 _HI_CTL_PERSIST_DEFAULT=60
 _HI_WATCH_STEP_DEFAULT=60
+_HI_SHELL_PREFERENCE_DEFAULT=login
 
 # fish's set_color vocabulary; no greys, since fish has none
 _HI_COLOR_NAMES=(red green yellow blue magenta cyan brred brgreen bryellow brblue brmagenta brcyan

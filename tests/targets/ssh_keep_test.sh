@@ -60,7 +60,7 @@ unset TMUX ZELLIJ STY
 
 # what _hi_mux_name makes of the target every case connects to, for the
 # account running the suite (hi.sh sourced stops at its guarded dispatch)
-_HI_KEEP_SESSION="$(bash -c 'source "$1"; _hi_mux_name 127.0.0.1' _ "$_HI_LAUNCHER")"
+_HI_KEEP_SESSION="$(bash -c 'source "$1"; _hi_mux_name hitest@127.0.0.1' _ "$_HI_LAUNCHER")"
 
 # the timeout case's $_HI_KEEP_TIMEOUT and the expired case's $_HI_HOLD_TIMEOUT, in seconds; the watcher polls at it
 _HI_KEEPTEST_LIMIT=4

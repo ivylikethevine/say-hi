@@ -991,7 +991,7 @@ function test_keep_alone_is_a_session_s_and_an_error_elsewhere() {
 function test_keep_scripts_quote_the_target() {
   local out mean='a$(id)b'\''c'
   out="$(DOMAIN="$mean" KEEP=1 CMDARG="" _hi_keep_attach)$(DOMAIN="$mean" KEEP=1 CMDARG="" _hi_keep_start)"
-  [[ "$out" == *"'a\$(id)b'\\''c'"* && "$out" == *"_hi_kn='hi-a--id-b-c'"* ]] || _hi_why out
+  [[ "$out" == *"'a\$(id)b'\\''c'"* && "$out" == *"_hi_kn='hi-a--id-b-c-$_HI_KEEP_KEY'"* ]] || _hi_why out
 }
 
 function run_hi_keep_tests() {

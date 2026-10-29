@@ -179,7 +179,7 @@ function _hi_session_shell() {
   # narrows it. Prefixed locals (GLOSSARY: HI.04), since $1 is an outvar name.
   local _hi_ss_want _hi_ss_found=bash
   # shellcheck disable=SC2086 # the split is the point: one word per shell
-  for _hi_ss_want in ${_HI_SHELL_PREFERENCE:-login} $_HI_SHELL_TREE; do
+  for _hi_ss_want in ${_HI_SHELL_PREFERENCE:-$_HI_SHELL_PREFERENCE_DEFAULT} $_HI_SHELL_TREE; do
     [ "$_hi_ss_want" = login ] && _hi_login_shell _hi_ss_want
     if _hi_shell_wired "$_hi_ss_want" && command -v "$_hi_ss_want" >/dev/null 2>&1 &&
       { [ "$_hi_ss_want" != fish ] || _hi_fish_new_enough; }; then
