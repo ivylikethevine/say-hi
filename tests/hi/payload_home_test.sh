@@ -286,6 +286,28 @@ Host web1 web2
 Host db1' ] || _hi_because "the cut: [$out]"
 }
 
+# ...and a block's own `Tag` line rides as the `# Tags:` line it stands for,
+# over the whole Host or Match host line: not where a comment already tags
+# the block, and over a config.d file's name, as the walk reads them
+function test_ssh_tags_writes_out_a_block_s_tag_line() {
+  local dir="$_HI_WORKDIR/tags-native" out
+  mkdir -p "$dir/rt" "$dir/.ssh/config.d"
+  printf '%s\n' 'Host web1' '  Tag fromline' 'Host web2' >"$dir/.ssh/config.d/acme"
+  printf '%s\n' 'Include config.d/*' 'Host kw *.kw' '  Tag = "native" # x' '# Tags: comment' 'Host both' '  Tag ignored' \
+    'Match host m-*' '  Tag matched' 'Host plain' '  User x' >"$dir/config"
+  out="$(HOME="$dir" _hi_tags_at "$dir")"
+  [ "$out" = '# Tags: fromline
+Host web1
+# Tags: acme
+Host web2
+# Tags: native
+Host kw *.kw
+# Tags: comment
+Host both
+# Tags: matched
+Match host m-*' ] || _hi_because "the cut: [$out]"
+}
+
 # _hi_tags_at <dir> - _hi_ssh_tags_file's answer against <dir>/config with
 # <dir>/rt as the runtime dir: the cut's contents, or `rc <n>`
 function _hi_tags_at() {
@@ -505,6 +527,7 @@ function run_hi_payload_home_tests() {
   _hi_check "inputrc rides like the tool configs, its includes dropped" test_inputrc_rides_like_the_tool_configs
   _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
   _hi_check "...a config.d file's name written out over its hosts" test_ssh_tags_writes_out_a_config_d_file_s_name
+  _hi_check "...and a block's Tag line, under a comment and over a file's name" test_ssh_tags_writes_out_a_block_s_tag_line
   _hi_check "...kept, and recut once the config is newer or Includes" test_ssh_tags_cut_is_reused_until_the_config_is_newer
   _hi_check_capable lockout "...and failing cleanly with no tag or no writable dir" test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir
   _hi_check "...and leaving no temp file when the cut cannot land" test_ssh_tags_leaves_no_temp_file_when_the_cut_fails

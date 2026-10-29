@@ -34,10 +34,14 @@ prod = "red"
 ```
 
 A `hosttag` row colors every host carrying a `# Tags: prod` comment above its
-`Host` or `Match host` line in `~/.ssh/config` — a wildcard block
-(`Host prod-*`) colors every name it covers. `hi --add-tag <host> <tag>` writes
-that comment for you, replacing a tag already there; given a name only a
-wildcard block covers, it names the block to tag instead. A `usertag` row colors
+`Host` or `Match host` line in `~/.ssh/config`, or a `Tag prod` line inside
+that block (ssh's own keyword, OpenSSH 9.4 up, which `Match tagged` reads
+too) — a wildcard block (`Host prod-*`) colors every name it covers. Where a
+block has both, the comment wins; where several blocks match, the first
+answers, as ssh takes the first `Tag` it reads. `hi --add-tag <host> <tag>`
+writes the comment for you, replacing a tag already there and saying so when
+the block carries a `Tag` line; given a name only a wildcard block covers, it
+names the block to tag instead. A `usertag` row colors
 the _username_ on every host that carries that tag, so `you@prod-db` reads as
 prod on both halves. A `hostname` name holding `*` or `?` is a pattern:
 `10.0.1.*` or `*.prod.example.com` colors a whole subnet or domain at once, no
@@ -63,19 +67,19 @@ with its own name: a host in `~/.ssh/config.d/acme` under no `# Tags:` line
 carries `acme`, so a file per client or site colors by its `hosttag` and
 `usertag` rows and reads `settings.acme.sh`
 ([SETTINGS.md](SETTINGS.md#settings-by-host-tag)) with nothing written. A
-`# Tags:` line above a host still wins, a wildcard block (`Host *.acme`) takes
-a tag only from a line of its own, and a file name that is not letters,
-digits, `_`, `.` and `-` alone tags nothing; one holding a `.` colors and
-names no settings file. `hi --add-tag` says so when the file's name is
-already the tag asked for, and `hi --doctor <host>` names the file a tag came
-from.
+`# Tags:` line above a host, or a `Tag` line in its block, still wins, a
+wildcard block (`Host *.acme`) takes a tag only from a line of its own, and a
+file name that is not letters, digits, `_`, `.` and `-` alone tags nothing;
+one holding a `.` colors and names no settings file. `hi --add-tag` says so
+when the file's name or a `Tag` line is already the tag asked for, and
+`hi --doctor <host>` names the file or the `Tag` line a tag came from.
 
 Tags follow you past the first hop. A `hi` typed inside a session runs on a
 box whose `~/.ssh/config` has none of your `# Tags:` lines, so the tagged
 `Host` and `Match host` lines of yours - those two lines of each block and
 nothing else, no `HostName`, no `User`, no untagged host - ride the overlay as
-`ssh_tags`, a `config.d` file's name written out as the `# Tags:` line it
-stands for, and the middle box reads them wherever its own config has no tag
+`ssh_tags`, a block's `Tag` line or a `config.d` file's name written out as
+the `# Tags:` line it stands for, and the middle box reads them wherever its own config has no tag
 for the name. The host is matched as you type it there, against the patterns
 you wrote here. `hi --doctor` says when the member rides; like `colors`, it
 names hosts to every target you visit, so an empty `ssh_tags` of your own in

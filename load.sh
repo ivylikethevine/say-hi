@@ -169,15 +169,17 @@ function _hi_fish_new_enough() {
   return 0
 }
 
-# The tail is $_HI_SHELL_TREE, not a literal of its own; its bash-less tiers
-# are reachable only where bash is absent, and this file is bash, so what
-# survives is fish > zsh > bash behind the login shell.
+# $_HI_SHELL_PREFERENCE's words first (`login` by default: the user's login
+# shell, where hi styles it), then $_HI_SHELL_TREE, not a literal of its own;
+# its bash-less tiers are reachable only where bash is absent, and this file
+# is bash, so what survives is fish > zsh > bash behind the preference.
 # GLOSSARY: HI.25 - why login leads. [outvar] for _hi_login_shell's reason.
 function _hi_session_shell() {
   # bash as the starting value, not a second exit point: the loop only
   # narrows it. Prefixed locals (GLOSSARY: HI.04), since $1 is an outvar name.
   local _hi_ss_want _hi_ss_found=bash
-  for _hi_ss_want in login $_HI_SHELL_TREE; do
+  # shellcheck disable=SC2086 # the split is the point: one word per shell
+  for _hi_ss_want in ${_HI_SHELL_PREFERENCE:-login} $_HI_SHELL_TREE; do
     [ "$_hi_ss_want" = login ] && _hi_login_shell _hi_ss_want
     if _hi_shell_wired "$_hi_ss_want" && command -v "$_hi_ss_want" >/dev/null 2>&1 &&
       { [ "$_hi_ss_want" != fish ] || _hi_fish_new_enough; }; then

@@ -269,7 +269,7 @@ and readline's always; an overlay copy rides either way.
 | `lazygit/config.yml`             | `$LG_CONFIG_FILE`, `$XDG_CONFIG_HOME/lazygit/config.yml`, `~/Library/Application Support/lazygit/config.yml`                                                                                                                                                     |
 | `git/config`                     | `$GIT_CONFIG_GLOBAL`, else `~/.gitconfig`; `$XDG_CONFIG_HOME/git/config`; only with `hi --enable-plugin git`, and less what is private ([INTEGRATIONS.md](INTEGRATIONS.md#git))                                                                                  |
 | `inputrc`                        | `${INPUTRC:-~/.inputrc}`                                                                                                                                                                                                                                         |
-| `ssh_tags`                       | the `# Tags:` lines of `~/.ssh/config` and its Includes, each with the `Host` or `Match host` line under it and nothing else                                                                                                                                     |
+| `ssh_tags`                       | the `# Tags:` lines of `~/.ssh/config` and its Includes, a block's `Tag` line or a `config.d` file's name written as one, each with the `Host` or `Match host` line under it and nothing else                                                                    |
 
 ## Paths hi recognizes
 

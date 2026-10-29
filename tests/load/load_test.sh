@@ -692,6 +692,14 @@ Floors at bash|bash|SHELL=/usr/bin/fish|bash
 # file's, and _hi_session_shell's allow-list `case` is what keeps them out. A
 # tree walked without that filter would answer "dash" here.
 A bash-less tier is never the session shell (dash)|bash dash zsh|SHELL=/bin/dash|zsh
+# $_HI_SHELL_PREFERENCE reorders the ladder: its words first, in order, then
+# the tree; a word that is no shell hi styles is passed over, and `login` in
+# it is the login shell wherever it sits
+The preference leads the login shell|bash zsh fish|SHELL=/bin/bash _HI_SHELL_PREFERENCE="zsh fish"|zsh
+...and falls to the next word it names|bash fish|SHELL=/bin/bash _HI_SHELL_PREFERENCE="zsh fish"|fish
+...then to the tree past its last word|bash fish|SHELL=/bin/bash _HI_SHELL_PREFERENCE=zsh|fish
+...a word that is no shell of hi's is passed over|bash zsh fish|SHELL=/bin/zsh _HI_SHELL_PREFERENCE="nope login"|zsh
+...and bash is still the floor|bash|SHELL=/bin/bash _HI_SHELL_PREFERENCE="fish zsh"|bash
 EOF
   _hi_check "...and bash is the answer even off-PATH" test_session_shell_floors_at_bash_even_off_path
   _hi_check "A fish older than 3.4 gives way to the next shell" test_session_shell_passes_over_a_fish_too_old

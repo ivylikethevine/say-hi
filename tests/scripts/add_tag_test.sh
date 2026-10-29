@@ -206,6 +206,26 @@ function test_remove_tag_takes_a_host_alone() {
   [[ "$out" == "Usage: hi --remove-tag <host> [--dry-run]"* ]] || _hi_why out
 }
 
+# a block that carries ssh's own Tag line: asked for that tag, nothing is
+# written; asked for another, the comment is written and the Tag line
+# named; and --remove-tag with no comment names it as what still tags the
+# host
+function test_add_tag_says_when_the_block_carries_a_tag_line() {
+  local home out got before
+  home="$(_hi_addtag_fixture addtag-native)"
+  printf '%s\n' 'Host kw' '  Tag native' '  User x' >>"$home/.ssh/config"
+  before="$(cat "$home/.ssh/config")"
+  out="$(_hi_addtag_run "$home" kw native)" || _hi_why home || return 1
+  got="$(cat "$home/.ssh/config")"
+  [[ "$out" == *"kw is already tagged native, by its Tag line"* ]] && [ "$got" = "$before" ] || _hi_why out got home || return 1
+  out="$(HOME="$home" _HI_CONFIG_DIR="$home/overlay" _hi_subcmd_run "$home" --remove-tag kw)" || _hi_why home || return 1
+  got="$(cat "$home/.ssh/config")"
+  [[ "$out" == *"kw has no # Tags: line - its Tag line tags it native"* ]] && [ "$got" = "$before" ] || _hi_why out got home || return 1
+  out="$(_hi_addtag_run "$home" kw lab)" || _hi_why home || return 1
+  { [[ "$out" == *"kw's block also carries Tag native"* ]] && grep -A1 -x '# Tags: lab' "$home/.ssh/config" | grep -qx 'Host kw' &&
+    grep -qx '  Tag native' "$home/.ssh/config"; } || _hi_why out home
+}
+
 function run_add_tag_tests() {
   _hi_workdir addtag
   _hi_suite_begin
@@ -221,6 +241,7 @@ function run_add_tag_tests() {
   _hi_check "--help is its own text" test_add_tag_help_is_its_own
   _hi_check "Refuses an unknown option, nothing written" test_add_tag_refuses_an_unknown_option
   _hi_check "Leaves a host that already carries the tag" test_add_tag_leaves_a_host_already_tagged
+  _hi_check "Says when the block carries ssh's own Tag line" test_add_tag_says_when_the_block_carries_a_tag_line
   _hi_check "--dry-run writes nothing" test_add_tag_dry_run_writes_nothing
   _hi_check_capable mode_bits "Keeps the config's mode" test_add_tag_keeps_the_config_mode
   _hi_check "Round-trips through hi --preview colors" test_add_tag_round_trips_through_preview_colors

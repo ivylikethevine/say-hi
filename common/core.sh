@@ -1416,17 +1416,22 @@ function _hi_ssh_try_patterns() {
   return 2
 }
 
-# The "# Tags: a, b" comment directly above a "Host <alias>" or "Match host
-# <pattern>" line in ~/.ssh/config (case-insensitive, wildcards honoured);
-# unknown host returns 1, known host with no tag returns 2. An untagged block
-# that matches (a leading `Host *`) does not end the walk: ssh applies every
-# matching block, so a tag further down still counts. An `Include` is walked
+# The tag of the "Host <alias>" or "Match host <pattern>" block naming a host
+# in ~/.ssh/config (case-insensitive, wildcards honoured): the "# Tags: a, b"
+# comment directly above it, else a `Tag <name>` line inside it (ssh's own
+# keyword, OpenSSH 9.4 up, which `Match tagged` reads), else, for a host
+# spelled out in a file directly in a `config.d`, that file's name. Unknown
+# host returns 1, known host with no tag returns 2. An untagged block that
+# matches (a leading `Host *`) does not end the walk: ssh applies every
+# matching block, so a tag further down still counts; the first block that
+# answers does, as ssh takes the first `Tag` it reads. An `Include` is walked
 # in place, its files flattened by targets.sh - a fork only for a config that
-# has one. A file directly in a `config.d` tags the hosts it spells out, where
-# no comment does, with its own name.
+# has one - and a block an Include sits in goes on through its lines, as it
+# does for ssh. $_hi_sw_src says which of the three answered: comment, tag,
+# or file.
 function _hi_ssh_host_tag_walk() {
   local line trimmed known=1
-  _hi_sw_tag="" _hi_sw_file="" _hi_sw_hit=""
+  _hi_sw_tag="" _hi_sw_file="" _hi_sw_hit="" _hi_sw_src="" _hi_sw_open="" _hi_sw_pend=""
   [ -f "$_HI_SSH_CONFIG" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
     trimmed="${line#"${line%%[![:space:]]*}"}"
@@ -1445,12 +1450,25 @@ function _hi_ssh_host_tag_walk() {
       ;;
     esac
   done <"$_HI_SSH_CONFIG"
+  ! _hi_ssh_block_close || return 0
   return "$known"
+}
+
+# The block the walk is in ends, at the next Host or Match line or the end of
+# the config: a config.d file's name, pending since the block's Host line
+# matched under no comment, answers where no Tag line came (0); else 1.
+function _hi_ssh_block_close() {
+  local _hi_bc_pend="$_hi_sw_pend"
+  _hi_sw_open="" _hi_sw_pend=""
+  [ -n "$_hi_bc_pend" ] || return 1
+  _hi_sw_hit="$_hi_bc_pend" _hi_sw_src=file
 }
 
 # One line of the walk above: 0 tagged (in $_hi_sw_hit), 2 known-but-untagged,
 # 1 go on. The pending tag rides in $_hi_sw_tag between lines, and the config.d
-# file they are from, as targets.sh marks it, in $_hi_sw_file.
+# file they are from, as targets.sh marks it, in $_hi_sw_file. $_hi_sw_open is
+# set while the lines are a matching block's that no comment tagged, where a
+# Tag line answers, and $_hi_sw_pend the file's name that answers at its end.
 function _hi_ssh_walk_line() {
   local trimmed rest patterns rc
   trimmed="${1#"${1%%[![:space:]]*}"}"
@@ -1473,17 +1491,28 @@ function _hi_ssh_walk_line() {
     esac
     ;;
   [Hh][Oo][Ss][Tt][[:space:]]*)
+    ! _hi_ssh_block_close || return 0
     rc=0
     _hi_ssh_try_patterns "${trimmed#[Hh][Oo][Ss][Tt]}" "$2" "$_hi_sw_tag" || rc=$?
-    if [ "$rc" -eq 2 ] && [ -n "$_hi_sw_file" ]; then
-      # a wildcard names no host: only a spelled-out one takes the file's name
-      local _HI_SSH_LITERAL_ONLY=1
-      _hi_ssh_try_patterns "${trimmed#[Hh][Oo][Ss][Tt]}" "$2" "${_hi_sw_file##*/}" && return 0
-    fi
-    [ "$rc" -eq 1 ] || return "$rc"
     _hi_sw_tag=""
+    case "$rc" in
+    0) _hi_sw_src=comment ;;
+    2)
+      # the host's block, under no comment: a Tag line in it may answer, and
+      # the config.d file's name at its end - for a spelled-out name only,
+      # since a wildcard names no host
+      _hi_sw_open=1
+      if [ -n "$_hi_sw_file" ]; then
+        local _HI_SSH_LITERAL_ONLY=1 _hi_wl_rc=0
+        _hi_ssh_try_patterns "${trimmed#[Hh][Oo][Ss][Tt]}" "$2" "" || _hi_wl_rc=$?
+        [ "$_hi_wl_rc" -ne 2 ] || _hi_sw_pend="${_hi_sw_file##*/}"
+      fi
+      ;;
+    esac
+    return "$rc"
     ;;
   [Mm][Aa][Tt][Cc][Hh][[:space:]]*)
+    ! _hi_ssh_block_close || return 0
     rest="${trimmed#[Mm][Aa][Tt][Cc][Hh]}"
     rest="${rest#"${rest%%[![:space:]]*}"}"
     case "$rest" in
@@ -1497,10 +1526,26 @@ function _hi_ssh_walk_line() {
       patterns="${patterns%%[[:space:]][Ff][Ii][Nn][Aa][Ll]*}"
       rc=0
       _hi_ssh_try_patterns "$patterns" "$2" "$_hi_sw_tag" || rc=$?
-      [ "$rc" -eq 1 ] || return "$rc"
+      _hi_sw_tag=""
+      case "$rc" in 0) _hi_sw_src=comment ;; 2) _hi_sw_open=1 ;; esac
+      return "$rc"
       ;;
     esac
     _hi_sw_tag=""
+    ;;
+  [Tt][Aa][Gg][[:space:]=]*)
+    # ssh's own keyword, in the block of the host asked about: its one word,
+    # quotes off, of a tag's own letters, or it is no tag
+    _hi_sw_tag=""
+    [ -n "$_hi_sw_open" ] || return 1
+    rest="${trimmed#[Tt][Aa][Gg]}"
+    rest="${rest#"${rest%%[![:space:]=]*}"}"
+    rest="${rest%%[[:space:]]*}"
+    rest="${rest#\"}"
+    rest="${rest%\"}"
+    case "$rest" in '' | *[!A-Za-z0-9_.-]*) return 1 ;; esac
+    _hi_sw_hit="$rest" _hi_sw_src=tag _hi_sw_open="" _hi_sw_pend=""
+    return 0
     ;;
   '') ;;
   *) _hi_sw_tag="" ;;

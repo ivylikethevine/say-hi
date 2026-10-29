@@ -242,7 +242,8 @@ Every username and hostname gets a color derived from its name; a line in
 `~/.config/say-hi/colors` (`prod-db = "yellow"` under `[hostname]`, which
 `hi --add-color hostname prod-db yellow` writes) pins one, and
 `hi --preview colors` shows what every host and your user resolve to. Tags
-(`# Tags:` lines in `~/.ssh/config`, which sshm writes), patterns, truecolor
+(`# Tags:` lines in `~/.ssh/config`, which sshm writes, or ssh's own `Tag`
+keyword), patterns, truecolor
 schemes of your own, and using the hash in your own prompt:
 [docs/COLORS.md](docs/COLORS.md).
 
@@ -311,7 +312,7 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
 
 - [ ] **Every default and preset audited before the tag** —
       [CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
-      freezes the name and default of all 46 rows of
+      freezes the name and default of all 47 rows of
       [SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting) and the
       five presets, and a toggle removal is a 2.0. **Do:** read each row's
       default as a stranger's first run, with the `balanced` first-install
@@ -352,17 +353,6 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       **Do:** profile the target side under the cap and cut what scales.
       **Ticks when:** the same script puts hi's share at an eighth of a core
       within twice its full-core figure.
-
-- [ ] **ssh's own `Tag` keyword beside the `# Tags:` line** — OpenSSH 9.4
-      added `Tag` and `Match tagged`, so a block can carry one tag ssh itself
-      reads and `ssh -G host` reports as `tag`, with no comment to keep in
-      step. **Do:** take a block's `Tag` where it has no `# Tags:` line, in
-      the config walk and in the `ssh_tags` member that rides the overlay;
-      `hi --add-tag` says when a block already carries one, `hi --doctor`
-      names which of the two a tag came from. **Ticks when:** a host under
-      `Tag prod` and no comment colors by its `hosttag` row, reads
-      `settings.prod.sh`, and carries the tag past the first hop, with the
-      relay suite passing.
 
 ## Release Stages
 

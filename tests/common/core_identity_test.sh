@@ -141,6 +141,48 @@ function test_ssh_host_tag_survives_a_blank_line_before_its_host() {
   [ "$got" = spaced ] || _hi_why got cfg
 }
 
+# _hi_native_tag_home <name> - a home whose config carries ssh's own Tag
+# keyword: `kw` under a Tag line alone, `both` under a comment and a Tag
+# line, `eq` under `Tag = "quoted" # comment`, `m-1` by a Match host block's
+# Tag, `next` after a block with a Tag line, and in config.d/acme `web1`
+# under a Tag line and `web2` under none. Printed.
+function _hi_native_tag_home() {
+  local h="$_HI_WORKDIR/$1"
+  mkdir -p "$h/.ssh/config.d"
+  printf '%s\n' 'Include config.d/*' 'Host kw' '  Tag native' '# Tags: comment' 'Host both' '  Tag ignored' \
+    'Host eq' '  Tag = "quoted" # x' 'Match host m-*' '  Tag matched' 'Host next' '  User x' >"$h/.ssh/config"
+  printf 'Host web1\n  Tag fromline\nHost web2\n' >"$h/.ssh/config.d/acme"
+  printf '%s' "$h"
+}
+
+# _hi_native_tags <home> [shell] - "<host>=<tag>(<rc>,<source>)" for each
+# host of that home, space-joined, as _hi_ssh_host_tag answers in [shell]
+function _hi_native_tags() {
+  HOME="$1" _hi_in_shell "${2:-bash}" "export _HI_SSH_CONFIG='$1/.ssh/config'
+    for h in kw both eq m-1 next web1 web2; do
+      unset _HI_TAG_NAME; rc=0; t=\"\$(_hi_ssh_host_tag \$h)\" || rc=\$?
+      _hi_ssh_host_tag_walk \$h >/dev/null 2>&1; printf '%s=%s(%s,%s) ' \"\$h\" \"\$t\" \"\$rc\" \"\$_hi_sw_src\"; done"
+}
+
+# ssh's own `Tag` line (OpenSSH 9.4) tags the block it sits in where no
+# `# Tags:` line is written above it - a comment wins, a Tag line goes over a
+# config.d file's name, `=` and quotes are read as ssh reads them, a Match
+# host block takes one too, and one block's Tag line is not the next's
+function test_ssh_host_tag_reads_ssh_s_own_tag_keyword() {
+  local h got want='kw=native(0,tag) both=comment(0,comment) eq=quoted(0,tag) m-1=matched(0,tag) next=(2,) web1=fromline(0,tag) web2=acme(0,file) '
+  h="$(_hi_native_tag_home native-tags)"
+  got="$(_hi_native_tags "$h")"
+  [ "$got" = "$want" ] || _hi_why got want h
+}
+
+function test_zsh_native_tag_agrees_with_bash() {
+  local h got want
+  h="$(_hi_native_tag_home native-zsh)"
+  want="$(_hi_native_tags "$h")"
+  got="$(_hi_native_tags "$h" zsh)"
+  [ "$got" = "$want" ] || _hi_why got want h
+}
+
 function test_ssh_host_tag_untagged_host_fails() {
   ! _hi_fixture_tag untaggedhost || _hi_why
 }
@@ -643,6 +685,8 @@ function run_core_identity_tests() {
   _hi_check "...and they color by its hosttag and usertag rows" test_config_d_host_colors_by_its_file
   _hi_check "A leading untagged Host * does not end the walk" test_ssh_host_tag_survives_a_leading_untagged_wildcard
   _hi_check "A blank line before its Host keeps the tag" test_ssh_host_tag_survives_a_blank_line_before_its_host
+  _hi_check "ssh's own Tag line tags its block, under a comment and over a file's name" test_ssh_host_tag_reads_ssh_s_own_tag_keyword
+  _hi_check_requires zsh "...and zsh reads it the same" test_zsh_native_tag_agrees_with_bash
   _hi_check "Untagged host fails" test_ssh_host_tag_untagged_host_fails
   _hi_check "A relayed hop reads the client's tag map" test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay
   _hi_check "'Tags=' syntax and multi-alias Host lines" test_ssh_host_tag_equals_syntax_and_multialias

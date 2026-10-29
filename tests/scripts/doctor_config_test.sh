@@ -50,7 +50,7 @@ function test_config_says_the_ssh_tags_ride() {
   out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
     _HI_SETTINGS="$dir/settings.sh" doctor_config)"
   got="$(_hi_doc_path "$dir/ssh_config")"
-  [[ "$out" == *"the # Tags: lines of $got ride along"* ]] || _hi_because "tagged: $out" || return 1
+  [[ "$out" == *"the # Tags: and Tag lines of $got ride along"* ]] || _hi_because "tagged: $out" || return 1
   printf 'Host web\n' >"$dir/ssh_config"
   out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
     _HI_SETTINGS="$dir/settings.sh" doctor_config)"
