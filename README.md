@@ -353,6 +353,17 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       **Ticks when:** the same script puts hi's share at an eighth of a core
       within twice its full-core figure.
 
+- [ ] **ssh's own `Tag` keyword beside the `# Tags:` line** — OpenSSH 9.4
+      added `Tag` and `Match tagged`, so a block can carry one tag ssh itself
+      reads and `ssh -G host` reports as `tag`, with no comment to keep in
+      step. **Do:** take a block's `Tag` where it has no `# Tags:` line, in
+      the config walk and in the `ssh_tags` member that rides the overlay;
+      `hi --add-tag` says when a block already carries one, `hi --doctor`
+      names which of the two a tag came from. **Ticks when:** a host under
+      `Tag prod` and no comment colors by its `hosttag` row, reads
+      `settings.prod.sh`, and carries the tag past the first hop, with the
+      relay suite passing.
+
 ## Release Stages
 
 What the 1.0 tag and the releases after it wait on, in order. Once its
