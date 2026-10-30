@@ -17,8 +17,8 @@
 # ---------------------------------------------------------------------------
 # WHY A SECOND COVERAGE SCRIPT
 #
-# tests/coverage.sh drives kcov, whose bash instrumentation is a DEBUG trap.
-# An earlier kcov lost that trap during tests/test_lib.sh's source-time work,
+# tests/coverage.sh drives kcov. An earlier kcov, tracing bash through a
+# DEBUG trap, lost that trap during tests/test_lib.sh's source-time work,
 # and every line a suite ran *after* the harness finished loading went
 # unrecorded - common/git_prompt.sh reported 2 of 78 lines while its 17 cases
 # passed. coverage.sh's own header keeps that measured record; the current
