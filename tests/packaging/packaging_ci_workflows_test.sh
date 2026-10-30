@@ -350,7 +350,7 @@ function test_setup_tool_builds_from_a_source_tarball() {
     grep -q '^apt-get update' "$dir/sudo.log" || _hi_because "make said [$out], sudo ran: $(cat "$dir/sudo.log")" || return 1
   : >"$dir/sudo.log"
   out="$(_hi_tool_run "$dir" install CI_TOOL=nomk)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"nomk was not built by https://x/nomk.tar.gz"* ]] && [ ! -s "$dir/sudo.log" ] ||
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no single "*" executable named nomk from https://x/nomk.tar.gz"* ]] && [ ! -s "$dir/sudo.log" ] ||
     _hi_because "a build with no tool, rc $rc: $out" || return 1
   out="$(_hi_tool_run "$dir" install CI_TOOL=cm)" || _hi_because "cmake: $out" || return 1
   [ "${out##*$'\n'}" = cmade ] && grep -qx 'apt-get install -y --no-install-recommends build-essential cmake libz-dev' "$dir/sudo.log" ||
@@ -642,7 +642,7 @@ function test_setup_tool_finds_the_binary_inside_an_archive() {
   out="$(_hi_tool_run "$dir" install CI_TOOL=deep)" && [ "$out" = deep ] || _hi_because "a versioned directory: $out" || return 1
   out="$(_hi_tool_run "$dir" install CI_TOOL=arch)" && [ "$out" = mine ] || _hi_because "one build per arch: $out" || return 1
   out="$(_hi_tool_run "$dir" install CI_TOOL=twins)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"no single "*" executable named twins inside https://x/twins.tar.gz"* ]] &&
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no single "*" executable named twins from https://x/twins.tar.gz"* ]] &&
     [ ! -e "$dir/out/twins" ] || _hi_because "two candidates, rc $rc: $out"
 }
 
@@ -668,8 +668,8 @@ function test_setup_tool_refuses_a_row_that_cannot_work() {
 
 # setup-tools, the batch over the same installer: resolve folds every tool
 # into one cache key (the hosted image first, then name, pin, the checksum's
-# first twelve digits) and one path list, and the install step fetches only
-# what the cache did not restore
+# first twelve digits) and one path list, and the install step fetches every
+# tool, replacing a binary already there so the cache never saves it unverified
 function test_setup_tools_batches_resolve_and_install() {
   local dir out sum got got2 got3
   dir="$(_hi_tool_dir batch)"
@@ -689,7 +689,7 @@ function test_setup_tools_batches_resolve_and_install() {
   out="$(sed -n 1p "$dir/output")"
   [ "$out" = "key= one=1.0@$got two=2.5@${sum:0:12}" ] ||
     _hi_because "the outputs: $out" || return 1
-  printf '#!/bin/sh\necho restored\n' >"$dir/out/one"
+  printf '#!/bin/sh\necho unverified\n' >"$dir/out/one"
   chmod +x "$dir/out/one"
   out="$(env -u CI_TOOL_VERSION -u CI_TOOL_SHA256 CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
     HI_TOOL_SRC="$dir/src" PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/actions/setup-tools/install-missing.sh" 2>&1)" ||
@@ -697,7 +697,7 @@ function test_setup_tools_batches_resolve_and_install() {
   got="$("$dir/out/one")"
   got2="$("$dir/out/two")"
   got3="$(cat "$dir/urls")"
-  [ "$got" = restored ] && [ "$got2" = two ] && [ "$got3" = "https://x/two" ] ||
+  [ "$got" = one ] && [ "$got2" = two ] && [ "$got3" = "https://x/one"$'\n'"https://x/two" ] ||
     _hi_because "fetched: $got3"
 }
 
