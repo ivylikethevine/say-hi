@@ -15,7 +15,7 @@ name: Coverage
 # shard finishes inside 15 minutes, setup included.
 #
 # Both tracers follow a child only when it is bash (bashcov rides on
-# SHELLOPTS=xtrace, kcov on a DEBUG trap), and ubuntu's /bin/sh is dash, so
+# SHELLOPTS=xtrace, kcov on $BASH_ENV), and ubuntu's /bin/sh is dash, so
 # the `#!/bin/sh` files the suites run as `sh <file>` children
 # (common/targets.sh, three points of the badge) would read 0% here and on
 # no other box. Each driver (tests/coverage.sh, tests/coverage_v2.sh) puts a
@@ -755,19 +755,20 @@ jobs:
           }
           avg() { [ -n "$1" ] && [ -n "$2" ] && awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f", (a + b) / 2 }' || true; }
           # kcov sweeps main alone, so this PR's average is main's kcov
-          # figure beside its own bashcov one
+          # figure beside its own bashcov one, and the verdict reads the
+          # bashcov figure alone: the one this PR measured
           b="$(fig "$RUNNER_TEMP/pr/coverage-v2-pct/pct")"
           k0="$(fig "$RUNNER_TEMP/main/coverage-pct/pct")"
           b0="$(fig "$RUNNER_TEMP/main/coverage-v2-pct/pct")"
           a="$(avg "$k0" "$b")"
           k0s="not measured"
           [ -z "$k0" ] || k0s="$k0%"
-          if [ -z "$a" ]; then
-            verdict="The target is ${TARGET}%; this PR's average was not measured."
-          elif awk -v a="$a" -v t="$TARGET" 'BEGIN { exit !(a < t) }'; then
-            verdict="**Below the ${TARGET}% target** at ${a}% - worth a test for what this PR adds, though nothing blocks the merge."
+          if [ -z "$b" ]; then
+            verdict="The target is ${TARGET}%; this PR's bashcov figure was not measured."
+          elif awk -v a="$b" -v t="$TARGET" 'BEGIN { exit !(a < t) }'; then
+            verdict="**Below the ${TARGET}% target** at ${b}% under bashcov - worth a test for what this PR adds, though nothing blocks the merge."
           else
-            verdict="At or above the ${TARGET}% target."
+            verdict="At or above the ${TARGET}% target under bashcov."
           fi
           # the changed lines bashcov did not record: of the step above's
           # output, only rows that are a path and line numbers, twenty at most

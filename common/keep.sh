@@ -54,11 +54,20 @@ function _hi_mux_here() {
   return 1
 }
 
-# The session name for a target: every character tmux's rules reject, or that
-# reads badly in a status line, becomes `-`. `ctx:ns:pod/ctr` -> `hi-ctx-ns-pod-ctr`.
+# The session name for a target and the user connecting to it: every
+# character tmux's rules reject, or that reads badly in a status line,
+# becomes `-`, and the client's username ends it as a hash, since a session
+# name sits in the target's process table, which never learns the operator's
+# (GLOSSARY: HI.47). `ctx:ns:pod/ctr` -> `hi-ctx-ns-pod-ctr-<hash>`. So two
+# people on one account of a target keep sessions of their own, and one
+# person comes back to theirs from any machine.
 # _hi_mux_name <target> [outvar]
 function _hi_mux_name() {
-  _hi_out "${2:-}" "hi-${1//[^[:alnum:]_-]/-}"
+  local _hi_mn_u _hi_mn_h
+  _hi_local_username _hi_mn_u
+  _hi_hash "$_hi_mn_u" _hi_mn_h
+  printf -v _hi_mn_h '%x' "$_hi_mn_h"
+  _hi_out "${2:-}" "hi-${1//[^[:alnum:]_-]/-}-$_hi_mn_h"
 }
 
 # Whether this connect looks on the target for a kept session to reattach:
@@ -367,9 +376,13 @@ function _hi_keep_here() {
 # (_hi_keep_holds), and the directory it is in now is noted for it. Refused
 # where the session could not hold: a window of 0.
 function _hi_keep_hold_here() {
-  local line as="" name limit=0
+  local line as="" name limit=0 _HI_LOCAL_USER="${_HI_LOCAL_USER:-}"
+  # the client's username, which names the session, rode the file too
   while IFS= read -r line; do
-    [ "${line%%=*}" != _HI_KEEP_AS ] || as="${line#*=}"
+    case "${line%%=*}" in
+    _HI_KEEP_AS) as="${line#*=}" ;;
+    _HI_LOCAL_USER) _HI_LOCAL_USER="${line#*=}" ;;
+    esac
   done <"$1"
   _hi_keep_seconds "${_HI_HOLD_TIMEOUT:-$_HI_HOLD_TIMEOUT_DEFAULT}" limit || _hi_keep_seconds "$_HI_HOLD_TIMEOUT_DEFAULT" limit
   if [ -z "$as" ] || ((limit <= 0)); then

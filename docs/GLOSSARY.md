@@ -375,17 +375,21 @@ command appended to their rc (`_hi_command_append`).
 
 ## HI.25 session-shell ranking
 
-The session shell is the user's login shell when hi styles it, else the first
-installed of the names hi styles; bash is the floor because `load.sh` only
-runs where bash exists. The tail is not a literal: `_hi_session_shell` walks
-`common/core.sh`'s `$_HI_SHELL_TREE` (`fish zsh bash dash ash sh`) and drops
-the tiers that need bash to be _missing_, leaving `fish > zsh > bash`;
-`hi.sh`'s `$_HI_SHELL_LADDER` is the same tree with bash removed. One list,
-two consumers.
+The session shell is the first installed of `$_HI_SHELL_PREFERENCE`'s words,
+`login` by default, then of the names hi styles; bash is the floor because
+`load.sh` only runs where bash exists. `login` stands for the user's login
+shell on the target, taken where hi styles it. The tail is not a literal:
+`_hi_session_shell` walks `common/core.sh`'s `$_HI_SHELL_TREE`
+(`fish zsh bash dash ash sh`) and drops the tiers that need bash to be
+_missing_, leaving `fish > zsh > bash`; `hi.sh`'s `$_HI_SHELL_LADDER` is the
+same tree with bash removed. One list, two consumers.
 
-`login` leads because a ranking that leads with fish hands it to anyone whose
-box has it, so a user whose login shell is zsh-with-oh-my-zsh would never see
-their own setup.
+`login` leads the default because a ranking that leads with fish hands it to
+anyone whose box has it, so a user whose login shell is zsh-with-oh-my-zsh
+would never see their own setup. The setting is for the other user, whose
+login shell on a target is bash and who wants zsh or fish wherever the target
+has one: `zsh fish` says so, and a word naming no shell hi styles is passed
+over. Read on the target, from the `settings.sh` that rode.
 
 ## HI.26 completion probe knobs
 
@@ -808,7 +812,10 @@ keeps its own rather than an alias to a missing file.
 `_hi_ssh_tags_file` cuts the `# Tags:` lines and the `Host`/`Match host` line
 under each out of `~/.ssh/config` into the runtime dir, in ssh_config's own
 shape, so `_hi_ssh_host_tag` on a relaying box walks it with the walker it
-already has - after its own config, and only in a remote session. A `config.d`
+already has - after its own config, and only in a remote session. A block's
+`Tag` line (ssh's own keyword) is written out there as the `# Tags:` line it
+stands for, so the middle box, whose ssh may predate the keyword, reads one
+walk's worth of syntax. A `config.d`
 file's name is written out there as the `# Tags:` line it stands for: the
 walk and the cut both read it off the `# hi-file:` comment `targets.sh` puts
 ahead of each Included file's lines. Only tagged
@@ -1693,12 +1700,17 @@ and reads the absence as the switch, so a relay from it carries none of it
 either, and its `load.sh` stands in for the session's six the same way; `common/aliases.sh` makes its multiplexer aliases only where `mux.sh`
 rode, which leaves `wiring.sh`'s.
 
-- **The name.** `hi-<target>`, from `_hi_mux_name`: the target as typed on
-  this client, so two clients that call a host the same thing reach one
-  session. It keeps `[[:alnum:]_-]` and turns everything else into `-`: tmux
-  refuses `:` and `.` in a session name, zellij takes the same class, and `/`
-  and `@` read badly in a status line, so a kube `ctx:ns:pod/ctr` would be
-  `hi-ctx-ns-pod-ctr`.
+- **The name.** `hi-<target>-<id>`, from `_hi_mux_name`: the target as typed
+  on this client, then a hash of the client's username, so two people who
+  share an account on a target keep sessions of their own, and one person
+  reaches theirs from any machine that calls the host the same thing. The
+  username rides as a hash because a session name sits in the target's
+  process table, which never learns the operator's
+  ([HI.47](#hi47-what-a-child-inherits)). The target part keeps
+  `[[:alnum:]_-]` and turns everything else into `-`: tmux refuses `:` and
+  `.` in a session name, zellij takes the same class, and `/` and `@` read
+  badly in a status line, so a kube `ctx:ns:pod/ctr` would be
+  `hi-ctx-ns-pod-ctr-<id>`.
 - **Reattach comes first.** Every interactive connect, `--keep` or not,
   carries `_hi_keep_attach` between the preamble and the unpack. Its
   `_hi_kept` asks tmux (`has-session -t =<name>`), then zellij (`ls -n`,
@@ -1767,12 +1779,17 @@ rode, which leaves `wiring.sh`'s.
 - **A multiplexer typed bare.** In a session `tmux`, `zellij`, and `screen`
   are aliases to `common/mux.sh` (`common/aliases.sh`, over the wiring's
   aliases for the three). Typed with no word after it, at a terminal, outside
-  a multiplexer, in a session with `hi.keep`, it runs `hi --keep` with
-  `$_HI_KEEP_WITH` naming the tool, and the start block takes that one of
-  the three; anything else passes through to the tool on the config hi
-  carried, and one typed bare where there is no `hi.keep` says first that
-  its panes get the machine's own shell. So a multiplexer started by habit is the kept session, not one
-  left on a tree its connect removes at the drop.
+  a multiplexer, in a session with `hi.keep`, it asks first, the way the
+  owner pane's exit does: what stays on the target and for how long, what
+  comes back to it and what closes it, and that its panes open hi's shell,
+  `[y/N]`. A `y` runs `hi --keep` with `$_HI_KEEP_WITH` naming the tool, and
+  the start block takes that one of the three; anything else starts nothing
+  and names the plain tool (`tmux new -s work`). One typed bare where
+  there is no `hi.keep` asks too, saying its panes get the machine's own
+  shell, and a `y` is the tool; with words of its own it passes through to
+  the tool on the config hi carried, unasked. So a multiplexer started by
+  habit is the kept session, not one left on a tree its connect removes at
+  the drop, and never one the user was not told about.
 - **Kept from inside.** `hi --keep` with no target, typed in a session, keeps
   that session: `_hi_keep_here` runs the same attach and start under `sh`,
   from where a connect starts the pane. Three things make that possible. The

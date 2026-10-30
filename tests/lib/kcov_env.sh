@@ -1,7 +1,7 @@
 # shellcheck shell=bash
-# What tests/test_lib.sh sources under kcov's PS4 method (tests/coverage.sh on
-# a bash before 5.3): a PS4 of hi's own, through a $BASH_ENV that does what
-# kcov's does for every bash child - turns xtrace on with it.
+# What tests/test_lib.sh sources under kcov's PS4 method (tests/coverage.sh's
+# only one): a PS4 of hi's own, through a $BASH_ENV that does what kcov's does
+# for every bash child - turns xtrace on with it.
 #
 # kcov's own, `kcov@${BASH_SOURCE}@${LINENO}@`, loses lines two ways. A bare
 # ${BASH_SOURCE} is unset at a `bash -c`'s top level, so a child there under
@@ -12,7 +12,9 @@
 # array literal with an apostrophe in an element, `A=("a's")`, which xtrace
 # prints unescaped - leaves it "inside a string", and every record after it in
 # that process is swallowed. scripts/configure.sh's presets did that to every
-# install.sh run, which read 33% under kcov and 98 under bashcov.
+# install.sh run, which read 33% under kcov and 98 under bashcov. Under bash
+# 5.3 a traced value holding a quote and a newline does the same
+# (tests/coverage.sh's header has the probe).
 #
 # So the record ends at the line number, and the command it traces goes on a
 # line of its own after `hi-xtrace: `: kcov counts quotes only on a line naming

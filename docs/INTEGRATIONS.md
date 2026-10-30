@@ -255,9 +255,11 @@ so a bare `command eza` matches too.
 
 `hi --keep <target>` runs the session in a multiplexer on the **target**:
 tmux, zellij, or screen there, the first of the three it has, as
-`hi-<target>`, where it outlives the connection, your machine sleeping, or a
-move to another one. Every later `hi <target>` reattaches rather than starting
-over; `--no-keep` asks for an ordinary session beside it. It ends three ways:
+`hi-<target>-<id>`, the id a hash of your username so a colleague on the
+same account keeps a session of their own, where it outlives the connection,
+your machine sleeping, or a move to another one. Every later `hi <target>`
+reattaches rather than starting over; `--no-keep` asks for an ordinary
+session beside it. It ends three ways:
 
 - `exit` in the first pane, which asks first (`close the kept session? [y/N]`);
   anything but `y` detaches you and leaves a fresh shell in the pane (zellij
@@ -314,12 +316,17 @@ A session that has to outlive your terminal where none of this applies - a
 container, or `--plain` - goes in a multiplexer of your own:
 `tmux new -A -s <name> hi <target>`.
 
-`tmux`, `zellij`, or `screen` typed on its own in a session does the same
-thing as `hi --keep` typed there, in the one you named: it becomes the
-session's kept one, its panes are hi's shell, and the next `hi <target>`
-attaches it, so a multiplexer started by habit is not left running on a
-directory that goes when the connection does. With words of its own
-(`tmux attach`, `tmux new -s work`) it is yours, started as you typed it.
+`tmux`, `zellij`, or `screen` typed on its own in a session asks first
+(`keeps this session on [host] ... Keep it? [y/N]`): what stays on the target
+and for how long, that `hi <target>` comes back to it and `hi --end <target>`
+closes it, and that its panes open hi's shell. A `y` does the same thing as
+`hi --keep` typed there, in the one you named: it becomes the session's kept
+one, and the next `hi <target>` attaches it, so a multiplexer started by
+habit is not left running on a directory that goes when the connection does,
+and never one you were not told about. Anything else starts nothing. With
+words of its own (`tmux attach`, `tmux new -s work`) it is yours, started as
+you typed it, unasked; where the session cannot be kept (a container, or
+`--no-keep`) the bare name asks whether to open the machine's own shell.
 
 A tmux you start _on_ a target reads the config you use here: `~/.tmux.conf`
 (else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux/tmux.conf` over

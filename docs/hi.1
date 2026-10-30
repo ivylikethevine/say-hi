@@ -224,7 +224,9 @@ keep the session on a target past a disconnect: it runs in a
 or
 .BR screen (1)
 session there, the first of the three the target has, named
-.BI hi\- target\fR,
+.BI hi\- target \- id\fR,
+the id a hash of your username, so a colleague on the same account keeps a
+session of their own,
 and every later
 .B hi
 to that target reattaches instead of starting over. Detach with the
@@ -528,7 +530,10 @@ brings it from, so a
 .B hosttag
 or
 .B usertag
-row in the colors file colors it. A tag already there is replaced.
+row in the colors file colors it. A tag already there is replaced, and a block
+carrying ssh's own
+.B Tag
+keyword is said so: hi reads the comment first, ssh the keyword.
 .I host
 is matched as written in the config, so a pattern such as
 .B *.prod
@@ -545,7 +550,10 @@ line above
 .B Host
 line back out. A host in a file of a
 .B config.d
-directory still carries that file's name as its tag.
+directory still carries that file's name as its tag, and one whose block holds
+a
+.B Tag
+line that one.
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .TP
@@ -814,6 +822,8 @@ settings, written by
 .B ~/.config/say-hi/settings.\fItag\fB.sh
 settings for the hosts whose
 .B # Tags:
+or
+.B Tag
 line names
 .IR tag ,
 and for every container, allocation, or pod where
@@ -1114,7 +1124,9 @@ is starship in bash and hi's prompt in zsh and fish.
 .B ~/.ssh/config
 read for ssh targets and their
 .B # Tags:
-comments. A host spelled out in a file of a
+comments and
+.B Tag
+lines. A host spelled out in a file of a
 .B config.d
 directory, under no such comment, is tagged with that file's name. The tagged
 .B Host
@@ -1247,6 +1259,21 @@ target whose kept session it lost the link to: a duration as above;
 .B 0
 is never. Default
 .BR 5m .
+.TP
+.B _HI_SHELL_PREFERENCE
+which shell a session runs in, tried in that order:
+.B login
+is your login shell on the target where hi styles it, and
+.BR bash ,
+.BR zsh ,
+or
+.B fish
+names one; the first installed on the target wins, and bash is the floor.
+.B "zsh fish"
+is zsh wherever the target has it, whatever your login shell there. Default
+.BR login .
+Read on the target, so set it in
+.BR settings.sh .
 .SH EXAMPLES
 .TP
 .B hi prod-db

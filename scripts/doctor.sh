@@ -476,7 +476,7 @@ function doctor_config() {
     esac
   done
   [ -z "$tags" ] ||
-    doctor_row "tag settings" "$tags - each settings.<tag>.sh is read for a host whose # Tags: line names it, a container, allocation, or pod for its backend's word, and a pod for its context and namespace, and joined to the settings.sh that target gets"
+    doctor_row "tag settings" "$tags - each settings.<tag>.sh is read for a host whose # Tags: or Tag line names it, a container, allocation, or pod for its backend's word, and a pod for its context and namespace, and joined to the settings.sh that target gets"
   doctor_settings_values
   # a file still under a name hi stopped reading before 1.0: nothing else
   # would say why the override stopped applying
@@ -515,7 +515,7 @@ function doctor_config() {
     }
     [ "$f" = ssh_tags ] && {
       ! _hi_overlay_src "$f" t ||
-        doctor_row "$f" "the # Tags: lines of $_HI_SSH_CONFIG ride along - a hop taken from inside a session keeps its tag colors"
+        doctor_row "$f" "the # Tags: and Tag lines of $_HI_SSH_CONFIG ride along - a hop taken from inside a session keeps its tag colors"
       continue
     }
     # bin/: what stays home, and why

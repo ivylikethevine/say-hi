@@ -187,8 +187,7 @@ trap '_hi_cov_cleanup' EXIT
 # kcov read both files at 0% where bashcov, whose xtrace rides the exported
 # SHELLOPTS and PS4 that bash-as-sh does import, read 97. The script hands
 # kcov's trace on the same way (SHELLOPTS is readonly, so xtrace goes on and
-# the variable is exported, never assigned); DEBUG (bash 5.3+) has no such
-# route, and its children stay as they were.
+# the variable is exported, never assigned).
 function _hi_cov_shim_sh_to_bash() {
   local dir
   dir="$(mktemp -d)"

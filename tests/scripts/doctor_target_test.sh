@@ -113,6 +113,20 @@ function test_target_names_the_config_d_file_a_tag_is_from() {
   [[ "$out" != *"the name of"* ]] || _hi_why out h
 }
 
+# a host tagged by ssh's own Tag line in its block: the row says so, and
+# that tag's settings file is the one read
+function test_target_names_the_tag_line_a_tag_is_from() {
+  local h="$_HI_WORKDIR/doc-tagline" out
+  mkdir -p "$h/.ssh" "$h/overlay"
+  printf 'Host kw\n  Tag native\n' >"$h/.ssh/config"
+  : >"$h/overlay/settings.native.sh"
+  unset _HI_TAG_NAME
+  out="$(PATH="$_HI_DOC_PATH" HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" \
+    _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 tar-z bash " doctor_target kw)"
+  [[ "$out" == *"native - its block's Tag line"* && "$out" == *"settings.native.sh - read over settings.sh"* ]] ||
+    _hi_why out h
+}
+
 # --use docker forces the arm and skips the probe chain entirely: "ghostbox" would
 # fall through to ssh unforced (nothing answers for it), but a forced backend
 # reports it as a container without ever asking whether one is running.
@@ -428,6 +442,7 @@ function run_doctor_target_tests() {
   _hi_check "config rows: a parsing file is ok, a broken one is bad, an absent one is no row" test_config_rows_parse_the_files
   _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
   _hi_check "Names the config.d file a host's tag is from" test_target_names_the_config_d_file_a_tag_is_from
+  _hi_check "...and the Tag line it is from" test_target_names_the_tag_line_a_tag_is_from
   _hi_check "Container: full tier reported" test_container_target_reports_the_full_tier
   _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell
   _hi_check "Container: silent target flagged" test_container_target_flags_a_silent_target

@@ -14,6 +14,13 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../hi.sh
 source "$_HI_LAUNCHER"
 
+# the client's username, whose hash ends every session name: pinned, so the
+# names the cases spell hold whoever runs the suite. $_HI_KEEP_KEY is that
+# hash, and the hi.keep the kept-from-inside cases read carries the same name
+_HI_LOCAL_USER=me
+_hi_hash me _HI_KEEP_KEY
+printf -v _HI_KEEP_KEY '%x' "$_HI_KEEP_KEY"
+
 # _hi_keep_shims - a directory of tmux, zellij, screen and bash stand-ins,
 # printed. Each appends its name in capitals and its argv to $_HI_TEST_LOG.
 # tmux's has-session exits $_HI_TEST_HAS (1: no such session), `screen -ls`
@@ -363,14 +370,14 @@ _hi_kept; printf "%s|%s|%s\n" "$?" "$_hi_k" "${_hi_ks:-}"' "$@" | sed -n '1p'
 
 function test_kept_asks_tmux_then_zellij_then_screen() {
   local got
-  local screens='There is a screen on:\n\t411.hi-box\t(Detached)\n1 Socket in /run/screen.\n'
+  local screens="There is a screen on:\n\t411.hi-box-$_HI_KEEP_KEY\t(Detached)\n1 Socket in /run/screen.\n"
   got="$(_hi_kept_answer _HI_TEST_HAS=0)"
   [ "$got" = "0|tmux|" ] || _hi_because "tmux has it: $got" || return 1
-  got="$(_hi_kept_answer _HI_TEST_ZELLIJ='hi-box [Created 3s ago] \n')"
+  got="$(_hi_kept_answer _HI_TEST_ZELLIJ="hi-box-$_HI_KEEP_KEY [Created 3s ago] \n")"
   [ "$got" = "0|zellij|" ] ||
     _hi_because "zellij has it: $got" || return 1
   got="$(_hi_kept_answer _HI_TEST_SCREENS="$screens")"
-  [ "$got" = "0|screen|411.hi-box" ] ||
+  [ "$got" = "0|screen|411.hi-box-$_HI_KEEP_KEY" ] ||
     _hi_because "screen has it: $got" || return 1
   got="$(_hi_kept_answer)"
   [ "$got" = "1||" ] || _hi_because "neither has it: $got"
@@ -381,9 +388,9 @@ function test_kept_asks_tmux_then_zellij_then_screen() {
 # target's
 function test_kept_passes_over_a_dead_or_longer_named_session() {
   local got
-  got="$(_hi_kept_answer _HI_TEST_SCREENS='\t7.hi-box\t(Dead ???)\n\t8.hi-boxes\t(Detached)\n')"
+  got="$(_hi_kept_answer _HI_TEST_SCREENS="\t7.hi-box-$_HI_KEEP_KEY\t(Dead ???)\n\t8.hi-box-${_HI_KEEP_KEY}0\t(Detached)\n")"
   [ "$got" = "1||" ] || _hi_why got || return 1
-  got="$(_hi_kept_answer _HI_TEST_ZELLIJ='hi-box [Created 1h ago] (EXITED - attach to resurrect)\nhi-boxes [Created 2s ago] \n')"
+  got="$(_hi_kept_answer _HI_TEST_ZELLIJ="hi-box-$_HI_KEEP_KEY [Created 1h ago] (EXITED - attach to resurrect)\nhi-box-${_HI_KEEP_KEY}0 [Created 2s ago] \n")"
   [ "$got" = "1||" ] || _hi_why got
 }
 
@@ -391,12 +398,12 @@ function test_keep_attaches_a_kept_session_and_stops() {
   local out
   out="$(_hi_keep_sh --pty "$_HI_WORKDIR/attach.log" "$(DOMAIN=box KEEP="" CMDARG="" _hi_keep_attach)
 echo UNPACKED" _HI_TEST_HAS=0)"
-  [[ "$out" == *"TMUX attach-session -t =hi-box"* ]] || _hi_because "no attach: $out" || return 1
+  [[ "$out" == *"TMUX attach-session -t =hi-box-$_HI_KEEP_KEY"* ]] || _hi_because "no attach: $out" || return 1
   [[ "$out" == *"detached, the session on [box] is kept"* ]] || _hi_because "no note: $out" || return 1
   [[ "$out" != *UNPACKED* ]] || _hi_because "the script ran on past the attach" || return 1
   out="$(_hi_keep_sh --pty "$_HI_WORKDIR/attach.log" "$(DOMAIN=box KEEP="" CMDARG="" _hi_keep_attach)
-echo UNPACKED" _HI_TEST_ZELLIJ='hi-box [Created 3s ago] \n')"
-  [[ "$out" == *"ZELLIJ attach hi-box"* && "$out" == *"detached, the session"* && "$out" != *UNPACKED* ]] ||
+echo UNPACKED" _HI_TEST_ZELLIJ="hi-box-$_HI_KEEP_KEY [Created 3s ago] \n")"
+  [[ "$out" == *"ZELLIJ attach hi-box-$_HI_KEEP_KEY"* && "$out" == *"detached, the session"* && "$out" != *UNPACKED* ]] ||
     _hi_because "zellij: $out"
 }
 
@@ -413,7 +420,7 @@ echo UNPACKED" _HI_TEST_HAS=0)"
 function test_keep_start_hands_the_pane_its_environment() {
   local log="$_HI_WORKDIR/start.log" out
   out="$(_hi_keep_sh --pty "$log" "$(_hi_keep_start_script)")"
-  [[ "$out" == *"TMUX new-session -s hi-box env _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box _HI_HOME=$_HI_WORKDIR/t "* ]] ||
+  [[ "$out" == *"TMUX new-session -s hi-box-$_HI_KEEP_KEY env _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box-$_HI_KEEP_KEY _HI_HOME=$_HI_WORKDIR/t "* ]] ||
     _hi_because "no owner pane: $out" || return 1
   [[ "$out" == *" _HI_LOCAL_USER="*" _HI_CLEANUP=$_HI_WORKDIR/t "*" bash --rcfile $_HI_WORKDIR/t/say-hi/hi.bashrc -i"* ]] ||
     _hi_because "the argv lost a variable: $out" || return 1
@@ -427,7 +434,7 @@ function test_keep_start_reads_the_carried_tmux_config() {
   mkdir -p "$root/say-hi/config/tmux"
   : >"$root/say-hi/config/tmux/tmux.conf"
   out="$(_hi_keep_sh --pty "$log" "$(_hi_keep_start_script | sed "s|$_HI_WORKDIR/t/say-hi/config|$root/say-hi/config|")")"
-  [[ "$out" == *"TMUX -f $root/say-hi/config/tmux/tmux.conf new-session -s hi-box env "* ]] || _hi_because "$out"
+  [[ "$out" == *"TMUX -f $root/say-hi/config/tmux/tmux.conf new-session -s hi-box-$_HI_KEEP_KEY env "* ]] || _hi_because "$out"
 }
 
 # zellij takes the pane's command from a layout: the same argv, each word a
@@ -437,10 +444,10 @@ function test_keep_start_writes_zellij_a_layout() {
   local log="$_HI_WORKDIR/zstart.log" out root="$_HI_WORKDIR/ztree" kdl
   mkdir -p "$root/say-hi"
   out="$(_hi_keep_zpty "$log" "$(_hi_keep_start_script "$root" | sed 's|_HI_CONNECT_PREFIX=" 1K"|_HI_CONNECT_PREFIX='"'"' a"b\\c'"'"'|')")"
-  [[ "$out" == *"ZELLIJ -s hi-box -n $root/say-hi/hi.keep.kdl options --session-serialization false --on-force-close detach --default-shell $root/say-hi/hi.pane"$'\n'* ]] ||
+  [[ "$out" == *"ZELLIJ -s hi-box-$_HI_KEEP_KEY -n $root/say-hi/hi.keep.kdl options --session-serialization false --on-force-close detach --default-shell $root/say-hi/hi.pane"$'\n'* ]] ||
     _hi_because "no session start: $out" || return 1
   kdl="$(cat "$log.kdl" 2>/dev/null)"
-  [[ "$kdl" == *'pane command="env" close_on_exit=true {'*'args "_HI_KEEP_MUX=zellij" "_HI_KEEP_NAME=hi-box" "_HI_HOME='"$root"'" '* ]] ||
+  [[ "$kdl" == *'pane command="env" close_on_exit=true {'*'args "_HI_KEEP_MUX=zellij" "_HI_KEEP_NAME=hi-box-'"$_HI_KEEP_KEY"'" "_HI_HOME='"$root"'" '* ]] ||
     _hi_because "the layout does not start the pane: $kdl" || return 1
   [[ "$kdl" == *' "_HI_CONNECT_PREFIX= a\"b\\c" '*' "bash" "--rcfile" "'"$root"'/say-hi/hi.bashrc" "-i"'* ]] ||
     _hi_because "the argv lost a word, or a quote: $kdl" || return 1
@@ -466,7 +473,7 @@ function test_keep_start_reads_the_carried_zellij_config() {
   local log="$_HI_WORKDIR/zconf.log" out root="$_HI_WORKDIR/zconftree"
   mkdir -p "$root/say-hi/config/zellij"
   out="$(_hi_keep_zpty "$log" "$(_hi_keep_start_script "$root")")"
-  [[ "$out" == *"ZELLIJ --config-dir $root/say-hi/config/zellij -s hi-box -n "* ]] || _hi_because "$out"
+  [[ "$out" == *"ZELLIJ --config-dir $root/say-hi/config/zellij -s hi-box-$_HI_KEEP_KEY -n "* ]] || _hi_because "$out"
 }
 
 # no terminal: the plain handoff, and nothing said - the multiplexer is there
@@ -485,7 +492,7 @@ function test_keep_start_without_a_multiplexer_holds_the_tree() {
   out="$(env _HI_TEST_LOG="$log" PATH="$bare:$(_hi_real_path keeptools sh sed awk date env)" \
     sh -c "$(_hi_keep_start_script)" </dev/null 2>&1)" || true
   [[ "$out" != *"needs tmux"* ]] || _hi_because "a target that holds the tree was told what it lacks: $out" || return 1
-  grep -qx "BASH --rcfile $_HI_WORKDIR/t/say-hi/hi.bashrc -i hold=hi-box" "$log" || _hi_because "the session is not told to hold: $(cat "$log")" || return 1
+  grep -qx "BASH --rcfile $_HI_WORKDIR/t/say-hi/hi.bashrc -i hold=hi-box-$_HI_KEEP_KEY" "$log" || _hi_because "the session is not told to hold: $(cat "$log")" || return 1
   # ...and its bootstrap outlasts the hangup, so the session's exit decides
   got="$(_hi_keep_start_script)"
   [[ "$got" == *'export _HI_KEEP_HOLD="$_hi_kn" && trap : HUP'* ]] || _hi_because "the bootstrap does not outlast a hangup"
@@ -548,11 +555,11 @@ function test_keep_held_leaves_a_tree_it_may_not_take() {
 function test_keep_end_kills_the_session_or_says_there_is_none() {
   local out
   out="$(_hi_keep_sh "$_HI_WORKDIR/end.log" "$(DOMAIN=box _hi_keep_end_script); echo RC=\$?" _HI_TEST_HAS=0)"
-  [[ "$out" == *"TMUX kill-session -t =hi-box"* && "$out" == *RC=0* ]] || _hi_because "tmux: $out" || return 1
-  out="$(_hi_keep_sh "$_HI_WORKDIR/end.log" "$(DOMAIN=box _hi_keep_end_script)" _HI_TEST_ZELLIJ='hi-box [Created 3s ago] \n')"
-  [[ "$out" == *"ZELLIJ kill-session hi-box"* ]] || _hi_because "zellij: $out" || return 1
-  out="$(_hi_keep_sh "$_HI_WORKDIR/end.log" "$(DOMAIN=box _hi_keep_end_script)" _HI_TEST_SCREENS='\t9.hi-box\t(Attached)\n')"
-  [[ "$out" == *"SCREEN -S 9.hi-box -X quit"* ]] || _hi_because "screen: $out" || return 1
+  [[ "$out" == *"TMUX kill-session -t =hi-box-$_HI_KEEP_KEY"* && "$out" == *RC=0* ]] || _hi_because "tmux: $out" || return 1
+  out="$(_hi_keep_sh "$_HI_WORKDIR/end.log" "$(DOMAIN=box _hi_keep_end_script)" _HI_TEST_ZELLIJ="hi-box-$_HI_KEEP_KEY [Created 3s ago] \n")"
+  [[ "$out" == *"ZELLIJ kill-session hi-box-$_HI_KEEP_KEY"* ]] || _hi_because "zellij: $out" || return 1
+  out="$(_hi_keep_sh "$_HI_WORKDIR/end.log" "$(DOMAIN=box _hi_keep_end_script)" _HI_TEST_SCREENS="\t9.hi-box-$_HI_KEEP_KEY\t(Attached)\n")"
+  [[ "$out" == *"SCREEN -S 9.hi-box-$_HI_KEEP_KEY -X quit"* ]] || _hi_because "screen: $out" || return 1
   out="$(_hi_keep_sh "$_HI_WORKDIR/end.log" "($(DOMAIN=box _hi_keep_end_script)); echo RC=\$?")"
   [[ "$out" == *RC=3* && "$out" != *kill-session* && "$out" != *quit* ]] || _hi_because "none: $out"
 }
@@ -566,7 +573,7 @@ function test_keep_end_ends_a_held_tree_through_its_timer() {
   mkdir -p "$t"
   _hi_keep_mktemp "$d"
   path="$d/bin:$(_hi_keep_shims):$PATH"
-  printf '1 1 hi-box\n' >"$t/hi.held"
+  printf '1 1 %s\n' "hi-box-$_HI_KEEP_KEY" >"$t/hi.held"
   out="$(_hi_keep_sh "$_HI_WORKDIR/endheld.log" "($(DOMAIN=box _hi_keep_end_script)); echo RC=\$?" PATH="$path" _HI_TEST_TMP="$d")"
   [[ "$out" == *RC=0* ]] && [ -e "$t/hi.end" ] || _hi_because "a held tree: $out" || return 1
   rm -f "$t/hi.end"
@@ -586,7 +593,7 @@ function test_keep_end_sweeps_the_tree_of_a_dead_owner_pane() {
   printf '%s \n' "$dead" >"$d/u.hi.dead/say-hi/hi.kept"
   printf '%s %s\n' "$dead" "$$" >"$d/u.hi.outer/say-hi/hi.kept"
   out="$(_hi_keep_sh "$_HI_WORKDIR/endsweep.log" "($(DOMAIN=box _hi_keep_end_script)); echo RC=\$?" PATH="$path" _HI_TEST_TMP="$d" _HI_TEST_HAS=0)"
-  [[ "$out" == *"TMUX kill-session -t =hi-box"* && "$out" == *RC=0* ]] || _hi_because "the kill: $out" || return 1
+  [[ "$out" == *"TMUX kill-session -t =hi-box-$_HI_KEEP_KEY"* && "$out" == *RC=0* ]] || _hi_because "the kill: $out" || return 1
   [ ! -e "$d/u.hi.dead" ] || _hi_because "a dead pane's tree is still there: $out" || return 1
   [ -d "$d/u.hi.outer/say-hi" ] || _hi_because "a tree its outer shell still runs on was taken: $out"
 }
@@ -768,7 +775,7 @@ function _hi_keep_here_tree() {
   local t="$_HI_WORKDIR/$1"
   mkdir -p "$t/say-hi/config"
   ln -sfn "$_HI_ROOT/common" "$t/say-hi/common"
-  printf '%s\n' '_HI_KEEP_AS=box' '_HI_TARGET_COLOR=salmon' '_HI_LOCAL_USER=o p$HOME' "_HI_ROOT=$t/say-hi" \
+  printf '%s\n' '_HI_KEEP_AS=box' '_HI_TARGET_COLOR=sal mon$HOME' '_HI_LOCAL_USER=me' "_HI_ROOT=$t/say-hi" \
     "_HI_CLEANUP=$t" '_HI_CONNECT_PREFIX= 1K' '_HI_KEEP_OUTER=4242' >"$t/say-hi/hi.keep"
   printf '%s' "$t"
 }
@@ -810,7 +817,7 @@ function test_keep_here_starts_the_owner_pane_from_the_session_s_file() {
   local log="$_HI_WORKDIR/here.log" t out
   t="$(_hi_keep_here_tree here)"
   out="$(_hi_keep_here_run "$log" "$t")"
-  [[ "$out" == *"TMUX new-session -s hi-box env _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box _HI_HOME=$t _HI_CONFIG_DIR=$t/say-hi/config _HI_TARGET_COLOR=salmon _HI_LOCAL_USER=o p\$HOME _HI_ROOT=$t/say-hi _HI_CLEANUP=$t _HI_CONNECT_PREFIX= 1K _HI_KEEP_OUTER=4242 bash --rcfile $t/say-hi/hi.bashrc -i"* ]] ||
+  [[ "$out" == *"TMUX new-session -s hi-box-$_HI_KEEP_KEY env _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box-$_HI_KEEP_KEY _HI_HOME=$t _HI_CONFIG_DIR=$t/say-hi/config _HI_TARGET_COLOR=sal mon\$HOME _HI_LOCAL_USER=me _HI_ROOT=$t/say-hi _HI_CLEANUP=$t _HI_CONNECT_PREFIX= 1K _HI_KEEP_OUTER=4242 bash --rcfile $t/say-hi/hi.bashrc -i"* ]] ||
     _hi_because "no owner pane: $out" || return 1
   # the multiplexer's own environment is a session child's and no more: the
   # launcher's fifty-odd paths stay behind with the client's verdicts
@@ -837,7 +844,7 @@ SHIM
   chmod +x "$_HI_WORKDIR/herekeptbin/tmux"
   rm -f "$log.started"
   out="$(_HI_KEEP_HERE_SHIMS="$_HI_WORKDIR/herekeptbin" _hi_keep_here_run "$log" "$t")"
-  [[ "$out" == *"TMUX new-session -s hi-box env "* ]] || _hi_because "no start: $out" || return 1
+  [[ "$out" == *"TMUX new-session -s hi-box-$_HI_KEEP_KEY env "* ]] || _hi_because "no start: $out" || return 1
   [ -e "$t/say-hi/hi.kept" ] || _hi_because "no marker beside a live session" || return 1
   [[ "$out" == *" hi: detached, the session on [box] is kept"* ]] || _hi_because "no note on the way back: $out"
 }
@@ -848,7 +855,7 @@ function test_keep_here_attaches_a_session_already_kept() {
   local log="$_HI_WORKDIR/hereatt.log" t out
   t="$(_hi_keep_here_tree hereatt)"
   out="$(_hi_keep_here_run "$log" "$t" _HI_TEST_HAS=0)"
-  [[ "$out" == *"TMUX attach-session -t =hi-box"* && "$out" != *new-session* ]] || _hi_because "$out" || return 1
+  [[ "$out" == *"TMUX attach-session -t =hi-box-$_HI_KEEP_KEY"* && "$out" != *new-session* ]] || _hi_because "$out" || return 1
   [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "the tree was claimed for a session it does not hold"
 }
 
@@ -858,10 +865,10 @@ function test_keep_here_starts_the_multiplexer_that_was_typed() {
   local log="$_HI_WORKDIR/herewith.log" t out
   t="$(_hi_keep_here_tree herewith)"
   out="$(_hi_keep_here_run "$log" "$t" _HI_KEEP_WITH=screen)"
-  [[ "$out" == *"SCREEN -S hi-box env "* && "$out" != *"TMUX new-session"* ]] || _hi_because "screen typed: $out" || return 1
+  [[ "$out" == *"SCREEN -S hi-box-$_HI_KEEP_KEY env "* && "$out" != *"TMUX new-session"* ]] || _hi_because "screen typed: $out" || return 1
   rm -f "$t/say-hi/hi.kept"
   out="$(_hi_keep_here_run "$log" "$t" _HI_KEEP_WITH='tmux; touch x')"
-  [[ "$out" == *"TMUX new-session -s hi-box env "* ]] || _hi_because "a word that is none of the three: $out"
+  [[ "$out" == *"TMUX new-session -s hi-box-$_HI_KEEP_KEY env "* ]] || _hi_because "a word that is none of the three: $out"
 }
 
 # _hi_mux_alias_tree - a session's tree for common/mux.sh, whose tools and
@@ -879,7 +886,7 @@ function _hi_mux_alias_tree() {
   # shellcheck disable=SC2016 # the stub's sh expands it
   printf '#!/bin/sh\nprintf "%%s\\n" "HI $* with=$_HI_KEEP_WITH"\n' >"$t/say-hi/hi.sh"
   chmod +x "$t/bin/tmux" "$t/bin/screen" "$t/bin/zellij" "$t/say-hi/hi.sh"
-  : >"$t/say-hi/hi.keep"
+  printf "_HI_KEEP_AS=box\n" >"$t/say-hi/hi.keep"
   printf '%s' "$t"
 }
 
@@ -901,22 +908,39 @@ function test_mux_alias_passes_a_multiplexer_with_words_through() {
   [ "$out" = "screen -c $t/elsewhere/screenrc -ls|zellij --config-dir $t/elsewhere/zellij ls" ] || _hi_because "the session's config dir: $out"
 }
 
-# ...and bare, at a terminal, outside a multiplexer, with hi.keep, it is
-# `hi --keep` in that tool; inside one, or with no hi.keep, the tool again
+# _hi_mux_bare <tree> <reply> <tool> [NAME=VALUE...] - the tool typed bare at
+# a terminal, outside a multiplexer, with <reply> typed ahead to the ask
+function _hi_mux_bare() {
+  local t="$1" reply="$2" tool="$3"
+  shift 3
+  printf '%s\n' "$reply" | env -u TMUX -u ZELLIJ -u STY -u _HI_CONFIG_DIR "$@" PATH="$t/bin:$PATH" \
+    python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" "$tool" 2>&1 || true
+}
+
+# ...and bare, at a terminal, outside a multiplexer, with hi.keep, it asks,
+# naming the target, what stays and whose shell the panes get, and a y is
+# `hi --keep` in that tool; anything else starts nothing and names the plain
+# tool. Inside a multiplexer it is the tool, unasked; with no hi.keep it asks
+# whether to open the machine's own shell, and a y is the tool
 function test_mux_alias_keeps_a_bare_multiplexer() {
   local t out
   t="$(_hi_mux_alias_tree)"
-  out="$(env -u TMUX -u ZELLIJ -u STY PATH="$t/bin:$PATH" python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" screen </dev/null 2>&1)"
-  [[ "$out" == *"HI --keep with=screen"* ]] || _hi_because "bare, at a terminal: $out" || return 1
-  out="$(env -u ZELLIJ -u STY TMUX=/tmp/tmux-1/default,1,0 PATH="$t/bin:$PATH" python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" zellij </dev/null 2>&1)"
-  [[ "$out" == *"zellij "* && "$out" != *"HI --keep"* ]] || _hi_because "inside a multiplexer: $out" || return 1
+  out="$(_hi_mux_bare "$t" y screen)"
+  [[ "$out" == *"screen here keeps this session on [box]"*"[y/N]"*"HI --keep with=screen"* ]] || _hi_because "bare, at a terminal, y: $out" || return 1
+  out="$(_hi_mux_bare "$t" '' screen)"
+  [[ "$out" == *"[y/N]"*"not kept - screen with words after it (screen -S work)"* && "$out" != *"HI --keep"* && "$out" != *$'\nscreen '* ]] ||
+    _hi_because "bare, at a terminal, Enter: $out" || return 1
+  out="$(printf 'y\n' | env -u ZELLIJ -u STY TMUX=/tmp/tmux-1/default,1,0 PATH="$t/bin:$PATH" python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" zellij 2>&1)"
+  [[ "$out" == *"zellij "* && "$out" != *"HI --keep"* && "$out" != *"[y/N]"* ]] || _hi_because "inside a multiplexer: $out" || return 1
   rm -f "$t/say-hi/hi.keep"
-  out="$(env -u TMUX -u ZELLIJ -u STY -u _HI_CONFIG_DIR PATH="$t/bin:$PATH" python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" tmux </dev/null 2>&1)"
-  [[ "$out" == *"tmux -f $t/say-hi/config/tmux/tmux.conf"* && "$out" != *"HI --keep"* ]] || _hi_because "a session that cannot be kept: $out" || return 1
-  # ...which says whose shell the panes get, and only there
-  [[ "$out" == *"hi: tmux's panes open this machine's own shell"* ]] || _hi_because "no word of the panes: $out" || return 1
+  out="$(_hi_mux_bare "$t" y tmux)"
+  [[ "$out" == *"tmux here opens this machine's own shell in its panes"*"tmux -f $t/say-hi/config/tmux/tmux.conf"* && "$out" != *"HI --keep"* ]] ||
+    _hi_because "a session that cannot be kept, y: $out" || return 1
+  out="$(_hi_mux_bare "$t" n tmux)"
+  [[ "$out" == *"own shell"* && "$out" != *"tmux -f"* ]] || _hi_because "a session that cannot be kept, n: $out" || return 1
+  # ...and one with words is not asked
   out="$(env -u TMUX -u ZELLIJ -u STY -u _HI_CONFIG_DIR PATH="$t/bin:$PATH" python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" tmux ls </dev/null 2>&1)"
-  [[ "$out" != *"own shell"* ]] || _hi_because "said of a multiplexer with words: $out"
+  [[ "$out" != *"own shell"* && "$out" != *"[y/N]"* ]] || _hi_because "asked of a multiplexer with words: $out"
 }
 
 # what cannot be kept says why: no file (a container's session, --no-keep,
@@ -932,7 +956,7 @@ function test_keep_here_refuses_what_it_cannot_keep() {
   out="$(_hi_keep_here_run "$log" "$t" PATH="$bare:$(_hi_real_path heretools sh bash sed awk date env grep cat mkdir python3 dirname uname tr)")"
   got="$(cat "$t/say-hi/hi.hold" 2>/dev/null)"
   [[ "$out" == *"a dropped link leaves this session's files for 15m, and hi box comes back"* ]] &&
-    [ "$got" = hi-box ] &&
+    [ "$got" = "hi-box-$_HI_KEEP_KEY" ] &&
     [ -s "$t/say-hi/hi.cwd" ] ||
     _hi_because "no multiplexer, so the tree is held: $out" || return 1
   rm -f "$t/say-hi/hi.hold" "$t/say-hi/hi.cwd"
@@ -967,7 +991,7 @@ function test_keep_alone_is_a_session_s_and_an_error_elsewhere() {
 function test_keep_scripts_quote_the_target() {
   local out mean='a$(id)b'\''c'
   out="$(DOMAIN="$mean" KEEP=1 CMDARG="" _hi_keep_attach)$(DOMAIN="$mean" KEEP=1 CMDARG="" _hi_keep_start)"
-  [[ "$out" == *"'a\$(id)b'\\''c'"* && "$out" == *"_hi_kn='hi-a--id-b-c'"* ]] || _hi_why out
+  [[ "$out" == *"'a\$(id)b'\\''c'"* && "$out" == *"_hi_kn='hi-a--id-b-c-$_HI_KEEP_KEY'"* ]] || _hi_why out
 }
 
 function run_hi_keep_tests() {

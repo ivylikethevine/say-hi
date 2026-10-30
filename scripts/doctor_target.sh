@@ -58,10 +58,16 @@ function doctor_target() {
   what="$kind"
   if [ "$kind" = "ssh host" ]; then
     if _hi_ssh_host_tag "${target##*@}" >/dev/null; then
-      # a tag no line wrote is the name of the host's config.d file: walked
-      # again here, unforked, for the file the walk leaves in $_hi_sw_file
-      if _hi_ssh_host_tag_walk "${target##*@}" >/dev/null 2>&1 && [ -z "$_hi_sw_tag" ] && [ -n "$_hi_sw_file" ]; then
-        doctor_row tag "$_HI_TAG_VALUE - the name of $_hi_sw_file, which holds its Host line under no # Tags: line"
+      # a tag no # Tags: line wrote is ssh's own Tag line in the block, or
+      # the name of the host's config.d file: walked again here, unforked,
+      # for the source the walk leaves in $_hi_sw_src and the file in
+      # $_hi_sw_file
+      if _hi_ssh_host_tag_walk "${target##*@}" >/dev/null 2>&1; then
+        # shellcheck disable=SC2154 # the walk's state, core.sh's
+        case "$_hi_sw_src" in
+        tag) doctor_row tag "$_HI_TAG_VALUE - its block's Tag line, which ssh reads too; a # Tags: line above the block goes over it" ;;
+        file) doctor_row tag "$_HI_TAG_VALUE - the name of $_hi_sw_file, which holds its Host line under no # Tags: line and no Tag line" ;;
+        esac
       fi
       IFS=' ,' read -r -a _hi_tags <<<"$_HI_TAG_VALUE" || true
     fi

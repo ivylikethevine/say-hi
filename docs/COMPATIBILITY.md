@@ -145,6 +145,11 @@ account reads before expecting the install's line to load.
 
 ## The shell you end up in
 
+Your login shell on the target leads where hi styles it, else the first the
+target has of fish, zsh, and bash; `_HI_SHELL_PREFERENCE` in `settings.sh`
+reorders that (`zsh fish` is zsh wherever the target has it, whatever your
+login shell there - [SETTINGS.md](SETTINGS.md#every-setting)).
+
 | session shell                                           | result                                                                    | note                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `bash` ≥ 3.2                                            | ✅ full: header, prompt, git status, aliases, editor configs              | 3.2 is the floor because macOS still ships it                                                                                                                                                                                                                                        |

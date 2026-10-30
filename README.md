@@ -242,7 +242,8 @@ Every username and hostname gets a color derived from its name; a line in
 `~/.config/say-hi/colors` (`prod-db = "yellow"` under `[hostname]`, which
 `hi --add-color hostname prod-db yellow` writes) pins one, and
 `hi --preview colors` shows what every host and your user resolve to. Tags
-(`# Tags:` lines in `~/.ssh/config`, which sshm writes), patterns, truecolor
+(`# Tags:` lines in `~/.ssh/config`, which sshm writes, or ssh's own `Tag`
+keyword), patterns, truecolor
 schemes of your own, and using the hash in your own prompt:
 [docs/COLORS.md](docs/COLORS.md).
 
@@ -311,7 +312,7 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
 
 - [ ] **Every default and preset audited before the tag** —
       [CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
-      freezes the name and default of all 46 rows of
+      freezes the name and default of all 47 rows of
       [SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting) and the
       five presets, and a toggle removal is a 2.0. **Do:** read each row's
       default as a stranger's first run, with the `balanced` first-install

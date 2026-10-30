@@ -307,7 +307,8 @@ aggregates have tracked each other within a few points for many commits: **the
 average of the two badges** is the coverage figure, and the per-file reports are
 for finding untested arms. Only a divergence of tens of points means one tool
 has lost the plot. Never a gate: the pull request template's 90% is a target,
-and the PR comment flags an average below it without failing anything. Both
+and the PR comment flags a PR whose bashcov figure, the one it measures, falls
+below it without failing anything. Both
 sweeps pin `_HI_PAR_WIDTH=1`, since a batch writing into a suite's one trace
 stream side by side loses lines, and both put a bash-as-`sh` first on their own
 `PATH`: neither tracer follows a dash child, so a `#!/bin/sh` file a suite
@@ -350,19 +351,18 @@ by `_HI_SHARD_BY=gitbash` (`$_HI_TEST_COSTS_GITBASH`, each suite's time under
 Git Bash on arm64) and `_HI_SHARD_BY=e2e` (`$_HI_TEST_COSTS_E2E`);
 `scratch/shard_costs.sh` re-reads either off a CI run's summary tables.
 
-- **kcov**'s method is the suites' bash's: its default `PS4` method stops
-  recording under bash 5.3 once the harness is sourced, which reads whole
-  suites as load-time-only, and `DEBUG` never follows a suite into a child
-  bash, which reads every script run through `hi.sh` as 0. So `PS4` before
-  5.3 and `DEBUG` from it; the script's header keeps the probe to re-run if
-  the badges diverge. Under that `PS4` method `tests/test_lib.sh` sources
-  `tests/lib/kcov_env.sh`, which swaps kcov's `PS4` for one of hi's own, in
-  the suite and, through a `$BASH_ENV` of its own, in every bash child. kcov's
-  named a bare `${BASH_SOURCE}`, which killed a `set -u` child at a
-  `bash -c`'s top level, and printed each command on its record's line, where
-  kcov 43 counts quotes to follow a string across lines: an array literal
-  with an apostrophe in an element (`scripts/configure.sh`'s presets) left it
-  inside a string, and every later record of that process was lost. hi's ends
+- **kcov** runs its `PS4` method on every bash: `DEBUG` never follows a suite
+  into a child bash, which reads every script run through `hi.sh` as 0.
+  `tests/test_lib.sh` sources `tests/lib/kcov_env.sh`, which swaps kcov's
+  `PS4` for one of hi's own, in the suite and, through a `$BASH_ENV` of its
+  own, in every bash child. kcov's named a bare `${BASH_SOURCE}`, which killed
+  a `set -u` child at a `bash -c`'s top level, and printed each command on its
+  record's line, where kcov 43 counts quotes to follow a string across lines:
+  an array literal with an apostrophe in an element (`scripts/configure.sh`'s
+  presets) left it inside a string, and every later record of that process
+  was lost. Under bash 5.3, a traced value holding a quote and a newline did
+  the same; `scratch/kcov_ps4_probe.sh` reruns that case under each `PS4` and
+  `DEBUG` if the badges diverge. hi's ends
   the record at the line number and puts the command on a `hi-xtrace:` line
   of its own, which `tests/coverage.sh` drops from kcov's output. kcov still
   reads a multi-line `awk '…'` program (the converters in

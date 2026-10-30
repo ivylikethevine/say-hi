@@ -447,6 +447,17 @@ function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
 function _hi_is_duration() { [[ "$1" =~ ^[0-9]+[smhd]?$ ]]; }
 # one of core.sh's $_HI_EDITORS
 function _hi_is_editor() { _hi_list_has "$_HI_EDITORS" "$1"; }
+# $_HI_SHELL_PREFERENCE's vocabulary: `login` and the shells hi styles, in any
+# order, space-separated
+function _hi_is_shell_list() {
+  local _hi_sl_w
+  [ -n "$1" ] || return 1
+  # shellcheck disable=SC2086 # the split is the point: one word per shell
+  for _hi_sl_w in $1; do
+    [ "$_hi_sl_w" = login ] || _hi_shell_wired "$_hi_sl_w" || return 1
+  done
+  return 0
+}
 # a value written into settings.sh's single-quoted export
 function _hi_has_no_single_quote() {
   case "$1" in *\'*) return 1 ;; esac
@@ -503,7 +514,7 @@ function _hi_is_plugin_list() {
 # _hi_setting_check <check> <value> - is <value> what a scripts/settings row
 # of that <check> takes; 2 for a <check> this does not know. The kinds are
 # $_HI_SETTING_CHECKS, which drift holds every row's to.
-_HI_SETTING_CHECKS="toggle flag number: duration globs groups header prompts plugins editor noquote scheme palette -"
+_HI_SETTING_CHECKS="toggle flag number: duration globs groups header prompts plugins editor shells noquote scheme palette -"
 function _hi_setting_check() {
   case "$1" in
   toggle | flag) _hi_is_flag "$2" ;;
@@ -515,6 +526,7 @@ function _hi_setting_check() {
   prompts) _hi_is_prompt_list "$2" ;;
   plugins) _hi_is_plugin_list "$2" ;;
   editor) _hi_is_editor "$2" ;;
+  shells) _hi_is_shell_list "$2" ;;
   noquote) _hi_has_no_single_quote "$2" ;;
   scheme) _hi_scheme_ok "$2" ;;
   palette) _hi_ramp_ok "$2" ;;

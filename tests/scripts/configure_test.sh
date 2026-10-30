@@ -259,11 +259,26 @@ plugins|vim, tmux|0
 plugins|vim bogus-plugin|1
 editor|nvim|0
 editor|notepad|1
+shells|login|0
+shells|zsh fish login|0
+shells|nope|1
+shells|bash nope|1
+shells||1
+globs|10.* 192.168.?.*|0
+globs|172.*;rm|1
+groups|core useful|0
+groups|core;rm|1
+scheme|catppuccin|1
+palette|red|1
 noquote|plain value|0
 noquote|don't|1
 -|anything|0
 bogus-kind|1|2
 ROWS
+  # a scheme and palette taken, off the fixtures the literal heredoc cannot
+  # expand
+  _hi_setting_check scheme "$_HI_TEST_L24" || _hi_because "scheme [\$_HI_TEST_L24]: not taken" || return 1
+  _hi_setting_check palette "$_HI_TEST_RAMP" || _hi_because "palette [$_HI_TEST_RAMP]: not taken"
 }
 
 function test_pending_answer_reads_this_runs_answers() {

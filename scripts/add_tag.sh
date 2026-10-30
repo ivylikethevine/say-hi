@@ -146,6 +146,25 @@ for ((i = at - 2; i >= 0; i--)); do
   esac
 done
 
+# ssh's own Tag line in the block, if one: the walk reads it where no # Tags:
+# line is written above, and ssh reads it either way.
+native=""
+for ((i = at; i < ${#_hi_rows[@]}; i++)); do
+  t="${_hi_rows[i]#"${_hi_rows[i]%%[![:space:]]*}"}"
+  case "$t" in
+  [Hh][Oo][Ss][Tt][[:space:]]* | [Mm][Aa][Tt][Cc][Hh][[:space:]]*) break ;;
+  [Tt][Aa][Gg][[:space:]=]*)
+    t="${t#[Tt][Aa][Gg]}"
+    t="${t#"${t%%[![:space:]=]*}"}"
+    t="${t%%[[:space:]]*}"
+    t="${t#\"}"
+    t="${t%\"}"
+    case "$t" in '' | *[!A-Za-z0-9_.-]*) ;; *) native="$t" ;; esac
+    break
+    ;;
+  esac
+done
+
 # The tag the walk reads off the file's own name, where no line is written: a
 # file directly in a config.d tags the hosts it spells out.
 filetag=""
@@ -159,6 +178,7 @@ if [ "$mode" = remove ]; then
   if [ "$tagline" -lt 0 ]; then
     why="nothing to write"
     [ -z "$filetag" ] || why="the file's name tags it $filetag"
+    [ -z "$native" ] || why="its Tag line tags it $native, which ssh reads too"
     _hi_cecho " $file: $host has no # Tags: line - $why" "$BLUE"
     exit 0
   fi
@@ -172,10 +192,15 @@ if [ "$tagline" -ge 0 ] && [ "${_hi_rows[tagline]}" = "$new" ]; then
   _hi_cecho " $file: $host is already tagged $tag" "$BLUE"
   exit 0
 fi
+if [ "$tagline" -lt 0 ] && [ "$tag" = "$native" ]; then
+  _hi_cecho " $file: $host is already tagged $tag, by its Tag line" "$BLUE"
+  exit 0
+fi
 if [ "$tagline" -lt 0 ] && [ "$tag" = "$filetag" ]; then
   _hi_cecho " $file: $host is already tagged $tag, by the file's name" "$BLUE"
   exit 0
 fi
+[ -z "$native" ] || _hi_cecho " $host's block also carries Tag $native, which ssh keeps reading; hi takes the # Tags: line first" "$BLUE"
 if [ "$tagline" -ge 0 ]; then
   _hi_cecho " ~ ${_hi_rows[tagline]#"$indent"} -> # Tags: $tag (above ${hostline#"$indent"})" "$YELLOW"
   _hi_rows[tagline]="$new"

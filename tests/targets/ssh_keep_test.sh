@@ -58,8 +58,9 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # retries (the retry and lost cases set one themselves)
 unset TMUX ZELLIJ STY
 
-# what _hi_mux_name makes of the target every case connects to
-_HI_KEEP_SESSION=hi-hitest-127-0-0-1
+# what _hi_mux_name makes of the target every case connects to, for the
+# account running the suite (hi.sh sourced stops at its guarded dispatch)
+_HI_KEEP_SESSION="$(bash -c 'source "$1"; _hi_mux_name hitest@127.0.0.1' _ "$_HI_LAUNCHER")"
 
 # the timeout case's $_HI_KEEP_TIMEOUT and the expired case's $_HI_HOLD_TIMEOUT, in seconds; the watcher polls at it
 _HI_KEEPTEST_LIMIT=4
@@ -284,6 +285,11 @@ function _hi_keep_feed_hold() {
 function _hi_keep_feed_inside() {
   _hi_keep_await 120 _hi_session_ready "$1" || return 1
   printf '%s\n' "_hi_keep_mark=outer; ${_HI_KEEPTEST_TYPED:-hi --keep}"
+  # the multiplexer's name typed bare asks first; `hi --keep` does not
+  if [ "${_HI_KEEPTEST_TYPED:-}" = "$_HI_KEEPTEST_MUX" ]; then
+    _hi_keep_await 60 grep -a -q -F '[y/N]' "$1" || return 1
+    printf 'y\n'
+  fi
   _hi_keep_await 120 _hi_keep_is attached || return 1
   # zellij lists its client while it is still asking the terminal about
   # itself, and what is typed then is lost: the pane's header comes after

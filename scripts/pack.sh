@@ -475,11 +475,12 @@ function _hi_overlay_places() {
 # _hi_ssh_tags_file <member> [outvar] - the tag map a relayed hop colors by
 # (ssh_tags' home, so the table's calling shape): every
 # `# Tags:` line of ~/.ssh/config and the files it Includes, with the Host or
-# Match line under it and nothing else of the block, and a config.d file's
-# name written out as the line it stands for, so the middle box's
-# _hi_ssh_host_tag can walk it as the config it is cut from. Kept in the
-# runtime dir, recut when the config is newer or has an Include; fails with no
-# config, no runtime dir, or no tag.
+# Match line under it and nothing else of the block, and a block's `Tag` line
+# or a config.d file's name written out as the line it stands for, in the
+# walk's order (comment, Tag, file), so the middle box's _hi_ssh_host_tag can
+# walk it as the config it is cut from. Kept in the runtime dir, recut when
+# the config is newer or has an Include; fails with no config, no runtime
+# dir, or no tag.
 function _hi_ssh_tags_file() {
   local _hi_tf_d="" _hi_tf _hi_tf_tmp
   [ -f "$_HI_SSH_CONFIG" ] || return 1
@@ -491,18 +492,29 @@ function _hi_ssh_tags_file() {
     # mktemp, not `.$$`: every subshell of one shell shares its $$
     _hi_tf_tmp="$(mktemp "$_hi_tf.XXXXXX")" || return 1
     # ft: the name of the config.d file the lines are from, which tags the
-    # hosts it spells out under no comment, as the walk reads it
+    # hosts it spells out under no comment, as the walk reads it. hl: the
+    # Host line of a block no comment tagged, for a Tag line in it; pend: the
+    # file's lines for that block, out at its end where no Tag line came
     sh "$_HI_TARGETS" ssh-config "$_HI_SSH_CONFIG" | awk '{ t = $0; sub(/^[ \t]+/, "", t); l = tolower(t) }
       t ~ /^# hi-file: / { ft = ""; n = t; if (sub(/^.*\/config\.d\//, "", n) && n ~ /^[A-Za-z0-9_.-]+$/) ft = n; next }
       l ~ /^#[ \t]*tags[:=]/ { tag = t; next }
       l ~ /^#/ || l == "" { next }
+      l ~ /^(host|match)[ \t]/ { if (pend != "") print pend; pend = ""; hl = "" }
       tag != "" && l ~ /^(host|match[ \t]+host)[ \t]/ { print tag; print t }
-      tag == "" && ft != "" && l ~ /^host[ \t]/ {
-        h = t; sub(/#.*/, "", h); gsub(/[\t,]/, " ", h); k = split(h, w, / +/); h = ""
-        for (i = 2; i <= k; i++) if (w[i] != "" && w[i] !~ /[*?]/) h = h " " w[i]
-        if (h != "") print "# Tags: " ft "\nHost" h
+      tag == "" && l ~ /^(host|match[ \t]+host)[ \t]/ {
+        hl = t
+        if (ft != "" && l ~ /^host[ \t]/) {
+          h = t; sub(/#.*/, "", h); gsub(/[\t,]/, " ", h); k = split(h, w, / +/); h = ""
+          for (i = 2; i <= k; i++) if (w[i] != "" && w[i] !~ /[*?]/) h = h " " w[i]
+          if (h != "") pend = "# Tags: " ft "\nHost" h
+        }
       }
-      { tag = "" }' >"$_hi_tf_tmp" && mv -f "$_hi_tf_tmp" "$_hi_tf" && _hi_tf_tmp=""
+      hl != "" && l ~ /^tag[ \t=]/ {
+        n = t; sub(/^[Tt][Aa][Gg][ \t=]+/, "", n); sub(/[ \t].*/, "", n); gsub(/"/, "", n)
+        if (n ~ /^[A-Za-z0-9_.-]+$/) { print "# Tags: " n; print hl; hl = ""; pend = "" }
+      }
+      { tag = "" }
+      END { if (pend != "") print pend }' >"$_hi_tf_tmp" && mv -f "$_hi_tf_tmp" "$_hi_tf" && _hi_tf_tmp=""
     [ -z "$_hi_tf_tmp" ] || {
       rm -f "$_hi_tf_tmp"
       return 1
