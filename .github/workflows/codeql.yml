@@ -5,7 +5,8 @@ name: CodeQL
 # The actions half overlaps zizmor on purpose: zizmor is the fast gate in
 # ci.yml, CodeQL the slower dataflow pass whose findings land in the Security
 # tab with a trace, and Scorecard's SAST check counts only this one.
-# build-mode none throughout: nothing needs compiling.
+# build-mode none throughout: nothing needs compiling. The security-extended
+# query suite throughout: the slower pass may as well run the wider one.
 #
 # Runs on every push to main (not after green CI: Scorecard counts analysed
 # commits), every non-draft PR into main or dev, weekly for the default-branch
@@ -66,6 +67,7 @@ jobs:
         with:
           languages: actions
           build-mode: none
+          queries: security-extended
 
       - name: Analyze
         uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0

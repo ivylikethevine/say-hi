@@ -53,8 +53,18 @@ function _ci_image_refs() {
   done
 }
 
-# _ci_image_pins - `image|tag|sha256:<hex>` per digest-pinned reference in the
-# files named on stdin, sorted and unique
-function _ci_image_pins() {
-  _ci_image_refs | awk -F'|' '$4 != "" { print $2 "|" $3 "|" $4 }' | sort -u
+# _ci_refs_pinned - `image|tag|sha256:<hex>` per digest-pinned line of
+# _ci_image_refs's output on stdin, sorted and unique
+function _ci_refs_pinned() {
+  awk -F'|' '$4 != "" { print $2 "|" $3 "|" $4 }' | sort -u
 }
+
+# _ci_image_pins - the same, for the files named on stdin
+function _ci_image_pins() {
+  _ci_image_refs | _ci_refs_pinned
+}
+
+# One trivy image scan as JSON, for the release gate and both scheduled scans.
+# `--ignore-unfixed`: a finding with no fix is one a rebuild cannot clear.
+_CI_TRIVY_SEVERITY='HIGH,CRITICAL'
+_CI_TRIVY_FLAGS=(--scanners vuln --severity "$_CI_TRIVY_SEVERITY" --ignore-unfixed --no-progress --format json)

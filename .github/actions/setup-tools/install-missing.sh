@@ -6,9 +6,9 @@ set -euo pipefail
 
 : "${CI_TOOLS:?set by action.yml}"
 
-# a whole-key miss restores nothing, so this only skips a binary something
-# else already put there
+# every tool, even one already on the path: the cache saves what sits at each
+# path under the pinned key, so a binary something else put there would be
+# saved unverified
 for _ci_t in $CI_TOOLS; do
-  [ -x "${CI_TOOL_BIN_DIR:-/usr/local/bin}/$_ci_t" ] && continue
   CI_TOOL="$_ci_t" "$(dirname "${BASH_SOURCE[0]}")/../setup-tool/install.sh" install
 done

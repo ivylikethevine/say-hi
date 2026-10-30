@@ -61,10 +61,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 # collation ignores the hyphen in a CVE id makes comm emit the wrong diff
 export LC_ALL=C
 
-_CI_SEVERITY="HIGH,CRITICAL"
-# the same set as prose - trivy wants commas, a sentence does not
-_CI_SEVERITIES="${_CI_SEVERITY//,//}"
-
 _CI_REPORT="${SCAN_REPORT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/image-scan-report.md}"
 
 # I/O-and-network bound (two trivy runs per image), not CPU bound: 4 stays
@@ -73,6 +69,8 @@ _CI_JOBS="${SCAN_JOBS:-4}"
 
 # shellcheck source=./lib.sh
 source .github/scripts/lib.sh
+# the severities as prose - trivy wants commas, a sentence does not
+_CI_SEVERITIES="${_CI_TRIVY_SEVERITY//,//}"
 _CI_GLOBS="${SCAN_GLOBS:-$_CI_IMAGE_GLOBS}"
 _ci_need scan_pinned_images trivy jq
 
@@ -81,14 +79,7 @@ trap 'rm -rf "$_CI_WORK"' EXIT
 
 # _ci_trivy <ref> <out.json> - one scan, as JSON so ids can be diffed
 function _ci_trivy() {
-  trivy image \
-    --scanners vuln \
-    --severity "$_CI_SEVERITY" \
-    --ignore-unfixed \
-    --format json \
-    --no-progress \
-    --output "$2" \
-    "$1" </dev/null
+  trivy image "${_CI_TRIVY_FLAGS[@]}" --output "$2" "$1" </dev/null
 }
 
 # _ci_ids <out.json> - the fixable CVE ids, sorted and unique for comm
@@ -117,10 +108,11 @@ fi
 # added, dropped or repinned is covered without editing this script.
 _ci_pins="$_CI_WORK/pins"
 _ci_tagonly="$_CI_WORK/tagonly"
-printf '%s\n' "${_ci_files_list[@]}" | _ci_image_pins >"$_ci_pins"
+_ci_refs="$_CI_WORK/refs"
+printf '%s\n' "${_ci_files_list[@]}" | _ci_image_refs >"$_ci_refs"
+_ci_refs_pinned <"$_ci_refs" >"$_ci_pins"
 # tagged, no digest: "file: image:tag"
-printf '%s\n' "${_ci_files_list[@]}" | _ci_image_refs |
-  awk -F'|' '$4 == "" { print $1 ": " $2 ":" $3 }' | sort -u >"$_ci_tagonly"
+awk -F'|' '$4 == "" { print $1 ": " $2 ":" $3 }' "$_ci_refs" | sort -u >"$_ci_tagonly"
 
 _ci_total="$(_ci_lines "$_ci_pins")"
 if [ "$_ci_total" -eq 0 ] && [ ! -s "$_ci_tagonly" ]; then
