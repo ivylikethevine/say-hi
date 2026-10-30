@@ -335,15 +335,14 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
 
 - [ ] **The target side keeps up on a starved CPU** — with the target held
       to an eighth of one core (`scratch/slow_target.sh`: a CFS quota on the
-      suites' sshd image, loopback, no netem; 16CPU/60GB host, at b55dacb8,
-      before the kept-session and shell-preference changes to `core.sh`,
-      `keep.sh`, `mux.sh`, and `load.sh`), what a cold connect adds over a
-      plain `ssh host true` grows from
-      143 ms to 473 ms, while sshd's own handshake moves from 128 ms to
-      159 ms. That is about what the connect's round trips cost at 150 ms
-      added. It grows faster than the cap does: a quarter core to an eighth
-      doubles the shell work but takes hi's share from 215 ms to 473 ms, so
-      some of the target side runs side by side or waits out a slice.
+      suites' sshd image, loopback, no netem; 16CPU/60GB host, at b8b3759a),
+      what a cold connect adds over a plain `ssh host true` grows from
+      140 ms to 390 ms, down from 473 ms before the cuts below, while sshd's
+      own handshake moves from 132 ms to 169 ms. That is about what the
+      connect's round trips cost at 150 ms added. It grows faster than the
+      cap does: a quarter core to an eighth doubles the shell work but takes
+      hi's share from 180 ms to 390 ms, so some of the target side runs side
+      by side or waits out a slice.
       `scratch/target_profile.sh` runs the target side through a fake ssh on
       the client, overlapped as a real cold connect is (no cap; 16CPU/60GB;
       the client's userland standing in for the image, with bash, hi's
@@ -354,7 +353,7 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       that overlaps at full core queues instead. Its `trace` mode counts
       bash's lines by file and function, but xtrace's cost a line weights
       them toward loops of cheap lines: timed alone, the package check is
-      3.5 ms and `_hi_fishquote` 1 ms. The working tree cuts the session's
+      3.5 ms and `_hi_fishquote` 1 ms. The cuts so far take the session's
       execs from 63 to 47 (about 11 of them this machine's own profile
       scripts) and the CPU to 79.3 ms: the time sums in shell arithmetic,
       the probes in a directory the tree comes with, one `ls --color`
@@ -364,10 +363,11 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       the kept-session lookup at the start, where the target has a
       multiplexer; the bootloader's `date` and `awk` for the copy time and
       its `tr | base64`; and the header's probes (`git`, `uname`, `nproc`,
-      `ip`, `hostname`, two with an `awk`). **Do:** re-take the cap figures
-      at today's tree, then cut what scales.
+      `ip`, `hostname`, two with an `awk`). **Do:** cut what scales: the
+      line below is about 110 ms away, some 35 execs at the 3 ms each the
+      script's `fork_ms` shows under that cap, so execs alone barely reach it.
       **Ticks when:** the same script puts hi's share at an eighth of a core
-      within twice its full-core figure.
+      within twice its full-core figure, 280 ms today.
 
 - [ ] **The session starts once the core files land** — on a fresh
       connection a script past about 45 KB costs two extra round trips over

@@ -397,7 +397,7 @@ function test_packages_groups_normalises_commas() {
 # for 80
 function test_packages_groups_does_not_write_the_default() {
   local got
-  got="$(_hi_groups_flipped 'useful deprecated' core | tr -d '[:space:]')"
+  got="$(_hi_groups_flipped 'deprecated' core | tr -d '[:space:]')"
   [ -z "$got" ] || _hi_why got
 }
 
