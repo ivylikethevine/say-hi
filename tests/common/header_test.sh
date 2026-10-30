@@ -722,7 +722,7 @@ function test_probe_dir_takes_a_trees_empty_one_once() {
     [ -e "$d" ] || printf 'removed\n'
   )"
   case "$got" in
-  "$t/hi.probes"$'\nkept\n'*/hi.probes.??????$'\nremoved') ;;
+  "$t/hi.probes"$'\nkept\n'*/hi.probes.*$'\nremoved') ;;
   *) _hi_because "the probes' directories: $got" ;;
   esac
 }

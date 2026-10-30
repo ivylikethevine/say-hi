@@ -384,7 +384,7 @@ function _hi_session_editor() {
   # that, and here it would be a fork a call
   _HI_ALIAS_GUARD=true
   # ...nor its ls check, an exec whose answer only the session's shell keeps
-  _HI_LS_OPTS="${_HI_LS_OPTS:--}"
+  [ -n "${_HI_LS_OPTS:-}" ] || _HI_LS_OPTS=-
   # shellcheck source=./common/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
   for e in ${_HI_EDITOR:-} "$@" $_HI_EDITORS; do
