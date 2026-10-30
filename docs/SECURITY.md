@@ -84,8 +84,10 @@ gets the PowerShell notice instead.) A restricted login shell (`rbash`)
 forbids a `/` in a command name and little else; `sh` has no slash, so hi's
 bootstrap runs unrestricted - rbash is not a boundary hi respects, and a host
 whose restriction matters wants `ForceCommand`. `MaxSessions 1` fits: hi's two
-calls share one connection, but the probe's channel closes before the
-session's opens. All three are `tests/targets/ssh_test.sh` cases.
+calls share one connection, and a channel the host refuses while the other is
+open is opened again once that one closes
+([HI.19](GLOSSARY.md#hi19-stdin-transport)). All three are
+`tests/targets/ssh_test.sh` cases, at a terminal and with stdin off one.
 
 ## What hi writes on a target
 
@@ -130,8 +132,9 @@ command.
 - `load.sh`'s on-exit hook removes the whole session tree, session-rc
   directory included, on a clean exit and on an abrupt disconnect alike
   (`tests/targets/ssh_disconnect_test.sh` verifies the latter). Over ssh the
-  bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` is a backstop for the one
-  thing the hook cannot survive: bash killed by a signal nothing can trap.
+  bootstrap's exit trap, which removes `$_HI_CLEANUP` where the hook has
+  not, is a backstop for the one thing the hook cannot survive: bash killed
+  by a signal nothing can trap.
   Behind both, each session leaves one process apart from itself that does
   the hook's work should both be killed, and its pid in the tree, by which
   the account's next `hi <target>` removes a tree whose session is gone

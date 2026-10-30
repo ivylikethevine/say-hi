@@ -1040,8 +1040,16 @@ function _hi_remote_suffix() {
   fi
   ! _hi_keep_starts || handoff="$(_hi_keep_start)"
   # 86 for a kept session left behind, by this connect or by a `hi --keep`
-  # typed in it, and never the session's own status (_hi_keep_connect)
-  ! _hi_keep_probes || tail=$'      _hi_kept && exit 86\n      exit 0'
+  # typed in it, and never the session's own status (_hi_keep_connect). A
+  # `hi --keep` writes its claim, hi.kept, into this tree before its pane
+  # starts, so a connect that started none looks only where that is there;
+  # one that started its own looks always, its pane's claim coming later.
+  if _hi_keep_starts; then
+    tail=$'      _hi_kept && exit 86\n      exit 0'
+  elif _hi_keep_probes; then
+    # shellcheck disable=SC2016 # the target's to expand
+    tail=$'      [ -e "$_HI_ROOT/hi.kept" ] && _hi_kept && exit 86\n      exit 0'
+  fi
   cat <<REMOTE
       export _HI_COPY_TIME=\$(awk -v a="\$_hi_t0" -v b="\$(_hi_now)" 'BEGIN{printf "%.3f", b-a}')
       if command -v bash >/dev/null 2>&1; then
@@ -1075,7 +1083,9 @@ REMOTE
 #
 # The `trap ... exit` is a backstop for bash killed by a signal nothing can
 # trap: load.sh's clean_all owns the teardown otherwise, and the trap only
-# has to remove the tree, since $_HI_SESSION_RC_DIR nests inside it. A kept
+# has to remove the tree, since $_HI_SESSION_RC_DIR nests inside it, and
+# runs no `rm` for a tree clean_all already took. hi.probes is the header's
+# probe directory, made here with the root to save it a `mktemp`. A kept
 # session's tree is left to its owner pane, one kept later from inside
 # leaves a marker for the same, and one that holds its tree (hi.hold) leaves
 # it to its own exit hook and the timer behind that; the tree of an owner pane that died goes here, by the next connect,
@@ -1095,9 +1105,9 @@ function _hi_remote_middle() {
       export _HI_ROOT=\$_HI_HOME/say-hi
       export _HI_CONFIG_DIR=\$_HI_ROOT/config
       export _HI_CLEANUP=\$_HI_HOME
-      mkdir "\$_HI_ROOT"
+      mkdir "\$_HI_ROOT" "\$_HI_CLEANUP/hi.probes"
 $sweep
-      trap '${kept}rm -rf \$_HI_CLEANUP' exit
+      trap '[ ! -d "\$_HI_CLEANUP" ] || ${kept}rm -rf \$_HI_CLEANUP' exit
       _hi_rc_dir="\$_HI_ROOT"
       printf '%s %s%s' "$_hi_esc" "$_hi_nc" "$size" >&2
 $fresh
@@ -1182,10 +1192,9 @@ function _hi_boot_parse() {
 
 # _hi_overlap_ok - this connect opens the session while the boot call is
 # still landing the script (_hi_connect_overlap): ssh over a ControlMaster,
-# with a tty, whose hangup is what ends a stub left waiting, and not a
-# dropped kept session's retry, whose words go to a log.
+# and not a dropped kept session's retry, whose words go to a log.
 function _hi_overlap_ok() {
-  [ "$arm" = ssh ] && [ -n "$ctl_path" ] && [ -z "${_HI_KEEP_QUIET:-}" ] && [ -t 0 ]
+  [ "$arm" = ssh ] && [ -n "$ctl_path" ] && [ -z "${_HI_KEEP_QUIET:-}" ]
 }
 
 # _hi_ctl_alive - the ControlMaster still answers.
@@ -1204,8 +1213,8 @@ function _hi_ctl_alive() {
 function _hi_overlap_start() {
   local r
   ov_dir="$(mktemp -d -t hi.boot.XXXXXX 2>/dev/null)" || ov_dir=""
-  if [ -z "$ov_dir" ] || ! mkfifo "$ov_dir/in" "$ov_dir/go" "$ov_dir/tick" 2>/dev/null; then
-    [ -z "$ov_dir" ] || rm -f "$ov_dir/in" "$ov_dir/go" "$ov_dir/tick"
+  if [ -z "$ov_dir" ] || ! mkfifo "$ov_dir/in" "$ov_dir/go" "$ov_dir/tick" "$ov_dir/sin" "$ov_dir/sv" 2>/dev/null; then
+    [ -z "$ov_dir" ] || rm -f "$ov_dir/in" "$ov_dir/go" "$ov_dir/tick" "$ov_dir/sin" "$ov_dir/sv"
     [ -z "$ov_dir" ] || rmdir "$ov_dir" 2>/dev/null || :
     ov_dir=""
     return 1
@@ -1230,21 +1239,74 @@ function _hi_overlap_start() {
   ov_boot=$!
 }
 
-# _hi_overlap_stub <dir> - the session's command under _hi_connect_overlap:
-# wait for the script in <dir>, on the FIFO the boot probe writes once it is
-# whole, held open before the last look so the word cannot slip past, after a
-# poll for the FIFO itself while the probe checks the target; then run it
-# from a directory of this user's, claimed first.
+# _hi_overlap_stub <dir> [pipe] - the session's command under
+# _hi_connect_overlap: wait for the script in <dir>, on the FIFO the boot
+# probe writes once it is whole, held open before the last look so the word
+# cannot slip past, after a poll for the FIFO itself while the probe checks
+# the target; then run it from a directory of this user's, claimed first.
+#
+# [pipe] is the stub with no tty, whose hangup cannot end it: its stdin is
+# _hi_overlap_relay's, read by a child of its own whose first line is the
+# client's word. `go` passes the rest through to the session; anything else,
+# an end of file included, marks <dir> `no` and wakes the stub, which removes
+# it and ends. That child is not waited on, so a stdin the client never
+# closes does not hold the session's channel open.
 function _hi_overlap_stub() {
   printf 'd=%s\n' "$1"
+  # fd 4 carries stdin past sh's /dev/null for a background job, taken by
+  # `exec`: a redirection on a group has mksh keep the channel's own fds
+  # open in it, which holds the session's channel open
+  [ "${2:-}" != pipe ] || cat <<'PIPE'
+exec 4<&0
+{ (exec <&4 4<&- 2>/dev/null; if read -r _hi_w && [ "$_hi_w" = go ]; then exec cat; fi; if (umask 077 && mkdir "$d") 2>/dev/null || [ -O "$d" ]; then : >"$d/no"; [ ! -p "$d/go" ] || printf 'x\n' 1<>"$d/go"; fi) & } | {
+exec 4<&-
+PIPE
   cat <<'STUB'
-while [ ! -p "$d/go" ] && [ ! -f "$d/bootloader" ]; do sleep 0.01 2>/dev/null || sleep 1; done
-if [ ! -f "$d/bootloader" ]; then exec 3<>"$d/go"; [ -f "$d/bootloader" ] || read -r _hi_go <&3; exec 3>&-; fi
+while [ ! -p "$d/go" ] && [ ! -f "$d/bootloader" ] && [ ! -f "$d/no" ] && { [ ! -e "$d" ] || [ -O "$d" ]; }; do sleep 0.01 2>/dev/null || sleep 1; done
 [ -O "$d" ] || { echo "hi: $d is not this user's" >&2; exit 1; }
+if [ ! -f "$d/bootloader" ] && [ ! -f "$d/no" ]; then exec 3<>"$d/go"; [ -f "$d/bootloader" ] || [ -f "$d/no" ] || read -r _hi_go <&3; exec 3>&-; fi
+[ -f "$d/bootloader" ] || { rm -rf "$d"; exit 1; }
 : >"$d/claimed"
 STUB
   # shellcheck disable=SC2016 # the target's to expand
   _hi_attach_cmd '$d'
+  [ "${2:-}" != pipe ] || printf '\n}'
+}
+
+# _hi_overlap_relay - without a tty, the stub's stdin (_hi_overlap_stub's
+# [pipe]): nothing until _hi_overlap_word names the boot's outcome, then
+# `go` and this shell's stdin after it for a stub that runs the script, the
+# stdin alone for a forced command's program, or an end of file for a stub
+# that has to end. Woken as _hi_overlap_start's writer is. Fills ov_relay.
+function _hi_overlap_relay() {
+  local self=$$
+  (
+    exec >"$ov_dir/sin"
+    {
+      while [ ! -e "$ov_dir/v.go" ] && [ ! -e "$ov_dir/v.raw" ] && [ ! -e "$ov_dir/v.no" ]; do
+        kill -0 "$self" 2>/dev/null || exit 0
+        read -r -t 1 _ || :
+      done
+    } <>"$ov_dir/sv"
+    [ ! -e "$ov_dir/v.no" ] || exit 0
+    [ ! -e "$ov_dir/v.go" ] || printf 'go\n'
+    exec cat
+  ) <&0 &
+  ov_relay=$!
+}
+
+# _hi_overlap_word <go|raw|no> - _hi_overlap_relay's word, where there is one.
+function _hi_overlap_word() {
+  [ -n "$ov_relay" ] || return 0
+  : >"$ov_dir/v.$1"
+  printf 'x\n' 1<>"$ov_dir/sv"
+}
+
+# _hi_overlap_unrelay - _hi_overlap_relay stopped, once the stub's ssh is gone.
+function _hi_overlap_unrelay() {
+  [ -n "$ov_relay" ] || return 0
+  kill "$ov_relay" 2>/dev/null || :
+  wait "$ov_relay" 2>/dev/null || :
 }
 
 # _hi_connect_overlap - the session opened while the boot call is still
@@ -1276,8 +1338,12 @@ function _hi_connect_overlap() {
   if [ -S "$ctl_path" ]; then
     ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
     _HI_LINK_UP=1
-    # shellcheck disable=SC2016 # the target's to expand
-    _hi_on_target attach "$(_hi_overlap_stub "$d")" exec <&0 &
+    if [ -t 0 ]; then
+      _hi_on_target attach "$(_hi_overlap_stub "$d")" exec <&0 &
+    else
+      _hi_overlap_relay
+      _hi_on_target attach "$(_hi_overlap_stub "$d" pipe)" exec <"$ov_dir/sin" &
+    fi
     sess=$!
   fi
   boot_ec=0
@@ -1285,7 +1351,11 @@ function _hi_connect_overlap() {
   boot_out="$(cat "$ov_dir/out")"
   _hi_boot_parse
   if [ -n "$boot_tmp" ] && [ -n "$sess" ]; then
+    # a stub's ssh already gone had its channel refused, and the series
+    # attach below takes this shell's stdin
+    if kill -0 "$sess" 2>/dev/null; then _hi_overlap_word go; else _hi_overlap_word no; fi
     wait "$sess" || ec=$?
+    _hi_overlap_unrelay
     if [ "$ec" = 255 ] && _hi_ctl_alive && _hi_on_target probe "[ -f \"$boot_tmp/bootloader\" ] && [ ! -e \"$boot_tmp/claimed\" ]"; then
       ec=0
       _hi_on_target attach "$(_hi_attach_cmd "$boot_tmp")" || ec=$?
@@ -1298,12 +1368,20 @@ function _hi_connect_overlap() {
   *HIBOOT:* | 6[4-7]:*) ;;
   0:* | *:?*)
     _hi_cecho " $(_hi_boot_why "$boot_ec" "$boot_out") - handing over the host's own session" "$YELLOW" >&2
+    _hi_overlap_word raw
     wait "$sess" || ec=$?
+    _hi_overlap_unrelay
     return 0
     ;;
   esac
-  kill "$sess" 2>/dev/null || true
+  # a tty's stub ends at its hangup, a relayed one at its word
+  if [ -n "$ov_relay" ]; then
+    _hi_overlap_word no
+  else
+    kill "$sess" 2>/dev/null || true
+  fi
   wait "$sess" 2>/dev/null || true
+  _hi_overlap_unrelay
   [ "$boot_ec" != 255 ] || [ -n "$boot_out" ] || ! _hi_ctl_alive || booted=""
   return 1
 }
@@ -1426,7 +1504,7 @@ function _say_hi() {
   # the overlapped boot call first, so its handshake rides all that follows:
   # the target's color and prompt list among it, primed here for the script
   # builders (_hi), the latter the longest of a connect's client work
-  local ov_dir="" ov_d="" ov_boot=""
+  local ov_dir="" ov_d="" ov_boot="" ov_relay=""
   ! _hi_overlap_ok || _hi_overlap_start || :
   _hi_target_color >/dev/null && _hi_prompt_list >/dev/null
 
@@ -1541,6 +1619,7 @@ function _hi_wire_done() {
   [ -n "$wire_dir" ] || wire_dir="$ov_dir"
   [ -n "$wire_dir" ] || return 0
   rm -f "$wire_dir/in" "$wire_dir/go" "$wire_dir/tick" "$wire_dir/out" "$wire_dir/script" "$wire_dir/ready" \
+    "$wire_dir/sin" "$wire_dir/sv" "$wire_dir/v.go" "$wire_dir/v.raw" "$wire_dir/v.no" \
     "$wire_dir/tree.tgz" "$wire_dir/overlay.tgz"
   rmdir "$wire_dir" 2>/dev/null || :
 }

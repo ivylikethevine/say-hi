@@ -159,8 +159,8 @@ function test_group_tier_maps_names_to_tiers() {
 function test_group_on_reads_the_list() {
   (
     unset _HI_PACKAGES_GROUPS
-    { _hi_group_on core && _hi_group_on useful && _hi_group_on deprecated; } || _hi_why || exit 1
-    ! _hi_group_on extras || _hi_why || exit 1
+    { _hi_group_on core && _hi_group_on deprecated; } || _hi_why || exit 1
+    { ! _hi_group_on useful && ! _hi_group_on extras; } || _hi_why || exit 1
     _HI_PACKAGES_GROUPS="alpha,beta gamma"
     { _hi_group_on alpha && _hi_group_on beta && _hi_group_on gamma; } || _hi_why || exit 1
     # a whole-word match: neither a prefix nor an extension of a listed name
@@ -243,7 +243,7 @@ function test_full_check_reads_a_comma_separated_list() {
   { _hi_contains "$out" " $_HI_REAL_CMD " && _hi_contains "$out" " bash "; } || _hi_why out _HI_REAL_CMD
 }
 
-# ...unset runs the shipped default, core useful deprecated, and no other
+# ...unset runs the shipped default, core deprecated, and no other
 function test_full_check_unset_runs_the_default_groups() {
   local out
   out="$(
@@ -251,9 +251,8 @@ function test_full_check_unset_runs_the_default_groups() {
     unset _HI_PACKAGES_GROUPS
     full_check
   )"
-  _hi_contains "$out" " sh " && _hi_contains "$out" " ls " &&
-    _hi_contains "$out" " cat " || _hi_why out || return 1
-  case "$out" in *bash*) _hi_why out || return 1 ;; esac
+  _hi_contains "$out" " sh " && _hi_contains "$out" " cat " || _hi_why out || return 1
+  case "$out" in *bash* | *" ls "*) _hi_why out || return 1 ;; esac
   return 0
 }
 
@@ -540,7 +539,7 @@ function run_header_check_tests() {
   _hi_check "Empty output when every row is silent" test_full_check_empty_when_everything_is_silent
   _hi_check_requires bash "Runs only the named groups" test_full_check_runs_only_the_named_groups
   _hi_check_requires bash "...from a comma-separated list" test_full_check_reads_a_comma_separated_list
-  _hi_check_requires bash "Unset runs core useful deprecated" test_full_check_unset_runs_the_default_groups
+  _hi_check_requires bash "Unset runs core deprecated" test_full_check_unset_runs_the_default_groups
   _hi_check_requires bash "none still runs the rows above the first group" test_full_check_none_keeps_the_ungrouped_rows
   _hi_check "A [none] section never runs" test_full_check_none_is_not_a_group
   _hi_check_requires bash "Wraps rows at _HI_MAX_WIDTH" test_full_check_wraps_at_max_width

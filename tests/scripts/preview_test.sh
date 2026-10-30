@@ -653,8 +653,8 @@ function test_h_flag_prints_the_same_usage() {
 #
 
 # One row above the first group (always runs), then a group per case: core
-# and useful on by default, deprecated holding every outcome of its two
-# tables, extras and platform off by default but still collected.
+# and useful on (_HI_PREVIEW_GROUPS), deprecated holding every outcome of its
+# two tables, extras and platform off but still collected.
 function _hi_write_package_fixtures() {
   _hi_fake_path pkgbin hitop hialpha hibravo hicharlie hidelta hiecho hifoxtrot >/dev/null
 
@@ -690,10 +690,11 @@ EOF
 }
 
 # collect once - it is the same work for every case that reads the results.
-# An empty $_HI_PACKAGES_GROUPS reads as the shipped default, whatever the
-# runner's environment carries.
+# The groups are pinned, whatever the runner's environment carries or the
+# default says: these cases count what each group's rows do.
+_HI_PREVIEW_GROUPS="core useful deprecated"
 function _hi_collect_once() {
-  local saved="$PATH" _HI_PACKAGES_GROUPS=""
+  local saved="$PATH" _HI_PACKAGES_GROUPS="$_HI_PREVIEW_GROUPS"
   PATH="$_HI_PKG_PATH"
   _hi_collect_examples
   PATH="$saved"

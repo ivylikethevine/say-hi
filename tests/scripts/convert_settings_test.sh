@@ -236,14 +236,15 @@ function test_entry_converts_the_carry() {
 
 # --- settings.sh -------------------------------------------------------------
 
-# the old floor becomes the groups that show the same tiers; 2 was the
-# default and goes, and every other line stays as it was
+# the old floor becomes the groups that show the same tiers, 2 included, the
+# default's no longer being those; every other line stays as it was
 function test_settings_map_the_floor_to_groups() {
   _hi_conv_is _hi_convert_settings '#!/bin/sh\nexport _HI_PACKAGES_MIN_PRIORITY=0\nexport X=1\n' \
     "#!/bin/sh\nexport _HI_PACKAGES_GROUPS='core useful deprecated extras trivia base platform'\nexport X=1" || _hi_why || return 1
   _hi_conv_is _hi_convert_settings "export _HI_PACKAGES_MIN_PRIORITY='1'\n" \
     "export _HI_PACKAGES_GROUPS='core useful deprecated extras base'" || _hi_why || return 1
-  _hi_conv_is _hi_convert_settings 'export X=1\nexport _HI_PACKAGES_MIN_PRIORITY=2\n' 'export X=1' || _hi_why || return 1
+  _hi_conv_is _hi_convert_settings 'export X=1\nexport _HI_PACKAGES_MIN_PRIORITY=2\n' \
+    "export X=1\nexport _HI_PACKAGES_GROUPS='core useful deprecated'" || _hi_why || return 1
   _hi_conv_is _hi_convert_settings '_HI_PACKAGES_MIN_PRIORITY="3"\n' \
     "export _HI_PACKAGES_GROUPS='core deprecated'" || _hi_why || return 1
   _hi_conv_is _hi_convert_settings 'export _HI_PACKAGES_MIN_PRIORITY=4\n' \

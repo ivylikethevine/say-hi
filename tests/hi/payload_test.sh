@@ -451,7 +451,7 @@ function test_strip_keeps_every_code_line() {
 # blank and nothing indented survives *outside* a heredoc, and everything
 # inside one is untouched - a target's `sh` reads those bodies as data, and
 # `<<-` strips its own tabs there. hi.sh's remote script is the fixture: its
-# `      mkdir "\$_HI_ROOT"` sits inside `<<REMOTE`.
+# `      mkdir "\$_HI_ROOT" ...` sits inside `<<REMOTE`.
 function test_strip_trims_whitespace_outside_heredocs() {
   local dir n
   dir="$(_hi_strip_unpack stripped)"
@@ -459,7 +459,7 @@ function test_strip_trims_whitespace_outside_heredocs() {
   [ "$n" -eq 0 ] || _hi_because "core.sh kept $n blank line(s) through the strip" || return 1
   n="$(grep -c '^[[:space:]]' "$dir/say-hi/common/core.sh" || true)"
   [ "$n" -eq 0 ] || _hi_because "core.sh kept $n indented line(s) through the strip" || return 1
-  grep -q '^      mkdir "\\\$_HI_ROOT"$' "$dir/say-hi/hi.sh" || _hi_because "a heredoc body lost its indentation through the strip"
+  grep -q '^      mkdir "\\\$_HI_ROOT" "\\\$_HI_CLEANUP/hi.probes"$' "$dir/say-hi/hi.sh" || _hi_because "a heredoc body lost its indentation through the strip"
 }
 
 function test_strip_leaves_valid_shell() {

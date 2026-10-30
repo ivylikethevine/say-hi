@@ -111,10 +111,12 @@ or nowhere to make a
 .BR mktemp (1)
 directory, gets its own login session instead, with a notice saying why.
 .SH SESSION SHELL
-Your login shell when hi styles it (bash, zsh, or fish), else the first of
-fish > zsh > bash on the target. A target with no bash gets the first of
-fish > zsh > dash > ash > sh, with hi's aliases (and in dash, ash, or sh a
-colored prompt) but no header.
+The first installed of
+.BR _HI_SHELL_PREFERENCE 's
+shells, by default your login shell when hi styles it (bash, zsh, or fish),
+else the first of fish > zsh > bash on the target. A target with no bash gets
+the first of fish > zsh > dash > ash > sh, whatever the preference, with hi's
+aliases (and in dash, ash, or sh a colored prompt) but no header.
 .SH TARGET RESOLUTION
 .I target
 is tried against each backend in order; the first match wins:

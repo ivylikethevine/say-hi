@@ -91,7 +91,7 @@ function test_fish_colors_match_core() {
   [ -z "$mismatch" ] || _hi_because "color roles disagree:$mismatch"
 }
 
-# fish's default is `|`, bash's `\$`, zsh's `>` - three answers, and config.fish
+# fish's default is `|`, bash's `\$`, zsh's `%(!.#.>)` - three answers, and config.fish
 # cannot call _hi_prompt_end_default to get its own. This is that pin.
 function test_fish_prompt_end_default_matches_core() {
   local fish_default core_default

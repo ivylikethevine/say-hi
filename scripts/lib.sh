@@ -464,12 +464,13 @@ function _hi_has_no_single_quote() {
 }
 
 # $_HI_IP_HIDE's vocabulary: the word `none`, or space-separated globs over
-# dotted-quad addresses - digits, dots, `*`, and `?` - nothing else, so a
-# stray quote or a shell metacharacter can't be written into settings.sh
+# addresses and interface names - what core.sh's _hi_ssh_pattern_hit reads,
+# nothing else, so a stray quote or a shell metacharacter can't be written
+# into settings.sh
 function _hi_is_ip_hide() {
   case "$1" in
   none) return 0 ;;
-  '' | *[!0-9.*?\ ]*) return 1 ;;
+  '' | *[!A-Za-z0-9_.:*?!\ -]*) return 1 ;;
   esac
 }
 

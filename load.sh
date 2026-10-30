@@ -100,10 +100,6 @@ fi
 # Everything hi put on the target and nothing the target had. hi never writes
 # to a target's own login files, so there is nothing to strip back out.
 function clean_all() {
-  # the rc directory nests under $_HI_CLEANUP when there is one; this removal
-  # is for a session with no disposable tree - a local install's own shells -
-  # and for a tree that is held, whose next session writes its own
-  [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
   # A session that holds its tree (hi.hold, the name) and has lost its
   # terminal was dropped: the tree is left to the watcher's timer under
   # hi.held, the watcher, this shell, and the name a connect takes it by. An
@@ -112,6 +108,7 @@ function clean_all() {
   if [ -n "${_hi_keep_tty:-}" ] && ! [ -t 0 ] && kill -0 "${_hi_tree_watch_pid:-0}" 2>/dev/null &&
     read -r held 2>/dev/null <"$_HI_ROOT/hi.hold" && [ -n "$held" ] &&
     printf '%s %s %s\n' "$_hi_tree_watch_pid" "$$" "$held" 2>/dev/null >"$_HI_ROOT/hi.held"; then
+    _hi_clean_rc_dir
     return 0
   fi
   # the tree's watcher (_hi_tree_watch), which takes its own sleep with it
@@ -121,10 +118,19 @@ function clean_all() {
     kill -- "-$_hi_keep_watch_pid" 2>/dev/null || kill "$_hi_keep_watch_pid" 2>/dev/null
   fi
   _hi_clean_tree
+  _hi_clean_rc_dir
   # an owner pane is its session: the panes opened beside it run on this
   # tree's rc (_hi_keep_panes), and go with it
   [ -z "${_HI_KEEP_MUX:-}" ] || _hi_keep_kill >/dev/null 2>&1
   return 0
+}
+
+# The rc directory nests under $_HI_CLEANUP when there is one, and goes with
+# the tree; this removal is for a session with no disposable tree - a local
+# install's own shells - and for a tree that is kept or held, whose next
+# session writes its own
+function _hi_clean_rc_dir() {
+  [ -z "${_HI_SESSION_RC_DIR:-}" ] || [ ! -d "$_HI_SESSION_RC_DIR" ] || rm -rf "$_HI_SESSION_RC_DIR"
 }
 
 function _hi_clean_tree() {
@@ -202,6 +208,14 @@ _HI_SESSION_RC_DIR=""
 # out doubled ends the fish string early.
 function _hi_fishquote() {
   local _in="$2" _out="" _c
+  # a path with nothing to escape, the usual case, skips the walk
+  case "$_in" in
+  *\\* | *\'*) ;;
+  *)
+    printf -v "$1" "'%s'" "$_in"
+    return 0
+    ;;
+  esac
   while [ -n "$_in" ]; do
     _c="${_in%"${_in#?}"}"
     _in="${_in#?}"
@@ -369,6 +383,8 @@ function _hi_session_editor() {
   # no parse of the overlay's aliases.sh first: the session's shell does
   # that, and here it would be a fork a call
   _HI_ALIAS_GUARD=true
+  # ...nor its ls check, an exec whose answer only the session's shell keeps
+  [ -n "${_HI_LS_OPTS:-}" ] || _HI_LS_OPTS=-
   # shellcheck source=./common/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
   for e in ${_HI_EDITOR:-} "$@" $_HI_EDITORS; do
