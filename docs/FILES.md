@@ -338,20 +338,22 @@ is newer.
 
 All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 
-| Pattern                                                       | Made by                                                      |
-| ------------------------------------------------------------- | ------------------------------------------------------------ |
-| `hi.log.XXXXXX`                                               | every `hi` run                                               |
-| `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes) |
-| `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off  |
-| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)         |
-| `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                         |
-| `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                |
-| `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place               |
-| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                    |
-| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                               |
-| `hi.colors.XXXXXX`                                            | `hi --add-color`, `hi --remove-color`                        |
-| `hi.plugins.XXXXXX`                                           | `hi --disable-plugin`, `hi --enable-plugin`                  |
-| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                |
+| Pattern                                                       | Made by                                                                                         |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `hi.log.XXXXXX`                                               | every `hi` run                                                                                  |
+| `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes)                                    |
+| `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off                                     |
+| `hi.boot.XXXXXX/`                                             | an overlapped ssh connect: the script, the archives, and the FIFOs between hi and its two calls |
+| `hi.wire.XXXXXX/`                                             | a connect in series: the archives no cache holds                                                |
+| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)                                            |
+| `hi.probes.XXXXXX/`                                           | the header's parallel probes, outside a session's tree                                          |
+| `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                                                   |
+| `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place                                                  |
+| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                                                       |
+| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                                                                  |
+| `hi.colors.XXXXXX`                                            | `hi --add-color`, `hi --remove-color`                                                           |
+| `hi.plugins.XXXXXX`                                           | `hi --disable-plugin`, `hi --enable-plugin`                                                     |
+| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                                                   |
 
 ## What a session does on a target
 
@@ -377,6 +379,7 @@ That directory is `$_HI_HOME` and `$_HI_CLEANUP`. Inside it:
 | `say-hi/hi.bashrc`                        | the bootloader rc: names this tree, then sources `load.sh`                        |
 | `say-hi/.hi_fallback_rc`, `say-hi/.zshrc` | on a target without bash: the aliases-and-prompt rc `$ENV` or `ZDOTDIR` points at |
 | `hi.rc.XXXXXX/`                           | the session rc directory, below                                                   |
+| `hi.probes/`                              | the connect header's parallel probes, left to the tree's removal                  |
 
 Every arm also lands its bootloader, with the tree's and the overlay's
 archives beside it, in `${TMPDIR:-/tmp}/hi.boot.XXXXXX/`,

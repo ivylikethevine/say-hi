@@ -583,10 +583,17 @@ function _hi_probe_wait() {
 
 # Where the probes and prefetches drop their output; empty until one starts,
 # so a header needing neither pays no mktemp and no rm. $_HI_PROBE_HOLD keeps
-# it past _hi_identity_probe for hi_header's later cells.
+# it past _hi_identity_probe for hi_header's later cells. A session's tree
+# comes with an empty hi.probes (hi.sh's _hi_remote_middle), taken while it
+# is still empty and left to the tree's removal: no mktemp and no rm.
 _HI_PROBE_DIR="" _HI_PROBE_LAUNCHED="" _HI_PROBE_HOLD="" _HI_PF_KEYS=""
 
 function _hi_probe_dir() {
+  [ -z "$_HI_PROBE_DIR" ] || return 0
+  if [ -n "${_HI_CLEANUP:-}" ] && [ -d "$_HI_CLEANUP/hi.probes" ]; then
+    local -a _hi_pd_f=("$_HI_CLEANUP/hi.probes"/*)
+    [ -e "${_hi_pd_f[0]}" ] || _HI_PROBE_DIR="$_HI_CLEANUP/hi.probes"
+  fi
   [ -n "$_HI_PROBE_DIR" ] || _HI_PROBE_DIR="$(mktemp -d -t hi.probes.XXXXXX)"
   [ -n "$_HI_PROBE_DIR" ]
 }
@@ -602,7 +609,7 @@ function _hi_probe_done() {
     [ -z "$pid" ] || wait "$pid" 2>/dev/null || true
   done
   _hi_probe_wait
-  command rm -rf "$_HI_PROBE_DIR"
+  [ "$_HI_PROBE_DIR" = "${_HI_CLEANUP:-}/hi.probes" ] || command rm -rf "$_HI_PROBE_DIR"
   _HI_PROBE_DIR="" _HI_PROBE_LAUNCHED="" _HI_PF_KEYS=""
 }
 
@@ -1236,12 +1243,19 @@ function full_check() {
   # $_HI_PACKAGES_PALETTE after header.sh loaded
   _hi_packages_palette
   [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r line; do
-    if _hi_package_table "$line" group mark; then
-      on=0
-      [ -n "$group" ] && ! _hi_group_on "$group" || on=1
-      _hi_group_tier tier "$group"
-      continue
-    fi
+    # a blank line or a comment is no row, and only a [ line a table: a
+    # function call each spared on the file's commonest lines
+    case "$line" in
+    '' | '#'*) continue ;;
+    '['*)
+      if _hi_package_table "$line" group mark; then
+        on=0
+        [ -n "$group" ] && ! _hi_group_on "$group" || on=1
+        _hi_group_tier tier "$group"
+        continue
+      fi
+      ;;
+    esac
     # a group that is off is skipped before its rows are read: each is a
     # PATH walk per alternative
     ((on)) && _hi_toml_row "$line" name alts && check_line visible "$mark$name${alts:+,$alts}" "$tier"

@@ -189,8 +189,8 @@ function test_keep_reattach_rides_ahead_of_the_unpack() {
   out="$(_hi_keep_script_for '' '')"
   _hi_before "$out" 'tmux attach-session' 'mktemp -d' || _hi_because "no reattach ahead of the unpack" || return 1
   _hi_before "$out" 'export TERM=xterm-256color' 'tmux attach-session' || _hi_because "the reattach is ahead of the TERM fallback" || return 1
-  [[ "$out" == *"trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
-    _hi_because "a plain connect's trap does not stand down for a session kept from inside, or one that holds" || return 1
+  [[ "$out" == *"trap '[ ! -d \"\$_HI_CLEANUP\" ] || [ -e \"\$_HI_ROOT/hi.kept\" ] || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
+    _hi_because "a plain connect's trap does not stand down for a tree already gone, a session kept from inside, or one that holds" || return 1
   # a tree a drop left is looked for once the sweep is done, and the unpack
   # is the part it replaces
   _hi_before "$out" '/say-hi/hi.pid; do' '_hi_held=$' && _hi_before "$out" '_hi_held=1' 'if \[ -z "$_hi_held" \]' &&
@@ -200,8 +200,8 @@ function test_keep_reattach_rides_ahead_of_the_unpack() {
   _hi_before "$out" 'mkdir "$_HI_ROOT"' '/say-hi/hi.pid; do' || _hi_because "no sweep once it has a tree" || return 1
   [[ "$out" != *'new-session'* ]] || _hi_because "a plain connect starts a session" || return 1
   # its status is its word on a kept session, off the attach and at its end
-  [[ "$out" == *"_hi_kept_note ' hi:' && exit 86"* && "$out" == *$'      _hi_kept && exit 86\n      exit 0' ]] ||
-    _hi_because "the script does not say how it ends" || return 1
+  [[ "$out" == *"_hi_kept_note ' hi:' && exit 86"* && "$out" == *$'      [ -e "$_HI_ROOT/hi.kept" ] && _hi_kept && exit 86\n      exit 0' ]] ||
+    _hi_because "the script does not say how it ends, or looks for a session where no hi --keep left a claim" || return 1
   [[ "$out" != *'is gone'* ]] || _hi_because "a client that expected no session warns of one gone" || return 1
   out="$(_HI_KEEP_EXPECTED=1 _hi_keep_script_for '' '')"
   _hi_before "$out" 'tmux attach-session' 'is gone' || _hi_because "no warning past the attach for a client that expected a session" || return 1

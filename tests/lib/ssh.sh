@@ -170,11 +170,12 @@ function _hi_bg_ok() {
 # the `<&3` contract below is stated once. $_HI_SSH_CASE_PREFIX names the
 # containers, so two suites running at once cannot collide on one.
 #
-# Three more knobs ride in the environment rather than the argument list,
+# Four more knobs ride in the environment rather than the argument list,
 # since one case in one suite wants each and every other call site would
 # carry empty slots: $_HI_SSH_RUN_ARGS is word-split into `docker run` ahead
 # of the image (`--cpus 0.1 --memory 64m`, say), $_HI_SSH_LAUNCH_OPTS into
-# hi's ssh options, and $_HI_SSH_SHAPE_CMD is run inside
+# hi's ssh options, $_HI_SSH_STDIN is a file hi reads as its stdin with no
+# pty at all, for a scripted `hi host cmd`, and $_HI_SSH_SHAPE_CMD is run inside
 # the container, as root, once sshd answers and before the session starts -
 # after, so the reachability poll is not itself made against the shaped link.
 # A shaping command that fails is a failed case: a starved target that was
@@ -220,7 +221,11 @@ function _hi_ssh_run_case() {
   # outright and every case that hands off to bash fails with no output past
   # hi's connect prefix.
   local out_file="$_HI_WORKDIR/$label.ssh.out"
-  "${_HI_SSH_LAUNCH[@]}" "$cmd" <&3 >"$out_file" 2>&1 &
+  if [ -n "${_HI_SSH_STDIN:-}" ]; then
+    "${_HI_SSH_LAUNCH_BARE[@]}" "$cmd" <"$_HI_SSH_STDIN" >"$out_file" 2>&1 &
+  else
+    "${_HI_SSH_LAUNCH[@]}" "$cmd" <&3 >"$out_file" 2>&1 &
+  fi
   _hi_wait_pid "$!" "${_HI_SSH_CASE_TIMEOUT:-90}"
   exit_code="$_HI_WAIT_EXIT"
   t1="$(_hi_now)"

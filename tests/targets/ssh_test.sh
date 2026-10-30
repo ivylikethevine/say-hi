@@ -287,6 +287,24 @@ function run_ssh_tests() {
     done
     _HI_SSH_RUN_ARGS="-e SSHD_OPTS=-oMaxSessions=1" \
       _hi_par_case maxsessions1 _hi_ssh_run_case maxsessions1 "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+    # The same with stdin off a tty, where no hangup ends a stub left
+    # waiting: the session's stdin comes through the client and reaches the
+    # command, and once hi is back no stub or boot directory is left on the
+    # target, whether its channel ran, was refused, or met a forced command.
+    # The poll is the stub's own exit racing hi's, which sshd does not order.
+    _hi_no_stub='for _hi_i in 1 2 3 4 5 6 7 8 9 10; do
+      if ! grep -l "hi[.]boot" /proc/[0-9]*/cmdline >/dev/null 2>&1 && ! ls -d /tmp/hi[.]boot.* >/dev/null 2>&1; then exit 0; fi
+      sleep 0.2
+    done
+    echo "left on the target:"; grep -l "hi[.]boot" /proc/[0-9]*/cmdline; ls -ld /tmp/hi[.]boot.*; exit 1'
+    printf '%s\n' "$_HI_TEST_MARKER" >"$_HI_WORKDIR/notty.in"
+    _HI_SSH_STDIN="$_HI_WORKDIR/notty.in" \
+      _hi_par_case notty-stdin _hi_ssh_run_case notty-stdin "$_HI_SSHD_IMAGE" /bin/bash cat "$_hi_no_stub"
+    _HI_SSH_STDIN=/dev/null _HI_SSH_RUN_ARGS="-e SSHD_OPTS=-oMaxSessions=1" \
+      _hi_par_case notty-maxsessions1 _hi_ssh_run_case notty-maxsessions1 "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)" "$_hi_no_stub"
+    _HI_SSH_STDIN=/dev/null _HI_SSH_RUN_ARGS="-e SSHD_OPTS=-oForceCommand=/usr/bin/id" \
+      _HI_TEST_MARKER="a forced command answered" \
+      _hi_par_case notty-forced _hi_ssh_run_case notty-forced "$_HI_SSHD_IMAGE" /bin/bash "$_hi_forced_cmd" "$_hi_no_stub"
     _hi_par_case rbash _hi_ssh_run_case rbash "$_HI_SSHD_IMAGE" /bin/rbash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
     _hi_par_case configd _hi_ssh_configd_case "$_HI_SSHD_IMAGE"
   fi
@@ -370,8 +388,8 @@ function run_ssh_tests() {
 
   # the forced-command cases' other half - see _hi_forced_session_is_the_hosts
   if [ "$_HI_DEBIAN_OK" -eq 1 ]; then
-    for _hi_forced in true id; do
-      _hi_case _hi_forced_session_is_the_hosts "forced-$_hi_forced" "$_HI_WORKDIR/forced-$_hi_forced.ssh.out"
+    for _hi_forced in forced-true forced-id notty-forced; do
+      _hi_case _hi_forced_session_is_the_hosts "$_hi_forced" "$_HI_WORKDIR/$_hi_forced.ssh.out"
     done
   fi
 

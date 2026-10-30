@@ -706,6 +706,27 @@ function _hi_linux_probe_fixtures() {
   printf '%s' "$d"
 }
 
+# A session's tree comes with an empty hi.probes, which the probes take and
+# leave to the tree's removal; one a session before left files in (a held
+# tree, taken) is passed over for a directory of their own, removed after
+function test_probe_dir_takes_a_trees_empty_one_once() {
+  local t="$_HI_WORKDIR/probetree" got
+  mkdir -p "$t/hi.probes"
+  got="$(
+    _HI_CLEANUP="$t" _HI_PROBE_DIR="" _HI_PROBE_HOLD=""
+    _hi_probe_dir && printf '%s\n' "$_HI_PROBE_DIR" && : >"$_HI_PROBE_DIR/pf.x"
+    _hi_probe_done
+    [ -d "$t/hi.probes" ] && printf 'kept\n'
+    _hi_probe_dir && printf '%s\n' "$_HI_PROBE_DIR" && d="$_HI_PROBE_DIR"
+    _hi_probe_done
+    [ -e "$d" ] || printf 'removed\n'
+  )"
+  case "$got" in
+  "$t/hi.probes"$'\nkept\n'*/hi.probes.??????$'\nremoved') ;;
+  *) _hi_because "the probes' directories: $got" ;;
+  esac
+}
+
 function run_header_tests() {
   _hi_header_begin
 
@@ -743,6 +764,9 @@ function run_header_tests() {
   _hi_check_requires bash "...and stays open under the toggle" test_full_check_right_edge_disabled_stays_under_max_width
   _hi_check_requires bash "A real hi_header render closes every line, banner included" test_hi_header_closes_every_line
   _hi_check "So does hi_footer's" test_hi_footer_closes_every_line
+
+  _hi_h2 "Testing: the probes' directory"
+  _hi_check "A tree's empty one is taken once, and left to the tree" test_probe_dir_takes_a_trees_empty_one_once
 
   _hi_h2 "Testing: timestamp / sysinfo / identity rows (smoke tests)"
   _hi_check "Timestamp prints three cells" test_timestamp_runs_and_has_three_cells

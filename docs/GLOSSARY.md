@@ -309,7 +309,7 @@ the session falls through to the PowerShell branch rather than half-landing.
 A container whose exec fails outright is not reached, and its exec's words
 are the report.
 
-Over ssh with a ControlMaster and a tty the two calls **overlap**
+Over ssh with a ControlMaster the two calls **overlap**
 (`_hi_connect_overlap`): `cp` makes the master as in series, and the session
 opens once its socket is there, which ssh makes only once authenticated,
 while `cp` is still landing the script; its command is a short stub that
@@ -327,7 +327,15 @@ and the client's writer on one the client writes once the script is built;
 only the master's socket, which nothing announces, is still looked for. Saved: about two round trips a cold connect. A
 failed probe stops the stub, a forced command's program is already the
 session and is only named, and a `MaxSessions 1` host's refusal of either
-channel is made again in series.
+channel is made again in series. With a tty, a stub the client gives up on
+ends at the pty's hangup. Without one nothing would end it, and sshd keeps
+its session slot until it exits, so its stdin comes through the client
+(`_hi_overlap_relay`): a `go` line once the boot is in, then the client's
+own stdin, or an end of file that has the stub remove the directory and
+exit. A child of the stub reads that line and passes the rest on, so the
+session's start still waits on the probe's FIFO, not on a round trip, and
+that child is never waited on, so a stdin left open does not keep the
+channel.
 
 ## HI.20 fallback rc
 
@@ -1741,8 +1749,8 @@ rode, which leaves `wiring.sh`'s.
   and release-notes popups, which would take the first prompt's keys - those
   two only where `zellij options --help` lists them, since a zellij handed an
   option it does not know refuses to start.
-- **The trap stands down.** On a connect that keeps, the bootstrap's
-  `trap 'rm -rf $_HI_CLEANUP' exit` is guarded by `_hi_kept ||`: bash as `sh`
+- **The trap stands down.** On a connect that keeps, the bootstrap's exit
+  trap, which removes `$_HI_CLEANUP`, is guarded by `_hi_kept ||`: bash as `sh`
   runs an exit trap on a hangup, and a dropped link would otherwise take the
   tree from under the session.
 - **A target with none of the three.** A shell cannot outlive its connection
@@ -1857,7 +1865,9 @@ rode, which leaves `wiring.sh`'s.
   `sh -c '...; e=$?; rm -rf <scratch>; exit $e'` rather than the bare pair
   of commands, so its status outlasts the scratch directory's removal, and
   the script ends 86 with a kept session left behind - off the attach, or at
-  its end, which covers a `hi --keep` typed inside - and 0 otherwise, never
+  its end, which covers a `hi --keep` typed inside: a connect that started
+  no session looks there only where `hi.kept` is, which a `hi --keep` writes
+  before its pane starts - and 0 otherwise, never
   the session shell's own status. `_hi_keep_connect` turns 86 into 0 and
   the record on, 0 into the record off, and leaves it alone on anything else
   (255, a link that dropped). A connect that keeps writes it before it

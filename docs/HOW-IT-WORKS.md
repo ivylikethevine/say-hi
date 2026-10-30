@@ -12,11 +12,12 @@ setting named here is a row in [SETTINGS.md](SETTINGS.md#every-setting).
    (`colors`, `packages`) stays home, so one copy rides
    ([HI.41](GLOSSARY.md#hi41-overlay-stream)), and your `aliases.sh` stays
    additive, since hi's own are `common/aliases.sh`.
-2. Both are base64-armored inside one script written over the **stdin** of an
-   ssh connection the session then reuses — not argv, which Linux caps at
+2. Both archives ride behind one script, as they are, over the **stdin** of
+   an ssh connection the session then reuses — not argv, which Linux caps at
    128KB per argument however big `ARG_MAX` says
-   ([HI.19](GLOSSARY.md#hi19-stdin-transport)). Every shell file is
-   comment-stripped on the way in (about 40% of it).
+   ([HI.19](GLOSSARY.md#hi19-stdin-transport)). The session's channel opens
+   while that script is still landing, at a terminal or with stdin off one.
+   Every shell file is comment-stripped on the way in (about 40% of it).
 3. That script is the size `hi` prints on connect and what README's payload
    badge measures, an overlay only adding to it: the per-session wire cost,
    not what a release downloads (`scripts/` and the docs ship in a package,
@@ -24,10 +25,12 @@ setting named here is a row in [SETTINGS.md](SETTINGS.md#every-setting).
 4. On the target, `load.sh` prints the header, writes hi's per-shell rc files
    into a scratch directory of its own
    ([HI.46](GLOSSARY.md#hi46-session-rc-directory)) - never the target's own
-   login files - and drops you into **your login shell** when hi styles it
-   (bash, zsh, fish), else the best the target has of hi's shell tree
-   (`fish > zsh > bash > dash > ash > sh`; with no bash at all, the same list
-   without bash).
+   login files - and drops you into the first installed of
+   `_HI_SHELL_PREFERENCE`'s shells, by default **your login shell** where hi
+   styles it (bash, zsh, fish), else the first of `fish > zsh > bash` the
+   target has ([HI.25](GLOSSARY.md#hi25-session-shell-ranking)). A target
+   with no bash gets the first of `fish > zsh > dash > ash > sh`, which the
+   preference does not reach.
 5. On exit, the session's `EXIT` trap removes the `/tmp` directory and the
    scratch rc directory. bash runs it on the hangup a dropped connection sends
    too, so that cleans up the same way, with nothing left to reconnect to.

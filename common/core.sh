@@ -568,15 +568,51 @@ function _hi_now() {
   esac
 }
 
+# _hi_secs_us <seconds> <outvar> - a decimal count of seconds, as _hi_now
+# gives it, in whole microseconds; 1 for anything else. 10# keeps a leading
+# zero from reading as octal.
+function _hi_secs_us() {
+  local _hi_su_i="${1%%.*}" _hi_su_f=""
+  case "$1" in *.*) _hi_su_f="${1#*.}" ;; esac
+  case "$_hi_su_i$_hi_su_f" in '' | *[!0-9]*) return 1 ;; esac
+  _hi_su_f="${_hi_su_f}000000"
+  printf -v "$2" '%s' "$((10#${_hi_su_i:-0} * 1000000 + 10#${_hi_su_f:0:6}))"
+}
+
+# _hi_ms_text <microseconds> - as seconds to three places, rounded, the
+# shape awk's %.3f gives
+function _hi_ms_text() {
+  local _hi_mt_s="" _hi_mt_n="$1"
+  ((_hi_mt_n >= 0)) || _hi_mt_s=- _hi_mt_n=$((-_hi_mt_n))
+  _hi_mt_n=$(((_hi_mt_n + 500) / 1000))
+  printf '%s%d.%03d' "$_hi_mt_s" "$((_hi_mt_n / 1000))" "$((_hi_mt_n % 1000))"
+}
+
+# Seconds b - a, to three places. Shell arithmetic in microseconds, since
+# $(( )) has no floats and an awk is an exec a call; awk for a value that is
+# not a plain decimal.
 function _hi_elapsed() {
-  awk -v a="$1" -v b="$2" 'BEGIN { printf "%.3f", b - a }'
+  local _hi_el_a _hi_el_b
+  if _hi_secs_us "$1" _hi_el_a && _hi_secs_us "$2" _hi_el_b; then
+    _hi_ms_text "$((_hi_el_b - _hi_el_a))"
+  else
+    awk -v a="$1" -v b="$2" 'BEGIN { printf "%.3f", b - a }'
+  fi
 }
 
 # _hi_sum <n...> - _hi_elapsed's seconds added rather than subtracted, for the
 # connect banner's total across legs each measured wholly on one machine
-# (client or target) - $(( )) has no floats, so this is awk like its neighbor
+# (client or target)
 function _hi_sum() {
-  awk -v n="$*" 'BEGIN { split(n, a); for (i in a) t += a[i]; printf "%.3f", t }'
+  local _hi_sm_n _hi_sm_us _hi_sm_t=0
+  for _hi_sm_n; do
+    if ! _hi_secs_us "$_hi_sm_n" _hi_sm_us; then
+      awk -v n="$*" 'BEGIN { split(n, a); for (i in a) t += a[i]; printf "%.3f", t }'
+      return
+    fi
+    _hi_sm_t=$((_hi_sm_t + _hi_sm_us))
+  done
+  _hi_ms_text "$_hi_sm_t"
 }
 
 # <seconds> [outvar] humanized to at most two units, largest first ("1d 1h",
@@ -639,17 +675,22 @@ function _hi_runtime_dir() {
   printf -v "$1" '%s' "$_hi_rtd_dir"
 }
 
-# total size of the given paths; --apparent-size is GNU-only, decided once per
-# shell (load.sh asks at session close, with the user waiting)
+# total size of the given paths; --apparent-size is GNU's (and uutils'),
+# tried first and dropped for the shell where a du answers nothing to it
+# (load.sh asks at session close, with the user waiting). The last line's
+# first word is the total, read without an awk.
 function _hi_du_size() {
+  local _hi_ds_out=""
   if [ -z "${_HI_DU_FLAGS+x}" ]; then
-    _HI_DU_FLAGS=""
-    case "$(du --version 2>/dev/null)" in
-    *"GNU coreutils"*) _HI_DU_FLAGS="--apparent-size" ;;
-    esac
+    _hi_ds_out="$(du -shc --apparent-size "$@" 2>/dev/null)"
+    _HI_DU_FLAGS="--apparent-size"
+    [ -n "$_hi_ds_out" ] || _HI_DU_FLAGS=""
   fi
   # shellcheck disable=SC2086 # unquoted so an empty flag list disappears
-  du -shc $_HI_DU_FLAGS "$@" | awk 'END { print $1 }'
+  [ -n "$_hi_ds_out" ] || _hi_ds_out="$(du -shc $_HI_DU_FLAGS "$@")"
+  _hi_ds_out="${_hi_ds_out##*$'\n'}"
+  _hi_ds_out="${_hi_ds_out#"${_hi_ds_out%%[![:space:]]*}"}"
+  printf '%s\n' "${_hi_ds_out%%[[:space:]]*}"
 }
 
 # _hi_prompt_escape <outvar> <escape> - a prompt escape expanded by the

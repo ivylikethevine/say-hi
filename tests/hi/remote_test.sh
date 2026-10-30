@@ -484,9 +484,11 @@ function test_boot_probe_says_no_scratch_dir() {
 }
 
 # _hi_boot_feed [tree] [overlay] - what _hi_boot_stream sends, around a
-# one-line script: the counts, the script, then the files as they are.
+# one-line script, `echo boot` or the caller's $feed_script: the counts, the
+# script, then the files as they are.
 function _hi_boot_feed() {
-  local script="echo boot" bytes=10 tree_f="${1:-}" ovl_f="${2:-}" tree_n ovl_n
+  local script="${feed_script:-echo boot}" bytes tree_f="${1:-}" ovl_f="${2:-}" tree_n ovl_n
+  bytes=$((${#script} + 1))
   _hi_byte_count tree_n "$tree_f"
   _hi_byte_count ovl_n "$ovl_f"
   [ -n "$tree_f" ] || tree_f=/dev/null
@@ -553,6 +555,31 @@ function test_the_stub_runs_the_script_once_it_lands() {
   done
 }
 
+# ...and its form with no tty: the client's `go` line ahead of the session's
+# stdin, which reaches the script whichever lands first, and an end of file
+# in its place ends a stub no probe ever woke, leaving no directory
+function test_the_piped_stub_takes_its_word_from_stdin() {
+  local d="$_HI_WORKDIR/pipe.boot" out="$_HI_WORKDIR/pipe.out" ct=0 got order feed_script='cat; echo boot'
+  for order in stub-first probe-first; do
+    : >"$out"
+    if [ "$order" = stub-first ]; then
+      printf 'go\nthrough\n' | sh -c "$(_hi_overlap_stub "$d.$order" pipe)" >"$out" 2>&1 &
+      _hi_boot_feed | sh -c "$(_hi_boot_probe "$d.$order")" >/dev/null 2>&1 || _hi_why order || return 1
+    else
+      _hi_boot_feed | sh -c "$(_hi_boot_probe "$d.$order")" >/dev/null 2>&1 || _hi_why order || return 1
+      printf 'go\nthrough\n' | sh -c "$(_hi_overlap_stub "$d.$order" pipe)" >"$out" 2>&1 &
+    fi
+    _hi_wait_pid "$!" 10
+    got="$(cat "$out")"
+    { [ "$_HI_WAIT_EXIT" = 0 ] && [ "$got" = $'through\nboot' ] && [ ! -e "$d.$order" ]; } ||
+      _hi_why order _HI_WAIT_EXIT got || return 1
+  done
+  sh -c "$(_hi_overlap_stub "$d.eof" pipe)" </dev/null >"$out" 2>&1 &
+  _hi_wait_pid "$!" 10
+  got="$(cat "$out")"
+  { [ "$_HI_WAIT_EXIT" = 1 ] && [ -z "$got" ] && [ ! -e "$d.eof" ]; } || _hi_why _HI_WAIT_EXIT got
+}
+
 # ...and whether the target has a multiplexer to keep a session in, on a line
 # ahead of the directory's
 function test_boot_probe_says_whether_a_multiplexer_is_there() {
@@ -587,6 +614,7 @@ function run_hi_remote_tests() {
   _hi_check "...and splits the archives out beside the script, byte for byte" test_boot_probe_splits_the_archives_out
   _hi_check "...or lands whole in the 0700 one it was named, refusing one there or a short landing" test_boot_probe_lands_in_a_named_dir
   _hi_check "...where the session's stub runs it, before or after it lands" test_the_stub_runs_the_script_once_it_lands
+  _hi_check "...or, with no tty, on the client's word ahead of its stdin, ending at an end of file" test_the_piped_stub_takes_its_word_from_stdin
   _hi_check "...and whether a multiplexer is there" test_boot_probe_says_whether_a_multiplexer_is_there
   _hi_check "A session calls load" test_bootloader_calls_load_for_a_session
   _hi_check "A command replaces load" test_bootloader_replaces_load_with_the_command
