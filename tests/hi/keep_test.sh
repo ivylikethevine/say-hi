@@ -189,8 +189,8 @@ function test_keep_reattach_rides_ahead_of_the_unpack() {
   out="$(_hi_keep_script_for '' '')"
   _hi_before "$out" 'tmux attach-session' 'mktemp -d' || _hi_because "no reattach ahead of the unpack" || return 1
   _hi_before "$out" 'export TERM=xterm-256color' 'tmux attach-session' || _hi_because "the reattach is ahead of the TERM fallback" || return 1
-  [[ "$out" == *"trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
-    _hi_because "a plain connect's trap does not stand down for a session kept from inside, or one that holds" || return 1
+  [[ "$out" == *"trap '[ ! -d \"\$_HI_CLEANUP\" ] || [ -e \"\$_HI_ROOT/hi.kept\" ] || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
+    _hi_because "a plain connect's trap does not stand down for a tree already gone, a session kept from inside, or one that holds" || return 1
   # a tree a drop left is looked for once the sweep is done, and the unpack
   # is the part it replaces
   _hi_before "$out" '/say-hi/hi.pid; do' '_hi_held=$' && _hi_before "$out" '_hi_held=1' 'if \[ -z "$_hi_held" \]' &&
@@ -200,8 +200,8 @@ function test_keep_reattach_rides_ahead_of_the_unpack() {
   _hi_before "$out" 'mkdir "$_HI_ROOT"' '/say-hi/hi.pid; do' || _hi_because "no sweep once it has a tree" || return 1
   [[ "$out" != *'new-session'* ]] || _hi_because "a plain connect starts a session" || return 1
   # its status is its word on a kept session, off the attach and at its end
-  [[ "$out" == *"_hi_kept_note ' hi:' && exit 86"* && "$out" == *$'      _hi_kept && exit 86\n      exit 0' ]] ||
-    _hi_because "the script does not say how it ends" || return 1
+  [[ "$out" == *"_hi_kept_note ' hi:' && exit 86"* && "$out" == *$'      [ -e "$_HI_ROOT/hi.kept" ] && _hi_kept && exit 86\n      exit 0' ]] ||
+    _hi_because "the script does not say how it ends, or looks for a session where no hi --keep left a claim" || return 1
   [[ "$out" != *'is gone'* ]] || _hi_because "a client that expected no session warns of one gone" || return 1
   out="$(_HI_KEEP_EXPECTED=1 _hi_keep_script_for '' '')"
   _hi_before "$out" 'tmux attach-session' 'is gone' || _hi_because "no warning past the attach for a client that expected a session" || return 1
@@ -308,7 +308,7 @@ function test_keep_leaves_a_command_and_no_keep_alone() {
   for out in "$(_hi_keep_script_for 1 'ls; exit')" "$(_hi_keep_script_for 0 '')"; do
     [[ "$out" != *_hi_kept* && "$out" != *attach-session* && "$out" != *_HI_KEEP_AS* && "$out" != *hi.kept* &&
       "$out" != *'exit 86'* &&
-      "$out" == *"trap 'rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_why out _HI_CLEANUP || return 1
+      "$out" == *"trap '[ ! -d \"\$_HI_CLEANUP\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_why out _HI_CLEANUP || return 1
   done
 }
 
@@ -320,7 +320,7 @@ function test_keep_switched_off_sends_none_of_it() {
   out="$(_HI_DISABLE_KEEP=1 _HI_KEEP=1 _hi_keep_script_for 1 '')"
   [[ "$out" != *_hi_kept* && "$out" != *attach-session* && "$out" != *new-session* && "$out" != *_HI_KEEP_AS* &&
     "$out" != *hi.kept* && "$out" != *hi.held* && "$out" != *hi.pid* && "$out" != *'exit 86'* &&
-    "$out" == *"trap 'rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_why out || return 1
+    "$out" == *"trap '[ ! -d \"\$_HI_CLEANUP\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_why out || return 1
   out="$(
     function _say_hi() { printf 'try\n' && return 255; }
     function _hi_keep_at_tty() { return 0; }
@@ -356,7 +356,7 @@ function test_a_tree_without_keep_sh_runs_on_the_stand_ins() {
 function test_keep_start_guards_the_trap_and_starts_the_owner_pane() {
   local out
   out="$(_hi_keep_script_for 1 '')"
-  [[ "$out" == *"trap '_hi_kept || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_because "the trap is not guarded" || return 1
+  [[ "$out" == *"trap '[ ! -d \"\$_HI_CLEANUP\" ] || _hi_kept || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_because "the trap is not guarded" || return 1
   [[ "$out" == *'tmux) set -- new-session -s "$_hi_kn" "$@" ;;'* && "$out" == *'screen) set -- -S "$_hi_kn" "$@" ;;'* &&
     "$out" == *'exec sh "$_hi_rc_dir/common/mux.sh" "$_hi_k" "$@"'* ]] || _hi_because "no owner pane start" || return 1
   [[ "$out" == *'bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'* ]] || _hi_because "the pane is not the bash handoff"
@@ -506,7 +506,8 @@ function _hi_keep_held_run() {
 export _HI_HOME=$1/u.hi.new _HI_ROOT=$1/u.hi.new/say-hi
 $(_hi_keep_held)
 printf 'HELD=%s HOME=%s PWD=%s HOLD=%s\n' \"\$_hi_held\" \"\$_HI_HOME\" \"\$PWD\" \"\${_HI_KEEP_HOLD:-}\""
-  mkdir -p "$1/u.hi.new/say-hi"
+  # the fresh tree as the bootstrap makes it, the probes' directory beside it
+  mkdir -p "$1/u.hi.new/say-hi" "$1/u.hi.new/hi.probes"
   if [ -n "${2:-}" ]; then
     python3 -c "$_HI_PTY_SPAWN" sh -c "$script" </dev/null 2>&1 | tr -d '\r'
   else

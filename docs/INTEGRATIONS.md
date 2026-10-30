@@ -392,7 +392,9 @@ rides as written. An `$include` of any other file is dropped on the way out
 ## Shell frameworks
 
 A framework on a target loads normally. hi lands you in your own login shell
-when hi styles it, else the best of `fish zsh bash` the target has, and hi's
+when hi styles it, or the shell
+[`_HI_SHELL_PREFERENCE`](SETTINGS.md#every-setting) names, else the best of
+`fish zsh bash` the target has, and hi's
 setup runs after that shell's own rc - so hi is the one positioned to break a
 framework, and the one tested for it. `tests/targets/framework_test.sh`
 installs twelve per their own READMEs - oh-my-zsh, powerlevel10k, starship,

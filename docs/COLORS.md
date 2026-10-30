@@ -207,7 +207,7 @@ per-row color:
 | 0    | `trivia`, `platform`                       |
 
 `_HI_PACKAGES_GROUPS` names the groups that run, space- or comma-separated,
-or `none`; unset, it is `core useful deprecated`
+or `none`; unset, it is `core deprecated`
 ([SETTINGS.md](SETTINGS.md#every-setting)). A group that is off is not even
 looked for, and rows above the first table always run.
 

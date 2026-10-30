@@ -256,7 +256,7 @@ function _hi_keep_held() {
     '        _hi_d=${_hi_s%/say-hi/hi.held}' \
     '        [ -O "$_hi_d" ] && [ ! -L "$_hi_d" ] && read -r _hi_ko _hi_kp _hi_kh 2>/dev/null <"$_hi_s" && [ "$_hi_kh" = "$_hi_kn" ] || continue' \
     '        echo "$$" >"$_hi_d/say-hi/hi.pid" && rm "$_hi_s" 2>/dev/null || continue' \
-    '        rmdir "$_HI_ROOT" "$_HI_HOME"' \
+    '        rmdir "$_HI_ROOT" "$_HI_HOME/hi.probes" "$_HI_HOME"' \
     '        export _HI_HOME="$_hi_d" _HI_ROOT="$_hi_d/say-hi" _HI_CONFIG_DIR="$_hi_d/say-hi/config" _HI_CLEANUP="$_hi_d" _HI_KEEP_HOLD="$_hi_kn"' \
     '        _hi_held=1' \
     '        trap : HUP' \

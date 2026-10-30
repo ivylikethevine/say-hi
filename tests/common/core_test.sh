@@ -739,6 +739,69 @@ function _hi_shell_agrees() {
   [ -n "$a" ] && [ "$a" = "$b" ]
 }
 
+# _hi_elapsed's shell arithmetic gives awk's %.3f: integers, six and nine
+# places, a leading zero, a negative difference, and the awk it falls back
+# to for a value that is no plain decimal. A difference on a half
+# millisecond rounds up here where awk's double may round down, so the grid
+# keeps off those.
+function test_elapsed_matches_awk() {
+  local a b got want
+  for a in 0 100 0123.5 1793362192.949459 1793362192.892534501 1793362192.999999; do
+    for b in 0 103 124 1793362192.980899 1793362192.914272262 1793362194.777039 1793362193.0012; do
+      got="$(_hi_elapsed "$a" "$b")"
+      want="$(awk -v a="$a" -v b="$b" 'BEGIN { printf "%.3f", b - a }')"
+      [ "$got" = "$want" ] || _hi_because "$b - $a: $got, awk says $want" || return 1
+    done
+  done
+  got="$(_hi_elapsed x 3)"
+  [ "$got" = 3.000 ] || _hi_because "a word falls back to awk: $got" || return 1
+  got="$(_hi_elapsed 1.5e3 2000)"
+  [ "$got" = 500.000 ] || _hi_because "an exponent falls back to awk: $got"
+}
+
+function test_sum_matches_awk() {
+  local got
+  got="$(_hi_sum 0.107 0.013)"
+  [ "$got" = 0.120 ] || _hi_because "two legs: $got" || return 1
+  got="$(_hi_sum 0 0)"
+  [ "$got" = 0.000 ] || _hi_because "nothing timed: $got" || return 1
+  got="$(_hi_sum 1.5 2.25 0.001)"
+  [ "$got" = 3.751 ] || _hi_because "three legs: $got" || return 1
+  got="$(_hi_sum -1 0.2)"
+  [ "$got" = -0.800 ] || _hi_because "a negative falls back to awk: $got"
+}
+
+# _hi_du_size tries --apparent-size and drops it for the shell where du
+# answers nothing to it; the size is the last line's first word, a leading
+# blank (BSD's) and all
+function test_du_size_drops_a_flag_du_refuses() {
+  local bin="$_HI_WORKDIR/du-bsd" got
+  mkdir -p "$bin"
+  printf '%s\n' '#!/bin/sh' 'case " $* " in *" --apparent-size "*) echo "du: illegal option" >&2; exit 1 ;; esac' \
+    'printf " 12K\tx\n 34K\ttotal\n"' >"$bin/du"
+  chmod +x "$bin/du"
+  got="$(
+    unset _HI_DU_FLAGS
+    PATH="$bin:$PATH" _hi_du_size x
+    printf '[%s]' "${_HI_DU_FLAGS-unset}"
+  )"
+  [ "$got" = $'34K\n[]' ] || _hi_because "a du without the flag: $got"
+}
+
+function test_du_size_keeps_a_flag_du_takes() {
+  local bin="$_HI_WORKDIR/du-gnu" got
+  mkdir -p "$bin"
+  printf '%s\n' '#!/bin/sh' 'case " $* " in *" --apparent-size "*) printf "56K\tx\n78K\ttotal\n" ;; *) printf "1K\ttotal\n" ;; esac' >"$bin/du"
+  chmod +x "$bin/du"
+  got="$(
+    unset _HI_DU_FLAGS
+    PATH="$bin:$PATH" _hi_du_size x
+    PATH="$bin:$PATH" _hi_du_size x
+    printf '[%s]' "${_HI_DU_FLAGS-unset}"
+  )"
+  [ "$got" = $'78K\n78K\n[--apparent-size]' ] || _hi_because "a du with the flag: $got"
+}
+
 # _hi_core_begin - what every part of this suite starts from, and the tally
 function _hi_core_begin() {
   _hi_workdir sharedtest
@@ -825,6 +888,12 @@ function run_core_tests() {
   _hi_check "A pattern row is a glob, not an exact pin" test_colors_pattern_row_is_a_glob
   _hi_check "A batch reads the file once, a lone scan every time" test_colors_scan_reads_a_batch_once
   _hi_check_requires zsh "A pinned hex agrees in zsh" test_zsh_pin_hex_agrees_with_bash
+
+  _hi_h2 "Testing: _hi_elapsed / _hi_sum / _hi_du_size"
+  _hi_check "Elapsed gives awk's answer, and falls back to it" test_elapsed_matches_awk
+  _hi_check "A sum gives awk's answer, and falls back to it" test_sum_matches_awk
+  _hi_check "du's size drops a flag du refuses" test_du_size_drops_a_flag_du_refuses
+  _hi_check "...and keeps one du takes, asked once" test_du_size_keeps_a_flag_du_takes
 
   _hi_suite_end "core.sh"
 }

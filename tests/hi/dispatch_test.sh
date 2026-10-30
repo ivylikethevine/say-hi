@@ -282,10 +282,10 @@ function test_remote_middle_exports_the_tree_variables() {
 function test_remote_middle_traps_the_tree_removal_on_exit() {
   local out
   out="$(CMDARG="" KEEP="" _hi_ds_middle)"
-  printf '%s\n' "$out" | grep -qF "trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit" ||
+  printf '%s\n' "$out" | grep -qF "trap '[ ! -d \"\$_HI_CLEANUP\" ] || [ -e \"\$_HI_ROOT/hi.kept\" ] || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit" ||
     _hi_because "a session's trap: $(printf '%s\n' "$out" | grep trap)" || return 1
   for out in "$(CMDARG="ls; exit" KEEP="" _hi_ds_middle)" "$(CMDARG="" KEEP=0 _hi_ds_middle)"; do
-    printf '%s\n' "$out" | grep -q "trap 'rm -rf \$_HI_CLEANUP' exit" ||
+    printf '%s\n' "$out" | grep -qF "trap '[ ! -d \"\$_HI_CLEANUP\" ] || rm -rf \$_HI_CLEANUP' exit" ||
       _hi_because "a command's or --no-keep's trap: $(printf '%s\n' "$out" | grep trap)" || return 1
   done
 }

@@ -400,9 +400,10 @@ function _hi_convert_settings() {
         if (l !~ /^[ \t]*(export[ \t]+)?_HI_PACKAGES_MIN_PRIORITY=/) { print l; continue }
         if (has) continue
         v = l; sub(/^[^=]*=["\047]?/, "", v); sub(/[^0-9].*/, "", v)
-        if (v == "" || v == 2) continue
+        if (v == "") continue
         if (v == 0) g = "core useful deprecated extras trivia base platform"
         else if (v == 1) g = "core useful deprecated extras base"
+        else if (v == 2) g = "core useful deprecated"
         else if (v == 3) g = "core deprecated"
         else g = "none"
         c = ""

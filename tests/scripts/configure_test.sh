@@ -101,13 +101,13 @@ function test_ip_hide_keeps_an_existing_override() {
   [[ "$out" == *"export _HI_IP_HIDE='none'"* ]] || _hi_why out
 }
 
-# 172.* is header.sh's own default, so it is never written out
+# the default is core.sh's own, so it is never written out
 function test_ip_hide_does_not_write_the_default() {
   local out got
   out="$(_hi_section_lines iphide_default config_ip_hide)"
   got="$(printf '%s' "$out" | tr -d ' ')"
   [ -z "$got" ] || _hi_why got out || return 1
-  out="$(_hi_section_lines iphide_default2 config_ip_hide "export _HI_IP_HIDE='172.*'")"
+  out="$(_hi_section_lines iphide_default2 config_ip_hide "export _HI_IP_HIDE='$_HI_IP_HIDE_DEFAULT'")"
   got="$(printf '%s' "$out" | tr -d ' ')"
   [ -z "$got" ] || _hi_why got out
 }
@@ -196,7 +196,8 @@ function test_validators_hold_their_grammars() {
   _hi_is_ip_hide '10.* 192.168.?.*' || _hi_why || return 1
   ! _hi_is_ip_hide "" || _hi_why || return 1
   ! _hi_is_ip_hide "172.*;rm" || _hi_why || return 1
-  ! _hi_is_ip_hide "all" || _hi_why || return 1
+  _hi_is_ip_hide 'docker* br-* eth1' || _hi_why || return 1
+  ! _hi_is_ip_hide "it's" || _hi_why || return 1
   _hi_is_package_groups none || _hi_why || return 1
   _hi_is_package_groups 'core useful' || _hi_why || return 1
   _hi_is_package_groups 'core,my-tools.2' || _hi_why || return 1
@@ -379,9 +380,9 @@ function _hi_groups_flipped() {
 function test_packages_groups_flip_one() {
   local got
   got="$(_hi_groups_flipped '' extras)"
-  [ "$got" = "export _HI_PACKAGES_GROUPS='core useful deprecated extras'" ] || _hi_why got || return 1
-  got="$(_hi_groups_flipped '' useful)"
-  [ "$got" = "export _HI_PACKAGES_GROUPS='core deprecated'" ] || _hi_why got
+  [ "$got" = "export _HI_PACKAGES_GROUPS='core deprecated extras'" ] || _hi_why got || return 1
+  got="$(_hi_groups_flipped '' deprecated)"
+  [ "$got" = "export _HI_PACKAGES_GROUPS='core'" ] || _hi_why got
 }
 
 # a comma-separated value is read as a list and written back space-separated
@@ -396,7 +397,7 @@ function test_packages_groups_normalises_commas() {
 # for 80
 function test_packages_groups_does_not_write_the_default() {
   local got
-  got="$(_hi_groups_flipped 'useful deprecated' core | tr -d '[:space:]')"
+  got="$(_hi_groups_flipped 'deprecated' core | tr -d '[:space:]')"
   [ -z "$got" ] || _hi_why got
 }
 
@@ -405,7 +406,7 @@ function test_packages_groups_does_not_write_the_default() {
 # on from there is the whole list
 function test_packages_groups_writes_none() {
   local got
-  got="$(_hi_groups_flipped '' core useful deprecated)"
+  got="$(_hi_groups_flipped '' core deprecated)"
   [ "$got" = "export _HI_PACKAGES_GROUPS='none'" ] || _hi_why got || return 1
   got="$(_hi_groups_flipped none core)"
   [ "$got" = "export _HI_PACKAGES_GROUPS='core'" ] || _hi_why got

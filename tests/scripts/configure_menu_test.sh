@@ -177,13 +177,13 @@ function test_menu_lists_missing_header_items_off() {
     _hi_cfg_has hdr_list "$((w + 2))) [ ] utc" || _hi_why w
 }
 
-# a package group's number flips it: useful, off
+# a package group's number flips it: useful, on
 function test_menu_flips_a_package_group() {
   local got
   _hi_cfg_pty hdr_groups "$(_hi_item 'group|useful')\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has hdr_groups "package group useful: now off" || _hi_why || return 1
+  _hi_cfg_has hdr_groups "package group useful: now on" || _hi_why || return 1
   got="$(_hi_cfg_lines hdr_groups)"
-  [[ "$got" == *"export _HI_PACKAGES_GROUPS='core deprecated'"* ]] || _hi_why got
+  [[ "$got" == *"export _HI_PACKAGES_GROUPS='core deprecated useful'"* ]] || _hi_why got
 }
 
 # ...and the header row, off and back on, previews the whole header both ways
@@ -218,7 +218,7 @@ function test_menu_layout_at_40() { _hi_menu_layout_at 40; }
 function test_menu_value_shows_its_default() {
   _HI_TERM_COLS=80 _hi_cfg_pty hub_def 'i\ns\n' "export _HI_MAX_WIDTH=100" run_configure "" || _hi_why || return 1
   _hi_cfg_has hub_def "width                 100 (default 80)" &&
-    ! _hi_cfg_has hub_def "(default 172.*)" || _hi_why
+    ! _hi_cfg_has hub_def "(default bridges)" || _hi_why
 }
 
 function run_configure_menu_tests() {
