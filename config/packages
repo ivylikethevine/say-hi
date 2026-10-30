@@ -5,7 +5,7 @@
 # strings (docs/SETTINGS.md, "The TOML hi reads", is the whole grammar).
 #
 # `[group]` starts a group; $_HI_PACKAGES_GROUPS (space- or comma-separated,
-# or `none`) names the groups that run, and ships as `core useful deprecated`.
+# or `none`) names the groups that run, and ships as `core deprecated`.
 # Drop `check` from _HI_HEADER_ORDER to turn the check off.
 #
 # `hi --add-package` copies this file to ~/.config/say-hi/packages the first

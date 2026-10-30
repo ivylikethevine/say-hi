@@ -118,7 +118,7 @@ function test_example_cell_marks_a_group_with_nothing_to_show() {
 _HI_GROUPS_OUT=""
 
 function test_groups_table_renders_all_columns() {
-  _HI_GROUPS_OUT="$(_HI_PACKAGES_GROUPS="" _hi_print_groups_table)" || _hi_why || return 1
+  _HI_GROUPS_OUT="$(_HI_PACKAGES_GROUPS="$_HI_PREVIEW_GROUPS" _hi_print_groups_table)" || _hi_why || return 1
   local stripped
   stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
   [[ "$stripped" == *"| GROUP "* && "$stripped" == *"| STATE "* ]] &&
@@ -263,7 +263,7 @@ function test_marks_table_renders_the_glyph_set() {
 # on a scratch tree below. Arguments ride after the subject.
 function _hi_render_packages() {
   PATH="$_HI_PKG_PATH" HOME="$_HI_SUITE_WORKDIR/tree" \
-    _HI_CONFIG_DIR="$_HI_SUITE_WORKDIR/cfg" \
+    _HI_CONFIG_DIR="$_HI_SUITE_WORKDIR/cfg" _HI_PACKAGES_GROUPS="${_HI_PACKAGES_GROUPS:-$_HI_PREVIEW_GROUPS}" \
     "$_HI_ROOT/scripts/preview.sh" packages "$@" 2>&1
 }
 

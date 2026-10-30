@@ -137,9 +137,9 @@ _HI_MUXES="tmux zellij screen"
 # row's <default>. common/targets.sh and common/config.fish, which cannot
 # source this file, spell theirs again under the same pin.
 _HI_MAX_WIDTH_DEFAULT=80
-_HI_IP_HIDE_DEFAULT='172.*'
+_HI_IP_HIDE_DEFAULT='docker* br-* podman* cni-podman* virbr* lxdbr* incusbr*'
 _HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime check"
-_HI_PACKAGES_GROUPS_DEFAULT="core useful deprecated"
+_HI_PACKAGES_GROUPS_DEFAULT="core deprecated"
 # a kept session's wait with nobody attached, and a held tree's for a reconnect
 _HI_KEEP_TIMEOUT_DEFAULT=24h
 _HI_HOLD_TIMEOUT_DEFAULT=15m
@@ -909,10 +909,10 @@ function _hi_on_exit() {
   fi
 }
 
-# What each shell's prompt ends with unless overridden, <SHELL>:<char>. The
+# What each shell's prompt ends with unless overridden, <SHELL>:<end>. The
 # sh fallback hi.sh bakes on the client takes BASH's. config.fish keeps its
 # own copy; tests/hi/prompt_test.sh pins it here.
-_HI_PROMPT_END_DEFAULTS=('BASH:\$' 'ZSH:>' 'FISH:|')
+_HI_PROMPT_END_DEFAULTS=('BASH:\$' 'ZSH:%(!.#.>)' 'FISH:|')
 
 # _hi_prompt_end_default <SHELL> [outvar] - the shipped default; empty on
 # stdout, and [outvar] untouched, if not listed

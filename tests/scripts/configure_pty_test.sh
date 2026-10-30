@@ -270,7 +270,7 @@ function test_menu_main_page_is_a_table_of_its_pages() {
   [ "$keys" = "l,t,i,e,c,r,g,a,o,m,k,y" ] || _hi_because "the main page's rows: [$keys]" || return 1
   [[ "$main" != *"preview"* && "$main" == *"[l] "*"[x] this machine "*"[t] "*"[x] targets "* ]] &&
     [[ "$main" == *"[i] "*" Header "*"3 of 3 on, width 80"*"[e] "*" cells "*" utc version "* ]] &&
-    [[ "$main" == *"[c] "*" package check "*" core useful deprecated"* && "$main" == *"[g] "*" Plugins "*" ride"* ]] &&
+    [[ "$main" == *"[c] "*" package check "*" core deprecated"* && "$main" == *"[g] "*" Plugins "*" ride"* ]] &&
     [[ "$main" == *" g1 "*" cli "*" bat "*" g2 "*" editors "*" nano "* ]] &&
     [[ "$main" == *"[a] "*"[ ] tool aliases "*"[k] "*"[ ] ssh --keep "*"[y] "*" 24-bit color "*" auto"* ]] &&
     [[ "$main" != *") ["* && "$main" != *"hi --configure:"* && "$main" != *"[b]ack"* ]] &&

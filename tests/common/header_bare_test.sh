@@ -278,26 +278,36 @@ function test_system_info_on_windows() {
     "$out" == *"RAM: 16G"* && "$out" == *"CPU: 2.4 GHz"* ]] || _hi_because "got: $out"
 }
 
-# _HI_IP_HIDE: a docker bridge address is noise on any box that runs
-# containers, so the default hides 172.*; `none` shows everything; any other
-# value is a list of globs. The filter is checked on its own, then through
-# the cell on a mac-shaped box whose ifconfig answers two addresses.
-function test_ip_filter_hides_the_bridge_by_default() {
+# _HI_IP_HIDE: a container or VM bridge's address is noise on any box that
+# runs them, so the default names those interfaces; `none` shows everything;
+# any other value is a list of globs over an address or its interface. The
+# filter is checked on its own, then through the cell on a mac-shaped box
+# whose ifconfig answers three interfaces and on a linux-shaped one's ip.
+function test_ip_filter_hides_the_bridges_by_default() {
   local out
   unset _HI_IP_HIDE
-  _hi_ip_filter out "172.17.0.2,10.0.0.5"
+  _hi_ip_filter out "172.17.0.2%docker0,10.0.0.5%eth0"
   [ "$out" = "10.0.0.5" ] || _hi_why out || return 1
-  _hi_ip_filter out "10.0.0.5,172.18.0.1,192.0.2.10"
+  _hi_ip_filter out "10.0.0.5%eth0,172.18.0.1%br-0123456789ab,10.88.0.1%podman0,192.168.122.1%virbr0,192.0.2.10%eth1"
   [ "$out" = "10.0.0.5,192.0.2.10" ] || _hi_why out
 }
 
-# `none` hides nothing; an empty value is unset, so it hides the default
-# range - what the wizard's preview shows for it too
+# a public 172 address is a box's own: the default looks at the interface, and
+# one with no interface named is kept, as nothing says it is a bridge
+function test_ip_filter_keeps_a_public_172_address() {
+  local out
+  unset _HI_IP_HIDE
+  _hi_ip_filter out "172.104.1.2%eth0,172.17.0.2"
+  [ "$out" = "172.104.1.2,172.17.0.2" ] || _hi_why out
+}
+
+# `none` hides nothing and still drops the interfaces; an empty value is
+# unset, so it hides the default's - what the wizard's preview shows for it too
 function test_ip_filter_none_and_empty_keep_everything() {
   local out
-  _HI_IP_HIDE=none _hi_ip_filter out "172.17.0.2,10.0.0.5"
+  _HI_IP_HIDE=none _hi_ip_filter out "172.17.0.2%docker0,10.0.0.5%eth0"
   [ "$out" = "172.17.0.2,10.0.0.5" ] || _hi_why out || return 1
-  _HI_IP_HIDE="" _hi_ip_filter out "172.17.0.2,10.0.0.5"
+  _HI_IP_HIDE="" _hi_ip_filter out "172.17.0.2%docker0,10.0.0.5%eth0"
   [ "$out" = "10.0.0.5" ] || _hi_why out
 }
 
@@ -308,7 +318,21 @@ function test_ip_filter_takes_a_glob_list() {
   _HI_IP_HIDE="10.* 172.*" _hi_ip_filter out "172.17.0.2,10.0.0.5,192.0.2.10"
   [ "$out" = "192.0.2.10" ] || _hi_why out || return 1
   _HI_IP_HIDE="192.0.2.1?" _hi_ip_filter out "192.0.2.10,192.0.2.100"
-  [ "$out" = "192.0.2.100" ] || _hi_why out
+  [ "$out" = "192.0.2.100" ] || _hi_why out || return 1
+  _HI_IP_HIDE="eth1 10.*" _hi_ip_filter out "10.0.0.5%eth0,192.0.2.10%eth1,198.51.100.7%eth2"
+  [ "$out" = "198.51.100.7" ] || _hi_why out
+}
+
+# ip's interface is its second field, less a link's @peer
+function test_ip_cell_on_linux_hides_by_interface() {
+  local dir="$_HI_WORKDIR/ip-iface-shims" out
+  _hi_script "$dir/uname" '#!/bin/sh' 'echo "Linux x86_64"'
+  _hi_script "$dir/ip" '#!/bin/sh' "printf '%s\\n' '2: eth0    inet 172.104.1.2/24 brd 172.104.1.255 scope global eth0' \\" \
+    "  '3: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0' \\" \
+    "  '4: br-0123456789ab@if9    inet 172.18.0.1/16 brd 172.18.255.255 scope global br-0123456789ab'"
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_linux_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"')"
+  [[ "$out" == *"[IP: 172.104.1.2]"* ]] || _hi_because "default got: $out"
 }
 
 # every address hidden: the cell is empty (so the header drops it), never
@@ -316,7 +340,7 @@ function test_ip_filter_takes_a_glob_list() {
 function test_ip_cell_is_empty_when_every_address_is_hidden() {
   local dir="$_HI_WORKDIR/ip-hide-shims" out
   _hi_script "$dir/uname" '#!/bin/sh' 'echo "Darwin arm64"'
-  _hi_script "$dir/ifconfig" '#!/bin/sh' 'printf "\tinet 127.0.0.1 netmask 0xff000000\n\tinet 172.17.0.2 netmask 0xffff0000\n\tinet 10.0.0.5 netmask 0xffffff00\n"'
+  _hi_script "$dir/ifconfig" '#!/bin/sh' 'printf "lo0: flags=8049\n\tinet 127.0.0.1 netmask 0xff000000\ndocker0: flags=8843\n\tinet 172.17.0.2 netmask 0xffff0000\nen0: flags=8863\n\tinet 10.0.0.5 netmask 0xffffff00\n"'
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"')"
   [[ "$out" == *"[IP: 10.0.0.5]"* ]] || _hi_because "default got: $out" || return 1
@@ -437,7 +461,9 @@ function run_header_bare_tests() {
   _hi_check "Five cells cost one probe" test_system_info_probes_once_for_all_five_cells
   _hi_check "System_info on Windows (git-bash), from shims" test_system_info_on_windows
   _hi_check "Uptime and IP cells on Windows" test_uptime_and_ip_cells_on_windows
-  _hi_check "_HI_IP_HIDE hides the bridge by default" test_ip_filter_hides_the_bridge_by_default
+  _hi_check "_HI_IP_HIDE hides the bridges by default" test_ip_filter_hides_the_bridges_by_default
+  _hi_check "...and keeps a public 172 address" test_ip_filter_keeps_a_public_172_address
+  _hi_check "The ip cell hides by ip's interface name" test_ip_cell_on_linux_hides_by_interface
   _hi_check "_HI_IP_HIDE none/empty keep everything" test_ip_filter_none_and_empty_keep_everything
   _hi_check "_HI_IP_HIDE takes a glob list" test_ip_filter_takes_a_glob_list
   _hi_check "The ip cell is empty when every address is hidden" test_ip_cell_is_empty_when_every_address_is_hidden

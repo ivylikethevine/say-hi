@@ -323,9 +323,15 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       [SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting) and the
       five presets, and a toggle removal is a 2.0. **Do:** read each row's
       default as a stranger's first run, with the `balanced` first-install
-      default and `hi --update`'s verification as the known changes.
-      **Ticks when:** the 1.0.0 release note lists the defaults that moved,
-      or says none did.
+      default and `hi --update`'s verification as the known changes. Read
+      at fe63e85e, every row's default agreeing with its code. Moved since:
+      `_HI_IP_HIDE` from `172.*`, which hid public addresses and missed
+      rootful podman's bridge, to the bridges' interface names;
+      `_HI_PROMPT_END_ZSH` from `>` to `%(!.#.>)`, which marks root as bash
+      and fish do; and `_HI_PACKAGES_GROUPS` from `core useful deprecated`
+      to `core deprecated`, with `useful` under the `everything` preset.
+      **Ticks when:** the 1.0.0 release note lists those, the known changes,
+      and any others that move.
 
 - [ ] **The target side keeps up on a starved CPU** — with the target held
       to an eighth of one core (`scratch/slow_target.sh`: a CFS quota on the
@@ -381,6 +387,14 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       **Ticks when:** a cold connect is a round trip shorter at
       150 ms added, with nothing dropped from the tree, and the relay, fish,
       zsh, and kept-session suites pass.
+
+- [ ] **A greeting that does not read as an error** — a bash session opens
+      on `hi loaded: bash today :(` in red, which on a first connect looks
+      like something went wrong; the text is outside the 1.x contract, so
+      this waits on nothing. **Do:** reword bash's line and its color, with
+      `load.sh`'s greeting and the load suite's three greeting cases
+      together. **Ticks when:** a bash session's greeting is no longer red
+      or a frown, and the load suite passes.
 
 ## Release Stages
 

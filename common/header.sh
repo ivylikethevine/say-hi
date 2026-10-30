@@ -499,7 +499,8 @@ function _hi_cell_ip() {
   printf -v "$1" '%s' "${BLUE}IP: ${ips:-?}"
 }
 
-# the routable addresses, comma-joined, for _hi_cell_ip
+# the routable addresses, comma-joined, for _hi_cell_ip, each followed by
+# %<interface> where the tool says which: _hi_ip_filter reads that and drops it
 function _hi_ip_list() {
   local ips="" plat
   _hi_platform plat
@@ -514,7 +515,8 @@ function _hi_ip_list() {
     # brought along, or `ip -c`) wraps each address, which shifts nothing in
     # the field layout but defeats the filter's globs and leaks the escapes.
     ips=$(ip -4 -o addr show scope global 2>/dev/null | awk '{
-      gsub(/\033\[[0-9;]*m/, ""); split($4, a, "/"); printf "%s%s", sep, a[1]; sep = ","
+      gsub(/\033\[[0-9;]*m/, ""); split($4, a, "/"); n = $2; sub(/@.*/, "", n)
+      printf "%s%s%%%s", sep, a[1], n; sep = ","
     }')
     [ -n "$ips" ] || ips=$(hostname -I 2>/dev/null | awk '{
       for (i = 1; i <= NF; i++) { printf "%s%s", sep, $i; sep = "," }
@@ -528,33 +530,36 @@ function _hi_ip_list() {
   elif [ "$plat" = bsd ]; then
     # macOS and the BSDs: no `ip`, but `ifconfig`'s "inet " line (never
     # "inet6") is there on all of them
-    ips=$(ifconfig 2>/dev/null | awk '/inet / && $2 !~ /^127\./ {
-      printf "%s%s", sep, $2; sep = ","
+    ips=$(ifconfig 2>/dev/null | awk '/^[^ \t]/ { n = $1; sub(/:$/, "", n) }
+      /inet / && $2 !~ /^127\./ {
+      printf "%s%s", sep, $2; if (n != "") printf "%%%s", n; sep = ","
     }')
   fi
   printf '%s' "$ips"
 }
 
-# _hi_ip_filter <outvar> <comma-joined addresses> - the same list minus every
-# address a $_HI_IP_HIDE glob matches. The setting is space-separated globs,
-# unset or empty meaning `172.*` (the docker/podman bridge range, noise on
-# any box that runs containers - empty is unset, as every other setting
-# reads it); the word `none` hides nothing. The words are peeled off the
-# string one at a time rather than word-split in a `for`, which would also
-# pathname-expand `172.*` against the cwd.
+# _hi_ip_filter <outvar> <comma-joined addresses> - the same list, each
+# address without its %<interface>, minus every one where a $_HI_IP_HIDE glob
+# matches the address or the interface. The setting is space-separated globs,
+# unset or empty meaning the container and VM bridges' interfaces (noise on
+# any box that runs them - empty is unset, as every other setting reads it);
+# the word `none` hides nothing. An address with no interface answers to the
+# address globs alone. The words are peeled off the string one at a time
+# rather than word-split in a `for`, which would also pathname-expand a glob
+# against the cwd.
 function _hi_ip_filter() {
-  local _hi_if_hide="${_HI_IP_HIDE:-$_HI_IP_HIDE_DEFAULT}" _hi_if_rest="$2" _hi_if_kept="" _hi_if_ip
-  case "$_hi_if_hide" in none)
-    printf -v "$1" '%s' "$2"
-    return 0
-    ;;
-  esac
+  local _hi_if_hide="${_HI_IP_HIDE:-$_HI_IP_HIDE_DEFAULT}" _hi_if_rest="$2" _hi_if_kept="" _hi_if_ip _hi_if_dev
   while [ -n "$_hi_if_rest" ]; do
     _hi_if_ip="${_hi_if_rest%%,*}"
     if [ "$_hi_if_ip" = "$_hi_if_rest" ]; then _hi_if_rest=""; else _hi_if_rest="${_hi_if_rest#*,}"; fi
-    # core.sh's matcher: the same peel and glob rule
-    _hi_ssh_pattern_hit "$_hi_if_ip" "$_hi_if_hide" ||
-      _hi_if_kept="$_hi_if_kept${_hi_if_kept:+,}$_hi_if_ip"
+    _hi_if_dev=""
+    case "$_hi_if_ip" in *%*) _hi_if_dev="${_hi_if_ip#*%}" _hi_if_ip="${_hi_if_ip%%%*}" ;; esac
+    if [ "$_hi_if_hide" != none ]; then
+      # core.sh's matcher: the same peel and glob rule
+      ! _hi_ssh_pattern_hit "$_hi_if_ip" "$_hi_if_hide" || continue
+      [ -z "$_hi_if_dev" ] || ! _hi_ssh_pattern_hit "$_hi_if_dev" "$_hi_if_hide" || continue
+    fi
+    _hi_if_kept="$_hi_if_kept${_hi_if_kept:+,}$_hi_if_ip"
   done
   printf -v "$1" '%s' "$_hi_if_kept"
 }
