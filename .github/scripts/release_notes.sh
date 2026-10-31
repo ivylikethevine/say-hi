@@ -23,20 +23,22 @@ _RN_HEADING='^## [Rr]elease [Nn]ote'
 # The section: from the `## Release note` heading to the next `##` heading or
 # the end of the body. HTML comments go (the template's instructions live in
 # one), and so do blank lines and surrounding whitespace. awk reads to the end
-# rather than exiting at the next heading, and check()'s grep reads it all
-# rather than -q: under pipefail, a printf still writing into a pipe whose
-# reader left dies of SIGPIPE and fails the pipeline - on OpenBSD, whose 1KB
-# stdio buffer splits even the template into two writes.
+# rather than exiting at the next heading: under pipefail, a printf still writing
+# into a pipe whose reader left dies of SIGPIPE and fails the pipeline.
 section() {
   awk -v heading="$_RN_HEADING" '
     !done && $0 ~ heading { inside = 1; next }
     /^## / { if (inside) done = 1; inside = 0 }
-    inside { print }
-  ' | sed -e 's/<!--.*-->//g' | awk '
-    /<!--/ { skip = 1 }
-    !skip { print }
-    /-->/ { skip = 0 }
-  ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^$' || true
+    !inside { next }
+    {
+      gsub(/<!--.*-->/, "")
+      if (/<!--/) skip = 1
+      line = $0
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (!skip && line != "") print line
+      if (/-->/) skip = 0
+    }
+  '
 }
 
 # A section that is only `none` (any case, `none.`, `n/a`, a lone `-`) is the
@@ -77,8 +79,7 @@ main() {
 check() {
   local body text
   body="$(cat)"
-  # not grep -q - see section()
-  if ! printf '%s\n' "$body" | grep -E "$_RN_HEADING" >/dev/null; then
+  if ! grep -qE "$_RN_HEADING" <<<"$body"; then
     echo "no '## Release note' section - add the pull request template's (write \`none\` when nothing a user sees changes)" >&2
     return 1
   fi
