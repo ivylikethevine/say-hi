@@ -10,9 +10,10 @@
 #      inherit the default token)
 #   4. a workflow triggered by workflow_run gates each job that can start on
 #      its own - no `needs:`, or always()/cancelled()/failure() in its `if:` -
-#      on github.event.workflow_run.conclusion == 'success', unless its `if:`
-#      narrows it to another event (`github.event_name == '<event>'`, no `||`,
-#      and no comparison of event_name against workflow_run)
+#      on github.event.workflow_run.conclusion == 'success', or != 'success' for
+#      one written to act on a failed run, unless its `if:` narrows it to
+#      another event (`github.event_name == '<event>'`, no `||`, and no
+#      comparison of event_name against workflow_run)
 #   5. every third-party `uses:` is pinned to a 40-hex commit SHA followed by
 #      a `# vX.Y.Z` comment, or `# X.Y.Z` where upstream's tags carry no v
 #      (local `./`, `$/` and `docker://` refs are exempt)
@@ -92,7 +93,7 @@ workflow_filter='
     jobs | .key as $job | .value as $j
     | ($j | cond) as $if
     | select($j.needs == null or ($if | test("always\\(\\)|cancelled\\(\\)|failure\\(\\)")))
-    | select($if | test("github\\.event\\.workflow_run\\.conclusion\\s*==\\s*.success.") | not)
+    | select($if | test("github\\.event\\.workflow_run\\.conclusion\\s*(==|!=)\\s*.success.") | not)
     | select((($if | test("github\\.event_name\\s*==\\s*.[a-z_]+."))
               and ($if | contains("||") | not)
               and ($if | test("github\\.event_name\\s*(==|!=)\\s*.workflow_run.") | not)) | not)

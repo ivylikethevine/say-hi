@@ -1,0 +1,72 @@
+name: Rerun timed-out runs
+
+# Reruns a run's failed jobs when one of them hit a time limit: on hosted runners
+# a job can lose its network, or stay open after its last step, until its
+# `timeout-minutes` ends it, and a rerun then passes. Attempts 1 and 2 only, so a
+# run is retried at most twice, by hand or from here. Time limits only: a job
+# failing any other way, or cancelled, starts nothing.
+#
+# `workflows:` names only workflows that are safe to run twice, so no release or
+# publish. Same-repo runs only, so a fork's code never runs on this token's rerun.
+# No checkout: workflow_run's write token never meets the triggering ref's code,
+# which is what dangerous-triggers guards against. A job's own `if:` tests for a
+# conclusion other than success because a failed run is what this is for.
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    # prettier-ignore
+    workflows: [CI, Coverage, CodeQL, Scorecard, Image scan, Release note, Link check, Tool versions, Dependency review]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rerun-timeouts-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  rerun:
+    name: rerun a run that hit a time limit
+    if: >-
+      github.event.workflow_run.conclusion != 'success' &&
+      github.event.workflow_run.run_attempt < 3 &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    # job-scoped, not workflow-level, for Scorecard's Token-Permissions check
+    permissions:
+      actions: write # gh run rerun
+      checks: read # the jobs' annotations
+    steps:
+      # block, not audit: `gh api` and `gh run rerun` are all this job reaches.
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.github.com:443
+
+      - name: Rerun the failed jobs if one hit a time limit
+        # via env, never inline ${{ }} in the run block (zizmor:
+        # template-injection)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+        run: |
+          set -euo pipefail
+          # The API reports a job that hit its limit as `cancelled`, as it does
+          # one cancelled any other way: only the annotation tells them apart.
+          limit='^(The job.*exceeded the maximum execution time|The action .* has timed out after)'
+          jobs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs?per_page=100" \
+            --jq '.jobs[] | select(.conclusion != "success" and .conclusion != "skipped") | "\(.id) \(.conclusion) \(.name)"')"
+          while read -r id conclusion name; do
+            [ -n "$id" ] || continue
+            notes="$(gh api --paginate "repos/$GITHUB_REPOSITORY/check-runs/$id/annotations?per_page=100" --jq '.[].message // empty')"
+            if [ "$conclusion" = timed_out ] || grep -qE "$limit" <<<"$notes"; then
+              echo "$WORKFLOW run $RUN_ID attempt $ATTEMPT: $name hit a time limit, rerunning its failed jobs"
+              gh run rerun "$RUN_ID" --failed --repo "$GITHUB_REPOSITORY"
+              exit 0
+            fi
+          done <<<"$jobs"
+          echo "$WORKFLOW run $RUN_ID attempt $ATTEMPT: no job hit a time limit"

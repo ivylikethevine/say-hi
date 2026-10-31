@@ -39,7 +39,7 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     permissions:
       contents: read
       issues: write # open, refresh or close the tracking issue
