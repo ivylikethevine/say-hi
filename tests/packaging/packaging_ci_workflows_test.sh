@@ -838,11 +838,13 @@ function test_every_third_party_action_is_sha_pinned() {
 # every workflow_run workflow reads the triggering run's conclusion: the
 # trigger fires on `completed`, red runs included, so a missing gate is a job
 # running off a failed battery (test_ci_chained_workflows_carry_the_green_push_gate
-# adds the push half for those chained off CI)
+# adds the push half for those chained off CI). rerun-timeouts.yml is the
+# exception: a run that did not succeed is what it exists for.
 function test_workflow_run_workflows_gate_on_success() {
   local wf bad=0
   for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
     grep -qE '^  workflow_run:' "$wf" || continue
+    [ "${wf##*/}" != rerun-timeouts.yml ] || continue
     grep -qF "workflow_run.conclusion == 'success'" "$wf" || {
       _hi_cecho " | ${wf##*/} triggers on workflow_run without a conclusion == 'success' gate" "$RED"
       bad=1
@@ -885,15 +887,15 @@ function test_fetch_latest_artifact_scopes_the_event() {
 # ...and takes the newest green run that still holds a matching artifact, not
 # simply the newest green run: a run whose producing job skipped is green with
 # nothing to download, and would hide the real one behind a grey badge. The
-# brace pattern every multi-artifact caller passes is matched per name, as an
-# extglob.
+# brace pattern every multi-artifact caller passes is looked up per name.
 # shellcheck disable=SC2016 # the action's own literals, expanded there
 function test_fetch_latest_artifact_skips_runs_without_the_artifact() {
   local action="$_HI_ROOT/.github/actions/fetch-latest-artifact/action.yml"
   { grep -qF 'status=success&per_page=20' "$action" &&
-    grep -qF 'actions/runs/$id/artifacts' "$action" &&
+    grep -qF 'repos/$REPO/actions/artifacts' "$action" &&
     grep -qF 'select(.expired | not)' "$action" &&
-    grep -qF 'shopt -s extglob' "$action" &&
+    grep -qF '${names//,/$' "$action" &&
+    grep -qF 'grep -qxF -- "$id" <<<"$holding"' "$action" &&
     grep -qF 'pattern: ${{ inputs.artifact-name }}' "$action"; } || _hi_why action
 }
 
