@@ -35,8 +35,16 @@ inputs:
     description: completes the body footer "Closed automatically once <resolved-when>." on a non-resolved upsert; empty skips the footer
     required: false
     default: ""
+  preamble:
+    description: markdown put first in the issue body
+    required: false
+    default: ""
   body-file:
-    description: path to the fully-composed markdown issue body; required unless resolved is 'true'
+    description: path to markdown for the issue body, after the preamble; this or report-file is required unless resolved is 'true'
+    required: false
+    default: ""
+  report-file:
+    description: path to a plain-text report, put last in the issue body in a code block; this or body-file is required unless resolved is 'true'
     required: false
     default: ""
   write-summary-on-resolved:
@@ -66,25 +74,31 @@ runs:
         RESOLVED: ${{ inputs.resolved }}
         CLOSE_COMMENT: ${{ inputs.close-comment }}
         RESOLVED_WHEN: ${{ inputs.resolved-when }}
+        PREAMBLE: ${{ inputs.preamble }}
         BODY_FILE: ${{ inputs.body-file }}
+        REPORT_FILE: ${{ inputs.report-file }}
         WRITE_SUMMARY_ON_RESOLVED: ${{ inputs.write-summary-on-resolved }}
         WARNING_TITLE: ${{ inputs.warning-title }}
         WARNING_BODY: ${{ inputs.warning-body }}
       run: |
         set -euo pipefail
+        source "$GITHUB_ACTION_PATH/../../scripts/lib.sh"
         run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
         # checked before any API call, so a caller bug fails with this
         # message instead of an issue edited to an empty body
-        if [ "$RESOLVED" != true ] && { [ -z "$BODY_FILE" ] || [ ! -f "$BODY_FILE" ]; }; then
-          echo "::error title=upsert-tracking-issue::resolved is '$RESOLVED' but body-file '${BODY_FILE}' does not exist - write the report before this step"
-          exit 1
+        if [ "$RESOLVED" != true ]; then
+          for file in ${BODY_FILE:+"$BODY_FILE"} ${REPORT_FILE:+"$REPORT_FILE"}; do
+            if [ ! -f "$file" ]; then
+              echo "::error title=upsert-tracking-issue::'$file' does not exist - write the report before this step"
+              exit 1
+            fi
+          done
+          if [ -z "$BODY_FILE$REPORT_FILE" ]; then
+            echo "::error title=upsert-tracking-issue::resolved is '$RESOLVED' but neither body-file nor report-file is set"
+            exit 1
+          fi
         fi
-
-        # --force is create-or-update, so a deleted label heals itself rather
-        # than turning every later `issue create` into a hard failure
-        gh label create "$LABEL" --force --color "$LABEL_COLOR" \
-          --description "$LABEL_DESCRIPTION" >/dev/null
 
         # one issue, reused: the finding is a standing state, not an event
         open="$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number // empty')"
@@ -100,9 +114,13 @@ runs:
           exit 0
         fi
 
-        # a copy, so the caller's file is not changed under it
+        # composed apart, so the caller's files are not changed under it
         body="$(mktemp "${RUNNER_TEMP:-/tmp}/tracking-issue.XXXXXX")"
-        cat "$BODY_FILE" >"$body"
+        {
+          [ -z "$PREAMBLE" ] || printf '%s\n\n' "$PREAMBLE"
+          [ -z "$BODY_FILE" ] || cat "$BODY_FILE"
+          [ -z "$REPORT_FILE" ] || _ci_fenced "$REPORT_FILE"
+        } >"$body"
         if [ -n "$RESOLVED_WHEN" ]; then
           # shellcheck disable=SC2016 # the backticks are a markdown code span
           printf '\nFound by [`%s`](%s). Closed automatically once %s.\n' \
@@ -117,18 +135,13 @@ runs:
           gh issue edit "$open" --title "$TITLE" --body-file "$body"
           echo "updated #$open"
         else
+          # create-or-update, here alone: a label missing or deleted is only
+          # a failure for `issue create`, and a run that files nothing makes none
+          gh label create "$LABEL" --force --color "$LABEL_COLOR" \
+            --description "$LABEL_DESCRIPTION" >/dev/null
           gh issue create --label "$LABEL" --title "$TITLE" --body-file "$body"
         fi
 
         if [ -n "$WARNING_TITLE" ]; then
-          # workflow-command escaping: %, CR, and LF in the message; a
-          # property value also needs : and , escaped
-          esc_data() {
-            local s="${1//"%"/%25}"
-            s="${s//$'\r'/%0D}"
-            printf '%s' "${s//$'\n'/%0A}"
-          }
-          title="$(esc_data "$WARNING_TITLE")"
-          title="${title//:/%3A}"
-          echo "::warning title=${title//,/%2C}::$(esc_data "$WARNING_BODY")"
+          echo "::warning title=$(_ci_esc_prop "$WARNING_TITLE")::$(_ci_esc_data "$WARNING_BODY")"
         fi

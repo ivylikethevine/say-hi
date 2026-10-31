@@ -14,6 +14,37 @@ function _ci_need() {
   done
 }
 
+# _ci_esc_data <text> - <text> as a workflow command's message: a raw newline
+# would end the command and let the rest run as one of its own
+function _ci_esc_data() {
+  local s="${1//"%"/%25}"
+  s="${s//$'\r'/%0D}"
+  printf '%s' "${s//$'\n'/%0A}"
+}
+
+# _ci_esc_prop <text> - <text> as a workflow command's property value (title),
+# whose `:` and `,` also delimit
+function _ci_esc_prop() {
+  local s
+  s="$(_ci_esc_data "$1")"
+  s="${s//:/%3A}"
+  printf '%s' "${s//,/%2C}"
+}
+
+# _ci_fenced <file> - the file in a Markdown code block, fenced longer than any
+# backtick run in it, so a report quoting ``` cannot close the block early
+function _ci_fenced() {
+  local longest fence='```'
+  # awk alone: a grep finding no backticks exits 1, which fails under pipefail
+  longest="$(awk '{ while (match($0, /`+/)) { if (RLENGTH > m) m = RLENGTH; $0 = substr($0, RSTART + RLENGTH) } } END { print m + 0 }' "$1")"
+  while [ "${#fence}" -le "$longest" ]; do fence="$fence\`"; done
+  echo "$fence"
+  cat "$1"
+  # a file without a trailing newline would glue the fence to it
+  [ -z "$(tail -c1 "$1")" ] || echo
+  echo "$fence"
+}
+
 # _ci_files <globs> - the tracked files that space-separated pathspec globs
 # name, via git when there is a work tree (so build output and vendored trees
 # stay out); a plain globstar walk otherwise. Nothing for an empty list.

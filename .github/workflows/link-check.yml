@@ -42,7 +42,7 @@ jobs:
     steps:
       # audit, deliberately: lychee's job is to reach every URL the docs name,
       # so an allowlist would be the docs' own link list.
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
           disable-sudo: true
@@ -68,12 +68,12 @@ jobs:
           set -uo pipefail
           # .github/link-check-paths.txt, in a repo that has one, adds
           # pathspecs beyond the Markdown, one per line; the cleaned list
-          # is kept for the issue body
-          : >"$RUNNER_TEMP/link-paths"
+          # is an output for the issue body
+          extra=()
           if [ -f .github/link-check-paths.txt ]; then
-            sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' .github/link-check-paths.txt >"$RUNNER_TEMP/link-paths"
+            mapfile -t extra < <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' .github/link-check-paths.txt)
           fi
-          mapfile -t extra <"$RUNNER_TEMP/link-paths"
+          echo "extra=${extra[*]+${extra[*]} }" >>"$GITHUB_OUTPUT"
           mapfile -d '' files < <(git ls-files -z '*.md' ${extra[@]+"${extra[@]}"})
           rc=0
           lychee --config lychee.toml --include-fragments --no-progress \
@@ -83,19 +83,6 @@ jobs:
             2) echo "found=1" >>"$GITHUB_OUTPUT" ;;
             *) exit "$rc" ;;
           esac
-
-      - name: Compose the tracking issue body
-        if: steps.check.outputs.found == '1'
-        run: |
-          set -euo pipefail
-          extra="$(tr '\n' ' ' <"$RUNNER_TEMP/link-paths")"
-          {
-            echo "lychee found dead or unreachable links in the docs. A URL that is fine but"
-            echo "refuses automated checks belongs in \`lychee.toml\` with a comment saying why."
-            echo "Reproduce with \`git ls-files -z '*.md' ${extra}| xargs -0 lychee --config lychee.toml --include-fragments\`."
-            echo
-            cat "$RUNNER_TEMP/lychee.md"
-          } >"$RUNNER_TEMP/issue.md"
 
       # with warning-title set, this also writes the ::warning and the step
       # summary
@@ -108,6 +95,10 @@ jobs:
           resolved: ${{ steps.check.outputs.found != '1' }}
           close-comment: Every link resolves again.
           resolved-when: every link resolves
-          body-file: ${{ runner.temp }}/issue.md
+          preamble: |-
+            lychee found dead or unreachable links in the docs. A URL that is fine but
+            refuses automated checks belongs in `lychee.toml` with a comment saying why.
+            Reproduce with `git ls-files -z '*.md' ${{ steps.check.outputs.extra }}| xargs -0 lychee --config lychee.toml --include-fragments`.
+          body-file: ${{ runner.temp }}/lychee.md
           warning-title: lychee
           warning-body: Dead or unreachable links - advisory, not blocking - see the link-check issue

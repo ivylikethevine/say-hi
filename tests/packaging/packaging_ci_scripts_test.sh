@@ -304,7 +304,7 @@ function test_tool_versions_reports_each_pin() {
     "$h" "$h" "$h" "$h" >"$dir/.github/workflows/w.yml"
   printf 'FROM busybox:1.36@sha256:%s\nFROM --platform=linux/amd64 postgres:16@sha256:%s AS base\nFROM ghcr.io/o/i:1@sha256:%s\nFROM redis:7@sha256:%s\nFROM base\n' \
     "$a" "$b" "$a" "$a" >"$dir/a.Dockerfile"
-  git -C "$dir" init -q >/dev/null 2>&1 && git -C "$dir" add a.Dockerfile >/dev/null 2>&1 || _hi_why dir || return 1
+  git -C "$dir" init -q >/dev/null 2>&1 && git -C "$dir" add a.Dockerfile pins split >/dev/null 2>&1 || _hi_why dir || return 1
   cat >"$dir/bin/curl" <<EOF
 #!/usr/bin/env bash
 for u; do :; done
