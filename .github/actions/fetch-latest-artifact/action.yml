@@ -50,7 +50,8 @@ runs:
     # green run *is* the triggering one. A run whose producing job was
     # skipped (a workflow_run of a failed or scheduled upstream) still counts
     # as successful but holds no artifact, so the newest of the last 20 green
-    # runs with a matching, unexpired artifact is taken, not simply the newest.
+    # runs with a matching, unexpired artifact is taken, not simply the newest:
+    # the artifacts of each name in the pattern, against the run list.
     - id: find
       shell: bash
       env:
@@ -66,6 +67,7 @@ runs:
         EVENT: ${{ inputs.event }}
       run: |
         set -euo pipefail
+        source "$GITHUB_ACTION_PATH/../../scripts/lib.sh"
         if [ -n "$HEAD_SHA" ]; then
           scope="head_sha=$HEAD_SHA"
         elif [ -n "$BRANCH" ]; then
@@ -77,31 +79,28 @@ runs:
         runs="$(gh api \
           "repos/$REPO/actions/workflows/$WORKFLOW/runs?${scope:+$scope&}status=success&per_page=20" \
           --jq '.workflow_runs[].id')"
-        # the artifact-name pattern as a bash extglob: "{a,b}" becomes "@(a|b)"
-        shopt -s extglob
-        open='@(' close=')'
-        glob="${ARTIFACT//\{/$open}"
-        glob="${glob//\}/$close}"
-        glob="${glob//,/|}"
+        # the names in the pattern: "{a,b}" is a and b
+        names="${ARTIFACT#\{}"
+        names="${names%\}}"
+        holding=""
+        while IFS= read -r name; do
+          # every page: a busy branch can push the runs asked about past the first
+          holding+="$(gh api --paginate -X GET "repos/$REPO/actions/artifacts" -f name="$name" -F per_page=100 \
+            --jq '.artifacts[] | select(.expired | not) | .workflow_run.id')"$'\n'
+        done <<<"${names//,/$'\n'}"
         run_id=""
         for id in $runs; do
-          while IFS= read -r name; do
-            # shellcheck disable=SC2053 # a glob match on purpose
-            if [[ "$name" == $glob ]]; then
-              run_id="$id"
-              break 2
-            fi
-          done < <(gh api "repos/$REPO/actions/runs/$id/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.expired | not) | .name')
+          if grep -qxF -- "$id" <<<"$holding"; then
+            run_id="$id"
+            break
+          fi
         done
         echo "run_id=$run_id" >>"$GITHUB_OUTPUT"
         if [ -n "$run_id" ]; then
           echo "$FOUND_MESSAGE $run_id"
         elif [ "$WARN_ON_MISSING" = true ]; then
           # escaped so a message with a newline stays one annotation
-          msg="${MISSING_MESSAGE//"%"/%25}"
-          msg="${msg//$'\r'/%0D}"
-          echo "::warning::${msg//$'\n'/%0A}"
+          echo "::warning::$(_ci_esc_data "$MISSING_MESSAGE")"
         else
           echo "$MISSING_MESSAGE"
         fi

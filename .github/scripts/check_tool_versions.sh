@@ -34,6 +34,10 @@
 # (default 7) is not offered: a compromised release's window is its first
 # days. TOOL_COOLDOWN_DAYS=0 offers everything upstream has published.
 #
+# CI_FIX_LIST, when set, names a file each pin behind its release is appended
+# to, one `kind|label|pinned|due|value|file|regex` line: kind is tool, inline, action or a manifest's kind, value an action's pin, and file and
+# regex an inline row's glob and pattern or a manifest's path.
+#
 # Versions are compared as dotted numerics (sort -V), never by date or as
 # strings: some upstreams re-release old majors the same day, and a pin at or
 # ahead of the cooled-down release is current.
@@ -133,16 +137,11 @@ function _ci_host() {
   esac
 }
 
-# _ci_problem <title> <message> - count one problem; annotate it under Actions.
-# Escaped per workflow-command rules so a message cannot start a new command.
+# _ci_problem <title> <message> - count one problem; annotate it under Actions
 function _ci_problem() {
   bad=$((bad + 1))
   [ -n "${GITHUB_ACTIONS:-}" ] || return 0
-  local t="${1//"%"/%25}" m="${2//"%"/%25}"
-  t="${t//$'\n'/%0A}" m="${m//$'\n'/%0A}"
-  t="${t//$'\r'/%0D}" m="${m//$'\r'/%0D}"
-  t="${t//:/%3A}"
-  printf '::warning title=%s::%s\n' "${t//,/%2C}" "$m"
+  printf '::warning title=%s::%s\n' "$(_ci_esc_prop "$1")" "$(_ci_esc_data "$2")"
 }
 
 # _ci_error <label> <pinned> <row text> <annotation> - an error row, marked
@@ -299,6 +298,8 @@ function _ci_report_pin() {
   else
     [ -z "$tail_fn" ] || tail="$("$tail_fn" "$label" "$due")"
     _ci_row "$label" fix "$pinned" "$pin_age" "$due" "$due_age" "$tail"
+    [ -z "${CI_FIX_LIST:-}" ] || printf '%s|%s|%s|%s|%s|%s|%s\n' \
+      "$fix_kind" "$label" "$pinned" "$due" "$tail" "${fix_file-}" "${fix_regex-}" >>"$CI_FIX_LIST"
     _ci_problem "$label behind" "pinned $pinned, $due released ${due_age:-?} day(s) ago - bump it in $where"
   fi
 }
@@ -312,12 +313,12 @@ function _ci_action_pin() {
   [ -z "$sha" ] || printf '@%s # v%s' "$sha" "$2"
 }
 
-# _ci_extract <sed-regex> <file-glob> - the distinct captures across every
-# matching file, one per line
+# _ci_extract <sed-regex> <file-globs> - the distinct captures across every
+# tracked file _ci_files finds, one per line
 function _ci_extract() {
   local f
-  { compgen -G "$2" || true; } | while IFS= read -r f; do
-    sed -n "s|.*$1.*|\1|p" "$f"
+  _ci_files "$2" | while IFS= read -r f; do
+    [ ! -f "$f" ] || sed -n "s|.*$1.*|\1|p" "$f"
   done | sort -u
 }
 
@@ -410,6 +411,7 @@ fi
 
 if declare -F _ci_tool_rows >/dev/null; then
   _ci_section "tools.txt (.github/actions/setup-tool)"
+  fix_kind=tool
   # process substitution, not a pipe: a piped `while` runs in a subshell and
   # would lose $bad
   while IFS='|' read -r tool pinned kind url _ check prefix sha256 extra; do
@@ -440,6 +442,7 @@ if [ -n "$CI_WORKFLOW_ROSTER" ]; then
       _ci_error "$tool" - "pins disagree: $found" "$glob pins more than one version: $found"
       ;;
     *)
+      fix_kind=inline fix_file="$glob" fix_regex="$regex"
       _ci_report_pin "$tool" "$found" "$check" "$prefix" "$glob" "$held"
       ;;
     esac
@@ -447,6 +450,7 @@ if [ -n "$CI_WORKFLOW_ROSTER" ]; then
 fi
 
 _ci_section "GitHub Actions (uses: SHAs)"
+fix_kind=action fix_file="" fix_regex=""
 # Every `uses: <path>@<40-hex> # <comment>` under the CI_ACTION_DIRS
 # directories and in a root action.yml, folded to owner/repo
 # (github/codeql-action/init and /analyze are one repo to track) and
@@ -545,6 +549,7 @@ if [ -n "$CI_MANIFESTS" ]; then
         *) _ci_problem "$name" "CI_MANIFESTS holds $hold, which is neither @major nor @minor" ;;
         esac
       done
+      fix_kind="$kind" fix_file="$file"
       _ci_report_pin "$name" "$pinned" "$check" "" "$where" "" "$within" "$partial"
     done <<<"$pins"
   done <<<"$CI_MANIFESTS"
