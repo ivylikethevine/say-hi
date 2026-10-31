@@ -10,9 +10,10 @@
 #      inherit the default token)
 #   4. a workflow triggered by workflow_run gates each job that can start on
 #      its own - no `needs:`, or always()/cancelled()/failure() in its `if:` -
-#      on github.event.workflow_run.conclusion == 'success', unless its `if:`
-#      narrows it to another event (`github.event_name == '<event>'`, no `||`,
-#      and no comparison of event_name against workflow_run)
+#      on github.event.workflow_run.conclusion == 'success', or != 'success' for
+#      one written to act on a failed run, unless its `if:` narrows it to
+#      another event (`github.event_name == '<event>'`, no `||`, and no
+#      comparison of event_name against workflow_run)
 #   5. every third-party `uses:` is pinned to a 40-hex commit SHA followed by
 #      a `# vX.Y.Z` comment, or `# X.Y.Z` where upstream's tags carry no v
 #      (local `./`, `$/` and `docker://` refs are exempt)
@@ -24,7 +25,9 @@
 #      allowlist would cut a job off, so the policy is never left to it
 #   7. in a job whose actions/checkout sets sparse-checkout, every local
 #      `uses: ./<path>` step has <path> (or a parent directory of it) in that
-#      list - otherwise the runner fails with "Can't find 'action.yml'"
+#      list - otherwise the runner fails with "Can't find 'action.yml'" - and so
+#      does every file a listed script or local action sources, followed through
+#      what those source; a file not found in this tree is not judged
 #   8. no `# zizmor: ignore[...]` sits on the `on:` line: zizmor flags the
 #      trigger's own key, and 1.31.0 ignores a comment on `on:` that 1.30.1
 #      and 1.31.1 honour, so it goes on the trigger's line instead
@@ -92,7 +95,7 @@ workflow_filter='
     jobs | .key as $job | .value as $j
     | ($j | cond) as $if
     | select($j.needs == null or ($if | test("always\\(\\)|cancelled\\(\\)|failure\\(\\)")))
-    | select($if | test("github\\.event\\.workflow_run\\.conclusion\\s*==\\s*.success.") | not)
+    | select($if | test("github\\.event\\.workflow_run\\.conclusion\\s*(==|!=)\\s*.success.") | not)
     | select((($if | test("github\\.event_name\\s*==\\s*.[a-z_]+."))
               and ($if | contains("||") | not)
               and ($if | test("github\\.event_name\\s*(==|!=)\\s*.workflow_run.") | not)) | not)
@@ -122,6 +125,106 @@ checkout_filter='
   | select(((.s.with // {})["persist-credentials"] | tostring) != "false")
   | "\(.where): actions/checkout without persist-credentials: false"
 '
+
+# Rule 7's sourced files: one `job<TAB>list<TAB>actions` line per sparse job,
+# the checkout's list and its local actions colon-separated.
+# shellcheck disable=SC2016 # jq's $vars, not the shell's
+sparse_filter='
+  (.jobs // {}) | to_entries[] | .key as $job | (.value.steps // []) as $steps
+  | [$steps[] | select((.uses // "") | startswith("actions/checkout@"))
+      | (.with // {})["sparse-checkout"] | select(. != null) | tostring | split("\n")[]
+      | sub("^\\s+"; "") | sub("\\s+$"; "") | select(. != "" and (contains("${{") | not))
+      | sub("^/"; "") | sub("/+$"; "")] as $sparse
+  | select($sparse | length > 0)
+  | [$steps[] | (.uses // "") | select(startswith("./")) | ltrimstr("./") | sub("/+$"; "")] as $actions
+  | "\($job)\t\($sparse | join(":"))\t\($actions | join(":"))"
+'
+
+# sparse_found <tree> <path> - prints where <path> is: under the workflow's own
+# tree, this repository, or files/ for a rendering outside any tree
+sparse_found() {
+  local p
+  for p in "$1/$2" "$2" "files/$2"; do
+    if [ -e "$p" ]; then
+      printf '%s\n' "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# sparse_normal <path> - <path> with its `.` and `..` segments resolved
+sparse_normal() {
+  printf '%s\n' "$1" | awk -F/ '{
+    n = 0
+    for (i = 1; i <= NF; i++) {
+      if ($i == "." || $i == "") continue
+      if ($i == "..") { if (n) n--; continue }
+      s[++n] = $i
+    }
+    out = s[1]
+    for (i = 2; i <= n; i++) out = out "/" s[i]
+    print out
+  }'
+}
+
+# sparse_sources <file> <path> - the repository paths the file sources, where
+# <path> is its own: a literal path, or one beside the script or action. In a
+# script, only an unindented line: an indented one is conditional, and a job
+# that never reaches it needs no copy (install.sh's apt library).
+# shellcheck disable=SC2016 # the case patterns match a literal `$`
+sparse_sources() {
+  local dir src indent='[[:space:]]*'
+  dir="$(dirname "$2")"
+  case "$1" in *.sh) indent='' ;; esac
+  sed -nE "s/^$indent(source|\.)[[:space:]]+//p" "$1" | tr -d '"' | while IFS= read -r src; do
+    case "$src" in
+    '$GITHUB_ACTION_PATH/'*) sparse_normal "$dir/${src#\$GITHUB_ACTION_PATH/}" ;;
+    '$(dirname '*')/'*) sparse_normal "$dir/${src##*)/}" ;;
+    *'$'*) ;;
+    *) sparse_normal "${src%% *}" ;;
+    esac
+  done
+}
+
+# sparse_check <workflow> - rule 7 for the files each sparse job's scripts and
+# local actions source
+sparse_check() {
+  local file="$1" tree job list actions path found seen todo src entry covered
+  case "$file" in
+  */.github/workflows/*) tree="${file%%/.github/workflows/*}" ;;
+  *) tree=. ;;
+  esac
+  while IFS=$'\t' read -r job list actions; do
+    [ -n "$job" ] || continue
+    seen="" todo="$list:$actions"
+    while [ -n "$todo" ]; do
+      path="${todo%%:*}"
+      case "$todo" in *:*) todo="${todo#*:}" ;; *) todo="" ;; esac
+      [ -n "$path" ] || continue
+      case ":$seen:" in *":$path:"*) continue ;; esac
+      seen="$seen:$path"
+      found="$(sparse_found "$tree" "$path")" || continue
+      if [ -d "$found" ]; then
+        for entry in "$found"/*.sh "$found"/action.yml; do
+          [ -f "$entry" ] || continue
+          for src in $(sparse_sources "$entry" "$path/$(basename "$entry")"); do
+            todo="$src:$todo"
+          done
+        done
+        continue
+      fi
+      covered=""
+      for entry in ${list//:/ } ${actions//:/ }; do
+        case "$path" in "$entry" | "$entry"/*) covered=1 ;; esac
+      done
+      [ -n "$covered" ] || report "$file" "job $job: $path is sourced but not in its checkout's sparse-checkout list"
+      for src in $(sparse_sources "$found" "$path"); do
+        todo="$src:$todo"
+      done
+    done
+  done < <(printf '%s\n' "$json" | jq -r "$sparse_filter")
+}
 
 # Rules 5 and 8 are line-based: comments are not part of the parsed YAML.
 # Held in variables so bash 3.2 and 4+ read the regexes the same way.
@@ -160,6 +263,7 @@ for file in "$@"; do
   done <<EOF_MSGS
 $msgs
 EOF_MSGS
+  [ -z "$workflow" ] || sparse_check "$file"
 
   n=0
   while IFS= read -r line || [ -n "$line" ]; do
