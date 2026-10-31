@@ -57,7 +57,7 @@ ROWS=(
   "freebsd.json|FreeBSD|e2e (FreeBSD) / hi localhost (FreeBSD both ends)"
   "openbsd.json|OpenBSD|$(shards 'e2e (OpenBSD) / hi localhost (OpenBSD both ends, shard ' 1/2 2/2)"
   "alpine.json|Alpine client|fast suites (Alpine client)"
-  "windows.json|Windows|e2e (Windows) / hi at stock Windows OpenSSH (PowerShell fallback)"
+  "windows.json|Windows|e2e (Windows) / hi at Windows OpenSSH (PowerShell fallback, Git Bash shell)"
   "windows-client.json|Windows client|$(shards 'fast suites (Windows client) / fast suites (Git Bash ' \
     'x64, shard '{1,2,3,4} 'arm64, shard '{1,2,3,4})"
 )

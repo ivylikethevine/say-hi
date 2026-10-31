@@ -24,8 +24,11 @@ permissions:
   contents: read
 
 jobs:
-  stock-openssh:
-    name: hi at stock Windows OpenSSH (PowerShell fallback)
+  # One sshd in two shapes: stock first, since the registry value that makes
+  # Git Bash its shell is not put back. The stock case is continue-on-error, so
+  # a red one still gets the Git Bash verdict, and the last step fails the job.
+  openssh-target:
+    name: hi at Windows OpenSSH (PowerShell fallback, Git Bash shell)
     runs-on: windows-latest
     timeout-minutes: 15
     # No `environment:` - a required reviewer would stall every push to main;
@@ -77,7 +80,9 @@ jobs:
       # The transcript goes to a file, never a `$(...)`: a capture waits for
       # every holder of its pipe, so an ssh the timeout's kill left behind
       # hangs the step until the job's own timeout, with nothing printed.
-      - name: Say hi (expect the PowerShell fallback)
+      - id: stock
+        name: Say hi (expect the PowerShell fallback)
+        continue-on-error: true
         shell: bash
         timeout-minutes: 5
         run: |
@@ -104,50 +109,15 @@ jobs:
             exit "$rc"
           }
 
-  # The same sshd with Git Bash as its DefaultShell: the shape COMPATIBILITY.md
-  # calls a Windows target "with Git Bash on PATH". bin\bash.exe, not
-  # usr\bin\bash.exe - the wrapper is what puts /usr/bin on a session's PATH.
-  git-bash-target:
-    name: hi at Windows OpenSSH with Git Bash as the shell
-    runs-on: windows-latest
-    timeout-minutes: 15
-    steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-        with:
-          # audit until this job has an allowlist taken from its audit runs
-          egress-policy: audit
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/defender-off
-
-      - name: Start the OpenSSH server, Git Bash as its shell
+      # The same sshd with Git Bash as its DefaultShell: the shape COMPATIBILITY.md
+      # calls a Windows target "with Git Bash on PATH". bin\bash.exe, not
+      # usr\bin\bash.exe - the wrapper is what puts /usr/bin on a session's PATH.
+      - name: Make Git Bash sshd's shell
         shell: powershell
         run: |
-          $cap = Get-WindowsCapability -Online -Name 'OpenSSH.Server*'
-          if ($cap.State -ne 'Installed') { Add-WindowsCapability -Online -Name $cap.Name }
           New-Item -Path 'HKLM:\SOFTWARE\OpenSSH' -Force | Out-Null
           New-ItemProperty -Path 'HKLM:\SOFTWARE\OpenSSH' -Name DefaultShell -Value "$env:ProgramFiles\Git\bin\bash.exe" -PropertyType String -Force | Out-Null
-          Set-Service -Name sshd -StartupType Automatic
-          Start-Service sshd
-
-      - name: Generate a throwaway key
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.ssh"
-          ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
-
-      # as stock-openssh: the administrators file, with this exact ACL
-      - name: Authorize it
-        shell: powershell
-        run: |
-          $key = Get-Content "$env:USERPROFILE\.ssh\loop.pub"
-          $file = "$env:ProgramData\ssh\administrators_authorized_keys"
-          Set-Content -Path $file -Value $key
-          icacls $file /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F'
+          Restart-Service sshd
 
       # a full hi session this time, not the fallback: the command's output
       # back, run out of the tree hi shipped, and the status never discarded
@@ -179,6 +149,11 @@ jobs:
       - name: Nothing left behind in the target
         shell: bash
         run: bash .github/scripts/no_hi_session_left.sh
+
+      - name: Fail if the PowerShell fallback did
+        if: steps.stock.outcome == 'failure'
+        shell: bash
+        run: exit 1
 
   # The fast suites inside WSL, run from a copy of the checkout on the
   # distribution's own filesystem rather than from /mnt. Under WSL 2 the

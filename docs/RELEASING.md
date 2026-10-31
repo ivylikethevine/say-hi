@@ -267,7 +267,7 @@ which a file in the tree can set; the workflows only name them.
 
 **Storing, reaching, and rotating them.** A secret lives only as a GitHub
 repository secret and in the maintainer's offline copy of the key files,
-never in the tree: push protection and `secret scan (gitleaks)` are the
+never in the tree: push protection and `quick lint`'s gitleaks are the
 backstop. Only the maintainer can read or set one
 ([GOVERNANCE.md](GOVERNANCE.md#sensitive-access)), and a workflow names it
 only in the step that signs or pushes, under harden-runner's `block`.
@@ -489,7 +489,7 @@ commit. An override names one:
 `say-hi.packages.<system>.default.override { version = "1.0.0"; }`.
 
 **`flake.lock` pins nixpkgs.** `nix flake update` moves it, in a pull request
-like any other change; `ci.yml`'s `nix-flake` job builds from the committed
+like any other change; `ci.yml`'s `packaging-smoke` job builds from the committed
 lock with `--no-update-lock-file`, so a missing or stale one fails there.
 
 **The home-manager module** (`packaging/nix/home-manager.nix`) spells

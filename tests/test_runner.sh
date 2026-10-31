@@ -147,8 +147,8 @@ fi
 # took tracing each (scratch/coverage_costs.sh reads them off a coverage
 # run), as tests/lib/coverage.sh asks; a suite a tracer skips costs it 0.
 # gitbash is the Windows client's, the time each took under Git Bash on
-# arm64, and e2e ci.yml's e2e shards' (scratch/shard_costs.sh reads both off
-# a CI run's summaries).
+# arm64, and e2e and backends ci.yml's shards of those groups
+# (scratch/shard_costs.sh reads them off a CI run's summaries).
 _HI_TEST_COSTS_KCOV="
   ssh_keep:272 framework:140 kube:112 ssh:60 ssh_relay:45 podman:40
   hi_payload_scan:35 home_prompt:34 test_lib:34 configure_pty:32
@@ -207,6 +207,9 @@ _HI_TEST_COSTS_E2E="
   framework:111 ssh_keep:85 repo:52 ssh_relay:51 install_methods:43 ssh:30
   ssh_disconnect:25 ssh_wire:21 home_prompt:15 docker:9
 "
+_HI_TEST_COSTS_BACKENDS="
+  kube:98 nerdctl:28 podman:25 nomad:14
+"
 
 # _hi_test_cost <name> - its entry in $_HI_SHARD_BY's table in $_hi_cost, 5
 # for none. Out here, not in the substitution that deals by it: bash 3.2
@@ -217,6 +220,7 @@ function _hi_test_cost() {
   bashcov) costs="$_HI_TEST_COSTS_BASHCOV" ;;
   gitbash) costs="$_HI_TEST_COSTS_GITBASH" ;;
   e2e) costs="$_HI_TEST_COSTS_E2E" ;;
+  backends) costs="$_HI_TEST_COSTS_BACKENDS" ;;
   esac
   costs=" ${costs//$'\n'/ } " _hi_cost=5
   case "$costs" in *" $1:"*)
@@ -228,7 +232,7 @@ function _hi_test_cost() {
 
 # _hi_shard_by_cost - does $_HI_SHARD_BY name a table above
 function _hi_shard_by_cost() {
-  case "${_HI_SHARD_BY:-}" in kcov | bashcov | gitbash | e2e) return 0 ;; esac
+  case "${_HI_SHARD_BY:-}" in kcov | bashcov | gitbash | e2e | backends) return 0 ;; esac
   return 1
 }
 
@@ -414,7 +418,7 @@ fi
 # by it instead: the costliest suite first, each to the slice that costs
 # least so far, the first of equals - the same partition on every runner,
 # and slices that take about as long, but slices of different n do not
-# compose. The Windows client's and ci.yml's e2e shards are dealt so, and
+# compose. The Windows client's and ci.yml's e2e and backends shards are dealt so, and
 # coverage.yml's by their tracer.
 if [ -n "$_HI_SHARD" ]; then
   _hi_shard_i="${_HI_SHARD%%/*}"

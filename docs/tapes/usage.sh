@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Renders docs/USAGE.md's images: each row of docs/tapes/usage run as
 # `hi <flag> <example>` and drawn by freeze as <out>/usage-<flag>[-<n>].svg.
-# .github/workflows/usage.yml renders them and pages.yml serves them beside the
-# demo GIFs; nothing commits them. The page's text is not written here: the
+# .github/workflows/usage.yml renders them on main and pages.yml serves them
+# beside the demo GIFs; ci.yml's quick-lint renders a pull request's; nothing
+# commits them. The page's text is not written here: the
 # docs prettier plugin builds it from the same table and common/flags.
 #
 # Every example runs in a fresh throwaway home - an ssh config with a tagged

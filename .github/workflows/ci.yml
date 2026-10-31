@@ -45,17 +45,16 @@ jobs:
   # past a skipped need.
   #
   # Whether anything besides workflow YAML or markdown changed: test-ubuntu,
-  # test-arm, test-macos, test-alpine, profile, packaging-smoke, nix-flake,
-  # e2e, and e2e-backends skip on a workflow-only or docs-only diff. workflow-lint,
-  # advisory-lint, and secret-scan are exempt - such a
-  # change is what they audit - and so are lint and bench: the lint group
-  # checks the Markdown itself and bench_test.sh README.md's payload badge,
-  # and both are cheap (~40s); they read `reuse-run` only, never `code`.
+  # test-arm, test-macos, test-alpine, profile, packaging-smoke,
+  # e2e, and e2e-backends skip on a workflow-only or docs-only diff. quick-lint
+  # is exempt - such a change is what it audits - and so is lint: the lint group
+  # checks the Markdown itself and bench_test.sh README.md's payload badge.
+  # Both read `reuse-run` only, never `code`.
   #
   # A push to main whose tree a same-repo PR run already took green (a squash
   # merge of an up-to-date PR, the usual case) is the same code twice: the
   # push finds that run's ci-tree-<tree> marker, `code` reads false, and every
-  # job below skips - lint, workflow-lint, advisory-lint, and bench included,
+  # job below skips - lint and quick-lint included,
   # through `reuse-run`. The carry-forward steps below hand the PR run's
   # results to what reads main's newest run.
   changes:
@@ -340,7 +339,7 @@ jobs:
       !cancelled() && github.event.pull_request.draft != true
       && needs.changes.outputs.reuse-run == ''
     runs-on: ubuntu-26.04
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
@@ -385,6 +384,18 @@ jobs:
         with:
           extra-packages: neovim emacs-nox
 
+      # Hot-path timings against generous ceilings: catches an order-of-magnitude
+      # regression (a fork in a loop, a probe losing its timeout) and logs the
+      # numbers for eyeballing trends. First, so the lint group's fan-out cannot
+      # skew them; continue-on-error, so a red one still gets the lint group's
+      # verdict, and the last step fails the job.
+      - id: bench
+        name: Run benchmarks
+        continue-on-error: true
+        env:
+          _HI_RUN_DEADLINE: "420"
+        run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group bench"
+
       # the lint suite's shfmt/checkbashisms halves skip yellow when the tools
       # are absent - these pinned installs are what make them enforce here.
       # release.yml's build job passes the identical list, which is the cache key
@@ -417,6 +428,10 @@ jobs:
       # files only; .claude/ is agent config, not docs.
       - name: Check relative links and anchors in the Markdown
         run: git ls-files -z '*.md' ':!:.claude/**' | xargs -0 lychee --config lychee.toml --offline --include-fragments --no-progress
+
+      - name: Fail if the benchmarks did
+        if: steps.bench.outcome == 'failure'
+        run: exit 1
 
   # The same suites on macOS: /bin/bash 3.2, BSD userland - a real gate (the
   # %e/width/sort fixes in common/ came out of it). No lint group here: that is
@@ -659,50 +674,54 @@ jobs:
               git config --global --add safe.directory \"\$PWD\" &&
               _HI_HOME=/home/hi/hi-tree _HI_RUN_DEADLINE=420 bash tests/test_runner.sh --host-report --group fast"'
 
-  # actionlint (bad `needs`, invalid contexts, shellcheck over every run:) and
-  # zizmor (the Actions security audit; its one deliberate exception, the
-  # credentialed release checkout, is suppressed inline). One job, two steps
-  # each with continue-on-error so a finding in one does not stop the other
-  # from reporting; the trailing step fails the job if either did.
+  # The checks that take seconds and need no setup of their own, on one runner:
+  # actionlint, the workflow conventions, zizmor, gitleaks, hadolint, and a pull
+  # request's usage render. Each gate's step is continue-on-error, so a finding
+  # in one does not stop the next from reporting; the trailing step fails the
+  # job if any did. Keep this job on the ruleset's required checks: gitleaks
+  # is a merge gate (docs/CONTRIBUTING.md).
   #
   # Local actions are `uses: ./.github/...`, not zizmor's `$/...`
   # self-repository syntax, which Scorecard reads as unpinned third-party
   # actions (.github/zizmor.yml disables that audit).
-  workflow-lint:
-    name: workflow lint
+  quick-lint:
+    name: quick lint
     needs: changes
     if: >-
       !cancelled() && github.event.pull_request.draft != true
       && needs.changes.outputs.reuse-run == ''
     runs-on: ubuntu-26.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
           disable-sudo: true
-          # Off this job's own audit log: the checkout and the cache, plus
-          # github.com and api.github.com from zizmor itself - it resolves the
-          # actions it audits online, which no other lint job here does. That
-          # run hit the tool cache, so the two release hosts are added for a
-          # cold one, as in advisory-lint; they are setup-tool's download path
-          # recorded in release.yml's allowlist.
+          # The union of the four jobs' lists this replaced: the checkout and
+          # the cache, github.com and api.github.com from zizmor, which resolves
+          # the actions it audits online, and setup-tool's download path for a
+          # cold run (release.yml's allowlist records it). The rest of the render
+          # is local.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
+            codeload.github.com:443
             results-receiver.actions.githubusercontent.com:443
             release-assets.githubusercontent.com:443
             objects.githubusercontent.com:443
 
+      # full history: gitleaks reads every commit reachable from the checkout,
+      # and `hi --version` in the usage images shows git describe
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       # actionlint shells out to shellcheck for run: blocks when it is on
       # PATH - pin it so both tools lint shell with the same version
       - uses: ./.github/actions/setup-tools
         with:
-          tools: shellcheck actionlint zizmor
+          tools: shellcheck actionlint zizmor gitleaks hadolint freeze
 
       - id: actionlint
         name: Lint the workflows
@@ -726,87 +745,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: zizmor --no-progress .
 
-      - name: Fail if any found something
-        if: steps.actionlint.outcome == 'failure' || steps.lint-workflows.outcome == 'failure' || steps.zizmor.outcome == 'failure'
-        run: exit 1
-
-  # Every commit reachable from the checkout, not just this diff: a secret
-  # pushed and then deleted is still in the history anyone can clone. The
-  # binary needs no token, so a fork PR runs it too. --redact keeps a finding's
-  # value out of the public log; a false positive goes in a .gitleaks.toml
-  # allowlist with its reason, never a wider ignore.
-  secret-scan:
-    name: secret scan (gitleaks)
-    needs: changes
-    if: >-
-      !cancelled() && github.event.pull_request.draft != true
-      && needs.changes.outputs.reuse-run == ''
-    runs-on: ubuntu-26.04
-    timeout-minutes: 5
-    steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-        with:
-          egress-policy: block
-          disable-sudo: true
-          # Off this job's own audit log: the checkout and the cache. That run
-          # hit the tool cache, so the two release hosts cover a cold gitleaks
-          # download - setup-tool's path, as recorded in release.yml's own
-          # allowlist.
-          allowed-endpoints: >
-            github.com:443
-            results-receiver.actions.githubusercontent.com:443
-            release-assets.githubusercontent.com:443
-            objects.githubusercontent.com:443
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - uses: ./.github/actions/setup-tools
-        with:
-          tools: gitleaks
-
-      - name: Scan the full history for secrets
+      # Every commit reachable from the checkout, not just this diff: a secret
+      # pushed and then deleted is still in the history anyone can clone. The
+      # binary needs no token, so a fork PR runs it too. --redact keeps a
+      # finding's value out of the public log; a false positive goes in a
+      # .gitleaks.toml allowlist with its reason, never a wider ignore.
+      - id: gitleaks
+        name: Scan the full history for secrets
+        continue-on-error: true
         run: gitleaks git --redact --no-banner --verbose .
 
-  # Advisory, not a gate: a dockerfile nit has never shipped a bug. The lint
-  # step's verdict is an output read afterwards, so findings still show in the
-  # log, and ./.github/actions/advisory-note restates it as a warning in the
-  # run summary; `continue-on-error` on the *job* would paint it green and hide
-  # the result. Keep this job off branch protection's required checks when
-  # they are set (docs/CONTRIBUTING.md) - it is designed to be ignorable.
-  advisory-lint:
-    name: advisory lint
-    needs: changes
-    if: >-
-      !cancelled() && github.event.pull_request.draft != true
-      && needs.changes.outputs.reuse-run == ''
-    runs-on: ubuntu-26.04
-    timeout-minutes: 5
-    steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-        with:
-          egress-policy: block
-          disable-sudo: true
-          # This job's own audit log named github.com (checkout) and
-          # results-receiver.actions.githubusercontent.com (the cache), with
-          # the productionresultssa* blob harden-runner allows itself. It was
-          # a cache hit, so hadolint never downloaded: the two release hosts
-          # below are setup-tool's download path, recorded in release.yml's
-          # own allowlist for the same code, and are here so a cold run works
-          # too. GitHub meta domains need no row; these githubusercontent.com
-          # ones are not meta and do.
-          allowed-endpoints: >
-            github.com:443
-            results-receiver.actions.githubusercontent.com:443
-            release-assets.githubusercontent.com:443
-            objects.githubusercontent.com:443
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
+      # Advisory, not a gate: a dockerfile nit has never shipped a bug.
+      # ./.github/actions/advisory-note restates the verdict as a warning in the
+      # run summary, and it never reaches the trailing step.
+      #
       # .hadolint.yaml's ignore list is version pins (DL3008/DL3018/DL3041)
       # and fixture-shape rules (DL3002, DL3066, SC2016) that have a written
       # reason to stay. Everything else,
@@ -814,10 +766,7 @@ jobs:
       # DL4006 (curl piped into sh with no pipefail, where a 404 builds a
       # green image with the framework missing), is fixed in the fixtures
       # rather than ignored here.
-      - uses: ./.github/actions/setup-tools
-        with:
-          tools: hadolint
-
+      #
       # `|| true` and a verdict read afterwards rather than continue-on-error:
       # hadolint exits non-zero per file and every one must be linted first.
       - id: hadolint
@@ -846,46 +795,33 @@ jobs:
           warning-body: Dockerfile lint findings above - advisory, not blocking
           heading: hadolint found something
           body: |
-            Advisory only: this job never blocks a merge. `.hadolint.yaml` carries a
+            Advisory only: this never blocks a merge. `.hadolint.yaml` carries a
             reason per silenced rule; anything reaching here is deliberately left visible.
           report-file: ${{ runner.temp }}/hadolint.truncated
 
-  # Hot-path timings against generous ceilings: catches an order-of-magnitude
-  # regression (a fork in a loop, a probe losing its timeout) and logs the
-  # numbers for eyeballing trends.
-  bench:
-    name: hot-path benchmarks
-    needs: changes
-    if: >-
-      !cancelled() && github.event.pull_request.draft != true
-      && needs.changes.outputs.reuse-run == ''
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
-    steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      # A pull request into main renders docs/USAGE.md's images, so an example a
+      # flag change broke fails here; usage.yml renders the site's on a push.
+      - id: usage
+        name: Render the usage images
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        continue-on-error: true
+        run: docs/tapes/usage.sh
+
+      # for reviewing the change; pages.yml reads only usage.yml's
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.usage.outcome == 'success'
         with:
-          egress-policy: block
-          # Off this job's own audit log: the checkout, the cache, and what
-          # setup-shells' apt reaches. See test-ubuntu above for why
-          # dl.google.com is here and why the Ubuntu mirror is port 80.
-          allowed-endpoints: >
-            github.com:443
-            results-receiver.actions.githubusercontent.com:443
-            azure.archive.ubuntu.com:80
-            esm.ubuntu.com:443
-            motd.ubuntu.com:443
-            dl.google.com:443
+          name: usage-svgs
+          path: docs/tapes/usage-*.svg
+          retention-days: 7
+          if-no-files-found: error
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-shells
-
-      - name: Run benchmarks
-        env:
-          _HI_RUN_DEADLINE: "420"
-        run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group bench"
+      - name: Fail if any found something
+        if: >-
+          steps.actionlint.outcome == 'failure' || steps.lint-workflows.outcome == 'failure'
+          || steps.zizmor.outcome == 'failure' || steps.gitleaks.outcome == 'failure'
+          || steps.usage.outcome == 'failure'
+        run: exit 1
 
   # Per-command profiles of the same four hot paths, through timep in the
   # tests/dockerfiles/timep.Dockerfile box (tests/profile.sh's header says why a
@@ -934,13 +870,13 @@ jobs:
           if-no-files-found: ignore
 
   # catches nfpm.yaml/install_tree breakage on the PR that causes it, not at
-  # the next release tag
+  # the next release tag; the nix channel the same way, in the steps at the end
   packaging-smoke:
-    name: package build (deb, rpm, apk)
+    name: package build (deb, rpm, apk, nix)
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-26.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
@@ -948,9 +884,15 @@ jobs:
           # Off this job's own audit log: the checkout, the cache, the images
           # mkrepo builds in, and the debian/alpine packages inside them. The
           # release hosts cover a cold nfpm download, which this run took from
-          # cache.
+          # cache. nix's installer and binary cache serve the flake, which
+          # serves the nixpkgs source flake.lock names too; GitHub's API and
+          # codeload are the fallback for a pinned revision the cache lacks.
           allowed-endpoints: >
             github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            releases.nixos.org:443
+            cache.nixos.org:443
             results-receiver.actions.githubusercontent.com:443
             registry-1.docker.io:443
             auth.docker.io:443
@@ -994,7 +936,7 @@ jobs:
           set -euo pipefail
           docker run --rm -v "$PWD/dist:/dist:ro" \
             -v "$RUNNER_TEMP/smoke.rsa.pub:/etc/apk/keys/say-hi.rsa.pub:ro" \
-            alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 \
+            alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a \
             sh -c 'apk add /dist/say-hi_*_noarch.apk && sh -lc "hi --version" && ls /usr/share/say-hi/common/core.sh'
 
       # The reproducibility contract: the same commit builds byte-identical
@@ -1053,42 +995,21 @@ jobs:
             --tarball "$RUNNER_TEMP/package-repo.tar.gz"
           echo "package-repo.tar.gz: $(tar -tzf "$RUNNER_TEMP/package-repo.tar.gz" | grep -c '[^/]$') files"
 
-  # The nix channel on the PR that breaks it: the flake's package builds from
-  # the committed flake.lock, its install check answers `hi --version` out of
-  # the store, and `nix run` starts hi.
-  nix-flake:
-    name: nix flake
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
-    steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-        with:
-          egress-policy: block
-          # Off this job's own audit log: the checkout, nix's installer, and
-          # the binary cache, which serves the nixpkgs source flake.lock names
-          # too. GitHub's API and codeload are the fallback for a pinned
-          # revision the cache lacks, and went uncalled on that run.
-          allowed-endpoints: >
-            github.com:443
-            api.github.com:443
-            codeload.github.com:443
-            releases.nixos.org:443
-            cache.nixos.org:443
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      # The nix channel on the PR that breaks it: the flake's package builds from
+      # the committed flake.lock, its install check answers `hi --version` out of
+      # the store, and `nix run` starts hi. !cancelled(), so a red package step
+      # above still gets nix's verdict.
+      - if: ${{ !cancelled() }}
+        uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
 
       # --no-update-lock-file: a flake.lock that is missing or behind
       # flake.nix fails here instead of being rewritten for this run alone
       - name: Build the flake and run its checks
+        if: ${{ !cancelled() }}
         run: nix flake check --no-update-lock-file --print-build-logs
 
       - name: Start hi through nix run
+        if: ${{ !cancelled() }}
         run: nix run --no-update-lock-file . -- --version
 
   # Beside the fast suites, not after them: this and e2e-backends each take
@@ -1182,9 +1103,10 @@ jobs:
         run: |
           "${{ github.workspace }}/tests/test_runner.sh" --host-report --require-run --group e2e --shard "$HI_SHARD"
 
-  # One backend per shard, a runner apiece: the three serial on one runner take
-  # 40 minutes (one shared container/VM daemon is what test_runner.sh's width
-  # pin protects against).
+  # Two shards dealt by $_HI_TEST_COSTS_BACKENDS: kube on a runner of its own
+  # for its cluster, and podman, nerdctl, and nomad, about a minute together,
+  # one at a time on the other (test_runner.sh's width pin for a shared
+  # container daemon).
   e2e-backends:
     name: e2e (podman, nerdctl, nomad, kube, shard ${{ matrix.shard }})
     runs-on: ubuntu-26.04
@@ -1194,16 +1116,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/4, 2/4, 3/4, 4/4]
-        # one backend per shard, in the suite table's order (backends:podman,
-        # backends:nerdctl, backends:nomad, backends:kube) - setup-backends
-        # then installs only what this shard's suite drives instead of all
-        # four every time
+        shard: [1/2, 2/2]
+        # setup-backends installs only what each shard's suites drive
         include:
-          - { shard: 1/4, backends: podman }
-          - { shard: 2/4, backends: nerdctl }
-          - { shard: 3/4, backends: nomad }
-          - { shard: 4/4, backends: kind }
+          - { shard: 1/2, backends: kind }
+          - { shard: 2/2, backends: podman nerdctl nomad }
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
@@ -1212,11 +1129,10 @@ jobs:
           # shard took podman from ubuntu's own repo and never installed nomad,
           # so apt.releases.hashicorp.com is here from
           # setup-backends/install.sh, and the release hosts cover kind's binary
-          # download. The union across all three shards, which sweep one suite
-          # set between them, so which shard reaches a host is arbitrary. The
+          # download. The union across the shards. The
           # kube rows came from a cold run: on the run this list was first built
           # from, kind-action restored kind from actions/cache and never fetched
-          # kubectl, so dl.k8s.io was missing and shard 3 went red on it.
+          # kubectl, so dl.k8s.io was missing and its shard went red on it.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -1245,11 +1161,11 @@ jobs:
         with:
           backends: ${{ matrix.backends }}
 
-      # same contract as e2e's above: three suites, three shards - one
-      # backend each
+      # same contract as e2e's above
       - name: Run this shard of the backend end-to-end suites
         env:
           HI_SHARD: ${{ matrix.shard }}
+          _HI_SHARD_BY: backends
           _HI_RUN_DEADLINE: "420"
         run: |
           "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group backends --shard "$HI_SHARD"

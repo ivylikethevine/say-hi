@@ -1,15 +1,12 @@
 name: Usage
 
 # Renders docs/USAGE.md's images (docs/tapes/usage.sh) and ships them as the
-# artifact pages.yml serves beside the demo GIFs. A pull request renders them
-# too, so an example a flag change broke fails there; only a push to main's
-# artifact reaches the site. Nothing is committed back. A workflow of its own
-# rather than a ci.yml job: a merge's CI run skips every job whose tree a PR
-# run already took green, and the site's artifact has to come from main.
+# artifact pages.yml serves beside the demo GIFs. ci.yml's quick-lint renders
+# them on a pull request, so an example a flag change broke fails there. Nothing
+# is committed back. A workflow of its own rather than a ci.yml job: a merge's
+# CI run skips every job whose tree a PR run already took green, and the site's
+# artifact has to come from main.
 on:
-  pull_request:
-    branches: [main] # PRs into dev run only CI and CodeQL
-    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
   workflow_dispatch:
@@ -18,13 +15,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: usage-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: usage-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   render:
     name: render the usage images
-    if: github.event.pull_request.draft != true
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
@@ -54,8 +50,7 @@ jobs:
       - name: Render
         run: docs/tapes/usage.sh
 
-      # 90 days on main, the site's source until the next push; a pull
-      # request's are for reviewing the change and go sooner
+      # 90 days on main, the site's source until the next push
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: usage-svgs

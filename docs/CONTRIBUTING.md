@@ -71,39 +71,34 @@ workflows.
 ## What CI runs
 
 Every check on your pull request, and whether a red one fails the run or only
-reports. All but the last five rows are `ci.yml`'s.
+reports. All but the last four rows are `ci.yml`'s.
 
-| Job                                                                    | Runs on your PR                                                            | Gate or advisory?                                                |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `fast suites (ubuntu-26.04)`                                           | Skipped on a workflow- or docs-only diff; the `ci` group runs here only    | Gate                                                             |
-| `fast suites (ubuntu-24.04-arm)`                                       | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
-| `lint suites (ubuntu-26.04)` (the lint group, markdownlint + prettier) | Always                                                                     | Gate                                                             |
-| `fast suites (macos-latest)`                                           | Skipped on a workflow- or docs-only diff; same-repo PRs also ssh to itself | Gate                                                             |
-| `fast suites (Alpine client)`                                          | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
-| `workflow lint` (actionlint + zizmor)                                  | Always                                                                     | Gate                                                             |
-| `secret scan (gitleaks)`                                               | Always; the full history, findings redacted                                | Gate                                                             |
-| `advisory lint` (hadolint)                                             | Always                                                                     | Advisory — reports, never fails the job                          |
-| `hot-path benchmarks`                                                  | Always                                                                     | Gate                                                             |
-| `hot-path profiles (timep)`                                            | Skipped on a workflow- or docs-only diff                                   | Advisory — `continue-on-error`                                   |
-| `package build (deb, rpm, apk)`                                        | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
-| `nix flake` (builds the flake, then `nix run`)                         | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
-| `e2e (ssh, docker)`                                                    | Three shards beside the fast suites; the check itself runs only to fail    | Gate                                                             |
-| `e2e (podman, nomad, kube)`                                            | Three shards beside the fast suites; the check itself runs only to fail    | Gate                                                             |
-| `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)`                    | Same-repo PRs, after the arm64 fast suites pass                            | Gate, but see below                                              |
-| `fast suites (Windows client)`                                         | Same-repo PRs, skipped on a workflow- or docs-only diff; eight runners     | Gate, but see below                                              |
-| `release note (pr body)` (`release-note.yml`)                          | Every body edit and push; Dependabot's PRs skip                            | Gate                                                             |
-| `dependency review` (`dependency-review.yml`)                          | Always; fails on a new dependency with a high or critical advisory         | Gate                                                             |
-| `render the usage images` (`usage.yml`)                                | Always; runs every `docs/tapes/usage` example                              | Gate                                                             |
-| `CodeQL (actions)` (`codeql.yml`)                                      | Always                                                                     | Blocks a merge on a high alert (`main`'s ruleset)                |
-| `coverage.yml`'s kcov and bashcov sweep                                | bashcov on same-repo PRs, as a comment; kcov on `main`                     | Advisory — never blocks a PR; a failed suite publishes no figure |
+| Job                                                                               | Runs on your PR                                                            | Gate or advisory?                                                |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `fast suites (ubuntu-26.04)`                                                      | Skipped on a workflow- or docs-only diff; the `ci` group runs here only    | Gate                                                             |
+| `fast suites (ubuntu-24.04-arm)`                                                  | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
+| `lint suites (ubuntu-26.04)` (the bench and lint groups, markdownlint + prettier) | Always                                                                     | Gate                                                             |
+| `fast suites (macos-latest)`                                                      | Skipped on a workflow- or docs-only diff; same-repo PRs also ssh to itself | Gate                                                             |
+| `fast suites (Alpine client)`                                                     | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
+| `quick lint` (actionlint + zizmor, gitleaks, hadolint, the usage images)          | Always; hadolint only reports; the usage images on a PR into `main`        | Gate                                                             |
+| `hot-path profiles (timep)`                                                       | Skipped on a workflow- or docs-only diff                                   | Advisory — `continue-on-error`                                   |
+| `package build (deb, rpm, apk, nix)` (then builds the flake and `nix run`s it)    | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
+| `e2e (ssh, docker)`                                                               | Three shards beside the fast suites; the check itself runs only to fail    | Gate                                                             |
+| `e2e (podman, nomad, kube)`                                                       | Two shards beside the fast suites; the check itself runs only to fail      | Gate                                                             |
+| `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)`                               | Same-repo PRs, after the arm64 fast suites pass                            | Gate, but see below                                              |
+| `fast suites (Windows client)`                                                    | Same-repo PRs, skipped on a workflow- or docs-only diff; eight runners     | Gate, but see below                                              |
+| `release note (pr body)` (`release-note.yml`)                                     | Every body edit and push; Dependabot's PRs skip                            | Gate                                                             |
+| `dependency review` (`dependency-review.yml`)                                     | Always; fails on a new dependency with a high or critical advisory         | Gate                                                             |
+| `CodeQL (actions)` (`codeql.yml`)                                                 | Always                                                                     | Blocks a merge on a high alert (`main`'s ruleset)                |
+| `coverage.yml`'s kcov and bashcov sweep                                           | bashcov on same-repo PRs, as a comment; kcov on `main`                     | Advisory — never blocks a PR; a failed suite publishes no figure |
 
 Nothing runs on a draft: every job skips until the PR is marked ready, which
 fires a full run. "Skipped on a workflow- or docs-only diff" is `ci.yml`'s
 `changes` job: a PR touching only `.github/workflows/**` or Markdown can't move
 those results. The "Always" jobs are the ones such a diff can: a new action
 arrives through a workflow, and a docs change is what `lint suites`
-(markdownlint, prettier, and lychee's offline link and `#fragment` check) and
-the README-badge half of `hot-path benchmarks` read. `dependency review` diffs
+(markdownlint, prettier, lychee's offline link and `#fragment` check, and the
+bench group's README badge) reads. `dependency review` diffs
 a PR's base against its head, so it runs on pull requests only.
 
 None of it runs twice on the same code: a push to `main` whose tree a same-repo
@@ -116,13 +111,11 @@ way.
 on its own, that it blocks the merge button. `main`'s ruleset requires nine
 checks, on a branch up to date with `main`: `fast suites (ubuntu-26.04)`,
 `fast suites (macos-latest)`, `lint suites (ubuntu-26.04)`,
-`package build (deb, rpm, apk)`, `e2e (ssh, docker)`,
+`package build (deb, rpm, apk, nix)`, `e2e (ssh, docker)`,
 `e2e (podman, nomad, kube)` — the e2e pair by aggregate name, since the shard
 count is a knob, each skipped (which a ruleset counts as passing) unless a
-shard that should have run is not green — `secret scan (gitleaks)`,
+shard that should have run is not green — `quick lint`,
 `dependency review`, and `release note (pr body)`, plus CodeQL reporting no high-or-higher alert.
-`workflow lint` belongs on that list under exactly that name; until then it
-still fails its run.
 
 `e2e (Windows)`, `e2e (FreeBSD)`, `e2e (OpenBSD)`, and
 `fast suites (Windows client)` run on a pull request only when its head branch
@@ -130,8 +123,8 @@ lives in this repository: each stands up an sshd and authorizes a throwaway
 key, which is not something to hand a fork's PR (the first three sit behind
 `test-arm`; the macOS job's loopback steps skip on a fork for the same reason).
 A fork's PR would never report them, so they stay off the required list;
-`fast suites (Alpine client)`, `fast suites (ubuntu-24.04-arm)`, and
-`nix flake` are off it until they have a track record. None carries
+`fast suites (Alpine client)` and `fast suites (ubuntu-24.04-arm)` are off it
+until they have a track record. None carries
 `continue-on-error`, so a red one still fails the run.
 
 Every other workflow runs on a schedule, after CI on `main`, on a tag, or on
@@ -185,7 +178,7 @@ These are constraints the tree enforces, not requests:
   `timeout-minutes`. Beside it: third-party actions pinned to a full SHA with a
   `# vX.Y.Z` comment, every checkout with `persist-credentials: false`,
   least-privilege `permissions:`, and untrusted input passed through `env:`
-  rather than an inline expression in a `run:`. The `packaging_ci` suite and `workflow lint` enforce them.
+  rather than an inline expression in a `run:`. The `packaging_ci` suite and `quick lint` enforce them.
 
 ## What 1.x will not break
 
@@ -349,7 +342,7 @@ Five credentials are handled by hand — the three signing keys, `AUR_SSH_KEY`,
 and `HOMEBREW_TAP_TOKEN`, each generated locally, pasted into a settings page,
 and deleted; [RELEASING.md](RELEASING.md#the-release-environment) walks each.
 Push protection is the guard because it runs on the push path, where no action
-can; behind it, `secret scan (gitleaks)` sweeps the full history for anything
+can; behind it, gitleaks in `quick lint` sweeps the full history for anything
 that got past.
 
 ## Governance
