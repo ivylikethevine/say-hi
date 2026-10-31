@@ -1,5 +1,7 @@
 # Resolve the autostash conflicts
 
+Status: done.
+
 ## Context
 
 A pull with `--autostash` on `dev` left the autostash (`stash@{0}`) half

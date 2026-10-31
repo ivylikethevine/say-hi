@@ -656,8 +656,8 @@ function test_src_tarball_ships_an_executable_hi_sh() {
   tar -xzf "$out" -C "$dir" || _hi_why out dir || return 1
   [ -x "$dir/say-hi-9.9.9/hi.sh" ] || _hi_why dir || return 1
   # ...and the changelog, which the gate holds to the tag's version
-  [ -f "$dir/say-hi-9.9.9/CHANGELOG.md" ] ||
-    _hi_because "no CHANGELOG.md in a git archive of HEAD - is it committed?"
+  [ -f "$dir/say-hi-9.9.9/docs/CHANGELOG.md" ] ||
+    _hi_because "no docs/CHANGELOG.md in a git archive of HEAD - is it committed?"
 }
 
 # _hi_changelog_run <dir> <args...> - changelog.sh over <dir>/CHANGELOG.md, a
@@ -668,7 +668,7 @@ function _hi_changelog_run() {
   shift
   if [ ! -d "$dir/bin" ]; then
     mkdir -p "$dir/bin"
-    sed '/^## /,$d' "$_HI_ROOT/CHANGELOG.md" >"$dir/CHANGELOG.md"
+    sed '/^## /,$d' "$_HI_ROOT/docs/CHANGELOG.md" >"$dir/CHANGELOG.md"
     cat >"$dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in

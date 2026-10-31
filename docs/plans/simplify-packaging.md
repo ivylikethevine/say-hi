@@ -1,5 +1,7 @@
 # Simplify `packaging/`
 
+Status: done; the Outcome section at the end has what was applied.
+
 ## Context
 
 `/simplify packaging` asked for a cleanup review of `packaging/` (16 files,

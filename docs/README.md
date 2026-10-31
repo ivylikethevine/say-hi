@@ -15,7 +15,7 @@ home, the doc named for it below, and every other page links there.
 | [Colors](COLORS.md)                                                          | The per-host hash, the pins, the 24-bit scheme, and the package check's ramp and rows.                                                                    |
 | [Compatibility](COMPATIBILITY.md)                                            | Every target, OS, and shell hi answers to, and every runtime, shell, and feature answered **no**, and why.                                                |
 | [Packaging](PACKAGING.md)                                                    | The install channels, verifying a release download, and what a package leaves for you to do.                                                              |
-| [Changelog](../CHANGELOG.md)                                                 | What each release changed for someone using hi, newest first, from its pull requests' release notes.                                                      |
+| [Changelog](CHANGELOG.md)                                                    | What each release changed for someone using hi, newest first, from its pull requests' release notes.                                                      |
 | [Troubleshooting](TROUBLESHOOTING.md)                                        | Symptom, cause, and fix: installing, your own machine, connecting, and inside a session.                                                                  |
 | [Getting help](SUPPORT.md)                                                   | Where to ask a question or file a bug, what to include, what response to expect, and the changes already turned down, with the reasons.                   |
 | [Security policy](SECURITY.md)                                               | The threat model, what hi touches on a target, the scanning policy, supported versions, and how to report a vulnerability.                                |
@@ -35,6 +35,7 @@ home, the doc named for it below, and every other page links there.
 
 | Doc                                   | Covers                                                                                                                                               |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Roadmap](ROADMAP.md)                 | What is left to build, and what the 1.0 tag and the releases after it wait on.                                                                       |
 | [Contributing](CONTRIBUTING.md)       | The gate, what CI runs, what a review bounces on, what 1.x will not break, which docs change with what, AI-assisted contributions, push protection.  |
 | [Testing](TESTING.md)                 | The runner, suite groups, parallel cases, coverage, the test images, the lint gate, test levers, relaying.                                           |
 | [Portable spellings](SYNTAX.md)       | How to write a command so every target runs it - sed, grep, awk, pipes under strict mode, bash 3.2, Git Bash - and what catches each slip.           |

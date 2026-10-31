@@ -86,7 +86,7 @@ flake passes its commit's date; `stamp.sh` refuses to guess one.
 **nixpkgs**: not submitted yet. The flake in this repository is the nix channel
 ([Nix flake](#nix-flake)); nixpkgs, where nix users look first, wants upstream
 review and a standing maintainer entry, so it waits on 1.0
-([README's Release Stages](../README.md#release-stages)).
+([the roadmap's Release Stages](ROADMAP.md#release-stages)).
 
 **Homebrew core**: not eligible yet. Homebrew's acceptance policy asks a
 project its author submits for 90 forks, 90 watchers, or 225 stars, and core

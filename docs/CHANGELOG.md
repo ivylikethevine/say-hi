@@ -3,8 +3,8 @@
 What changed for someone using hi, release by release, newest first: each
 entry is its pull requests' release notes, written before the tag by
 `.github/scripts/changelog.sh`
-([RELEASING.md](docs/RELEASING.md#cutting-a-release)), and the
-[roadmap](README.md#roadmap) entries finished since the last one, a sentence
+([RELEASING.md](RELEASING.md#cutting-a-release)), and the
+[roadmap](ROADMAP.md) entries finished since the last one, a sentence
 each; they, and the sentences of work not yet merged, wait under
 `## Unreleased` until then. Releases before the first
 entry list theirs on
@@ -14,7 +14,7 @@ entry list theirs on
 
 From the roadmap:
 
-- The README opens with the pitch, the sixty-second install, and a GIF of a 502 fixed on a web host with the aliases and vimrc that ride in; the seven stories moved to [TOUR.md](docs/TOUR.md).
+- The README opens with the pitch, the sixty-second install, and a GIF of a 502 fixed on a web host with the aliases and vimrc that ride in; the seven stories moved to [TOUR.md](TOUR.md).
 - Every release's source tarball carries a `CHANGELOG.md` that opens on that release's own entry.
 - The target side is measured on a Pi-class box, simulated by holding the target to an eighth of one core: a cold connect reaches its prompt in 559 ms there, against 272 ms at a full core, and hi's share of it is 390 ms against 140 ms.
 - A connect from a git checkout no longer runs `git describe` each time: the version it sends is kept in `.git/hi-version` until a commit, a checkout, a tag, or the index changes it.
