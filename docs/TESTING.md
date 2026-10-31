@@ -348,8 +348,10 @@ the suite table.
 
 The Windows client's shards and `ci.yml`'s e2e shards are dealt the same way,
 by `_HI_SHARD_BY=gitbash` (`$_HI_TEST_COSTS_GITBASH`, each suite's time under
-Git Bash on arm64) and `_HI_SHARD_BY=e2e` (`$_HI_TEST_COSTS_E2E`);
-`scratch/shard_costs.sh` re-reads either off a CI run's summary tables.
+Git Bash on arm64), `_HI_SHARD_BY=e2e` (`$_HI_TEST_COSTS_E2E`), and
+`_HI_SHARD_BY=backends` (`$_HI_TEST_COSTS_BACKENDS`, which leaves kube a runner
+to itself); `scratch/shard_costs.sh` re-reads any of them off a CI run's summary
+tables.
 
 - **kcov** runs its `PS4` method on every bash: `DEBUG` never follows a suite
   into a child bash, which reads every script run through `hi.sh` as 0.

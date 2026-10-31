@@ -29,7 +29,7 @@ name: Coverage
 # workflow completes, so a badge shows this run's figure as soon as the
 # sweep is done.
 #
-# pull_request too, for the comment job at the bottom: a same-repo, non-draft
+# pull_request too, for the comment gather-bashcov posts: a same-repo, non-draft
 # PR runs bashcov's sweep and gets its figure posted beside main's, one
 # comment edited in place per push. kcov sweeps main alone: the two sweeps
 # were half of every PR's runner time, and the PR's comment quotes main's
@@ -39,7 +39,7 @@ name: Coverage
 # Concurrency groups carry the PR number so a PR's sweep never cancels main's.
 #
 # A push whose tree its same-repo PR run already swept is not swept by
-# bashcov again: that run's `comment` job leaves a coverage-tree-<tree>
+# bashcov again: that run's gather-bashcov leaves a coverage-tree-<tree>
 # marker (./.github/actions/mark-tree), and `reuse` republishes its bashcov
 # figure under this run, where pages.yml and release.yml look - ci.yml's
 # push-to-main dedupe, same lookup. kcov always sweeps a push.
@@ -515,87 +515,34 @@ jobs:
   # lock file. Only the HTML index would need SimpleCov.collate and the gem
   # installed here, and nothing downstream reads it: pages.yml fetches the
   # coverage-pct/coverage-v2-pct artifacts alone.
+  #
+  # Then, on a same-repo PR, the two figures and case count beside main's newest
+  # (pages.yml's own lookups), as one comment edited in place on every push - see
+  # the header for why never a fork's. A sweep that was skipped or failed still
+  # gets its comment, so the job's `if:` holds both arms, and $HI_MERGE and
+  # $HI_COMMENT pick the steps. The checkout is for the merge, the composite
+  # actions, and the step that ranks the files, which is handed no token; two
+  # commits deep, so that step has the PR's base to diff against. A figure missing
+  # on either side reads "not measured", never 0. The comment names the pull
+  # request template's 90% target and flags an average below it - a target, not a
+  # gate: this job stays continue-on-error and fails nothing.
   gather-bashcov:
-    name: bashcov - merge shards and publish
+    name: bashcov - merge shards, publish, and comment
     needs: [reuse, shard-bashcov]
     if: >-
-      !cancelled() && needs.reuse.outputs.sweep == 'true' && needs.shard-bashcov.result == 'success' &&
-      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+      !cancelled() && (
+      (needs.reuse.outputs.sweep == 'true' && needs.shard-bashcov.result == 'success' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')) ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft))
     runs-on: ubuntu-26.04
-    # a merge takes a minute at most, so a runner that stalls (a harden-runner
-    # setup that never returns) is cut off at five, not left to fifteen
-    timeout-minutes: 5
+    # a merge takes a minute at most and the comment waits under three for the
+    # PR's case count, so a runner that stalls (a harden-runner setup that never
+    # returns) is cut off at ten, not left to fifteen
+    timeout-minutes: 10
     concurrency:
       group: coverage-bashcov-gather-${{ github.event.pull_request.number || 'main' }}
-      cancel-in-progress: true
-    continue-on-error: true
-    steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-        with:
-          egress-policy: block
-          # Off this job's own audit log, which named only the cache: this job
-          # merges the shards' parts and writes a figure.
-          allowed-endpoints: >
-            github.com:443
-            results-receiver.actions.githubusercontent.com:443
-
-      # for tests/coverage_v2.sh alone: the merge reads only the resultsets
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      # each shard's resultset lands in its own artifact-named subdirectory
-      # (merge-multiple: false, the default) - never merge-multiple here:
-      # every shard's file is literally named .resultset.json, and flattening
-      # them into one directory would let the last download overwrite every
-      # shard before it.
-      - name: Download every bashcov shard's resultset
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: coverage-parts-bashcov-*
-          path: coverage-v2-report/shards
-
-      # tests/coverage_v2.sh --merge: the union, a local sweep's own ranking
-      # and subject filter, and the badge figure the resultset does not carry
-      - name: Merge the shards, rank the files, and write the badge figure
-        run: tests/coverage_v2.sh --merge coverage-v2-report coverage-v2-report/shards
-
-      # same dotfile exclusion as the shard upload above
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: coverage-v2-report
-          path: coverage-v2-report/.resultset.json
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 90
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: hashFiles('coverage-v2-report/coverage-v2-pct/pct') != ''
-        with:
-          name: coverage-v2-pct
-          path: coverage-v2-report/coverage-v2-pct
-          if-no-files-found: error
-
-  # A same-repo PR's two figures and case count beside main's newest
-  # (pages.yml's own lookups), as one comment edited in place on every push - see the header for
-  # why never a fork's. The checkout is for that composite action and for
-  # the step that ranks the files, which is handed no token; two commits deep,
-  # so that step has the PR's base to diff against. A figure missing on either
-  # side reads
-  # "not measured", never 0. The comment names the pull request template's 90%
-  # target and flags an average below it - a target, not a gate: this job
-  # stays continue-on-error and fails nothing.
-  comment:
-    name: coverage (comment)
-    needs: [gather-kcov, gather-bashcov]
-    if: >-
-      always() && github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      !github.event.pull_request.draft
-    runs-on: ubuntu-26.04
-    timeout-minutes: 5
-    concurrency:
-      group: coverage-comment-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     continue-on-error: true
     # job-scoped, for Scorecard's Token-Permissions check: actions: read for
@@ -604,12 +551,16 @@ jobs:
       contents: read
       actions: read
       pull-requests: write
+    env:
+      HI_MERGE: ${{ needs.reuse.outputs.sweep == 'true' && needs.shard-bashcov.result == 'success' }}
+      HI_COMMENT: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
-          # Off this job's own audit log: it downloads the figures and posts
-          # them to the PR through the API.
+          # Off the audit logs of the two jobs this replaced: it merges the
+          # shards' parts and writes a figure, then downloads the figures and
+          # posts them to the PR through the API.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
@@ -620,23 +571,60 @@ jobs:
           persist-credentials: false
           fetch-depth: 2
 
+      # each shard's resultset lands in its own artifact-named subdirectory
+      # (merge-multiple: false, the default) - never merge-multiple here:
+      # every shard's file is literally named .resultset.json, and flattening
+      # them into one directory would let the last download overwrite every
+      # shard before it.
+      - name: Download every bashcov shard's resultset
+        if: env.HI_MERGE == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-parts-bashcov-*
+          path: coverage-v2-report/shards
+
+      # tests/coverage_v2.sh --merge: the union, a local sweep's own ranking
+      # and subject filter, and the badge figure the resultset does not carry
+      - name: Merge the shards, rank the files, and write the badge figure
+        if: env.HI_MERGE == 'true'
+        run: tests/coverage_v2.sh --merge coverage-v2-report coverage-v2-report/shards
+
+      # same dotfile exclusion as the shard upload above
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: env.HI_MERGE == 'true'
+        with:
+          name: coverage-v2-report
+          path: coverage-v2-report/.resultset.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: env.HI_MERGE == 'true' && hashFiles('coverage-v2-report/coverage-v2-pct/pct') != ''
+        with:
+          name: coverage-v2-pct
+          path: coverage-v2-report/coverage-v2-pct
+          if-no-files-found: error
+
       # the marker the push landing this tree on main looks for (`reuse`)
-      - uses: ./.github/actions/mark-tree
+      - if: ${{ !cancelled() && env.HI_COMMENT == 'true' }}
+        uses: ./.github/actions/mark-tree
         with:
           prefix: coverage-tree
 
-      # by name, into its own <artifact-name>/pct, absent where the gather
-      # published nothing; a PR sweeps no kcov, whose figure is main's below
-      - name: Download this run's bashcov figure
-        continue-on-error: true
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: coverage-v2-pct
-          path: ${{ runner.temp }}/pr/coverage-v2-pct
+      # absent where the merge published nothing; a PR sweeps no kcov, whose
+      # figure is main's below
+      - name: Take this run's bashcov figure
+        if: ${{ !cancelled() && env.HI_COMMENT == 'true' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pr"
+          [ ! -d coverage-v2-report/coverage-v2-pct ] || cp -R coverage-v2-report/coverage-v2-pct "$RUNNER_TEMP/pr/"
 
       # one lookup, both figures - dest-subdir carries no artifact name of its
       # own, so each still lands at main/<artifact-name>/pct, unchanged below
       - name: Fetch main's figures
+        if: ${{ !cancelled() && env.HI_COMMENT == 'true' }}
         uses: ./.github/actions/fetch-latest-artifact
         with:
           workflow: coverage.yml
@@ -654,6 +642,7 @@ jobs:
       # the whole run. None within the wait (a docs-only diff skips the job,
       # a red one uploads nothing) reads "not measured".
       - name: Fetch main's case count
+        if: ${{ !cancelled() && env.HI_COMMENT == 'true' }}
         uses: ./.github/actions/fetch-latest-artifact
         with:
           workflow: ci.yml
@@ -665,6 +654,7 @@ jobs:
 
       - name: Find this PR's CI case count
         id: pr-tests
+        if: ${{ !cancelled() && env.HI_COMMENT == 'true' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -684,7 +674,7 @@ jobs:
           done
           echo "no tests artifact on this PR's CI run yet - its case count reads not measured"
 
-      - if: steps.pr-tests.outputs.run != ''
+      - if: ${{ !cancelled() && steps.pr-tests.outputs.run != '' }}
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -700,6 +690,7 @@ jobs:
       # `files` and `missed` each gather uploads beside its figure. HEAD is the
       # PR's merge commit, so HEAD^1 is its base.
       - name: Rank the files, and list the changed lines bashcov did not run
+        if: ${{ !cancelled() && env.HI_COMMENT == 'true' }}
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -710,6 +701,7 @@ jobs:
 
       # via env, never inline ${{ }} in the run block (zizmor: template-injection)
       - name: Post or update the coverage comment
+        if: ${{ !cancelled() && env.HI_COMMENT == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}

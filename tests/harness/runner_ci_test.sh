@@ -227,9 +227,8 @@ function test_coverage_untested_lists_changed_lines_both_tools_missed() {
 # every sharded or gathering job reads its `sweep` output instead of
 # re-deriving "a green push or a same-repo non-draft PR" itself
 # - so a same-repo omission can only happen in the one place, not per job.
-# `comment` is the one job that never reads `sweep` (it runs off the gather
-# jobs' results, on a same-repo PR whether or not this run swept), so it
-# keeps the direct check the loop below falls back to.
+# gather-bashcov also comments on a same-repo PR whether or not this run swept,
+# so its `if:` carries that direct check beside `sweep`.
 function test_coverage_pr_runs_are_same_repo_only() {
   local workflow="$_HI_ROOT/.github/workflows/coverage.yml" gate job block bad=""
   local seen=0 jobs
@@ -287,12 +286,12 @@ function _hi_shards_cover_group() {
 # added without its entry deals blind - one a table does not name costs 5.
 # Each table names every suite it deals (coverage's every suite but the
 # linter sweep both drivers drop, the Windows client's the fast group,
-# ci.yml's e2e shards the e2e group) and none the suite table lacks.
+# ci.yml's shards their e2e and backends groups) and none the suite table lacks.
 function test_cost_tables_name_the_suites_they_deal() {
   local spec var group keys want n bad=""
   local names
   names=" $(_hi_runner_list | awk '{ printf "%s ", $2 }') "
-  for spec in KCOV:- BASHCOV:- GITBASH:fast E2E:e2e; do
+  for spec in KCOV:- BASHCOV:- GITBASH:fast E2E:e2e BACKENDS:backends; do
     var="_HI_TEST_COSTS_${spec%%:*}" group="${spec#*:}"
     keys=" $(sed -n "/^$var=\"\$/,/^\"\$/p" "$_HI_TEST_RUN" | tr ' ' '\n' | sed -n 's/^\([a-z0-9_]*\):[0-9]*$/\1/p' | tr '\n' ' ') "
     [ "$keys" != "  " ] || {
@@ -391,11 +390,6 @@ function run_runner_ci_tests() {
   _hi_check "The OpenBSD job's shards cover the fast group" _hi_shards_cover_group openbsd-e2e.yml - fast
   _hi_check "Each cost table names the suites it deals" test_cost_tables_name_the_suites_they_deal
   _hi_check "ci.yml's e2e shards cover the e2e group" _hi_shards_cover_group ci.yml e2e e2e
-  # Also the shape "one backend per runner" depends on: three suites, three
-  # shards, so every shard really is exactly one backend - not asserted here
-  # (that's install-step reasoning, not a suite-list one), but a shard count
-  # that ever drifted from the group's suite count would fail this the same
-  # way an incomplete matrix would.
   _hi_check "ci.yml's e2e-backends shards cover the backends group" _hi_shards_cover_group ci.yml e2e-backends backends
   _hi_check "coverage.yml's shards partition the table, dealt by each tracer's costs" test_coverage_shards_partition_by_cost
   _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable

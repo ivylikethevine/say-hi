@@ -12,6 +12,8 @@ entry list theirs on
 
 ## Unreleased
 
+- A pull request into `main` takes nine fewer CI runners, and the Debian and Ubuntu test and package-build images move to rebuilt bases that close the fixable high and critical CVEs the scan found in them.
+
 From the roadmap:
 
 - The README opens with the pitch, the sixty-second install, and a GIF of a 502 fixed on a web host with the aliases and vimrc that ride in; the seven stories moved to [TOUR.md](TOUR.md).

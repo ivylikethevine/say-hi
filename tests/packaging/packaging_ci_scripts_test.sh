@@ -104,7 +104,7 @@ EOF
     grep -qF '"label":"Windows","message":"no runs","color":"inactive"' "$dir/out/windows.json" ||
     _hi_because "the badges: $(cat "$dir/out"/*.json)" || return 1
   [[ "$out" == *"Linux: success (aaaaaaa)"* && "$out" == *"FreeBSD: success (bbbbbbb)"* ]] &&
-    [[ "$out" == *'::warning::no completed "e2e (Windows) / hi at stock Windows OpenSSH (PowerShell fallback)" in the last 2 commits'* ]] ||
+    [[ "$out" == *'::warning::no completed "e2e (Windows) / hi at Windows OpenSSH (PowerShell fallback, Git Bash shell)" in the last 2 commits'* ]] ||
     _hi_because "it said: $out" || return 1
   out="$(PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/scripts/platform_badges.sh" 2>&1)" || rc=$?
   [ "$rc" -eq 2 ] && [[ "$out" == "usage: platform_badges.sh <outdir>" ]] || _hi_why rc out
