@@ -174,8 +174,8 @@ These are constraints the tree enforces, not requests:
   (`egress-policy: block` with an allowlist taken from a real run's audit log on
   every Ubuntu x64 job; `audit` on macOS, Windows and arm64 Linux until a job
   has its own allowlist, and on `link-check.yml`, whose job is reaching any
-  URL; Windows arm64 has no agent) and sets
-  `timeout-minutes`. Beside it: third-party actions pinned to a full SHA with a
+  URL; Windows arm64 has no agent), after only a `dns-experiment` step where
+  there is one (`lint_workflows.sh` rule 6), and sets `timeout-minutes`. Beside it: third-party actions pinned to a full SHA with a
   `# vX.Y.Z` comment, every checkout with `persist-credentials: false`,
   least-privilege `permissions:`, and untrusted input passed through `env:`
   rather than an inline expression in a `run:`. The `packaging_ci` suite and `quick lint` enforce them.
