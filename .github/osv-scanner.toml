@@ -5,9 +5,12 @@
 #
 # Only for an advisory with no patched release to move to. Each entry expires,
 # so one that is never fixed still comes back for review, and advisories.yml
-# flags an entry the audit no longer reports; it comes out then.
-
-[[IgnoredVulns]]
-id = "GHSA-vfj7-8cjw-p6xm"
-ignoreUntil = 2027-01-07
-reason = "braces: every release through 3.0.3 (the latest) is affected, via markdownlint-cli2 > micromatch. The stack exhaustion needs a hostile, deeply nested brace pattern, and the only patterns this dev-only lint tool expands are the repository's own globs."
+# flags an entry the audit no longer reports; it comes out then. An entry is
+#
+#   [[IgnoredVulns]]
+#   id = "GHSA-..."
+#   ignoreUntil = YYYY-MM-DD
+#   reason = "..."
+#
+# None at present: the braces stack-exhaustion advisory (GHSA-vfj7-8cjw-p6xm)
+# was withdrawn upstream on 2026-10-23.

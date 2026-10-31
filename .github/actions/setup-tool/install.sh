@@ -163,24 +163,18 @@ tar.gz | tar.xz | zip)
   # extract whole and then look, rather than naming a member: layouts are
   # flat, versioned-dir, or arch-subdir, and a stale member path fails hard
   # on a version bump where a search does not
-  case "$_ci_kind" in
-  tar.gz) tar -xzf "$_ci_tmp/archive" -C "$_ci_tmp/x" ;;
-  tar.xz) tar -xJf "$_ci_tmp/archive" -C "$_ci_tmp/x" ;;
-  zip) unzip -q "$_ci_tmp/archive" -d "$_ci_tmp/x" ;;
-  esac
+  if [ "$_ci_kind" = zip ]; then
+    unzip -q "$_ci_tmp/archive" -d "$_ci_tmp/x"
+  else
+    tar -xf "$_ci_tmp/archive" -C "$_ci_tmp/x"
+  fi
   _ci_bin="$(find "$_ci_tmp/x" -type f -name "$CI_TOOL" -perm -u+x)"
   # several matches are one build per arch side by side (x86_64/ and
-  # aarch64/): keep this machine's, and refuse anything still ambiguous
-  # rather than take whichever find walked first
+  # aarch64/): keep this machine's; the check below refuses anything still
+  # ambiguous rather than take whichever find walked first
   case "$_ci_bin" in
   *$'\n'*)
     _ci_bin="$(grep -e "/${_ci_plat#*-}/" -e "/$(uname -m)/" <<<"$_ci_bin" || true)"
-    ;;
-  esac
-  case "$_ci_bin" in
-  "" | *$'\n'*)
-    echo "setup-tool: no single $_ci_plat executable named $CI_TOOL inside $_ci_url" >&2
-    exit 1
     ;;
   esac
   ;;
@@ -196,10 +190,6 @@ cmake)
   # searched under build/ only: the source tree has its own files named
   # after the tool, and the one wanted is the one just linked
   _ci_bin="$(find "$_ci_tmp/build" -type f -name "$CI_TOOL" -perm -u+x | head -1)"
-  [ -n "$_ci_bin" ] || {
-    echo "setup-tool: $CI_TOOL was not built by $_ci_url" >&2
-    exit 1
-  }
   ;;
 make)
   # ./configure && make, for a tool that publishes a source tarball only.
@@ -210,13 +200,16 @@ make)
   _ci_unpack_source
   (cd "$_ci_src" && ./configure && make -j"$(_ci_nproc)")
   _ci_bin="$(find "$_ci_src" -maxdepth 1 -type f -name "$CI_TOOL" -perm -u+x | head -1)"
-  [ -n "$_ci_bin" ] || {
-    echo "setup-tool: $CI_TOOL was not built by $_ci_url" >&2
-    exit 1
-  }
   ;;
 *)
   echo "setup-tool: unknown kind '$_ci_kind' for $CI_TOOL" >&2
+  exit 1
+  ;;
+esac
+
+case "$_ci_bin" in
+"" | *$'\n'*)
+  echo "setup-tool: no single $_ci_plat executable named $CI_TOOL from $_ci_url" >&2
   exit 1
   ;;
 esac
