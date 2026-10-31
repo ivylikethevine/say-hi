@@ -434,7 +434,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       HI_LOOPBACK: ${{ needs.changes.outputs.trusted == 'true' }}
     steps:
@@ -455,7 +455,7 @@ jobs:
       # and pty sessions rather than on the CPU.
       - name: Run fast test suites
         env:
-          _HI_RUN_DEADLINE: "720"
+          _HI_RUN_DEADLINE: "420"
           _HI_RUNNER_WIDTH: "6"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
 
@@ -940,7 +940,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-26.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
@@ -1061,7 +1061,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-26.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
@@ -1106,7 +1106,7 @@ jobs:
     runs-on: ubuntu-26.04
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    timeout-minutes: 15
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -1177,7 +1177,7 @@ jobs:
         env:
           HI_SHARD: ${{ matrix.shard }}
           _HI_SHARD_BY: e2e
-          _HI_RUN_DEADLINE: "720"
+          _HI_RUN_DEADLINE: "420"
           _HI_E2E_WIDTH: "2"
         run: |
           "${{ github.workspace }}/tests/test_runner.sh" --host-report --require-run --group e2e --shard "$HI_SHARD"
@@ -1190,7 +1190,7 @@ jobs:
     runs-on: ubuntu-26.04
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    timeout-minutes: 15
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -1250,7 +1250,7 @@ jobs:
       - name: Run this shard of the backend end-to-end suites
         env:
           HI_SHARD: ${{ matrix.shard }}
-          _HI_RUN_DEADLINE: "720"
+          _HI_RUN_DEADLINE: "420"
         run: |
           "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group backends --shard "$HI_SHARD"
 

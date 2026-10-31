@@ -1,8 +1,8 @@
 # Contributing to say-hi
 
 say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md): interfaces can still
-move, and [README's Roadmap](../README.md#roadmap) and
-[Release Stages](../README.md#release-stages) are what is left to do. The
+move, and [the roadmap](ROADMAP.md) and
+[Release Stages](ROADMAP.md#release-stages) are what is left to do. The
 test runbook is [docs/TESTING.md](TESTING.md); the named idioms are
 [docs/GLOSSARY.md](GLOSSARY.md).
 
@@ -302,16 +302,16 @@ site builds into a path the site leaves out (a dot-path such as `.github/`, or
 anything `_config.yml` excludes) is an absolute github.com URL, or it 404s on
 Pages; the lint group checks that too.
 
-[README's Roadmap](../README.md#roadmap) and
-[Release Stages](../README.md#release-stages) are to-do lists, not a
+[the roadmap](ROADMAP.md) and
+[Release Stages](ROADMAP.md#release-stages) are to-do lists, not a
 changelog: finishing an entry means **moving** it, as one sentence, into the
-`From the roadmap:` list under [CHANGELOG.md](../CHANGELOG.md)'s
+`From the roadmap:` list under [CHANGELOG.md](CHANGELOG.md)'s
 `## Unreleased`, which the next release's entry takes in. A change that
 ships in the release's own pull request writes its sentence there too, as a
 bullet above that list, since the entry is written before that PR exists. What a _user_ reads
 is the pull request's `## Release note` section (the template has it), which
 [`release.yml` collects into the release body](RELEASING.md#cutting-a-release)
-and `.github/scripts/changelog.sh` into `CHANGELOG.md`: write the sentence you
+and `.github/scripts/changelog.sh` into `docs/CHANGELOG.md`: write the sentence you
 would want on the release page, or `none` when nothing a user sees changes.
 `release note (pr body)` warns on a body with no such section, or an empty
 one.
