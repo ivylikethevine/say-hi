@@ -54,7 +54,7 @@ The pre-1.0 pass over the settings surface, the config overlay, and the
 prompt-program support proposed each of these and declined it. They are kept
 here rather than in a closed issue so the reason is findable before the
 request is written again; what that pass left _open_ is
-[the README's Roadmap](../README.md#roadmap). A turned-down entry is not
+[the roadmap](ROADMAP.md). A turned-down entry is not
 permanent - it is the argument to beat.
 
 - **A three-way "prompt: auto / hi / off" menu item.** It needs a cycling

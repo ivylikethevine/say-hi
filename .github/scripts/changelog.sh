@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CHANGELOG.md, one `## <version> - <date>` entry a release, newest first under
+# docs/CHANGELOG.md, one `## <version> - <date>` entry a release, newest first under
 # the file's own header. An entry is written and merged before its tag: the tag
 # never moves and the release never writes to main, so the source tarball, a
 # `git archive` of the tag, carries the entry from there. Two modes:
@@ -13,7 +13,7 @@
 # all it says so. Work not yet merged has its sentence in the tree instead,
 # a bullet under CHANGELOG.md's `## Unreleased`, so the entry is written on
 # dev before the release's pull request is pushed, and its CI covers it.
-# README's Roadmap moves each finished entry, as one sentence,
+# docs/ROADMAP.md moves each finished entry, as one sentence,
 # into a `## Unreleased` section's `From the roadmap:` list, which a write
 # folds into the version's entry under the same line. A version already on top is replaced, so a run after a late
 # merge rewrites its own entry. A prerelease (1.0.0-rc.1) is held to the entry
@@ -22,7 +22,7 @@ set -euo pipefail
 
 _cl_dir="${BASH_SOURCE[0]%/*}"
 [ "$_cl_dir" != "${BASH_SOURCE[0]}" ] || _cl_dir=.
-_cl_file="${HI_CHANGELOG:-$_cl_dir/../../CHANGELOG.md}"
+_cl_file="${HI_CHANGELOG:-$_cl_dir/../../docs/CHANGELOG.md}"
 
 # the top entry's version, or nothing
 top() {
