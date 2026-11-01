@@ -124,6 +124,25 @@ assert len(bad) == 1 and "no base64" in bad[0]["text"], bad
 ' || _hi_why out
 }
 
+# _hi_doctor_wire_evidence <first document> - why a wire figure moved, which the
+# report rounds to 1K: each payload cache, whether it was rebuilt after that
+# document, what it watches that is newer, and the exact size now.
+function _hi_doctor_wire_evidence() {
+  local c state newer
+  for c in "$XDG_RUNTIME_DIR"/hi.payload.*; do
+    [ -f "$c" ] || continue
+    state="not rebuilt since"
+    [ ! "$c" -nt "$1" ] || state="rebuilt after"
+    printf '      %s: cksum and bytes %s, %s the first document\n' "${c##*/}" "$(cksum <"$c")" "$state"
+  done
+  newer="$(find -H "$_HI_ROOT/common" "$_HI_ROOT/config" "$_HI_ROOT/load.sh" "$_HI_ROOT/hi.sh" -newer "$1" -print 2>&1)"
+  printf '      payload files newer than the first document: %s\n' "${newer:-none}"
+  # the size last: asking for it can rebuild a stale cache
+  # shellcheck disable=SC2016 # $_HI_LAUNCHER belongs to the child bash
+  printf '      wire bytes now: %s\n' "$(env PATH="$_HI_DOC_PATH" HOME="$_HI_DOC_HOME" _HI_SSH_CONFIG=/nonexistent \
+    _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_wire_bytes' 2>&1)"
+}
+
 # --problems narrows the text report only: beside --json the document is the
 # one --json alone prints, byte for byte once the timings are masked
 # the exit status is the findings count's (a box with a finding exits 1), so
@@ -141,6 +160,7 @@ function test_problems_leaves_json_unchanged() {
   [ -s "$a" ] && cmp -s "$a" "$b" && return 0
   _hi_cecho " | the two documents differ:" "$RED"
   diff <(tr ',' '\n' <"$a") <(tr ',' '\n' <"$b") | sed 's/^/      /' || true
+  _hi_doctor_wire_evidence "$_HI_DOC_JSON" || true
   return 1
 }
 
