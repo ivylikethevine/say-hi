@@ -2,9 +2,10 @@ name: Rerun timed-out runs
 
 # Reruns a run's failed jobs when one of them hit a time limit: on hosted runners
 # a job can lose its network, or stay open after its last step, until its
-# `timeout-minutes` ends it, and a rerun then passes. Attempts 1 and 2 only, so a
-# run is retried at most twice, by hand or from here. Time limits only: a job
-# failing any other way, or cancelled, starts nothing.
+# `timeout-minutes` ends it, and a rerun then passes. So too a job that refused
+# a runner on the DNS experiment (lint_workflows.sh rule 6). Attempts 1 and 2
+# only, so a run is retried at most twice, by hand or from here. A job failing any
+# other way, or cancelled, starts nothing, nor does a run GitHub skipped.
 #
 # `workflows:` names only workflows that are safe to run twice, so no release or
 # publish. Same-repo runs only, so a fork's code never runs on this token's rerun.
@@ -29,6 +30,7 @@ jobs:
     name: rerun a run that hit a time limit
     if: >-
       github.event.workflow_run.conclusion != 'success' &&
+      github.event.workflow_run.conclusion != 'skipped' &&
       github.event.workflow_run.run_attempt < 3 &&
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-26.04
@@ -38,6 +40,15 @@ jobs:
       actions: write # gh run rerun
       checks: read # the jobs' annotations
     steps:
+      # lint_workflows.sh rule 6 says why this comes first
+      - id: dns-experiment
+        name: Refuse a runner on the DNS experiment
+        run: |
+          if systemctl is-active --quiet egress-dns-resolver.service; then
+            echo "::error title=dns experiment::This runner is on the hosted-runner DNS experiment, where egress-policy block never finishes. Rerun the job."
+            exit 1
+          fi
+
       # block, not audit: `gh api` and `gh run rerun` are all this job reaches.
       - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
@@ -57,16 +68,16 @@ jobs:
           set -euo pipefail
           # The API reports a job that hit its limit as `cancelled`, as it does
           # one cancelled any other way: only the annotation tells them apart.
-          limit='^(The job.*exceeded the maximum execution time|The action .* has timed out after)'
+          limit='^(The job.*exceeded the maximum execution time|The action .* has timed out after|This runner is on the hosted-runner DNS experiment)'
           jobs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs?per_page=100" \
             --jq '.jobs[] | select(.conclusion != "success" and .conclusion != "skipped") | "\(.id) \(.conclusion) \(.name)"')"
           while read -r id conclusion name; do
             [ -n "$id" ] || continue
             notes="$(gh api --paginate "repos/$GITHUB_REPOSITORY/check-runs/$id/annotations?per_page=100" --jq '.[].message // empty')"
             if [ "$conclusion" = timed_out ] || grep -qE "$limit" <<<"$notes"; then
-              echo "$WORKFLOW run $RUN_ID attempt $ATTEMPT: $name hit a time limit, rerunning its failed jobs"
+              echo "$WORKFLOW run $RUN_ID attempt $ATTEMPT: $name hit a time limit or the DNS experiment, rerunning its failed jobs"
               gh run rerun "$RUN_ID" --failed --repo "$GITHUB_REPOSITORY"
               exit 0
             fi
           done <<<"$jobs"
-          echo "$WORKFLOW run $RUN_ID attempt $ATTEMPT: no job hit a time limit"
+          echo "$WORKFLOW run $RUN_ID attempt $ATTEMPT: no job hit a time limit or the DNS experiment"
