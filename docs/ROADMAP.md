@@ -2,8 +2,8 @@
 
 The features and changes left to build; nothing here is parked or descoped.
 One list, in the order the work is best done. Once its **Ticks when** holds,
-an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
-`## Unreleased` section. What a release waits on is
+an entry leaves as one sentence for the top list of
+[CHANGELOG.md](CHANGELOG.md). What a release waits on is
 [Release Stages](#release-stages).
 
 - [ ] **A connect without a tty overlaps too** — the code is in: with no
@@ -12,7 +12,7 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       has `notty-stdin`, `notty-maxsessions1`, and `notty-forced` cases.
       **Ticks when:** those cases pass, and a connect with stdin off a tty
       measures about two round trips shorter at 150 ms added. Its sentence
-      is already under `## Unreleased`, so ticking only removes this entry.
+      is already in CHANGELOG.md, so ticking only removes this entry.
 
 - [ ] **Every default and preset audited before the tag** —
       [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
@@ -93,8 +93,8 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
 ## Release Stages
 
 What the 1.0 tag and the releases after it wait on, in order. Once its
-**Ticks when** holds, an entry leaves as one sentence for
-[CHANGELOG.md](CHANGELOG.md)'s `## Unreleased` section, as the roadmap's do.
+**Ticks when** holds, an entry leaves as one sentence for the top list of
+[CHANGELOG.md](CHANGELOG.md), as the roadmap's do.
 _Post 1.0_ entries are outside this checkout: an account or an upstream
 review that lands when it lands.
 
