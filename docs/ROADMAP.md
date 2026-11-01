@@ -12,8 +12,8 @@ an entry leaves as one sentence for the top list of
       [SETTINGS.md's _Every setting_](SETTINGS.md#every-setting) and the
       five presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
       stranger's first run, every row's default agreeing with its code. The
-      known changes are the `balanced` first-install default and
-      `hi --update`'s verification. Moved since fe63e85e:
+      known changes, both shipped in 0.8.0, are the `balanced` first-install
+      default and `hi --update`'s verification. Moved since fe63e85e:
       `_HI_IP_HIDE` from `172.*`, which hid public addresses and missed
       rootful podman's bridge, to the bridges' interface names;
       `_HI_PROMPT_END_ZSH` from `>` to `%(!.#.>)`, which marks root as bash
@@ -34,7 +34,9 @@ an entry leaves as one sentence for the top list of
       back too, and `load()` calls `keep.sh`'s functions as the session
       starts. **Blocked:** a core whose script is under 40 KB, which needs
       the tree cut by about 2 KB more and `keep.sh`'s start-up functions in
-      the core without the rest of it.
+      the core without the rest of it. These sizes predate 8d9296d3 and
+      62d9d558, which changed the shipped tree (+111/-15 lines since
+      081bbd6a), so the 2 KB wants measuring again first.
       **Do:** the core members first on the boot call's stdin and the rest
       after, the stub starting once the core is in while the rest lands
       behind it; a `hi host cmd` still waits for the whole tree, and what
@@ -52,7 +54,7 @@ _Post 1.0_ entries are outside this checkout: an account or an upstream
 review that lands when it lands.
 
 - [ ] **I.** _At the 1.0.0 tag:_ **A stability contract is written down** —
-      [docs/CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break).
+      [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break).
       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
       versions_ prose into its version table.
 
@@ -64,13 +66,13 @@ review that lands when it lands.
       `publish-external.yml`'s `aur` job is written but unexercised. **When
       it reopens:** register, add `AUR_SSH_KEY` as a repository secret,
       and push each package once by hand
-      ([docs/RELEASING.md](RELEASING.md#aur)). **Ticks when:** both
+      ([RELEASING.md](RELEASING.md#aur)). **Ticks when:** both
       packages are live and a dispatch has kept `say-hi` current for one
       release.
 
 - [ ] **IV.** _Post 1.0:_ **nixpkgs** — the flake in this repository is the
       nix channel until then
-      ([docs/RELEASING.md](RELEASING.md#channels-weighed-and-not-shipped)).
+      ([RELEASING.md](RELEASING.md#channels-weighed-and-not-shipped)).
       **Do:** open the package PR against nixpkgs, with a maintainer entry.
       **Ticks when:** merged, and one release's bump has landed through the
       usual update bot or by hand.
