@@ -379,7 +379,7 @@ _HI_PRESET_DEFAULT=balanced
 _HI_PRESETS=(
   "everything|every feature on, here and on every target you hi to|_HI_PACKAGES_GROUPS=core,useful,deprecated"
   "balanced|everything on every target, a shorter package check; nothing on this machine|_HI_PACKAGES_GROUPS=core,deprecated _HI_DISABLE_LOCAL=1"
-  "minimal|on targets only the colored prompt, no header or editor configs; nothing on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro _HI_DISABLE_LOCAL=1"
+  "minimal|the colored prompt and your configs, no header or editor configs; nothing on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro _HI_DISABLE_LOCAL=1"
   "lean|minimal, and nothing of yours rides: hi's own prompt, no plugin's config, ssh the only backend|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro,aliases,bash,zsh,fish,extensions,bin,env,starship,powerlevel10k,tide,oh-my-posh,oh-my-zsh,oh-my-bash,bash-it,eza,bat,rg,fzf,lazygit,git,readline,tmux,screen,zellij _HI_DISABLE_LOCAL=1 _HI_PROMPT_TOOL=hi _HI_BACKENDS_OFF=all"
   "configs|your aliases, editor rcs, and every other config along, each target's own prompt, no header; nothing on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_PROMPT=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_LOCAL=1"
 )

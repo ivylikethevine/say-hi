@@ -30,6 +30,28 @@ class SayHi < Formula
   # macOS's own /bin/bash can run it.
 
   def install
+    # hi.sh, and the man page's .TH footer, answer with the formula's version.
+    # The tarball carries no stamp - every channel writes it at build time, and
+    # packaging/stamp.sh is the one implementation they all call (see its header
+    # for why not in git). packaging/ rides the tarball but is deliberately not
+    # installed: it is build-time only.
+    #
+    # Before any install below: Pathname#install moves, and stamp.sh sources
+    # common/core.sh and scripts/lib.sh from this tree.
+    #
+    # --date is the version here rather than a day, and only here: the other
+    # channels have a real $SOURCE_DATE_EPOCH to date the page by, and a
+    # formula build has none - Time.now would make every keg build differ.
+    # stamp.sh refuses to guess a date, so this has to be said out loud.
+    #
+    # Two explicit paths rather than --root: this tree is not an install_tree
+    # layout. The page is installed plain, on brew's manpath, rather than
+    # gzipped into /usr/share.
+    system buildpath/"packaging/stamp.sh", "--version", version,
+           "--date", version,
+           "--launcher", buildpath/"hi.sh",
+           "--man", buildpath/"docs/hi.1"
+
     # This list is _HI_PACKAGE_CONTENTS in scripts/install.sh, repeated because
     # a formula cannot call install.sh: install_tree hardcodes /usr/bin and
     # /etc/profile.d, neither of which exists inside a brew prefix. The
@@ -41,25 +63,6 @@ class SayHi < Formula
     (libexec/"say-hi").install "common", "scripts", "config",
                                "hi.sh", "load.sh", "LICENSE.md", "README.md"
     chmod 0755, libexec/"say-hi/hi.sh"
-
-    # The keg's copy of hi.sh, and the man page's .TH footer, answer with the
-    # formula's version. The tarball carries no stamp - every channel writes it
-    # at build time, and packaging/stamp.sh is the one implementation they all
-    # call (see its header for why not in git). packaging/ rides the tarball
-    # but is deliberately not installed: it is build-time only.
-    #
-    # --date is the version here rather than a day, and only here: the other
-    # channels have a real $SOURCE_DATE_EPOCH to date the page by, and a
-    # formula build has none - Time.now would make every keg build differ.
-    # stamp.sh refuses to guess a date, so this has to be said out loud.
-    #
-    # Two explicit paths rather than --root: brew's launcher and man page are
-    # unrelated locations, not one install_tree layout. The page is installed
-    # plain, on brew's manpath, rather than gzipped into /usr/share.
-    system buildpath/"packaging/stamp.sh", "--version", version,
-           "--date", version,
-           "--launcher", libexec/"say-hi/hi.sh",
-           "--man", buildpath/"docs/hi.1"
     man1.install "docs/hi.1"
 
     # A wrapper rather than bin.install_symlink. Not because hi.sh needs it to

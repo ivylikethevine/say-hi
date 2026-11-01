@@ -136,6 +136,20 @@ function test_no_channel_kept_a_private_stamp() {
   return 0
 }
 
+# Pathname#install moves, and stamp.sh sources common/ and scripts/ from the
+# build tree: a stamp after the first install dies on the missing core.sh, and
+# only the release's brew job, after publish, would run it.
+function test_formula_stamps_before_it_installs() {
+  local order stamp install
+  order="$(awk '/^[[:space:]]*#/ { next }
+    /packaging\/stamp\.sh/ && !s { s = NR }
+    /\.install / && !i { i = NR }
+    END { print s + 0, i + 0 }' "$_HI_FORMULA")"
+  read -r stamp install <<<"$order"
+  { [ "$stamp" -gt 0 ] && [ "$install" -gt "$stamp" ]; } ||
+    _hi_because "say-hi.rb: stamp.sh on line $stamp, first install on line $install"
+}
+
 function test_package_sh_stamps_the_staged_launcher() {
   local out
   { out="$(_hi_staged_999)" &&
@@ -674,6 +688,7 @@ function run_packaging_tests() {
   # only channel that does: it has no $SOURCE_DATE_EPOCH, and stamp.sh refuses
   # to guess. Pinned so it cannot be "fixed" into an irreproducible Time.now.
   _hi_check "The formula dates .TH with the version" grep -qF -- '"--date", version' "$_HI_FORMULA"
+  _hi_check "The formula stamps before it installs" test_formula_stamps_before_it_installs
   # install_tree links usr/bin/hi, and a host without symlinks (Git Bash) aborts
   # the stage there - every case that stages through mkpkg.sh needs one
   _hi_check_capable symlink "mkpkg.sh stamps the staged copy" test_package_sh_stamps_the_staged_launcher

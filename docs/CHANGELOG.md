@@ -12,6 +12,7 @@ in the list below, and nothing else is ever done to this file.
 
 From the roadmap:
 
+- The eleven scratch scripts nothing named are gone from the repository.
 - The README opens with the pitch, the sixty-second install, and a GIF of a 502 fixed on a web host with the aliases and vimrc that ride in; the seven stories moved to [TOUR.md](TOUR.md).
 - Every release's source tarball carries `CHANGELOG.md`.
 - A signed tag on `main` is all a release needs: its page's list is built when it publishes, and `CHANGELOG.md` can no longer refuse it.

@@ -53,9 +53,9 @@
 --shell=zsh|.zshrc, under ZDOTDIR when that is set
 --shell=fish|config.fish
 --shell=all|every one of them installed here
---preset=everything|the shipped defaults, every feature on
+--preset=everything|every feature on, and the useful package group
 --preset=balanced|everything but the noise
---preset=minimal|on targets only the colored prompt
+--preset=minimal|the colored prompt and your configs, no header or editor configs
 --preset=lean|minimal, and nothing of yours rides
 --preset=configs|your configs along, each target's own prompt, no header
 --add-color=hosttag|a # Tags: value in your ssh config

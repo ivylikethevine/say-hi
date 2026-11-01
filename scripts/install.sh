@@ -108,8 +108,8 @@ settings, p for a preset, s to save, q to leave the file alone. Answers go to
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/settings.sh.
 
   --preset <name>  Answer the feature and header settings from a
-                   preset - everything, balanced, minimal, or lean - without the
-                   menu, and write that. The same presets are the menu's
+                   preset - everything, balanced, minimal, lean, or configs -
+                   without the menu, and write that. The same presets are the menu's
                    first item. The header order, the width, the prompt
                    separators, the prompt program, and the advanced
                    settings keep what they hold.
@@ -121,7 +121,7 @@ EOF
     cat <<EOF
 Wires up your shells to source this say-hi checkout - the login shell, and
 any other with an rc file already - and links hi.sh into ~/.local/bin. A
-first install asks a terminal one thing, whether hi styles this machine too
+first install asks a terminal one thing, which preset to start from
 (--preset answers without asking); hi --configure has the settings menu.
 Nothing else is copied into
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi: the tree's colors and packages stay
@@ -153,8 +153,8 @@ you don't own.
                    through \$HOME, so one rc serves every machine, and a later
                    install leaves it alone. Everything else is done as usual.
   --preset <name>  Answer the feature and header settings from a
-                   preset - everything, balanced, minimal, or lean - and ask
-                   nothing. The same presets are the menu's first item.
+                   preset - everything, balanced, minimal, lean, or configs -
+                   and ask nothing. The same presets are the menu's first item.
   -n, --dry-run    Say what would be written - rc lines, settings.sh, the
                    link - and write nothing. The question is still asked.
 EOF

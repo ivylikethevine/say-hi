@@ -10,17 +10,17 @@ an entry leaves as one sentence for the top list of
       [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
       freezes the name and default of all 47 rows of
       [SETTINGS.md's _Every setting_](SETTINGS.md#every-setting) and the
-      five presets, and a toggle removal is a 2.0. **Do:** read each row's
-      default as a stranger's first run, with the `balanced` first-install
-      default and `hi --update`'s verification as the known changes. Read
-      at fe63e85e, every row's default agreeing with its code. Moved since:
+      five presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
+      stranger's first run, every row's default agreeing with its code. The
+      known changes are the `balanced` first-install default and
+      `hi --update`'s verification. Moved since fe63e85e:
       `_HI_IP_HIDE` from `172.*`, which hid public addresses and missed
       rootful podman's bridge, to the bridges' interface names;
       `_HI_PROMPT_END_ZSH` from `>` to `%(!.#.>)`, which marks root as bash
       and fish do; and `_HI_PACKAGES_GROUPS` from `core useful deprecated`
       to `core deprecated`, with `useful` under the `everything` preset.
-      **Ticks when:** the 1.0.0 release note lists those, the known changes,
-      and any others that move.
+      **Ticks when:** the 1.0.0 release note lists those moves, the known
+      changes, and any others that move.
 
 - [ ] **The session starts once the core files land** — on a fresh
       connection a script past about 45 KB costs two extra round trips over
@@ -74,17 +74,3 @@ review that lands when it lands.
       **Do:** open the package PR against nixpkgs, with a maintainer entry.
       **Ticks when:** merged, and one release's bump has landed through the
       usual update bot or by hand.
-
-## Repository upkeep
-
-Scripts under `scratch/` to fix or drop; nothing here ships.
-
-- [ ] **The scratch scripts nothing names** — no tracked file outside
-      `scratch/` names `watch_pr.sh`, `time_plugins_load.sh`,
-      `profile_plugins_load.sh`, `coverage_rank.py`, `doc_paths.py`,
-      `continuation_lines.py`, `ci_failures.sh`, `cov_suite.sh`,
-      `gate.sh`, `client_prep.sh` or `bp_answers.py`, and
-      `bp_answers.py` reads `docs/OPENSSF-IMPROVEMENTS.md`, which this
-      repository lacks. **Do:** keep what is still wanted and delete the rest,
-      adding that answer sheet if `bp_answers.py` stays. **Ticks when:** each
-      is kept or gone, and `bp_answers.py` runs or is gone.
