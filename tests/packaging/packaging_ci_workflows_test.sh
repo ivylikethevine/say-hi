@@ -778,7 +778,8 @@ function test_every_job_has_a_timeout() {
 # calls a reusable workflow (no steps - the callee's jobs carry it), and an
 # arm runner (`*-arm`): Windows arm64 has no agent. A matrix `runs-on`
 # counts as supported: its x64 legs are monitored and an arm leg only logs
-# that it is not.
+# that it is not. A first step with id `dns-experiment` may come before it:
+# .github/scripts/lint_workflows.sh rule 6 says why.
 function test_every_job_starts_with_harden_runner() {
   local wf job bad=0
   for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
@@ -794,6 +795,7 @@ function test_every_job_starts_with_harden_runner() {
       /^    runs-on:.*-arm/ { arm = 1 }
       /^    steps:/ { steps = 1; next }
       !steps || done || /^[ \t]*(#.*)?$/ { next }
+      !first && /^      - id:[ \t]*dns-experiment[ \t]*$/ { next }
       /^      - / { if (first) { done = 1; next } first = 1 }
       /^    [A-Za-z]/ { done = 1; next }
       first && /uses:[ \t]*step-security\/harden-runner@/ { ok = 1 }

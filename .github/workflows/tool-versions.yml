@@ -43,6 +43,15 @@ jobs:
       contents: read
       issues: write # upsert (and close) its own tracking issue
     steps:
+      # lint_workflows.sh rule 6 says why this comes first
+      - id: dns-experiment
+        name: Refuse a runner on the DNS experiment
+        run: |
+          if systemctl is-active --quiet egress-dns-resolver.service; then
+            echo "::error title=dns experiment::This runner is on the hosted-runner DNS experiment, where egress-policy block never finishes. Rerun the job."
+            exit 1
+          fi
+
       # block, not audit: check_tool_versions.sh asks the GitHub API, Docker
       # Hub, the registry of each manifest in CI_MANIFESTS, and any gitlab:
       # host a roster row names - nothing else. The list is the union of what
