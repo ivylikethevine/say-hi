@@ -745,7 +745,7 @@ function run_load_session_tests() {
 
   _hi_h2 "Testing: load()"
   _hi_check "Propagates the session shell's exit code" test_load_propagates_the_session_shells_exit_code
-  _hi_check "Greets a bash session honestly" test_load_greets_the_chosen_shell bash "bash today :("
+  _hi_check "Greets a bash session honestly" test_load_greets_the_chosen_shell bash "bash today | init:"
   _hi_check_requires zsh "...a zsh one" test_load_greets_the_chosen_shell zsh "zsh shell! :)"
   _hi_check_requires fish "...and a fish one" test_load_greets_the_chosen_shell fish "fish shell! :^)"
   _hi_check "_HI_DISABLE_GREETING=1 hides the line and its timers" test_load_greeting_toggle_hides_the_line

@@ -21,6 +21,7 @@ From the roadmap:
 - The target side is measured on a Pi-class box, simulated by holding the target to an eighth of one core: a cold connect reaches its prompt in 559 ms there, against 272 ms at a full core, and hi's share of it is 390 ms against 140 ms.
 - A connect from a git checkout no longer runs `git describe` each time: the version it sends is kept in `.git/hi-version` until a commit, a checkout, a tag, or the index changes it.
 - A scripted `hi host cmd`, with stdin off a terminal, opens its session while the script is still landing, as a terminal's connect does.
+- A bash session's greeting no longer reads as an error: `bash today` in bright blue, with no red and no frown.
 - A host's tag is read from ssh's own `Tag` keyword (OpenSSH 9.4) where its block has no `# Tags:` line: it colors by its `hosttag` and `usertag` rows, reads its `settings.<tag>.sh`, rides to the next hop, and `hi --add-tag` and `hi --doctor <host>` say when a tag comes from one.
 
 ## 0.8.0 - 2026-10-26

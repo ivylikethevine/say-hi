@@ -113,7 +113,7 @@ function test_hi_visible_width_strips_a_leading_color() {
 # "hi loaded: "
 function test_hi_visible_width_strips_a_color_midway() {
   local n
-  _hi_visible_width n "${BRCYAN}hi loaded: ${RED}bash"
+  _hi_visible_width n "${BRCYAN}hi loaded: ${BRBLUE}bash"
   [ "$n" -eq 15 ] || _hi_why n
 }
 

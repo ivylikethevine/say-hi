@@ -1,8 +1,9 @@
 # Whole-repo simplify pass
 
-Status: paused for a suite run. Ticked items are in the working tree, unrun; the
-unticked ones are open, and items 44, 45, 46, 70 and 71 are partly done (below).
-No suite is run from a session, so the closing loop goes to the maintainer.
+Status: paused. Ticked items are committed, with 23 and 57 ticked as decided
+against; the unticked ones are open, and items 44, 45, 46, 70 and 71 are partly
+done (below). No suite is run from a session, so the closing loop goes to the
+maintainer.
 
 Partly done: 44 has all but `_hi_ctl_case`; 45 has 11 cases on `_hi_refused`, the
 packaging sites assert a nonzero exit and stay; 46 has the helper only; 71 has
@@ -79,7 +80,7 @@ fixture wrote).
 - [x] 21. `scripts/add_package.sh:105-130`: inline at 144 and 164.
 - [x] 22. `common/targets.sh:544-554,571-586`: flatten the age check, one cleanup
       in `write_cache`.
-- [ ] 23. `common/keep.sh:358-386`: move the `_hi_mux_here` check below the export
+- [x] 23. Decided against. `common/keep.sh:358-386`: move the `_hi_mux_here` check below the export
       loop; `_hi_keep_hold_here` reads `$_HI_KEEP_AS`.
 - [x] 24. `hi.sh:121-129`, `scripts/pack_stream.sh:305-314`: one `printf -v` after
       the fallback chain.
@@ -160,7 +161,7 @@ fixture wrote).
       `test_package_sh_reads_the_version_from_the_pkgbuild`.
 - [ ] 56. `_hi_ledger image` in `_hi_build_image` for `*-$$` tags; sweep in
       `_hi_test_cleanup`; drop the six per-suite cleanups.
-- [ ] 57. `_hi_lint_fail` bumps `$bad`; `lint_site_links` keeps its per-file count.
+- [x] 57. Decided against. `_hi_lint_fail` bumps `$bad`; `lint_site_links` keeps its per-file count.
 - [ ] 58. `packaging_ci_release_test.sh:490-626`: `_hi_in_mkpkg` moved, `_hi_checksum_dist`,
       `_hi_checksums_with`.
 - [ ] 59. `cache_test.sh:237-405`: parameterized freshness and stability cases.

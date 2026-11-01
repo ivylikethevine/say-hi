@@ -10,7 +10,7 @@ none of them, and what hi put there is removed when it ends. Nothing is
 installed on the host. The same command opens a session in a container, a
 Nomad allocation, or a Kubernetes pod.
 
-![Payload](https://img.shields.io/badge/ssh_payload-65KB-4c1) [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397) [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/ivylikethevine/say-hi?label=scorecard)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi) [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14397/baseline)](https://www.bestpractices.dev/projects/14397) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
+![Payload](https://img.shields.io/badge/ssh_payload-67KB-4c1) [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397) [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/ivylikethevine/say-hi?label=scorecard)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi) [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14397/baseline)](https://www.bestpractices.dev/projects/14397) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
 
 ## In Sixty Seconds
 
