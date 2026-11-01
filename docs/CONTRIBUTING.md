@@ -298,13 +298,13 @@ Pages; the lint group checks that too.
 [the roadmap](ROADMAP.md) and
 [Release Stages](ROADMAP.md#release-stages) are to-do lists, not a
 changelog: finishing an entry means **moving** it, as one sentence, into the
-`From the roadmap:` list under [CHANGELOG.md](CHANGELOG.md)'s
-`## Unreleased`, which the next release's entry takes in. A change that
-ships in the release's own pull request writes its sentence there too, as a
-bullet above that list, since the entry is written before that PR exists. What a _user_ reads
+`From the roadmap:` list at the top of [CHANGELOG.md](CHANGELOG.md), and the
+next release's body takes it in. A change with a
+sentence of its own and no pull request note writes it there too, as a
+bullet above that list. What a _user_ reads
 is the pull request's `## Release note` section (the template has it), which
 [`release.yml` collects into the release body](RELEASING.md#cutting-a-release)
-and `.github/scripts/changelog.sh` into `docs/CHANGELOG.md`: write the sentence you
+through `.github/scripts/changelog.sh`: write the sentence you
 would want on the release page, or `none` when nothing a user sees changes.
 `release note (pr body)` warns on a body with no such section, or an empty
 one.

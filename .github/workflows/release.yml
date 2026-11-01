@@ -126,12 +126,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # the tarball is a `git archive` of the tag, so the entry has to be in
-      # the tagged tree: written and merged before the tag (changelog.sh)
-      - name: CHANGELOG.md opens on this release
-        if: github.event_name == 'push'
-        run: bash .github/scripts/changelog.sh --check "${GITHUB_REF_NAME#v}"
-
       # Tags are SSH-signed (git's gpg.format=ssh), so the trust root is an
       # allowed_signers file rather than a keyring. Only the committed file
       # counts: the global and system git configs are ignored, and a
@@ -721,17 +715,16 @@ jobs:
             "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
             -f tag_name="$GITHUB_REF_NAME" --jq .body 2>/dev/null || true)"
           [ -n "$notes" ] || notes="_Release notes could not be generated for this tag._"
-          # What changed: the tag's CHANGELOG.md entry, which the gate holds
-          # it to, so the release page and the tarball say the same. A debug
-          # tag the gate lets through without one falls back to each PR's
-          # `## Release note` section (release_notes.sh reads the PR numbers
-          # out of the generated notes), and to the titles alone when no PR
+          # What changed: each PR's `## Release note` section (release_notes.sh
+          # reads the PR numbers out of the generated notes) and the sentences
+          # CHANGELOG.md has gained since the last release. A failure here costs
+          # the list, never the release: the titles stand alone, as when no PR
           # said anything.
-          changed="$(bash .github/scripts/changelog.sh --entry "${GITHUB_REF_NAME#v}")"
-          if [ -z "$changed" ]; then
-            printf '%s\n' "$notes" >"$RUNNER_TEMP/generated-notes.md"
-            changed="$(bash .github/scripts/release_notes.sh "$GITHUB_REPOSITORY" "$RUNNER_TEMP/generated-notes.md")"
-          fi
+          printf '%s\n' "$notes" >"$RUNNER_TEMP/generated-notes.md"
+          changed="$(bash .github/scripts/changelog.sh "$GITHUB_REPOSITORY" "$RUNNER_TEMP/generated-notes.md")" || {
+            echo "::warning title=What changed::changelog.sh failed - this release's body lists the PR titles alone"
+            changed=""
+          }
           # The checklist: each command is the one docs/PACKAGING.md documents
           # under "Verifying a release download", and the public key is read
           # out of that file so a second literal copy cannot drift.

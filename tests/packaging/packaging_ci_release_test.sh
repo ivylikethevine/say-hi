@@ -216,17 +216,15 @@ function test_prerelease_tags_reach_no_channel() {
   [ "$bad" = 0 ] || _hi_why bad
 }
 
-# The release page's "What changed" list is the tag's CHANGELOG.md entry,
-# and, for a tag with none, each PR's `## Release note` section: the publish
-# job asks changelog.sh for the entry first, then runs the extractor over the
-# generated notes with the permission that needs, and the extractor's grammar
-# holds - the section to the next heading, comments and `none` as nothing, a
-# body without the section as nothing.
+# The release page's "What changed" list: the publish job asks changelog.sh
+# for it over the generated notes, with the permission that needs, and a
+# failure there warns rather than ending the release.
 function test_release_workflow_publishes_release_notes() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   # shellcheck disable=SC2016 # the workflow's own text, matched literally
-  [[ "$job" == *'changelog.sh --entry "${GITHUB_REF_NAME#v}"'* ]] && [[ "$job" == *"release_notes.sh"* ]] &&
+  [[ "$job" == *'changelog.sh "$GITHUB_REPOSITORY"'* ]] &&
+    [[ "$job" == *'generated-notes.md")" || {'* ]] &&
     [[ "$job" == *"pull-requests: read"* ]] || _hi_why job
 }
 
@@ -648,14 +646,15 @@ function test_src_tarball_ships_an_executable_hi_sh() {
   mkdir -p "$dir"
   tar -xzf "$out" -C "$dir" || _hi_why out dir || return 1
   [ -x "$dir/say-hi-9.9.9/hi.sh" ] || _hi_why dir || return 1
-  # ...and the changelog, which the gate holds to the tag's version
+  # ...and the changelog
   [ -f "$dir/say-hi-9.9.9/docs/CHANGELOG.md" ] ||
     _hi_because "no docs/CHANGELOG.md in a git archive of HEAD - is it committed?"
 }
 
 # _hi_changelog_run <dir> <args...> - changelog.sh over <dir>/CHANGELOG.md, a
 # copy of this tree's header alone, with a stand-in gh: PR 12 says something
-# (a backslash in it), PR 13 says none
+# (a backslash in it), PR 13 says none, and the last release's copy of the file
+# is <dir>/prior.md
 function _hi_changelog_run() {
   local dir="$1"
   shift
@@ -668,6 +667,8 @@ case "$*" in
 *generate-notes*) printf '* a by @x in https://github.com/o/r/pull/12\n* b by @x in https://github.com/o/r/pull/13\n' ;;
 *pulls/12*) printf '## Release note\n\nhi keeps your prompt, a \\ and all.\n' ;;
 *pulls/13*) printf '## Release note\n\nnone\n' ;;
+*releases/latest*) [ ! -e "${0%/bin/gh}/norelease" ] && printf 'v0.9.0\n' || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; } ;;
+*contents/docs/CHANGELOG.md*) cat "${0%/bin/gh}/prior.md" 2>/dev/null || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; } ;;
 *) exit 1 ;;
 esac
 EOF
@@ -676,68 +677,48 @@ EOF
   PATH="$dir/bin:$PATH" HI_CHANGELOG="$dir/CHANGELOG.md" bash "$_HI_ROOT/.github/scripts/changelog.sh" "$@"
 }
 
-# the entry lands under the header, newest first; a second run for the same
-# version replaces it rather than stacking a copy; and the file ends on text
-function test_changelog_writes_one_entry_a_version() {
-  local dir="$_HI_WORKDIR/changelog-w" got
-  { _hi_changelog_run "$dir" o/r 1.0.0 && _hi_changelog_run "$dir" o/r 1.0.0 &&
-    _hi_changelog_run "$dir" o/r 1.1.0; } >/dev/null || _hi_why dir || return 1
-  got="$(grep -E '^## |^- ' "$dir/CHANGELOG.md" | sed 's/ - [0-9-]*$//')"
-  [ "$got" = $'## 1.1.0\n- hi keeps your prompt, a \\ and all. (#12)\n## 1.0.0\n- hi keeps your prompt, a \\ and all. (#12)' ] ||
-    _hi_because "the entries read: $got" || return 1
-  got="$(tail -n 1 "$dir/CHANGELOG.md")"
-  [ -n "$got" ] || _hi_because "CHANGELOG.md ends on a blank line"
+# the page lists the PRs' notes and the sentences above the first versioned
+# heading that the last release's copy of the file lacks, a wrapped one whole,
+# the roadmap's at the foot
+function test_changelog_lists_only_what_the_last_release_lacks() {
+  local dir="$_HI_WORKDIR/changelog-b" notes="$_HI_WORKDIR/changelog-b.notes" got
+  printf '* a by @x in https://github.com/o/r/pull/12\n* b by @x in https://github.com/o/r/pull/13\n' >"$notes"
+  _hi_changelog_run "$dir" o/r "$notes" >/dev/null 2>&1 || _hi_why dir || return 1
+  printf '\n## Since the last release\n\n- old.\n- new,\n  and wrapped.\n\nFrom the roadmap:\n\n- road old.\n- road new.\n\n## 0.8.0 - 2026-10-26\n\n- history.\n' >>"$dir/CHANGELOG.md"
+  printf '## Since the last release\n\n- old.\n\nFrom the roadmap:\n\n- road old.\n' >"$dir/prior.md"
+  got="$(_hi_changelog_run "$dir" o/r "$notes")" || _hi_why dir || return 1
+  [ "$got" = $'## What changed\n\n- hi keeps your prompt, a \\ and all. (#12)\n- new, and wrapped.\n\nFrom the roadmap:\n\n- road new.' ] ||
+    _hi_because "the list reads: $got" || return 1
+  # a last release without the file: every sentence is new
+  rm "$dir/prior.md"
+  got="$(_hi_changelog_run "$dir" o/r "$notes")" || _hi_why dir || return 1
+  [ "$got" = $'## What changed\n\n- hi keeps your prompt, a \\ and all. (#12)\n- old.\n- new, and wrapped.\n\nFrom the roadmap:\n\n- road old.\n- road new.' ] ||
+    _hi_because "against a release without the file, the list reads: $got"
 }
 
-# what waits under `## Unreleased`, which no tag passes, lands in the next
-# version's entry, the section gone: its own bullets beside the merged PRs'
-# notes, the roadmap's finished items at the foot; a rewrite of that version
-# keeps both, and the next version starts with neither
-function test_changelog_folds_the_unreleased_items_in() {
-  local dir="$_HI_WORKDIR/changelog-r" got
-  _hi_changelog_run "$dir" --check 0.0.1 || _hi_why dir || return 1
-  printf '\n## Unreleased\n\n- hi says hello sooner.\n\nFrom the roadmap:\n\n- One thing was done.\n- Another was too.\n' >>"$dir/CHANGELOG.md"
-  ! got="$(_hi_changelog_run "$dir" --check 1.0.0 2>&1)" && [[ "$got" == *"still holds a ## Unreleased section"* ]] ||
-    _hi_because "a tag passed with items still unfolded: $got" || return 1
-  { _hi_changelog_run "$dir" o/r 1.0.0 && _hi_changelog_run "$dir" o/r 1.0.0 &&
-    _hi_changelog_run "$dir" o/r 1.1.0 && _hi_changelog_run "$dir" --check 1.1.0; } >/dev/null || _hi_why dir || return 1
-  got="$(grep -E '^## |^- |^From' "$dir/CHANGELOG.md" | sed 's/ - [0-9-]*$//')"
-  [ "$got" = $'## 1.1.0\n- hi keeps your prompt, a \\ and all. (#12)\n## 1.0.0\n- hi keeps your prompt, a \\ and all. (#12)\n- hi says hello sooner.\nFrom the roadmap:\n- One thing was done.\n- Another was too.' ] ||
-    _hi_because "the entries read: $got" || return 1
-  got="$(tail -n 1 "$dir/CHANGELOG.md")"
-  [ -n "$got" ] || _hi_because "CHANGELOG.md ends on a blank line"
+# nothing to say prints nothing, nothing new prints nothing, and no published
+# release to compare with costs the sentences alone: never the release
+function test_changelog_survives_no_notes_and_no_prior() {
+  local dir="$_HI_WORKDIR/changelog-n" notes="$_HI_WORKDIR/changelog-n.notes" got err
+  : >"$notes"
+  _hi_changelog_run "$dir" o/r "$notes" >/dev/null 2>&1 || _hi_why dir || return 1
+  printf '\n## Since the last release\n\nFrom the roadmap:\n\n- road only.\n' >>"$dir/CHANGELOG.md"
+  cp "$dir/CHANGELOG.md" "$dir/prior.md"
+  got="$(_hi_changelog_run "$dir" o/r "$notes")" || _hi_why dir || return 1
+  [ -z "$got" ] || _hi_because "with nothing new, the list reads: $got" || return 1
+  : >"$dir/norelease"
+  got="$(_hi_changelog_run "$dir" o/r "$notes" 2>"$dir/err")" || _hi_why dir || return 1
+  err="$(cat "$dir/err")"
+  [ -z "$got" ] && [[ "$err" == *"::warning"*"no published release"* ]] ||
+    _hi_because "with no release to compare with, the list reads [$got] and stderr [$err]"
 }
 
-# --entry prints a version's entry as the release body's "What changed", its
-# date line gone and its inner blank lines kept; a prerelease's is the version
-# it leads to, and a version with no entry is nothing
-function test_changelog_entry_is_the_release_body_s_what_changed() {
-  local dir="$_HI_WORKDIR/changelog-e" got
-  mkdir -p "$dir"
-  printf '# Changelog\n\n## 1.1.0 - 2026-01-02\n\n- b\n\nFrom the roadmap:\n\n- c\n\n## 1.0.0 - 2026-01-01\n\n- a\n' >"$dir/CHANGELOG.md"
-  got="$(HI_CHANGELOG="$dir/CHANGELOG.md" bash "$_HI_ROOT/.github/scripts/changelog.sh" --entry 1.1.0-rc.1)"
-  [ "$got" = $'## What changed\n\n- b\n\nFrom the roadmap:\n\n- c' ] || _hi_why got || return 1
-  got="$(HI_CHANGELOG="$dir/CHANGELOG.md" bash "$_HI_ROOT/.github/scripts/changelog.sh" --entry 2.0.0)"
-  [ -z "$got" ] || _hi_why got
-}
-
-# --check holds a tag to the top entry: its own version, the version a
-# prerelease leads to, and nothing for a 0.0.x debug tag
-function test_changelog_check_holds_the_tag_to_the_top_entry() {
-  local dir="$_HI_WORKDIR/changelog-c" err
-  _hi_changelog_run "$dir" o/r 1.1.0 >/dev/null || _hi_why dir || return 1
-  { _hi_changelog_run "$dir" --check 1.1.0 && _hi_changelog_run "$dir" --check 1.1.0-rc.1 &&
-    _hi_changelog_run "$dir" --check 0.0.7; } || _hi_why dir || return 1
-  ! err="$(_hi_changelog_run "$dir" --check 1.2.0 2>&1)" && [[ "$err" == *"opens on '1.1.0', not 1.2.0"* ]] ||
-    _hi_because "1.2.0 against a 1.1.0 entry said: $err"
-}
-
-# the gate runs it on every tag, so a tag without its entry builds nothing
-function test_release_gate_checks_the_changelog() {
+# a tag is all a release needs: a gate that reads the changelog refuses a tag
+# for a file only a further commit, and its CI, can fix
+function test_release_gate_never_reads_the_changelog() {
   local job
-  job="$(_hi_wf_job "$_HI_RELEASE_WF" gate)"
-  # shellcheck disable=SC2016 # the workflow's literal
-  [[ "$job" == *'bash .github/scripts/changelog.sh --check "${GITHUB_REF_NAME#v}"'* ]] || _hi_why job
+  job="$(_hi_wf_job "$_HI_RELEASE_WF" gate | tr '[:upper:]' '[:lower:]')"
+  [[ "$job" != *changelog* ]] || _hi_because "the gate names the changelog: a tag must not need a commit first"
 }
 
 # release.yml builds that tarball on the tag path too, not only on a rehearsal:
@@ -772,7 +753,7 @@ function run_packaging_ci_release_tests() {
   _hi_check "A prerelease tag is marked as one" test_release_workflow_marks_prerelease_tags
   _hi_check "...and reaches no channel, never refreshes Pages" test_prerelease_tags_reach_no_channel
   _hi_check "The PR template carries a release-note section" grep -q '^## Release note' "$_HI_PR_TEMPLATE"
-  _hi_check "publish takes the changelog entry, release_notes.sh where none" test_release_workflow_publishes_release_notes
+  _hi_check "publish asks changelog.sh, and survives its failure" test_release_workflow_publishes_release_notes
   _hi_check "publish freezes the tag's badges into the body" test_release_body_carries_frozen_badges
   _hi_check "release_notes.sh --extract takes the section" test_release_note_extract_takes_the_section
   _hi_check "release_notes.sh --extract treats none as empty" test_release_note_extract_treats_none_as_empty
@@ -797,11 +778,9 @@ function run_packaging_ci_release_tests() {
   _hi_check "release.yml builds that tarball itself" test_release_workflow_builds_the_source_tarball
   _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
   _hi_check "src_tarball ships an executable hi.sh, and CHANGELOG.md" test_src_tarball_ships_an_executable_hi_sh
-  _hi_check "changelog.sh writes one entry a version, newest first" test_changelog_writes_one_entry_a_version
-  _hi_check "changelog.sh folds what waits under Unreleased into the next entry" test_changelog_folds_the_unreleased_items_in
-  _hi_check "changelog.sh --check holds a tag to the top entry" test_changelog_check_holds_the_tag_to_the_top_entry
-  _hi_check "changelog.sh --entry is the release body's What changed" test_changelog_entry_is_the_release_body_s_what_changed
-  _hi_check "the gate runs changelog.sh --check" test_release_gate_checks_the_changelog
+  _hi_check "changelog.sh lists only what the last release lacks" test_changelog_lists_only_what_the_last_release_lacks
+  _hi_check "changelog.sh survives no notes and no prior copy" test_changelog_survives_no_notes_and_no_prior
+  _hi_check "the gate never reads the changelog" test_release_gate_never_reads_the_changelog
   _hi_check "publish's minisign-pubkey sed still reads the key" test_release_minisign_pubkey_sed_matches_packaging_md
   _hi_check "every workflow chained off CI carries the green-push gate" test_ci_chained_workflows_carry_the_green_push_gate
   _hi_check "every dotfile upload-artifact path sets include-hidden-files" test_upload_artifact_dotfile_paths_set_include_hidden
