@@ -28,7 +28,8 @@ function _hi_stripped_header() {
 function test_system_info_without_uname_says_unknown() {
   local out
   out="$(_hi_stripped_header "$_HI_ROW_FNS; _hi_sysinfo_row")"
-  [[ "$out" == *"?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out" && return 0
+  # a Linux from 6.1 answers from /proc, with no uname to miss
+  { [ -r /proc/sys/kernel/arch ] || [[ "$out" == *"?"* ]]; } && [ -n "$out" ] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out" && return 0
   # once red on Windows arm64 with nothing to say; the row itself says why
   _hi_cecho " | the row without uname came out as:" "$RED"
   printf '%s\n' "$out" | sed 's/^/      /'

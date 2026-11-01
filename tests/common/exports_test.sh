@@ -145,6 +145,36 @@ function _hi_rc_round_trips() { # <shell> <file> <assignment grep>
   [ "$out" = "red|$_HI_RC_TAG|$_HI_RC_HOST|0" ] || _hi_because "$1 read back: $out"
 }
 
+# An `export` in the overlay's aliases.sh or an extension reaches a child, as
+# SETTINGS.md's table says, unless it is a _HI_* name
+function _hi_overlay_export_rides() { # <shell> <rc> <member>
+  local dir="$_HI_WORKDIR/overlay-export" out
+  mkdir -p "$dir/extensions"
+  printf 'export HI_RIDES_OUT=yes\nexport _HI_STAYS_IN=yes\n' >"$dir/$3"
+  out="$(HOME="$_HI_WORKDIR/home" _HI_CONFIG_DIR="$dir" "$1" -c "source $2; env" 2>/dev/null | grep -E '^(HI_RIDES_OUT|_HI_STAYS_IN)=' || true)"
+  rm -f "${dir:?}/$3"
+  [ "$out" = "HI_RIDES_OUT=yes" ] || _hi_because "$1 child of $3 saw: [$out]"
+}
+
+# aliases.sh's $EDITOR, as a session's rc leaves it: the same editor keeps
+# load.sh's flags, another editor stands, and at home nothing is held back
+function _hi_overlay_editor_is() { # <want> <shell> <rc> <its export> <session>
+  local dir="$_HI_WORKDIR/overlay-editor" out
+  mkdir -p "$dir"
+  # shellcheck disable=SC2016 # the overlay's to expand
+  printf 'export EDITOR=%s\nexport VISUAL="$EDITOR"\n' "$4" >"$dir/aliases.sh"
+  out="$(HOME="$_HI_WORKDIR/home" _HI_CONFIG_DIR="$dir" _HI_REMOTE_SESSION="$5" EDITOR='A=/x/y nvim -u /wired' VISUAL='A=/x/y nvim -u /wired' \
+    "$2" -c "source $3; printenv EDITOR; printenv VISUAL" 2>/dev/null | paste -sd'|' -)"
+  [ "$out" = "$1|$1" ] || _hi_because "$2, $4 in session [$5]: [$out], want [$1|$1]"
+}
+
+function _hi_overlay_editor_cases() { # <shell> <rc>
+  local kept='A=/x/y nvim -u /wired'
+  _hi_overlay_editor_is "$kept" "$1" "$2" /usr/bin/nvim 1 &&
+    _hi_overlay_editor_is /usr/bin/nano "$1" "$2" /usr/bin/nano 1 &&
+    _hi_overlay_editor_is /usr/bin/nvim "$1" "$2" /usr/bin/nvim ""
+}
+
 function run_exports_tests() {
   _hi_workdir exportstest
   mkdir -p "$_HI_WORKDIR/home"
@@ -162,6 +192,17 @@ function run_exports_tests() {
   _hi_check_requires_eq zsh "zsh: the values stay as shell variables" "$_HI_ROOT|$_HI_HUMAN_CENTRIC_DATE" _hi_shell_keeps_values zsh "$_HI_ZSHRC"
   _hi_check_requires_eq fish "fish: the values stay as shell variables" "$_HI_ROOT|$_HI_HUMAN_CENTRIC_DATE" _hi_shell_keeps_values fish "$_HI_FISH_CONFIG"
   _hi_check_requires fish "fish: __hi_bash passes session values without exporting them" test_fish_bridge_passes_session_values_without_exporting_them
+
+  _hi_h2 "Testing: what the overlay's shell files export"
+  _hi_check "bash: an aliases.sh export reaches a child" _hi_overlay_export_rides bash "$_HI_BASHRC" aliases.sh
+  _hi_check_requires zsh "zsh: an aliases.sh export reaches a child" _hi_overlay_export_rides zsh "$_HI_ZSHRC" aliases.sh
+  _hi_check_requires fish "fish: an aliases.sh export reaches a child" _hi_overlay_export_rides fish "$_HI_FISH_CONFIG" aliases.sh
+  _hi_check "bash: an extension's export reaches a child" _hi_overlay_export_rides bash "$_HI_BASHRC" extensions/rides
+  _hi_check_requires zsh "zsh: an extension's export reaches a child" _hi_overlay_export_rides zsh "$_HI_ZSHRC" extensions/rides
+  _hi_check_requires fish "fish: an extension's export reaches a child" _hi_overlay_export_rides fish "$_HI_FISH_CONFIG" extensions/rides
+  _hi_check "bash: aliases.sh naming the session's editor keeps its flags" _hi_overlay_editor_cases bash "$_HI_BASHRC"
+  _hi_check_requires zsh "zsh: aliases.sh naming the session's editor keeps its flags" _hi_overlay_editor_cases zsh "$_HI_ZSHRC"
+  _hi_check_requires fish "fish: aliases.sh naming the session's editor keeps its flags" _hi_overlay_editor_cases fish "$_HI_FISH_CONFIG"
 
   _hi_h2 "Testing: the rosters cannot drift"
   _hi_check "config.fish's _HI_CHILD_ENV mirror matches core.sh" _hi_fish_mirror_is _HI_CHILD_ENV

@@ -26,6 +26,11 @@
 #   lost     the same, and the session dies with the link: the retry says
 #            the kept session is gone and keeps a new one
 #
+# and once more in tmux alone:
+#
+#   closes   `exit` and `y` end the connect, under a tmux.conf that rode with
+#            `detach-on-destroy off` and another session on the server
+#
 # and twice on a target with none of the three, where the tree is what holds:
 #
 #   held     the link is cut: the tree stays, and the retry's shell is on
@@ -278,6 +283,13 @@ function _hi_keep_feed_hold() {
   _hi_keep_feed_exit "$1" n || return 1
 }
 
+# ...held the same way, then left by `exit` and a `y`
+function _hi_keep_feed_close() {
+  _hi_keep_feed_mark "$1" || return 1
+  _hi_keep_await 240 test -e "$1.go" || return 1
+  _hi_keep_feed_exit "$1" y || return 1
+}
+
 # an ordinary session that types `hi --keep` ($_HI_KEEPTEST_TYPED where a
 # case types something else): the shell it is typed in is marked, then the
 # owner pane's; the detach lands back in the first, which says so through its
@@ -502,6 +514,23 @@ function _hi_keep_timeout() {
   _hi_keep_ended "$label" "$out" 120 "exit and n never detached" || return 1
   _hi_poll_bool 120 0.5 _hi_keep_gone ||
     _hi_keep_fail "$label" "detached past ${_HI_KEEPTEST_LIMIT}s, the session or its tree is still there" "$out"
+}
+
+function _hi_keep_closes() {
+  local label="$1" out="$_HI_WORKDIR/$1.out" got
+  local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config"
+  mkdir -p "$_HI_CONFIG_DIR/tmux"
+  printf 'set -g detach-on-destroy off\n' >"$_HI_CONFIG_DIR/tmux/tmux.conf"
+  _hi_ssh_launch "$_HI_SSH_PORT" --keep
+  _hi_keep_typed "$out" _hi_keep_feed_close "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_up "$label" "$out" || return 1
+  got="$(docker exec -u hitest "$_HI_KEEPTEST_C" tmux show-options -gv detach-on-destroy 2>&1)" || true
+  [ "$got" = off ] || _hi_keep_fail "$label" "the config did not ride: detach-on-destroy is [$got]" "$out" || return 1
+  docker exec -u hitest "$_HI_KEEPTEST_C" tmux new-session -d -s other 'sleep 600' ||
+    _hi_keep_fail "$label" "no other session to move a client to" "$out" || return 1
+  : >"$out.go"
+  _hi_keep_ended "$label" "$out" 60 "exit and y left the client attached to another session" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_gone || _hi_keep_fail "$label" "exit and y left the session or its tree" "$out"
 }
 
 function _hi_keep_inside() {
@@ -811,6 +840,12 @@ function run_ssh_keep_tests() {
       fi
     done
   done
+  _hi_bg_ok tmux ok
+  if [ "$ok" = 1 ]; then
+    _hi_par_case tmux-closes _hi_keep_case tmux closes "closed on y under detach-on-destroy off, and the connect ended"
+  else
+    _hi_skip "[tmux-closes]" "image did not build"
+  fi
   for spec in "${_HI_KEEP_BARE_CASES[@]}"; do
     _hi_par_case "none-${spec%%:*}" _hi_keep_case none "${spec%%:*}" "${spec#*:}"
   done

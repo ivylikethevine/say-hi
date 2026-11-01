@@ -673,6 +673,8 @@ function _hi_keep_panes() {
     # target is a pane, and takes the session's exact name only before one.
     printf -v q '%q' "$file"
     tmux set-option -t "=$_HI_KEEP_NAME:" default-command "$q" >/dev/null 2>&1
+    # closing the session ends the connect, whatever the config rode with
+    tmux set-option -t "=$_HI_KEEP_NAME:" detach-on-destroy on >/dev/null 2>&1
     ;;
   screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X shell "$file" >/dev/null 2>&1 ;;
   esac

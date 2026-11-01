@@ -1831,6 +1831,8 @@ rode, which leaves `wiring.sh`'s.
   and starts a fresh shell. zellij has no command for that - its
   `action detach` leaves an attached client where it is - so there the fresh
   shell comes with a line naming the key. With nobody attached it closes.
+  tmux's `detach-on-destroy` is set `on` for this session alone, so closing
+  it ends the connect even where a config that rode says `off`.
   `hi --end <target>` kills the session over one call, the arm's `probe`, and the pane's
   bash takes the hangup. zellij may kill that bash before its exit hook has
   run (a layout's command gets SIGTERM, which an interactive bash ignores,

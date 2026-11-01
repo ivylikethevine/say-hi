@@ -353,6 +353,39 @@ function _hi_parses() {
   return 1
 }
 
+# _hi_editor_cmd <value> - the command a session's $EDITOR runs, into $_hi_ec:
+# its first word that is no NAME=value, without a directory
+function _hi_editor_cmd() {
+  local _hi_ec_s="$1 "
+  while :; do
+    _hi_ec="${_hi_ec_s%% *}" _hi_ec_s="${_hi_ec_s#* }"
+    case "$_hi_ec" in *=*) [ -z "$_hi_ec_s" ] || continue ;; esac
+    break
+  done
+  _hi_ec="${_hi_ec##*/}"
+}
+
+# _hi_editors_keep <$EDITOR> <$VISUAL> - after the overlay's aliases.sh, what
+# load.sh exported, flags and all, where it named the same editor; another
+# editor stands. Those two values are what they were ahead of aliases.sh.
+function _hi_editors_keep() {
+  local _hi_ec _hi_ek_a
+  [ "${_HI_REMOTE_SESSION:-}" = 1 ] || return 0
+  if [ -n "$1" ] && [ -n "${EDITOR:-}" ]; then
+    _hi_editor_cmd "$1"
+    _hi_ek_a="$_hi_ec"
+    _hi_editor_cmd "$EDITOR"
+    [ "$_hi_ek_a" != "$_hi_ec" ] || export EDITOR="$1"
+  fi
+  if [ -n "$2" ] && [ -n "${VISUAL:-}" ]; then
+    _hi_editor_cmd "$2"
+    _hi_ek_a="$_hi_ec"
+    _hi_editor_cmd "$VISUAL"
+    [ "$_hi_ek_a" != "$_hi_ec" ] || export VISUAL="$2"
+  fi
+  return 0
+}
+
 # _hi_load_extensions - source each extensions/ member once the aliases are built
 # and before the prompt is. One this shell cannot parse is skipped with a line
 # on stderr rather than half-run; one that sets $_HI_SEGMENT adds that command
@@ -764,6 +797,8 @@ function _hi_whoami() {
 # Fill the memos in the *calling* shell (a prompt's $( ) would lose them).
 # Colors only: resolving is the expensive half, and zsh.zsh wants just names.
 function _hi_prime_identity() {
+  # a session's rc holds what load() resolved
+  [ -z "${_HI_USER_COLOR:-}" ] || [ -z "${_HI_HOST_COLOR:-}" ] || return 0
   # every lookup below reads one load of the colors file
   local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS=""
   _hi_colors_load

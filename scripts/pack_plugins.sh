@@ -71,8 +71,8 @@ function _hi_path_list() {
 
 # _hi_plugins_load - the plugins files into $_HI_PLUGIN_ROWS, a row a member,
 # once per tree and overlay: the tree's config/plugins, then the overlay's
-# plugins, whose plugin of a name the tree's has replaces it whole. Each is
-# TOML in the subset core.sh's _hi_toml_row reads. A `[<group>.<name>]` table
+# plugins, whose plugin of a name the tree's has replaces it whole, less the
+# tree's files where it names none. Each is TOML in the subset core.sh's _hi_toml_row reads. A `[<group>.<name>]` table
 # is a plugin, its keys `files` (the members, a space apart), `tool` (left
 # out, the name), and `wire`, `home`, and `dialect` (left out, -); a
 # `[<group>.<name>."<member>"]` table under it is the wire, home, or dialect

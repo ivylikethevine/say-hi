@@ -300,6 +300,13 @@ function _hi_session_rc_setup() {
     _hi_fishquote q "${!v}"
     fish_vars="${fish_vars}set -g $v $q"$'\n'
   done
+  # the colors the header resolved, which bash and zsh would read the colors
+  # file again for (_hi_prime_identity); fish keeps a memo of its own
+  for v in _HI_USER_COLOR _HI_HOST_COLOR; do
+    [ -n "${!v-}" ] || continue
+    printf -v q '%q' "${!v}"
+    sh_vars="$sh_vars$v=$q"$'\n'
+  done
 
   _hi_session_sh_rc '[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"' "$_HI_BASHRC" "$dir/bashrc"
 
@@ -516,6 +523,8 @@ function load() {
 
   set +euo pipefail
 
+  # the bootstrap's two clocks: sh has no floats, and an awk there is an exec
+  case "${_HI_COPY_TIME:-}" in *' '*) _HI_COPY_TIME="$(_hi_elapsed "${_HI_COPY_TIME% *}" "${_HI_COPY_TIME#* }")" ;; esac
   # an ordinary ssh session can be kept from inside; an owner pane already is
   [ -z "${_HI_KEEP_AS:-}" ] || [ -n "${_HI_KEEP_MUX:-}" ] || _hi_keep_file >"$_HI_ROOT/hi.keep"
   _hi_keep_claim
@@ -524,7 +533,7 @@ function load() {
   local banner=Connected
   [ ! -s "$_HI_ROOT/hi.cwd" ] || [ -z "${_HI_KEEP_HOLD:-}" ] || banner=Resumed
   _hi_keep_tty=""
-  rm -f "$_HI_ROOT/hi.end" "$_HI_ROOT/hi.hold"
+  [ ! -e "$_HI_ROOT/hi.end" ] && [ ! -e "$_HI_ROOT/hi.hold" ] || rm -f "$_HI_ROOT/hi.end" "$_HI_ROOT/hi.hold"
   if _hi_keep_holds; then
     _hi_keep_tty=1
     if [ -n "${_HI_KEEP_HOLD:-}" ]; then

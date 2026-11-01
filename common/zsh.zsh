@@ -30,7 +30,10 @@ unset _hi_core_loaded
 source "$_HI_ROOT/common/core.sh"
 source "$_HI_GIT_PROMPT"
 source "$_HI_ENV_PROMPT"
+_hi_ed="${EDITOR-}" _hi_vi="${VISUAL-}"
 source "$_HI_ALIASES"
+_hi_editors_keep "$_hi_ed" "$_hi_vi"
+unset _hi_ed _hi_vi
 _hi_load_extensions
 # the shell hooks the client packed (HI.67), where this box has the tool
 _hi_run_hooks zsh
