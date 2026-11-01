@@ -538,8 +538,8 @@ and in whether an `export` there reaches programs started from the shell
 
 | file                             | dialect                                                        | sourced                                                       | an `export` reaches children |
 | -------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------- |
-| `aliases.sh`                     | the POSIX+fish subset: `export`, `alias`, `&&` chains, no `if` | after hi's aliases, before the prompt is built                | no                           |
-| `extensions/<name>`              | the same subset                                                | after `aliases.sh`, in name order ([Extensions](#extensions)) | no                           |
+| `aliases.sh`                     | the POSIX+fish subset: `export`, `alias`, `&&` chains, no `if` | after hi's aliases, before the prompt is built                | yes, but no `_HI_*` name     |
+| `extensions/<name>`              | the same subset                                                | after `aliases.sh`, in name order ([Extensions](#extensions)) | yes, but no `_HI_*` name     |
 | `bashrc`, `zshrc`, `config.fish` | that shell's own, in full                                      | last, at the end of hi's rc for that shell                    | yes                          |
 
 The per-shell file is sourced at the end of hi's, in the same dialect, and
@@ -576,7 +576,9 @@ The `_HI_*_OPTS` and `_HI_*_BIN` values and the two opt-ins hi's aliases are
 built from go in `settings.sh`, which loads first; set in `aliases.sh` they
 arrive too late, and `hi --doctor` flags them. It also names an alias of yours
 that replaces one hi points at a carried config (`alias nano=...` over
-`nano --rcfile`), since that config then goes unused on a target.
+`nano --rcfile`), since that config then goes unused on a target. An `$EDITOR`
+or `$VISUAL` set there naming the editor hi chose keeps hi's flags on a target;
+one naming another replaces hi's, and `hi --doctor` says so.
 
 Keep your aliases in `~/.aliases` already, or in `~/.bash_aliases`? With no
 `aliases.sh` in the overlay, the first of those two is what rides to targets,
@@ -723,7 +725,9 @@ in as much of TOML as hi reads: a `[<group>.<name>]` table for each tool, a
 hi has no plugin for rides once `~/.config/say-hi/plugins` has one, written by
 hand (`hi --edit plugins` opens the file in your editor, started from the
 tree's key reference), and a plugin there of a name the tree's file has
-replaces the tree's whole:
+replaces the tree's whole, except that one naming no `files` leaves the tree's
+files riding as they were, so a table can change a hook's `init` or `shells`
+alone:
 
 ```toml
 [cli.task]
@@ -987,8 +991,8 @@ Homebrew does (`opt/say-hi/libexec` under `/opt/homebrew`, `/usr/local`, and
 `/home/linuxbrew/.linuxbrew`), and tests for it before sourcing, so one rc
 serves a machine with a clone, one with a package, and one without say-hi, and
 `hi --doctor` and a later `hi --install` both read it as wired. The blocks an
-older hi printed, naming `$HOME` alone or looking in no Homebrew prefix, still
-read as wired too.
+older hi printed, naming `$HOME` alone, looking in no Homebrew prefix, or
+checking for fish 3.4, still read as wired too.
 
 **Pick one keeper for the files a manager owns.** `hi --configure` writes
 `settings.sh` in the **live** directory; if your manager also owns it, the two

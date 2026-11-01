@@ -68,7 +68,18 @@ function _hi_parses --description 'does fish parse this file; said when not'
   echo -s (set_color yellow) "hi: $argv[2] does not parse in fish; skipped" (set_color normal) >&2
   return 1
 end
+set -l __hi_ed "$EDITOR"
+set -l __hi_vi "$VISUAL"
 source $_HI_ALIASES
+# core.sh's _hi_editors_keep, in fish
+if test "$_HI_REMOTE_SESSION" = 1
+  function __hi_editor_cmd
+    string replace -r '.*/' '' -- (string split ' ' -- $argv[1] | string match -rv '^[^/]*=')[1]
+  end
+  test -n "$__hi_ed"; and test -n "$EDITOR"; and test (__hi_editor_cmd "$__hi_ed") = (__hi_editor_cmd "$EDITOR"); and set -gx EDITOR "$__hi_ed"
+  test -n "$__hi_vi"; and test -n "$VISUAL"; and test (__hi_editor_cmd "$__hi_vi") = (__hi_editor_cmd "$VISUAL"); and set -gx VISUAL "$__hi_vi"
+  functions -e __hi_editor_cmd
+end
 # core.sh's _hi_load_extensions, in fish: each extensions/ member in name order,
 # skipped loudly when fish cannot parse it, its $_HI_SEGMENT collected.
 # GLOSSARY: HI.59

@@ -508,11 +508,15 @@ function rc_home_spelled() {
 # install and doctor both ask, so a block `--print-rc` handed out is left
 # alone by one and read as wired by the other.
 function rc_block_form() {
-  local _hi_bf_have _hi_bf_want _hi_bf_form
+  local _hi_bf_have _hi_bf_want _hi_bf_form _hi_bf_old
   local -a _hi_bf_lines
   printf -v "$1" '%s' ''
   _hi_bf_have="$(grep -F "$_HI_MARKER" "$5" 2>/dev/null || true)"
   [ -n "$_hi_bf_have" ] || return 0
+  # a fish block from before the floor moved to 3.3 is that block still
+  _hi_bf_old='3\.([4-9]|' _hi_bf_want='3\.([3-9]|'
+  _hi_bf_have="${_hi_bf_have/"$_hi_bf_old"/$_hi_bf_want}"
+  _hi_bf_have="${_hi_bf_have/fish 3.4 or newer/fish 3.3 or newer}"
   for _hi_bf_form in written portable prebrew legacy; do
     _hi_read_lines _hi_bf_lines < <(rc_lines "$2" "$3" "$4" "$_hi_bf_form")
     rc_tagged _hi_bf_want "${_hi_bf_lines[@]}"

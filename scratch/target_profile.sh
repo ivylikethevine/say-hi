@@ -148,8 +148,9 @@ fi
 if [ "$mode" = trace ]; then
   connect 1
   cat "$out"/trace.* | awk '
-    /^\+[0-9]+\.[0-9]+ [0-9]+ / {
-      t = substr($1, 2) + 0; pid = $2; key = $3
+    # xtrace repeats the + at each nesting, a command substitution among them
+    /^\++[0-9]+\.[0-9]+ [0-9]+ / {
+      t = $1; sub(/^\++/, "", t); t += 0; pid = $2; key = $3
       # a gap past 2 ms is a wait (a child, a probe, the idle prompt), not work
       if (pid in last) { g = t - last[pid]; if (g > 0.002) { wait += g - 0.002; g = 0.002 } by[lastkey[pid]] += g }
       last[pid] = t; lastkey[pid] = key; n[key]++; total++

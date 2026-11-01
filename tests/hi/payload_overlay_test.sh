@@ -505,6 +505,27 @@ function test_hook_plugins_ride_as_wiring_rows() {
   [[ "$w" != *'mine.hi-prompt-here'* ]] || _hi_because "a prompt plugin is no hook: $w"
 }
 
+# a table of a tree's plugin naming no files replaces its hook and its default,
+# and the tree's files ride on, as SETTINGS.md says
+function test_a_plugin_of_no_files_leaves_the_trees_files() {
+  local dir
+  dir="$(_hi_overlay_fixture hooks-narrowed)"
+  printf '[hooks.atuin]\ninit = "atuin init {shell} --flag"\nshells = "zsh fish"\n' >"$dir/plugins"
+  (
+    _HI_CONFIG_DIR="$dir"
+    _hi_plugins_load
+    case " ${_HI_PLUGIN_FILES[*]} " in
+    *" atuin/config.toml "*) ;;
+    *) _hi_because "the tree's file went: ${_HI_PLUGIN_FILES[*]}" || exit 1 ;;
+    esac
+    case " ${_HI_PLUGIN_HOOKS[*]} " in
+    *"atuin init {shell} --flag|no|zsh fish|"*) ;;
+    *) _hi_because "the hook: ${_HI_PLUGIN_HOOKS[*]}" || exit 1 ;;
+    esac
+    ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" atuin || _hi_because "kept the tree's default: $_HI_PLUGIN_DEFAULT_OFF"
+  )
+}
+
 # an init is a command and its words: one the shell would read as more, a
 # prompt = yes or a quiet with no init, or a quiet of no yes or no, is a row
 # turned down with its reason
@@ -724,6 +745,7 @@ function run_hi_payload_overlay_tests() {
   _hi_check "...nor has it a wiring line" test_a_plugin_off_has_no_wiring_line
   _hi_check "A shell hook rides as a wiring row, by the lists and the tool here" test_hook_plugins_ride_as_wiring_rows
   _hi_check "...an init is a command and its words, or the row is turned down" test_hook_plugin_rows_hold_a_command_alone
+  _hi_check "...a plugin naming no files leaves the tree's riding" test_a_plugin_of_no_files_leaves_the_trees_files
   _hi_check "...shells keeps a hook to its shells, and env sends a variable's value" test_plugin_shells_and_env_ride_in_the_wiring
   _hi_check "...checked with no command at all" test_plugin_init_check_runs_no_command
   _hi_check "...while local-only's toggles keep nothing home" test_local_only_toggles_keep_nothing_home

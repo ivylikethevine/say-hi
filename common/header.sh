@@ -337,10 +337,37 @@ function _hi_platform() {
   fi
 }
 
-# $_HI_KERNEL and $_HI_ARCH, from one memoized `uname -sm`; no uname leaves
-# both empty, rendered "?"
+# $_HI_KERNEL and $_HI_ARCH off the files a Linux from 6.1 has, with no fork
+function _hi_uname_linux() {
+  [ -f "$_HI_LINUX_RELEASE" ] && [ -r /proc/sys/kernel/arch ] &&
+    read -r _HI_KERNEL </proc/sys/kernel/ostype && read -r _HI_ARCH </proc/sys/kernel/arch
+}
+
+# $_HI_CPUS_ALLOWED: the CPUs this process may run on, which is what nproc
+# counts, off /proc/self/status's list of them; empty where it has none
+function _hi_cpus_allowed() {
+  local k v r n=0 IFS=$':\t '
+  _HI_CPUS_ALLOWED=""
+  [ -r /proc/self/status ] || return 0
+  while read -r k v; do
+    [ "$k" = Cpus_allowed_list ] || continue
+    IFS=,
+    for r in $v; do
+      case "$r" in
+      *-*) n=$((n + ${r#*-} - ${r%-*} + 1)) ;;
+      ?*) n=$((n + 1)) ;;
+      esac
+    done
+    break
+  done </proc/self/status
+  [ "$n" = 0 ] || _HI_CPUS_ALLOWED="$n"
+}
+
+# $_HI_KERNEL and $_HI_ARCH, from one memoized `uname -sm` where Linux's files
+# do not say; no uname leaves both empty, rendered "?"
 function _hi_uname() {
   [ -z "${_HI_KERNEL+x}" ] || return 0
+  ! _hi_uname_linux || return 0
   local v
   _hi_slow_out v uname
   _hi_sanitize_var _HI_KERNEL "${v%% *}"
@@ -365,12 +392,14 @@ function _hi_system_info_probe() {
     # "?" - and a caller under its own `set -e` (see the top of the file)
     # must not abort on a missing probe.
     # the files themselves, a `read` loop each rather than an awk fork per
-    # shell start; nproc stays, since it honors a container's CPU affinity
+    # shell start
     local k v
     while IFS='=' read -r k v; do
       [ "$k" != PRETTY_NAME ] || os="${v//\"/}"
     done <"$_HI_LINUX_RELEASE"
-    _hi_slow_out cpus nproc
+    _hi_cpus_allowed
+    cpus="$_HI_CPUS_ALLOWED"
+    [ -n "$cpus" ] || _hi_slow_out cpus nproc
     # straight at the files free(1) and uptime(1) themselves read
     _hi_linux_ram ram /proc/meminfo
     read -r load _ 2>/dev/null </proc/loadavg || load=""
@@ -502,10 +531,14 @@ function _hi_ip_list() {
     # SGR stripped first: an `ip` that colors (an alias or wrapper the shell
     # brought along, or `ip -c`) wraps each address, which shifts nothing in
     # the field layout but defeats the filter's globs and leaks the escapes.
-    ips=$(ip -4 -o addr show scope global 2>/dev/null | awk '{
-      gsub(/\033\[[0-9;]*m/, ""); split($4, a, "/"); n = $2; sub(/@.*/, "", n)
-      printf "%s%s%%%s", sep, a[1], n; sep = ","
-    }')
+    # A `read` loop, since this runs every connect and awk is an exec.
+    local out n a sgr=$'\033\\[[0-9;]*m'
+    out="$(exec ip -4 -o addr show scope global 2>/dev/null)" || out=""
+    while [[ "$out" =~ $sgr ]]; do out="${out//"${BASH_REMATCH[0]}"/}"; done
+    while read -r _ n _ a _; do
+      [ -n "$a" ] || continue
+      ips="$ips${ips:+,}${a%%/*}%${n%%@*}"
+    done <<<"$out"
     [ -n "$ips" ] || ips=$(hostname -I 2>/dev/null | awk '{
       for (i = 1; i <= NF; i++) { printf "%s%s", sep, $i; sep = "," }
     }')
@@ -657,8 +690,8 @@ function _hi_header_prefetch() {
     _hi_order_has pub && [ -d "$_HI_SSH_DIR" ] && _hi_slow_start pubs
   fi
   if [ -z "${_HI_SI_PROBED:-}" ]; then
-    [ -z "${_HI_KERNEL+x}" ] && _hi_order_has arch && _hi_slow_start uname
-    _hi_order_has cores && [ -f "$_HI_LINUX_RELEASE" ] && _hi_slow_start nproc
+    [ -z "${_HI_KERNEL+x}" ] && _hi_order_has arch && ! _hi_uname_linux && _hi_slow_start uname
+    _hi_order_has cores && [ -f "$_HI_LINUX_RELEASE" ] && [ ! -r /proc/self/status ] && _hi_slow_start nproc
   fi
   _hi_order_has ip && _hi_slow_start ips
   return 0

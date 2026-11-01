@@ -20,6 +20,11 @@ From the roadmap:
 - A scripted `hi host cmd`, with stdin off a terminal, opens its session while the script is still landing, as a terminal's connect does.
 - A bash session's greeting no longer reads as an error: `bash today` in bright blue, with no red and no frown.
 - A host's tag is read from ssh's own `Tag` keyword (OpenSSH 9.4) where its block has no `# Tags:` line: it colors by its `hosttag` and `usertag` rows, reads its `settings.<tag>.sh`, rides to the next hop, and `hi --add-tag` and `hi --doctor <host>` say when a tag comes from one.
+- A fish rc block printed when hi's floor was fish 3.4 still reads as wired, so `hi --install` leaves it alone and `hi --doctor` stays green.
+- An `$EDITOR` or `$VISUAL` in your `aliases.sh` naming the editor hi chose keeps hi's flags on a target, so `git commit` there starts it with the config hi carried.
+- The docs now say that an overlay plugin naming no `files` leaves the shipped plugin's files riding, and that an `export` in `aliases.sh` or an extension reaches child processes unless it is a `_HI_*` name.
+- Closing a kept tmux session ends the connection even where your `tmux.conf` sets `detach-on-destroy off` and the target has another session, which that setting would otherwise move you to.
+- A session starts five fewer processes on a Linux target, reading what `uname` and `nproc` answered from `/proc` where it can.
 
 ## 0.8.0 - 2026-10-26
 

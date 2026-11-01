@@ -371,6 +371,24 @@ function test_rc_block_form_knows_the_block_from_before_homebrew() {
   grep -qF 'for _hi_d in "$HOME" /usr/local/share /usr/share; do' "$home/.bashrc" || _hi_why home
 }
 
+# ...and fish's, from when its floor was 3.4
+function test_rc_block_form_knows_the_fish_block_from_before_the_floor_moved() {
+  local home="$_HI_WORKDIR/portable-fish-floor" form
+  mkdir -p "$home"
+  form="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME="$HOME"
+    old_fish() {
+      local -a l
+      local b f
+      _hi_read_lines l < <(rc_lines fish "$HOME/say-hi/common/config.fish" fish prebrew)
+      rc_tagged b "${l[@]}"
+      printf %s "$b" | sed "s/(\[3-9\]/([4-9]/;s/fish 3\.3/fish 3.4/" >"$HOME/config.fish"
+      rc_block_form f fish "$HOME/say-hi/common/config.fish" fish "$HOME/config.fish"
+      printf %s "$f"
+    }' -- old_fish)" || _hi_why home || return 1
+  [ "$form" = portable ] || _hi_because "form: $form" || return 1
+  grep -qF 'fish 3.4 or newer' "$home/config.fish" || _hi_why home
+}
+
 # A Homebrew keg is named through the opt link brew keeps on the current
 # one, in the _HI_HOME line and the source under it; a keg that link does not
 # lead to keeps its own path
@@ -751,6 +769,7 @@ function run_rc_lines_test() {
   _hi_check "...fish's looks in the same places" test_rc_lines_portable_fish_looks_in_the_same_places
   _hi_check "...and its older form still reads as wired" test_rc_block_form_knows_the_older_portable_block
   _hi_check "...the one from before it looked for Homebrew too" test_rc_block_form_knows_the_block_from_before_homebrew
+  _hi_check "...and fish's from before its floor moved" test_rc_block_form_knows_the_fish_block_from_before_the_floor_moved
   _hi_check_capable symlink "A Homebrew keg is named through its opt link" test_rc_home_names_a_keg_through_opt
   _hi_check "--print-rc writes nothing, and its block is kept" test_print_rc_writes_nothing_and_its_block_is_kept
   _hi_check "...and prints only the shells --shell names" test_print_rc_prints_only_the_shells_named

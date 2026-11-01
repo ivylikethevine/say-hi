@@ -93,6 +93,6 @@ hi_() { printf 'exit\n' | timeout 120 script -qec "bash $w/go" /dev/null; }
     s="$(median spin)" f="$(median forks)" p="$(median plain)" h="$(median hi_)"
     printf '%-6s  %8s  %8s  %8s  %8s  %8s\n' "$c" "$s" "$f" "$p" "$h" "$((h - p))"
   done
-  printf '%s runs a setting, median; loopback, no netem; %s; host %sCPU/%sGB\n' "$runs" \
-    "$(git -C "$root" rev-parse --short HEAD)" "$(nproc)" "$(free -g 2>/dev/null | awk '/^Mem:/ { print $2 }')"
+  printf '%s runs a setting, median; loopback, no netem; %s; host %sCPU/%sGB, load %s at the end\n' "$runs" \
+    "$(git -C "$root" rev-parse --short HEAD)" "$(nproc)" "$(free -g 2>/dev/null | awk '/^Mem:/ { print $2 }')" "$(cut -d' ' -f1 /proc/loadavg)"
 } | tee "$out/results.txt"

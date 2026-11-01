@@ -1042,7 +1042,7 @@ function _hi_remote_suffix() {
     tail=$'      [ -e "$_HI_ROOT/hi.kept" ] && _hi_kept && exit 86\n      exit 0'
   fi
   cat <<REMOTE
-      export _HI_COPY_TIME=\$(awk -v a="\$_hi_t0" -v b="\$(_hi_now)" 'BEGIN{printf "%.3f", b-a}')
+      export _HI_COPY_TIME="\$_hi_t0 \$(_hi_now)"
       if command -v bash >/dev/null 2>&1; then
 $handoff
       else
