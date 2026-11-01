@@ -418,15 +418,9 @@ function test_override_color_no_match_fails() {
   ! _HI_COLORS="$colors" _hi_override_color username bob || _hi_why colors
 }
 
-function test_override_color_localuser_special_case() {
-  local _HI_LOCAL_USER=testuser
-  _hi_colors_say cyan '[username]\nLOCALUSER = "cyan"\n' _hi_override_color username testuser
-}
+function test_override_color_localuser_special_case() { local _HI_LOCAL_USER=testuser && _hi_colors_say cyan '[username]\nLOCALUSER = "cyan"\n' _hi_override_color username testuser; }
 
-function test_override_color_localhostname_special_case() {
-  local _HI_LOCAL_HOSTNAME=testhost
-  _hi_colors_say magenta '[hostname]\nLOCALHOSTNAME = "magenta"\n' _hi_override_color hostname testhost
-}
+function test_override_color_localhostname_special_case() { local _HI_LOCAL_HOSTNAME=testhost && _hi_colors_say magenta '[hostname]\nLOCALHOSTNAME = "magenta"\n' _hi_override_color hostname testhost; }
 
 # A row's optional fourth column - that pin's own 24-bit color. It comes back
 # joined to the name, "<color>#<rrggbb>", from every reader of the file: the
