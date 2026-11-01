@@ -780,8 +780,8 @@ function run_header_whole_tests() {
   _hi_check "The default order never needs its own alternate" test_header_default_order_needs_no_alternate
   _hi_check "No two adjacent cells share a hue in the default order" test_header_hues_never_repeat_in_the_default_order
   _hi_check "...nor under a color scheme" test_header_hues_never_repeat_under_a_scheme vscode
-  _hi_check "...nor under a 24-word scheme" test_header_hues_never_repeat_under_a_scheme "$_HI_TEST_L24"
-  _hi_check "...under a 48-word scheme" test_header_hues_never_repeat_under_a_scheme "$_HI_TEST_L48"
+  _hi_check "...nor under a 24-word scheme" test_header_hues_never_repeat_under_a_scheme "$_HI_TEST_SCHEME24"
+  _hi_check "...under a 48-word scheme" test_header_hues_never_repeat_under_a_scheme "$_HI_TEST_SCHEME48"
   _hi_check "...nor in a pathological same-hue order" test_header_hues_never_repeat_in_a_pathological_order
   _hi_check "A header/ member's cell draws where the order puts it" test_a_header_cell_of_your_own_draws
   _hi_check "...one that does not parse is skipped, and says so" test_a_header_cell_that_does_not_parse_is_skipped

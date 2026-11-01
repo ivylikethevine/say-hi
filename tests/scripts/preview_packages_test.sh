@@ -339,7 +339,7 @@ function test_preview_names_the_active_palette() {
 # the name is the 16-color half (HI.50)
 function test_preview_names_a_custom_scheme_and_its_bank() {
   local out row
-  out="$(_HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 _hi_render_packages)" || _hi_why || return 1
+  out="$(_HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1 _hi_render_packages)" || _hi_why || return 1
   [[ "$out" == *"scheme: custom (48)"* ]] || _hi_why out || return 1
   row="$(printf '%s\n' "$out" | grep '^| core ')"
   # bank 2's brgreen (23d18b) and brred (f14c4c), named as such

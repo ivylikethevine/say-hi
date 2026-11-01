@@ -386,7 +386,7 @@ function test_config_flags_a_scheme_nothing_renders() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_COLOR_SCHEME="$_HI_TEST_L24"
+    _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24"
     doctor_config
   )"
   [[ "$out" != *"is ignored - not 24 or 48 six-digit hex words"* ]] || _hi_why out

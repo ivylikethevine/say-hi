@@ -503,13 +503,13 @@ function test_zsh_hash_color_agrees_with_bash() {
 }
 
 function test_zsh_scheme_escape_agrees_with_bash() {
-  _hi_shell_agrees "export _HI_COLOR_SCHEME='$_HI_TEST_L24' _HI_TRUECOLOR=1; _hi_assign_palette; _hi_color_hex h brcyan; printf '%s|%s|%s' \"\$RED\" \"\$BRCYAN\" \"\$h\"" || _hi_why h BRCYAN
+  _hi_shell_agrees "export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME24' _HI_TRUECOLOR=1; _hi_assign_palette; _hi_color_hex h brcyan; printf '%s|%s|%s' \"\$RED\" \"\$BRCYAN\" \"\$h\"" || _hi_why h BRCYAN
 }
 
 # the list form walks the setting by offset, which is where zsh and bash
 # most easily part ways; both banks and the word count have to agree
 function test_zsh_scheme_list_agrees_with_bash() {
-  _hi_shell_agrees "export _HI_COLOR_SCHEME='$_HI_TEST_L48' _HI_TRUECOLOR=1; _hi_scheme_words n; _hi_assign_palette; _hi_color_hex h brcyan; _hi_color_escape_at e 17; printf '%s|%s|%s|%s|%s' \"\$n\" \"\$RED\" \"\$BRCYAN\" \"\$h\" \"\$e\"" || _hi_why n h e BRCYAN
+  _hi_shell_agrees "export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME48' _HI_TRUECOLOR=1; _hi_scheme_words n; _hi_assign_palette; _hi_color_hex h brcyan; _hi_color_escape_at e 17; printf '%s|%s|%s|%s|%s' \"\$n\" \"\$RED\" \"\$BRCYAN\" \"\$h\" \"\$e\"" || _hi_why n h e BRCYAN
 }
 
 # extended_glob (grml's and prezto's default, and common in a .zshrc) makes a

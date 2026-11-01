@@ -419,13 +419,13 @@ function test_shipped_ramp_names_are_all_real_colors() {
 # A 48-word scheme: the check paints from the second bank, every other cell
 # from the first, so bank 2's cyan (slot 17, 11a8cd) is what the shipped
 # ramp's tier-0 installed color becomes.
-# _HI_TEST_L24/_HI_TEST_L48: tests/lib/fixtures.sh, shared with core_test.sh
+# _HI_TEST_SCHEME24/_HI_TEST_SCHEME48: tests/lib/fixtures.sh, shared with core_test.sh
 
 function test_packages_palette_uses_the_second_bank_under_48_words() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1
     local want
     _hi_assign_palette
     unset _HI_PACKAGES_PALETTE
@@ -444,7 +444,7 @@ function test_packages_palette_keeps_the_first_bank_under_24_words() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1
     _hi_assign_palette
     unset _HI_PACKAGES_PALETTE
     _hi_packages_palette
@@ -459,7 +459,7 @@ function test_packages_palette_second_bank_is_inert_under_no_color() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 NO_COLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1 NO_COLOR=1
     _hi_assign_palette
     _hi_packages_palette
     [ -z "${_HI_YES[0]}" ] && [ -z "${_HI_NO[3]}" ]

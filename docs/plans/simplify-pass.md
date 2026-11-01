@@ -34,7 +34,7 @@ fixture wrote).
       through `_hi_shared_out`.
 - [x] 4. `tests/scripts/doctor_target_test.sh:221`: a bare `return 1` gets a reason.
 - [x] 5. `tests/common/header_whole_test.sh:504-608`: `vscode` names no scheme,
-      the "24-word" case passes `$_HI_TEST_L48`. Fixed with item 61.
+      the "24-word" case passes `$_HI_TEST_SCHEME48`. Fixed with item 61.
 
 ## Shipped: dead code and leftovers
 

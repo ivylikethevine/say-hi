@@ -81,9 +81,9 @@ function test_prompt_ends_kept_when_the_prompt_is_off() {
 function test_hand_written_colors_survive_a_run() {
   local out
   out="$(_hi_collected_lines colors_hand \
-    "export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'" "export _HI_COLOR_SCHEME='$_HI_TEST_L48'")"
+    "export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'" "export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME48'")"
   [[ "$out" == *"export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'"* ]] &&
-    [[ "$out" == *"export _HI_COLOR_SCHEME='$_HI_TEST_L48'"* ]] || _hi_why out
+    [[ "$out" == *"export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME48'"* ]] || _hi_why out
 }
 
 # an unset ramp is the shipped one, so a run that was never told otherwise
@@ -278,7 +278,7 @@ bogus-kind|1|2
 ROWS
   # a scheme and palette taken, off the fixtures the literal heredoc cannot
   # expand
-  _hi_setting_check scheme "$_HI_TEST_L24" || _hi_because "scheme [\$_HI_TEST_L24]: not taken" || return 1
+  _hi_setting_check scheme "$_HI_TEST_SCHEME24" || _hi_because "scheme [\$_HI_TEST_SCHEME24]: not taken" || return 1
   _hi_setting_check palette "$_HI_TEST_RAMP" || _hi_because "palette [$_HI_TEST_RAMP]: not taken"
 }
 
@@ -739,8 +739,8 @@ function _hi_configure_begin() {
     mkdir -p "$_HI_CONFIG_DIR/${_hi_f%/*}"
     : >"$_HI_CONFIG_DIR/$_hi_f"
   done
-  _hi_items_load
   _hi_load_preview_sources
+  _hi_items_load
   _hi_suite_begin
 }
 
