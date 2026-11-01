@@ -48,9 +48,9 @@ function _hi_within_percent() {
 # itself - the only shape there is, since hi ships no named schemes. Shared
 # by common/core_test.sh and common/header_test.sh, which both build custom
 # color schemes off it - one copy so the two lists can't drift apart.
-_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
-_HI_TEST_L24="$_HI_TEST_L12 ff8c00 ff69b4 20b2aa 9acd32 8a2be2 fa8072 ffd700 87ceeb 6a5acd 98ff98 ffb07c b57edc"
-_HI_TEST_L48="$_HI_TEST_L24 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db e07b39 e75480 2a9d8f 7bc043 7b2cbf f08080 e6b800 5bc0eb 4b0082 3eb489 ffcba4 967bb6"
+_HI_TEST_SCHEME12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
+_HI_TEST_SCHEME24="$_HI_TEST_SCHEME12 ff8c00 ff69b4 20b2aa 9acd32 8a2be2 fa8072 ffd700 87ceeb 6a5acd 98ff98 ffb07c b57edc"
+_HI_TEST_SCHEME48="$_HI_TEST_SCHEME24 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db e07b39 e75480 2a9d8f 7bc043 7b2cbf f08080 e6b800 5bc0eb 4b0082 3eb489 ffcba4 967bb6"
 
 # A packages ramp of the user's own, in $_HI_PACKAGES_PALETTE's eight-name
 # shape: four for installed rising 0->3, then four for missing. Deliberately
@@ -335,11 +335,11 @@ function _hi_capable() {
 # OK for a case that never ran.
 function _hi_check_capable() { _hi_par_capable_body "$1" _hi_check "${@:2}"; }
 
-# _hi_script <file> <line...> - <file> written as those lines, executable, its
-# directory made first when missing
+# _hi_script <file> [line...] - <file> written as those lines, or stdin with
+# none, executable, its directory made first when missing
 function _hi_script() {
   [ -d "${1%/*}" ] || mkdir -p "${1%/*}"
-  printf '%s\n' "${@:2}" >"$1" && chmod +x "$1"
+  if [ $# -gt 1 ]; then printf '%s\n' "${@:2}" >"$1"; else cat >"$1"; fi && chmod +x "$1"
 }
 
 # _hi_fake_path <name> <bin...> - a $_HI_SUITE_WORKDIR/<name> directory of

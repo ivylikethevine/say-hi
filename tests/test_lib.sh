@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Shared scaffolding for every suite under tests. The scaffolding itself lives
-# in tests/lib/; this file is the one path a suite sources (common/paths.sh
-# exports it as $_HI_TEST_LIB), so the parts can be re-cut without touching a
+# in tests/lib/; this file is the one path a suite sources (it exports itself
+# as $_HI_TEST_LIB), so the parts can be re-cut without touching a
 # single suite. Order below is dependency order - report.sh's assertions print
 # through its own _hi_align, and every part uses core.sh.
 #
@@ -108,6 +108,8 @@ if [ -n "${KCOV_BASH_XTRACEFD:-}" ] && [ -z "${KCOV_BASH_USE_DEBUG_TRAP:-}" ]; t
 fi
 # shellcheck source=../common/core.sh
 source "$_hi_d/../common/core.sh"
+export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
+export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 # ~/.ssh/config, pinned after the source, which sets it: its `# Tags:` lines
 # ride the overlay as ssh_tags, so under _HI_TEST_KEEP_HOME=1 a developer's
 # own would be a member of every stream built here

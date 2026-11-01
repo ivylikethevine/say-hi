@@ -90,14 +90,8 @@ _hi_ps1_stock() {
 }
 
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
-  _hi_pt="" _hi_pdone="" _hi_marks_for=""
-  # an extension's decision first (HI.59), as in common/bash.sh
-  if [[ "${_HI_PROMPT_DRAWN:-0}" == 1 ]]; then
-    _hi_pdone=1
-  elif [[ -n "${_HI_PROMPT_INIT:-}" ]]; then
-    _hi_run_init zsh ${=_HI_PROMPT_INIT} && _hi_pdone=1
-  fi
-  if [[ -n "$_hi_pdone" ]]; then
+  _hi_pt="" _hi_marks_for=""
+  if _hi_prompt_ext zsh; then
     :
   elif _hi_prompt_tool zsh _hi_pt; then
     # each the way its own README wires it into an rc. GLOSSARY: HI.32
@@ -244,7 +238,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     zshexit_functions+=(__hi_marks_zshexit)
   fi
 fi
-unset _hi_pt _hi_pdone _hi_omz_theme _hi_p10k_cfg _hi_marks_for
+unset _hi_pt _hi_omz_theme _hi_p10k_cfg _hi_marks_for
 
 # completion: `hi` from the shared target list.
 # compinit is the rc's own call: common/_hi is a `#compdef` function on
@@ -289,7 +283,6 @@ _hi_unexport
 unset _hi_zopts
 # === end required configuration ===
 
-# see common/bash.sh for why the paths are compared before sourcing
 [[ -f "$_HI_CONFIG_DIR/zshrc" ]] && source "$_HI_CONFIG_DIR/zshrc"
 # see common/bash.sh: a local interactive shell greets with hi's header,
 # drawn by bash since header.sh is bash's, handed the session values

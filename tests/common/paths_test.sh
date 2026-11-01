@@ -261,7 +261,6 @@ function test_overlay_falls_back_per_file() {
   local dir got
   dir="$(_hi_overlay_dir)"
   printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
-  rm -f "$dir/packages"
   got="$(_hi_resolved _HI_PACKAGES "$dir")"
   [ "$got" = "$_HI_ROOT/config/packages" ] || _hi_why got dir
 }

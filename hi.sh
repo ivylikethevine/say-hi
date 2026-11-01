@@ -120,11 +120,8 @@ fi
 # between the size this one counts and the bytes it sends.
 function _hi_payload_file() {
   local _hi_pf_c=""
-  if _hi_payload_cached _hi_pf_c && cp "$_hi_pf_c" "$2/tree.tgz" 2>/dev/null; then
-    printf -v "$1" '%s' "$2/tree.tgz"
-    return 0
-  fi
-  _hi_payload_tar >"$2/tree.tgz" || return 1
+  { _hi_payload_cached _hi_pf_c && cp "$_hi_pf_c" "$2/tree.tgz" 2>/dev/null; } ||
+    _hi_payload_tar >"$2/tree.tgz" || return 1
   printf -v "$1" '%s' "$2/tree.tgz"
 }
 
@@ -189,8 +186,8 @@ function _hi_shquote_long() {
   printf -v "$1" "'%s'" "${_hi_sql_o%x}"
 }
 
-# The client-derived env both transports export into the session, one
-# NAME<TAB>value pair per line; _hi_env_each renders it per transport.
+# The client-derived env exported into the session, one NAME<TAB>value pair
+# per line; _hi_env_each renders it.
 function _hi_session_env() {
   # the memos primed here and read, not $( ) - see _hi's own priming
   _hi_target_color >/dev/null
@@ -214,7 +211,7 @@ function _hi_session_env() {
   # (_hi_locale_probe)
   _hi_se_v="${LC_ALL:-${LC_CTYPE:-${LANG:-}}}"
   case "$_hi_se_v" in *[Uu][Tt][Ff]-8* | *[Uu][Tt][Ff]8*) printf '_HI_CLIENT_LOCALE\t%s\n' "$_hi_se_v" ;; esac
-  _hi_client_verdicts '%s\t%s\n'
+  _hi_client_verdicts
 }
 
 # _hi_cmd_name <command line> <outvar> - its command's bare name, false when
@@ -227,19 +224,15 @@ function _hi_cmd_name() {
   printf -v "$2" '%s' "$_hi_cn_v"
 }
 
-# _hi_client_verdicts <format> - the *client's* glyph and 24-bit verdicts
-# (ssh never forwards COLORTERM, GLOSSARY: HI.50), and NO_COLOR only when set,
-# as <format> lines of name then value; both transports print these.
+# _hi_client_verdicts - the *client's* glyph and 24-bit verdicts (ssh never
+# forwards COLORTERM, GLOSSARY: HI.50), and NO_COLOR only when set, as
+# name<TAB>value lines.
 function _hi_client_verdicts() {
   local _hi_cv_a="${_HI_ASCII:-}" _hi_cv_t="${_HI_TRUECOLOR:-}"
   [ -n "$_hi_cv_a" ] || _hi_ascii_flag _hi_cv_a
   [ -n "$_hi_cv_t" ] || _hi_truecolor_flag _hi_cv_t
-  # shellcheck disable=SC2059 # the format is ours, not user data
-  {
-    printf "$1" _HI_ASCII "$_hi_cv_a"
-    printf "$1" _HI_TRUECOLOR "$_hi_cv_t"
-    [ -z "${NO_COLOR:-}" ] || printf "$1" NO_COLOR 1
-  }
+  printf '_HI_ASCII\t%s\n_HI_TRUECOLOR\t%s\n' "$_hi_cv_a" "$_hi_cv_t"
+  [ -z "${NO_COLOR:-}" ] || printf 'NO_COLOR\t1\n'
 }
 
 # _hi_backend_tags <arm> <target> - the tags a target that is no ssh host
@@ -305,7 +298,7 @@ function _hi_tag_settings() {
   {
     [ -z "$_hi_ts_site" ] || cat "$_hi_ts_site"
     [ ! -f "$_HI_CONFIG_DIR/settings.sh" ] || cat "$_HI_CONFIG_DIR/settings.sh"
-    cat ${_hi_ts_files[@]+"${_hi_ts_files[@]}"}
+    ((${#_hi_ts_files[@]} == 0)) || cat "${_hi_ts_files[@]}"
   } >"$_hi_ts_tmp" || return 0
   if cmp -s "$_hi_ts_tmp" "$_hi_ts_out"; then
     rm -f "$_hi_ts_tmp"
@@ -856,7 +849,7 @@ function _hi_version() {
       [ ! -d "$_HI_ROOT/.git" ] || _HI_VERSION_MEMO='unknown (git would not answer)'
     fi
   fi
-  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_VERSION_MEMO"; else printf '%s\n' "$_HI_VERSION_MEMO"; fi
+  _hi_out "${1:-}" "$_HI_VERSION_MEMO"
 }
 
 # _hi_wire_version <outvar> - _hi_version for the session env, which a
@@ -904,15 +897,13 @@ function _hi_version_line() {
   printf '%s (%s at %s)\n' "$(_hi_version)" "$kind" "$_HI_ROOT"
 }
 
-# _hi_session_env's pairs through <printf-format>, name then value already
-# quoted (`%s=%s`, never `%s="%s"`); one loop for both transports.
-# GLOSSARY: HI.40
+# _hi_session_env's pairs as the script's export lines, each value already
+# quoted (GLOSSARY: HI.40)
 function _hi_env_each() {
   local n v q
   while IFS=$'\t' read -r n v; do
     _hi_shquote q "$v"
-    # shellcheck disable=SC2059 # the format is ours, not user data
-    printf "$1" "$n" "$q"
+    printf '      export %s=%s\n' "$n" "$q"
   done < <(_hi_session_env)
 }
 
@@ -934,7 +925,7 @@ function _hi_remote_preamble() {
   cat <<REMOTE
       _hi_now() { d=\$(date +%s.%N 2>/dev/null); case "\$d" in *N*|'') date +%s ;; *) printf '%s' "\$d" ;; esac; }
       _hi_t0=\$(_hi_now)
-$(_hi_env_each '      export %s=%s\n')
+$(_hi_env_each)
       case "\$TERM" in
       ${_HI_TERM_KNOWN// / | } | '') ;;
       *)
@@ -1038,13 +1029,13 @@ function _hi_remote_suffix() {
     # shellcheck disable=SC2016
     sh_cmd="$(_hi_command_append '"$_hi_rc_dir/.hi_fallback_rc"')"
   fi
-  ! _hi_keep_starts || handoff="$(_hi_keep_start)"
   # 86 for a kept session left behind, by this connect or by a `hi --keep`
   # typed in it, and never the session's own status (_hi_keep_connect). A
   # `hi --keep` writes its claim, hi.kept, into this tree before its pane
   # starts, so a connect that started none looks only where that is there;
   # one that started its own looks always, its pane's claim coming later.
   if _hi_keep_starts; then
+    handoff="$(_hi_keep_start)"
     tail=$'      _hi_kept && exit 86\n      exit 0'
   elif _hi_keep_probes; then
     # shellcheck disable=SC2016 # the target's to expand
@@ -1214,8 +1205,7 @@ function _hi_overlap_start() {
   local r
   ov_dir="$(mktemp -d -t hi.boot.XXXXXX 2>/dev/null)" || ov_dir=""
   if [ -z "$ov_dir" ] || ! mkfifo "$ov_dir/in" "$ov_dir/go" "$ov_dir/tick" "$ov_dir/sin" "$ov_dir/sv" 2>/dev/null; then
-    [ -z "$ov_dir" ] || rm -f "$ov_dir/in" "$ov_dir/go" "$ov_dir/tick" "$ov_dir/sin" "$ov_dir/sv"
-    [ -z "$ov_dir" ] || rmdir "$ov_dir" 2>/dev/null || :
+    _hi_wire_done
     ov_dir=""
     return 1
   fi
@@ -1508,25 +1498,12 @@ function _say_hi() {
   ! _hi_overlap_ok || _hi_overlap_start || :
   _hi_target_color >/dev/null && _hi_prompt_list >/dev/null
 
-  # local-only, so resolved once here and reused by the warm below and the
-  # real stream
+  # local-only, so resolved once here and reused by the real stream
   _hi_read_lines overlay < <(_hi_overlay_files)
   # shellcheck disable=SC2034 # _hi_payload_excl fills it, the packer reads it
   local -a payload_excl=()
   _hi_payload_excl ${overlay[@]+"${overlay[@]}"}
 
-  # warm the caches while the connect settles, so a miss's ~70-130ms build
-  # is not paid in series with it
-  (
-    _hi_payload_cached _hi_warm
-    ((${#overlay[@]})) && _hi_overlay_cached _hi_warm "${overlay[@]}"
-    true
-  ) >/dev/null 2>&1 &
-  local warm_bg=$!
-
-  # the tars the script carries. The orphaned warm finishes its own atomic mv
-  # after hi has moved on.
-  wait "$warm_bg" 2>/dev/null || true
   bootloader="$(_hi_bootloader | $_HI_ARMOR)"
   # the archives ride as files after the script (_hi_boot_stream): the
   # caches, or builds in the overlapped boot call's directory or one of this
@@ -1569,30 +1546,25 @@ function _say_hi() {
   # a retry that ssh itself failed ends here: a host that was not reached
   # has no shell to fall back on
   local boot_out="" boot_ec=0 booted=""
-  if [ -n "$ov_dir" ] && _hi_connect_overlap; then
+  if { [ -n "$ov_dir" ] && _hi_connect_overlap; } ||
+    { [ -z "$booted" ] && ! _hi_boot_call && ec=255; }; then
     _hi_ctl_close
     _hi_wire_done
     return "$ec"
-  fi
-  if [ -z "$booted" ] && ! _hi_boot_call; then
-    _hi_ctl_close
-    _hi_wire_done
-    return 255
   fi
 
   # an empty $boot_tmp: _hi_boot_why names the cause it can, and the host
   # with no `sh` the PowerShell notice exists for is the one it cannot
   local why=""
   [ -n "$boot_tmp" ] || why="$(_hi_boot_why "$boot_ec" "$boot_out")"
+  # what the exec said on the way in is no failure of the session's
+  [ "$arm" = ssh ] || [ -z "$boot_tmp$why" ] || : >"$errlog"
   if [ -n "$boot_tmp" ]; then
-    # what the exec said on the way in is no failure of the session's
-    [ "$arm" = ssh ] || : >"$errlog"
     ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
     # a session that drops from here on was up (_hi_keep_connect)
     _HI_LINK_UP=1
     _hi_on_target attach "$(_hi_attach_cmd "$boot_tmp")" || ec=$?
   elif [ -n "$why" ]; then
-    [ "$arm" = ssh ] || : >"$errlog"
     _hi_cecho " $why - handing over the host's own session" "$YELLOW" >&2
     if [ "$arm" = ssh ]; then
       _say_hi_plain ${ctl_opts[@]+"${ctl_opts[@]}"} || ec=$?
@@ -1631,10 +1603,7 @@ function _hi_wire_done() {
 function _hi_container_fallback_shell() {
   local fallback
   fallback="$("${probe[@]}" sh -c "$(_hi_ladder_probe 'echo "$_hi_s"')" 2>"${1:-/dev/null}")"
-  case " $_HI_SHELL_LADDER " in
-  *" $fallback "*) printf '%s' "$fallback" ;;
-  esac
-  return 0
+  ! _hi_list_has "$_HI_SHELL_LADDER" "$fallback" || printf '%s' "$fallback"
 }
 
 # --plain over ssh: no bootstrap, no boot probe, no payload - just ssh
@@ -1892,7 +1861,6 @@ function _hi_report_failure() {
 function _hi() {
   local tmp exit_code arm
 
-  [ -d "$_HI_ROOT" ] || _hi_die "no such directory: $_HI_ROOT"
   # only a session's tree goes without the packer
   [ -z "$_HI_RELAY" ] || [ "$_HI_REMOTE_SESSION" = 1 ] ||
     _hi_die "no scripts/pack.sh in $_HI_ROOT - this say-hi is incomplete"

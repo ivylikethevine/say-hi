@@ -16,14 +16,12 @@
 # truecolor. _HI_MENU_WORD0 is the first header item's number, for up/down.
 # _HI_MENU_PLUGINS is _hi_plugin_states' lines as the list last drew them,
 # and _HI_MENU_GROUPS their groups in order: g<N> is the page of the Nth.
-# _HI_MENU_STATES is the lines as read once a run, for the overlay in
-# _HI_MENU_STATES_DIR.
+# _HI_MENU_STATES is the lines as read once a run.
 _HI_MENU_ITEMS=()
 _HI_MENU_WORD0=0
 _HI_MENU_PLUGINS=()
 _HI_MENU_GROUPS=()
 _HI_MENU_STATES=()
-_HI_MENU_STATES_DIR=""
 # how many checkboxes the grid being drawn holds so far
 _HI_MENU_GRID_N=0
 # The page drawn: empty for the main page, else a section's key, or g<N> for
@@ -69,7 +67,7 @@ function _hi_menu_note() {
   _HI_MENU_NOTE_PREVIEW="${3:-}"
 }
 
-# The width the menu draws to: the terminal's (lib.sh's _hi_term_cols), not
+# The width the menu draws to: the terminal's (core.sh's _hi_term_cols), not
 # capped by $_HI_MAX_WIDTH the way the header is, else 80. Read once per draw
 # into $_HI_MENU_W.
 _HI_MENU_W=80
@@ -323,18 +321,6 @@ function _hi_menu_row() {
   _hi_menu_add "row|$1|$2" "$state $name$help$note$dnote"
 }
 
-# _hi_menu_rows <table> [index...] - those rows of a table, or every row
-function _hi_menu_rows() {
-  local t="$1" i
-  local -a rows=()
-  shift
-  if [ $# = 0 ]; then
-    _hi_prompt_rows "$t" rows
-    set -- ${rows[@]+"${!rows[@]}"}
-  fi
-  for i; do _hi_menu_row "$t" "$i"; done
-}
-
 # The list, grouped by what a setting changes, a heading over each part of a
 # page. First the two switches for where hi styles a shell at all, rows of
 # the main page alone. Header: the switch for the whole of it, the greeting
@@ -408,7 +394,7 @@ function _hi_menu_list() {
   _hi_package_groups all
   w=0
   for g in $all; do ((${#g} > w)) && w=${#g}; done
-  _hi_read_lines notes < <(_hi_package_group_notes)
+  [ "$_HI_MENU_DRAW" != 1 ] || _hi_read_lines notes < <(_hi_package_group_notes)
   for g in $all; do
     note=""
     for row in ${notes[@]+"${notes[@]}"}; do
@@ -425,8 +411,9 @@ function _hi_menu_list() {
     _hi_menu_add "group|$g" "$state $name  $note"
   done
   _hi_menu_section r
-  _hi_menu_rows _HI_PROMPT_PROMPTS 0
-  _hi_menu_rows _HI_FEATURE_PROMPTS 2 3
+  _hi_menu_row _HI_PROMPT_PROMPTS 0
+  _hi_menu_row _HI_FEATURE_PROMPTS 2
+  _hi_menu_row _HI_FEATURE_PROMPTS 3
   setting_value _HI_PROMPT_TOOL "$_HI_SETTINGS" tool
   _hi_menu_heading "Who draws each shell's prompt - auto is the first program a target has, else hi"
   same="" note=""
@@ -520,10 +507,7 @@ function _hi_menu_mark() {
 # <on> redone as _hi_plugin_switched_off reads the lists
 function _hi_menu_states() {
   local entry g n s d rest
-  if [ "$_HI_MENU_STATES_DIR" != "${_HI_CONFIG_DIR:-}|set" ]; then
-    _HI_MENU_STATES_DIR="${_HI_CONFIG_DIR:-}|set"
-    _hi_read_lines _HI_MENU_STATES < <(_hi_plugin_states "" "")
-  fi
+  [ "${#_HI_MENU_STATES[@]}" -gt 0 ] || _hi_read_lines _HI_MENU_STATES < <(_hi_plugin_states "" "")
   _HI_MENU_PLUGINS=()
   for entry in ${_HI_MENU_STATES[@]+"${_HI_MENU_STATES[@]}"}; do
     IFS='|' read -r g n s d rest <<<"$entry"
@@ -709,6 +693,7 @@ function _hi_menu_pick() {
 _HI_CONFIGURE_QUIT=""
 function config_hub() {
   local reply cmd arg idx last rejects=0 max_rejects=3 draw=1 p h s q b="" back title row
+  _hi_load_preview_sources
   _hi_probe_once
   _hi_header_edit_load
   _HI_MENU_PAGE=""
@@ -827,7 +812,6 @@ _HI_HDR_ON=()
 
 function _hi_header_edit_load() {
   local current word vocab seen=" "
-  _hi_load_preview_sources
   _hi_header_vocab vocab
   setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" current
   [ -n "$current" ] || current="$_HI_HEADER_ORDER_DEFAULT"
@@ -835,7 +819,7 @@ function _hi_header_edit_load() {
   _HI_HDR_ON=()
   # shellcheck disable=SC2086 # the split is the point: one word per feature
   for word in $current; do
-    _hi_is_header_word "$word" || continue
+    _hi_list_has "$vocab" "$word" || continue
     ! _hi_list_has "$seen" "$word" || continue
     seen="$seen$word "
     _HI_HDR_WORDS+=("$word")
@@ -911,8 +895,6 @@ function config_header_preset() {
 # 80 - and no group at all is `none`.
 function _hi_group_flip() {
   local cur="" on w next="" said="on"
-  # the default below is header.sh's
-  _hi_load_preview_sources
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" cur
   on=" ${cur:-$_HI_PACKAGES_GROUPS_DEFAULT} " on="${on//,/ }"
   [ "$on" != " none " ] || on=" "

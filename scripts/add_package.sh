@@ -102,14 +102,6 @@ for _hi_row in "${rows[@]}"; do
 done
 unset _hi_row
 
-# _hi_row_first_pkg <outvar> <row> - the row's canonical package: past an
-# optional leading -/+, up to the first comma. What check_line shows for a
-# row with nothing installed.
-function _hi_row_first_pkg() {
-  local _hi_rfp_r="${2#[-+]}"
-  printf -v "$1" '%s' "${_hi_rfp_r%%,*}"
-}
-
 # _hi_row_toml <outvar> <row> - the row as the file holds it, its marker
 # aside: `pkg = ["pkg2", ...]`
 function _hi_row_toml() {
@@ -117,16 +109,6 @@ function _hi_row_toml() {
   _hi_toml_key _hi_rt_k "${_hi_rt_r%%,*}"
   case "$_hi_rt_r" in *,*) _hi_rt_v="\"${_hi_rt_r#*,}\"" ;; esac
   printf -v "$1" '%s = [%s]' "$_hi_rt_k" "${_hi_rt_v//,/\", \"}"
-}
-
-# _hi_row_table <outvar> <group> <marker or row> - the table a row of that
-# marker sits in
-function _hi_row_table() {
-  case "$3" in
-  +*) printf -v "$1" '%s' "${2:+$2.}required" ;;
-  -*) printf -v "$1" '%s' "${2:+$2.}unwanted" ;;
-  *) printf -v "$1" '%s' "$2" ;;
-  esac
 }
 
 # Read through paths.sh's cascade ($_HI_PACKAGES: the overlay's once it
@@ -137,11 +119,12 @@ read_file="$_HI_PACKAGES" dst="$_HI_CONFIG_DIR/packages"
 _hi_rows_read "$read_file"
 changed=0
 # spelled empty so the linter sees the helpers' printf -v (SC2154)
-first="" in_table="" in_group="" mark="" table="" toml="" was="" alts=""
+in_table="" in_group="" mark="" toml="" was="" alts=""
 
 match=-1
 for row in "${rows[@]}"; do
-  _hi_row_first_pkg first "$row"
+  # the row's canonical package, what check_line shows with nothing installed
+  first="${row#[-+]}" first="${first%%,*}"
   _hi_rows_index match "$first"
   in_table="" in_group="" was=""
   if [ "$match" -ge 0 ]; then
@@ -161,7 +144,11 @@ for row in "${rows[@]}"; do
     fi
     continue
   fi
-  _hi_row_table table "$group" "$row"
+  case "$row" in
+  +*) table="$group.required" ;;
+  -*) table="$group.unwanted" ;;
+  *) table="$group" ;;
+  esac
   _hi_row_toml toml "$row"
   if [ "$match" -ge 0 ] && [ "$in_group" = "$group" ]; then
     if [ "$was" = "$row" ]; then

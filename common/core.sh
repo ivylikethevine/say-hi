@@ -516,6 +516,19 @@ function _hi_list_has() {
   return 1
 }
 
+# _hi_term_cols <outvar> - the terminal's width, or empty: $_HI_TERM_COLS (a
+# suite's pin), else - only when stdout is a tty, so captured output keeps
+# its fixed width - $COLUMNS, then tput
+function _hi_term_cols() {
+  local _hi_tc="${_HI_TERM_COLS-}"
+  if [ -z "${_HI_TERM_COLS+x}" ] && [ -t 1 ]; then
+    _hi_tc="${COLUMNS:-}"
+    case "$_hi_tc" in '' | *[!0-9]*) _hi_tc="$(tput cols 2>/dev/null || true)" ;; esac
+  fi
+  case "$_hi_tc" in *[!0-9]* | 0) _hi_tc="" ;; esac
+  printf -v "$1" '%s' "$_hi_tc"
+}
+
 # _hi_die <msg> - "<who>: <msg>" in red on stderr, then exit 1: a refusal made
 # before anything ran. <who> is $_HI_ME, a script's own name, else hi.
 function _hi_die() {
@@ -754,8 +767,6 @@ function _hi_prime_identity() {
   # every lookup below reads one load of the colors file
   local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS=""
   _hi_colors_load
-  _hi_whoami >/dev/null
-  _hi_hostname >/dev/null
   _hi_host_color >/dev/null
   _hi_user_color >/dev/null
 }
@@ -969,7 +980,7 @@ unset _hi_pt_row
 # that program, or the one whose members include that overlay file; 1 when
 # none does. Fields come off it with ${row%%|*} and the like.
 function _hi_prompt_row() {
-  local _hi_pr _hi_prs="${_HI_PROMPT_PLUGINS:-}"
+  local _hi_pr _hi_prs="${_HI_PROMPT_PLUGINS:+$_HI_PROMPT_PLUGINS;}"
   for _hi_pr in "${_HI_PROMPT_TABLE[@]}"; do
     case "|${_hi_pr%%|*}| ${_hi_pr##*|} " in
     *"|$1|"* | *" $1 "*)
@@ -981,8 +992,7 @@ function _hi_prompt_row() {
   # the prompt plugins the client handed over, rows of the table's shape a ;
   # apart (HI.67); their configs are their plugin's files, not this column's
   while [ -n "$_hi_prs" ]; do
-    _hi_pr="${_hi_prs%%;*}"
-    case "$_hi_prs" in *\;*) _hi_prs="${_hi_prs#*;}" ;; *) _hi_prs="" ;; esac
+    _hi_pr="${_hi_prs%%;*}" _hi_prs="${_hi_prs#*;}"
     [ "${_hi_pr%%|*}" = "$1" ] || continue
     _hi_out "${2:-}" "$_hi_pr"
     return 0
@@ -993,7 +1003,7 @@ function _hi_prompt_row() {
 # _hi_hook_on <name> - does the target's settings leave a plugin's shell
 # hook on: not in $_HI_PLUGINS_OFF, and in $_HI_PLUGINS_ON where the client
 # said it is off by default (the hook's row carries a leading - then).
-# pack_plugins.sh's _hi_hook_off is the client's reading of the same lists.
+# pack_plugins.sh's _hi_plugin_switched_off is the client's reading of the same lists.
 function _hi_hook_on() {
   ! _hi_list_has "${_HI_PLUGINS_OFF:-}" "${1#-}" || return 1
   [ "${1#-}" != "$1" ] || return 0
@@ -1016,18 +1026,28 @@ function _hi_run_init() {
   eval "$($_hi_ri_c)"
 }
 
+# _hi_prompt_ext <shell> - did an extension decide the prompt (HI.59):
+# $_HI_PROMPT_DRAWN=1 says it drew the prompt itself, $_HI_PROMPT_INIT names a
+# program's init to run where this box has it
+function _hi_prompt_ext() {
+  [ "${_HI_PROMPT_DRAWN:-0}" != 1 ] || return 0
+  [ -n "${_HI_PROMPT_INIT:-}" ] || return 1
+  [ -z "${ZSH_VERSION:-}" ] || setopt localoptions shwordsplit
+  # shellcheck disable=SC2086 # the words are the command's
+  _hi_run_init "$1" $_HI_PROMPT_INIT
+}
+
 # _hi_run_hooks <shell> - every hook of $_HI_HOOKS (`<group>.<name>=<init>`
 # rows a ; apart, written by the client as the overlay was packed) whose
 # plugin the settings leave on, in the client's order, once a shell; a
 # `:<shells>` after the name, a , apart, keeps a hook to those shells, and a
 # `~` ahead of it drops what the activation prints
 function _hi_run_hooks() {
-  local _hi_rh_l="${_HI_HOOKS:-}" _hi_rh_r _hi_rh_k
+  local _hi_rh_l="${_HI_HOOKS:+$_HI_HOOKS;}" _hi_rh_r _hi_rh_k
   [ -n "$_hi_rh_l" ] && [ -z "${_hi_hooks_ran:-}" ] || return 0
   _hi_hooks_ran=1
   while [ -n "$_hi_rh_l" ]; do
-    _hi_rh_r="${_hi_rh_l%%;*}"
-    case "$_hi_rh_l" in *\;*) _hi_rh_l="${_hi_rh_l#*;}" ;; *) _hi_rh_l="" ;; esac
+    _hi_rh_r="${_hi_rh_l%%;*}" _hi_rh_l="${_hi_rh_l#*;}"
     _hi_rh_k="${_hi_rh_r%%=*}"
     case "$_hi_rh_k" in
     *:*)
@@ -1049,10 +1069,9 @@ function _hi_run_hooks() {
 # row of $_HI_PROMPT_INITS (`<name>=<init>`, a ; apart, the client's), else
 # `<program> init <shell>`, the shape every one of the table's binaries takes
 function _hi_prompt_init() {
-  local _hi_pi_l="${_HI_PROMPT_INITS:-}" _hi_pi_r
+  local _hi_pi_l="${_HI_PROMPT_INITS:+$_HI_PROMPT_INITS;}" _hi_pi_r
   while [ -n "$_hi_pi_l" ]; do
-    _hi_pi_r="${_hi_pi_l%%;*}"
-    case "$_hi_pi_l" in *\;*) _hi_pi_l="${_hi_pi_l#*;}" ;; *) _hi_pi_l="" ;; esac
+    _hi_pi_r="${_hi_pi_l%%;*}" _hi_pi_l="${_hi_pi_l#*;}"
     [ "${_hi_pi_r%%=*}" != "$1" ] || { _hi_out "${2:-}" "${_hi_pi_r#*=}" && return 0; }
   done
   _hi_out "${2:-}" "$1 init {shell}"

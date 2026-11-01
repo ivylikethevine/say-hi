@@ -96,8 +96,7 @@ vim.opt.tabstop = 2' ] || _hi_because "nvim/init.lua arrived as: [$out]"
 # configs above do, from where its row's home column finds it: there is one
 # copy to edit and no duplicate in the overlay to keep in step
 function test_the_editor_config_in_force_here_rides_the_stream() {
-  local got got2
-  local dir="$_HI_WORKDIR/lint-in-force" home="$_HI_WORKDIR/in-force-home" p
+  local got got2 dir="$_HI_WORKDIR/lint-in-force" home="$_HI_WORKDIR/in-force-home" p
   mkdir -p "$dir" "$home"
   printf 'set number\n' >"$home/.vimrc"
   p="$(_hi_fake_path in-force-bins vim):$PATH"
@@ -410,8 +409,7 @@ source-file \"$_HI_CARRY_TOKEN/tmux/parts/bar.conf\"" ] || _hi_because "theme.co
 # the path held for the target's overlay directory; a path outside $HOME is
 # the target's own, and one that is no file is the scan's to name
 function test_a_marked_line_rides_the_files_it_names() {
-  local got got2
-  local h="$_HI_WORKDIR/marked" d="$_HI_WORKDIR/marked-unpacked" out
+  local got got2 h="$_HI_WORKDIR/marked" d="$_HI_WORKDIR/marked-unpacked" out
   mkdir -p "$h/.config/fd" "$h/.local/share" "$h/overlay/tmux"
   printf '# mine\n*.log\n' >"$h/.config/fd/ignore"
   printf 'Keys\n\n  ?  this sheet\n' >"$h/.local/share/keys.txt"
@@ -478,8 +476,7 @@ function test_a_relay_takes_its_token_off_its_overlay_path() {
 # the target's half: a real sh makes every held path the directory the
 # overlay landed in
 function test_a_carried_path_lands_on_the_target() {
-  local got
-  local d="$_HI_WORKDIR/carry-fixup/config"
+  local got d="$_HI_WORKDIR/carry-fixup/config"
   mkdir -p "$d/tmux"
   printf 'source-file %s/tmux/theme.conf\nset -g mouse on\n' "$_HI_CARRY_TOKEN" >"$d/tmux/tmux.conf"
   sh -c "$(_hi_overlay_fixup "'$d'")" || _hi_why || return 1
@@ -499,8 +496,7 @@ function test_a_carried_include_is_no_finding() {
 # the overlay cache keeps the carried files' list beside it, so an edit to
 # one alone rebuilds it
 function test_an_edit_to_a_carried_file_rebuilds_the_cache() {
-  local got
-  local h c1="" c2=""
+  local got h c1="" c2=""
   h="$(_hi_carry_home cache)"
   mkdir -p "$h/run"
   HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" XDG_RUNTIME_DIR="$h/run" \
@@ -850,8 +846,7 @@ function _hi_real_nvim() {
 # ...and a real neovim, started on the init.lua as a target has it, loads
 # each from the overlay
 function test_neovim_loads_the_modules_that_rode() {
-  local got2
-  local dir got="$_HI_WORKDIR/nvim-got" out nvim
+  local got2 dir got="$_HI_WORKDIR/nvim-got" out nvim
   _hi_real_nvim nvim
   dir="$(_hi_lint_fixture nvimrun nvim/init.lua 'require("one")
 require("two.deep")

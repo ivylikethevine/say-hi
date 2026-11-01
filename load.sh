@@ -74,10 +74,7 @@ if [ -r "$_HI_ROOT/common/keep.sh" ]; then
 else
   function _hi_keep_file() { :; }
   function _hi_keep_claim() { :; }
-  function _hi_keep_holds() {
-    _hi_keep_limit=0
-    return 1
-  }
+  function _hi_keep_holds() { return 1; }
   function _hi_keep_panes() { :; }
   function _hi_keep_watch() { :; }
   function _hi_keep_stays() { return 1; }
@@ -583,7 +580,7 @@ function load() {
     case "$shell" in
     fish) greeting="fish shell! :^)" color="$GREEN" ;;
     zsh) greeting="zsh shell! :)" color="$PURPLE" ;;
-    *) greeting="bash today :(" color="$RED" ;;
+    *) greeting="bash today" color="$BRBLUE" ;;
     esac
     cells=("${BRCYAN}hi loaded: $color$greeting" "init: ${_HI_CONNECT_TIME:--1}s" "copy: ${_HI_COPY_TIME:--1}s"
       "load: $(_hi_elapsed "$start" "$(_hi_now)")s")

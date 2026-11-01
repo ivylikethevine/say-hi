@@ -169,9 +169,6 @@ unset _hi_r _hi_w
 # what it turned down, `<file>:<line>|<why>` each, for scripts/doctor.sh.
 # GLOSSARY: HI.63
 _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=() _HI_PLUGIN_KEY=""
-# bumped by each load, so what is kept off the rows (_hi_overlay_row's index)
-# knows to redo itself
-_HI_PLUGIN_GEN=0
 # The plugins with a shell hook, `<group>|<name>|<tool>|<init>|<prompt>|<shells>`
 # each (HI.67), those with variables to send, `<group>|<name>|<variables>`
 # (HI.62), and the names whose `default` is off, a space around each: on only
@@ -227,6 +224,7 @@ function _hi_posh_home() {
 # and bash-it look
 function _hi_theme_home() {
   local _hi_th_t _hi_th_d _hi_th_f=""
+  local -a _hi_th_c=()
   case "$1" in
   oh-my-zsh.zsh-theme)
     # powerlevel10k/powerlevel10k is p10k's own entry point, not a theme file
@@ -234,26 +232,23 @@ function _hi_theme_home() {
     _hi_rc_theme ZSH_THEME "$_hi_th_f" _hi_th_t || return 1
     case "$_hi_th_t" in */* | random) return 1 ;; esac
     _hi_th_d="${ZSH_CUSTOM:-${ZSH:-$HOME/.oh-my-zsh}/custom}"
-    for _hi_th_f in {"$_hi_th_d","$_hi_th_d/themes","${ZSH:-$HOME/.oh-my-zsh}/themes"}/"$_hi_th_t".zsh-theme; do
-      [ -f "$_hi_th_f" ] && break
-    done
+    _hi_th_c=({"$_hi_th_d","$_hi_th_d/themes","${ZSH:-$HOME/.oh-my-zsh}/themes"}/"$_hi_th_t".zsh-theme)
     ;;
   oh-my-bash.theme.sh)
     _hi_rc_theme OSH_THEME "$HOME/.bashrc" _hi_th_t || return 1
     _hi_th_d="${OSH_CUSTOM:-${OSH:-$HOME/.oh-my-bash}/custom}"
-    for _hi_th_f in {"$_hi_th_d","$_hi_th_d/themes","${OSH:-$HOME/.oh-my-bash}/themes"}/"$_hi_th_t/$_hi_th_t".theme.{sh,bash}; do
-      [ -f "$_hi_th_f" ] && break
-    done
+    _hi_th_c=({"$_hi_th_d","$_hi_th_d/themes","${OSH:-$HOME/.oh-my-bash}/themes"}/"$_hi_th_t/$_hi_th_t".theme.{sh,bash})
     ;;
   bash-it.theme.bash)
     # bash_it.sh's own loader checks exactly these two, in this order, for a
     # bare theme name - the custom themes dir, then the built-in one
     _hi_rc_theme BASH_IT_THEME "$HOME/.bashrc" _hi_th_t || return 1
-    for _hi_th_f in {"${BASH_IT_CUSTOM:-${BASH_IT:-$HOME/.bash_it}/custom}/themes","${BASH_IT:-$HOME/.bash_it}/themes"}/"$_hi_th_t/$_hi_th_t".theme.bash; do
-      [ -f "$_hi_th_f" ] && break
-    done
+    _hi_th_c=({"${BASH_IT_CUSTOM:-${BASH_IT:-$HOME/.bash_it}/custom}/themes","${BASH_IT:-$HOME/.bash_it}/themes"}/"$_hi_th_t/$_hi_th_t".theme.bash)
     ;;
   esac
+  for _hi_th_f in ${_hi_th_c[@]+"${_hi_th_c[@]}"}; do
+    [ -f "$_hi_th_f" ] && break
+  done
   [ -f "$_hi_th_f" ] && _hi_out "${2:-}" "$_hi_th_f"
 }
 
@@ -285,26 +280,9 @@ function _hi_prompt_here() {
     [ "$_hi_pl_p" = yes ] || continue
     _hi_hook_col "$_hi_pl_r" name _hi_pl_t
     ! _hi_list_has "$_hi_pl_out" "$_hi_pl_t" || continue
-    _hi_hook_here "$_hi_pl_r" && ! _hi_hook_off "$_hi_pl_r" && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
+    _hi_hook_here "$_hi_pl_r" && ! _hi_plugin_switched_off "$_hi_pl_t" && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
   done
   _HI_PROMPT_LIST_MEMO="$_hi_pl_out"
-}
-
-# _hi_rc_last_match <regex> <outvar> <file...> - the second group of the last
-# line of <file...> the regex matches, into <outvar>; 1 when none does. What
-# an rc *sets* - a theme name, a flag on an init line - lives in a shell
-# variable or a command line no child of the rc sees, so the file is read,
-# never sourced. An absent file is skipped.
-function _hi_rc_last_match() {
-  local _hi_rl_re="$1" _hi_rl_out="$2" _hi_rl_f _hi_rl_l _hi_rl_v=""
-  shift 2
-  for _hi_rl_f; do
-    [ -f "$_hi_rl_f" ] || continue
-    while IFS= read -r _hi_rl_l || [ -n "$_hi_rl_l" ]; do
-      [[ "$_hi_rl_l" =~ $_hi_rl_re ]] && _hi_rl_v="${BASH_REMATCH[2]}"
-    done <"$_hi_rl_f"
-  done
-  [ -n "$_hi_rl_v" ] && printf -v "$_hi_rl_out" '%s' "$_hi_rl_v"
 }
 
 # _hi_rc_value <NAME> <outvar> <file...> - what the last NAME= line of
@@ -373,12 +351,12 @@ source "$_HI_ROOT/scripts/pack_plugins.sh"
 # made once a load: a scan of every row was most of a pack's time. A member's
 # first line is its first row, the one a lookup finds, so no line is checked
 # for a duplicate on the way in.
-_HI_OVERLAY_INDEX="" _HI_OVERLAY_INDEX_GEN=""
+_HI_OVERLAY_INDEX=""
 function _hi_overlay_row() {
   local _hi_or_nl=$'\n' _hi_or_m="$1" _hi_or_k _hi_or_i _hi_or_at=""
   _hi_plugins_load
-  if [ "$_HI_OVERLAY_INDEX_GEN" != "$_HI_PLUGIN_GEN" ]; then
-    _HI_OVERLAY_INDEX="" _HI_OVERLAY_INDEX_GEN="$_HI_PLUGIN_GEN" _hi_or_i=0
+  if [ -z "$_HI_OVERLAY_INDEX" ]; then
+    _hi_or_i=0
     for _hi_or_k in "${_HI_OVERLAY_TABLE[@]}" ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
       _HI_OVERLAY_INDEX="$_HI_OVERLAY_INDEX$_hi_or_nl${_hi_or_k%%|*}|$_hi_or_i"
       _hi_or_i=$((_hi_or_i + 1))
@@ -514,11 +492,13 @@ function _hi_ssh_tags_file() {
         if (n ~ /^[A-Za-z0-9_.-]+$/) { print "# Tags: " n; print hl; hl = ""; pend = "" }
       }
       { tag = "" }
-      END { if (pend != "") print pend }' >"$_hi_tf_tmp" && mv -f "$_hi_tf_tmp" "$_hi_tf" && _hi_tf_tmp=""
-    [ -z "$_hi_tf_tmp" ] || {
+      END { if (pend != "") print pend }' >"$_hi_tf_tmp" || _hi_tf_d=""
+    # an unchanged cut keeps its mtime: the overlay cache watches this file
+    if [ -z "$_hi_tf_d" ] || ! { cmp -s "$_hi_tf_tmp" "$_hi_tf" || mv -f "$_hi_tf_tmp" "$_hi_tf"; }; then
       rm -f "$_hi_tf_tmp"
       return 1
-    }
+    fi
+    rm -f "$_hi_tf_tmp"
   fi
   [ -s "$_hi_tf" ] && _hi_out "${2:-}" "$_hi_tf"
 }
@@ -701,7 +681,7 @@ function _hi_overlay_wiring() {
       _hi_ow_pp="$_hi_ow_pp${_hi_ow_pp:+;}$_hi_ow_n|$_hi_ow_s|bin|-"
       continue
     fi
-    _hi_hook_off "$_hi_ow_r" && continue
+    _hi_plugin_switched_off "$_hi_ow_n" && continue
     # a leading - on the name says off by default, for the target's _hi_hook_on
     ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_ow_n" || _hi_ow_n="-$_hi_ow_n"
     # ...a ~ ahead of that, a hook whose activation prints nothing

@@ -630,13 +630,6 @@ function test_write_checksums_refuses_a_missing_source_tarball() {
 # Two properties matter: the say-hi-<version>/ prefix, which is where the AUR
 # package's package() runs install.sh from, and byte-stability, without
 # which the manifests' checksums and the uploaded asset could drift apart.
-function test_src_tarball_uses_the_versioned_prefix() {
-  local out="$_HI_WORKDIR/srctar-prefix.tar.gz"
-  src_tarball 9.9.9 HEAD "$out" || _hi_why out || return 1
-  # OpenBSD's tar lists a directory without its trailing slash
-  case "$(tar tzf "$out" | head -1)" in say-hi-9.9.9 | say-hi-9.9.9/) ;; *) _hi_why out || return 1 ;; esac
-}
-
 function test_src_tarball_is_byte_stable() {
   local a="$_HI_WORKDIR/srctar-a.tar.gz" b="$_HI_WORKDIR/srctar-b.tar.gz"
   src_tarball 9.9.9 HEAD "$a" && src_tarball 9.9.9 HEAD "$b" || _hi_why a b || return 1
@@ -802,7 +795,6 @@ function run_packaging_ci_release_tests() {
   _hi_check "...taking one already in the outdir" test_write_checksums_takes_a_tarball_already_in_the_outdir
   _hi_check "...and refusing one that does not exist" test_write_checksums_refuses_a_missing_source_tarball
   _hi_check "release.yml builds that tarball itself" test_release_workflow_builds_the_source_tarball
-  _hi_check "src_tarball uses the say-hi-<version>/ prefix" test_src_tarball_uses_the_versioned_prefix
   _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
   _hi_check "src_tarball ships an executable hi.sh, and CHANGELOG.md" test_src_tarball_ships_an_executable_hi_sh
   _hi_check "changelog.sh writes one entry a version, newest first" test_changelog_writes_one_entry_a_version

@@ -61,8 +61,7 @@ function _hi_shquote_loop_ref() {
 # the armor line is `echo "<base64>" | <unarmor> <op> <word>` - proven by
 # running it, not by parsing it
 function test_armored_line_roundtrips_through_sh() {
-  local got
-  local f="$_HI_WORKDIR/armored.out" line
+  local got f="$_HI_WORKDIR/armored.out" line
   line="$(printf 'hello armored world\n' | _hi_armored_line '>' "'$f'")"
   sh -c "$line" || _hi_why line || return 1
   got="$(cat "$f")"
@@ -81,8 +80,7 @@ function test_armored_line_roundtrips_through_sh() {
 # remote_test.sh's `onlyssl`: the builder is build-once-per-name and the two
 # name different tools.
 function test_armor_falls_back_to_openssl() {
-  local got
-  local f="$_HI_WORKDIR/armored-ssl.out" dir sh_bin want line
+  local got f="$_HI_WORKDIR/armored-ssl.out" dir sh_bin want line
   sh_bin="$(command -v sh)"
   dir="$(_hi_real_path onlyssl-armor openssl tr)"
   want="$(seq 1 400 | tr '\n' ' ')"
@@ -133,8 +131,7 @@ function test_human_bytes_units() {
 }
 
 function test_file_bytes_counts() {
-  local got
-  local f="$_HI_WORKDIR/five.bytes"
+  local got f="$_HI_WORKDIR/five.bytes"
   printf '12345' >"$f"
   got="$(_hi_file_bytes "$f")"
   [ "$got" = 5 ] || _hi_why got f
@@ -221,8 +218,7 @@ function test_flag_help_splits_local_from_anywhere() {
 # a `word\` continuation keeps the indentation that separates it
 # (_HI_HEADER_ALTS once reached a target as "gitid:BRREDcontainers:BRYELLOW").
 function test_strip_awk_rules() {
-  local got
-  local dir="$_HI_WORKDIR/strip" out
+  local got dir="$_HI_WORKDIR/strip" out
   mkdir -p "$dir"
   cat >"$dir/x.sh" <<'FIXTURE'
 #!/bin/sh

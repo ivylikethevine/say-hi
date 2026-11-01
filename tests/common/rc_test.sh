@@ -389,7 +389,6 @@ function test_bash_flag_completion_offers_hi_options_without_a_sweep() {
 # the hold off. A stub $_HI_TARGETS tallies its runs - one x per sweep.
 function test_bash_target_names_are_held_for_the_ttl() {
   local out stub count="$_HI_WORKDIR/targets.count"
-  rm -f "$count"
   stub="$(_hi_stub_bin targets 'printf x >>"$HI_TEST_COUNT"; printf "stub\tdocker\n"')/targets"
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
@@ -407,7 +406,6 @@ function test_bash_target_names_are_held_for_the_ttl() {
 # what that TAB left
 function test_bash_ble_auto_complete_runs_no_sweep() {
   local out stub count="$_HI_WORKDIR/ble.count"
-  rm -f "$count"
   stub="$(_hi_stub_bin bletargets 'printf x >>"$HI_TEST_COUNT"; printf "web\tssh\n"')/bletargets"
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
@@ -760,7 +758,6 @@ function _hi_shell_override_probe() {
   local row="$1" mode="$2"
   local shell file script line value src=""
   IFS='|' read -r shell file script line value <<<"$row"
-  rm -f "$_HI_WORKDIR/cfg/$file"
   [ "$mode" = user ] && mkdir -p "$_HI_WORKDIR/cfg" && printf '%s\n' "$line" >"$_HI_WORKDIR/cfg/$file"
   [ "$mode" = bare ] || src='source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of "$shell")"'" 2>/dev/null; '
   _hi_rc_shell xterm-256color "$shell" "$src$script"

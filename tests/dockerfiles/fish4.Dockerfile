@@ -26,8 +26,11 @@ FROM ubuntu:26.04@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab0
 # a failing `fish --version` is masked by the grep's status - DL4006, same
 # spelling as framework.Dockerfile's. /bin/bash rather than /bin/sh because sh
 # here is dash, which has no `-o pipefail`.
+#
+# The retries are for the archive dropping connections mid-build, which would
+# otherwise fail the lint gate.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN apt-get update -qq \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends fish \
+RUN apt-get -o Acquire::Retries=3 update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 install -y -qq --no-install-recommends fish \
     && fish --version | grep -qE '^fish, version 4\.' \
     && rm -rf /var/lib/apt/lists/*

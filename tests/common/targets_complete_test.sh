@@ -186,7 +186,6 @@ function test_flags_drop_local_subcommands_in_a_session() {
 # this checkout has all three and would pass either way.
 function test_flags_drop_what_a_package_lacks() {
   local tree="$_HI_WORKDIR/pkgtree" out flag
-  rm -rf "$tree"
   mkdir -p "$tree/common" "$tree/scripts"
   cp "$_HI_ROOT/common/targets.sh" "$_HI_ROOT/common/flags" "$tree/common/"
   out="$(sh "$tree/common/targets.sh" flags | cut -f1)"

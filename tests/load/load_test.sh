@@ -242,10 +242,9 @@ function test_session_rc_setup_nests_under_cleanup_when_set() {
   ) >"$_HI_WORKDIR/nest_out"
   dir="$(cat "$_HI_WORKDIR/nest_out")"
   case "$dir" in
-  "$_HI_WORKDIR/nesttest"/*) rm -rf "$_HI_WORKDIR/nesttest" ;;
+  "$_HI_WORKDIR/nesttest"/*) ;;
   *)
     _hi_cecho " | $dir is not nested under \$_HI_CLEANUP" "$RED"
-    rm -rf "$_HI_WORKDIR/nesttest"
     return 1
     ;;
   esac

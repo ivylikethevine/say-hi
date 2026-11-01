@@ -36,19 +36,11 @@ runs:
     - if: runner.os == 'Linux'
       shell: bash
       env:
-        HI_EXTRA_PACKAGES: ${{ inputs.extra-packages }}
+        # none, not empty: the installer reads empty as its default of both
+        HI_BACKENDS: none
+        HI_EXTRA_PACKAGES: zsh fish ${{ inputs.extra-packages }}
         HI_APT_CACHE: ${{ runner.temp }}/apt-archives
-      run: |
-        set -euo pipefail
-        source "$GITHUB_ACTION_PATH/../apt/lib.sh"
-        _ci_apt_drop_vendor_lists
-        _ci_apt_update
-        mkdir -p "$HI_APT_CACHE/partial"
-        # unquoted on purpose: a word list, one apt name each
-        # shellcheck disable=SC2086
-        sudo apt-get -o "Dir::Cache::Archives=$HI_APT_CACHE" install -y zsh fish $HI_EXTRA_PACKAGES
-        sudo rm -rf "$HI_APT_CACHE/partial" "$HI_APT_CACHE/lock"
-        sudo chown -R "$(id -u):$(id -g)" "$HI_APT_CACHE"
+      run: '"$GITHUB_ACTION_PATH/../setup-backends/install.sh"'
 
     # macOS ships zsh; fish comes from brew, without brew updating itself first
     - if: runner.os == 'macOS'

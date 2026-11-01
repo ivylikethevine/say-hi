@@ -8,7 +8,7 @@
 # functions, sized to its longest line rather than the terminal width, since
 # previews range from one short colored line to full_check's wrapped block.
 function show_preview() {
-  local out content_w=0 len line top fill_top i indent='   ' room restore=0
+  local out content_w=0 len line top fill_top i indent='   ' room
   local label="$_HI_BOX_H preview "
   local -a lines lens=()
   out="$("$@" 2>/dev/null)" || true
@@ -24,12 +24,7 @@ function show_preview() {
   for i in "${!lines[@]}"; do
     _hi_visible_len len "${lines[i]}"
     if ((len > room)); then
-      shopt -q extglob || {
-        shopt -s extglob
-        restore=1
-      }
-      line="${lines[i]//$'\e'\[*([0-9;])m/}"
-      ((restore)) && shopt -u extglob
+      _hi_strip_escapes line "${lines[i]}"
       lines[i]="${line:0:room}" len=$room
     fi
     lens+=("$len")
@@ -57,11 +52,10 @@ function show_preview() {
 # in the shell that runs the menus, so every `$( )` render below inherits the
 # memo instead of probing the backends again per keystroke.
 function _hi_probe_once() {
-  _hi_load_preview_sources
   _hi_system_info_probe
   _hi_identity_probe
   _hi_backend_probe
-  _hi_header_version >/dev/null
+  _hi_header_version
 }
 
 # The real header, rendered at the answers this run holds so far: hi_header
@@ -72,8 +66,7 @@ function _hi_probe_once() {
 # exactly - which is what the width dial is previewing.
 function _hi_header_preview() {
   local order banner width groups palette lead iphide scheme w
-  _hi_load_preview_sources
-  if setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1; then
+  if setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS"; then
     _hi_cecho " header off - nothing prints on connect or disconnect" "$YELLOW"
     return 0
   fi
@@ -148,7 +141,7 @@ function _hi_env_status_preview() {
 # or a sentence, when the colored prompt itself is off
 function _hi_prompt_sample_preview() {
   local prompt git="" env="" end scheme
-  if setting_off _HI_DISABLE_PROMPT "$_HI_SETTINGS" 1; then
+  if setting_off _HI_DISABLE_PROMPT "$_HI_SETTINGS"; then
     _hi_cecho " prompt off - your shell's own" "$YELLOW"
     return 0
   fi
@@ -164,11 +157,11 @@ function _hi_prompt_sample_preview() {
     ((_HI_MENU_W >= 60)) || PWD="${PWD##*/}"
     _hi_prompt_preview
   )"
-  setting_off _HI_DISABLE_GIT_STATUS "$_HI_SETTINGS" 1 || git="$(_hi_git_status_preview)"
+  setting_off _HI_DISABLE_GIT_STATUS "$_HI_SETTINGS" || git="$(_hi_git_status_preview)"
   # only what is really active here: the shape _hi_env_status_preview falls
   # back to would be a fiction in a line claiming to be this session's prompt
   # shellcheck disable=SC2119 # stdout form on purpose
-  setting_off _HI_DISABLE_ENV_STATUS "$_HI_SETTINGS" 1 || env="$(_hi_env_prompt)"
+  setting_off _HI_DISABLE_ENV_STATUS "$_HI_SETTINGS" || env="$(_hi_env_prompt)"
   [ -n "$env" ] && env="$BRCYAN$env$NC"
   _hi_prompt_end_shown BASH end
   printf '%b%s%s %s\n' "$env" "$prompt" "$git" "$end"
@@ -178,7 +171,6 @@ function _hi_prompt_sample_preview() {
 # holds - or why there is none to draw
 function _hi_check_preview() {
   local order="" groups="" out w=""
-  _hi_load_preview_sources
   setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" order
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
   case " ${order:-$_HI_HEADER_ORDER_DEFAULT} " in
@@ -276,7 +268,7 @@ function _hi_tool_alias_preview() {
 # `hi` its entries try, auto when there are only other shells' entries or
 # none, and hi when every entry misses the shell (core.sh's _hi_prompt_tool)
 function _hi_prompt_choice() {
-  local _hi_pc_w _hi_pc_r _hi_pc_on="" _hi_pc_p="" _hi_pc_c=""
+  local _hi_pc_w _hi_pc_on="" _hi_pc_p="" _hi_pc_c=""
   # shellcheck disable=SC2086 # the value is a space-separated word list
   for _hi_pc_w in $2; do
     case "$_hi_pc_w" in
@@ -287,10 +279,7 @@ function _hi_prompt_choice() {
   done
   for _hi_pc_w in $_hi_pc_on $_hi_pc_p; do
     [ "$_hi_pc_w" != hi ] || _hi_pc_c=hi
-    [ -n "$_hi_pc_c" ] || ! _hi_prompt_row "$_hi_pc_w" _hi_pc_r || {
-      _hi_pc_r="${_hi_pc_r#*|}"
-      case " ${_hi_pc_r%%|*} " in *" $1 "*) _hi_pc_c="$_hi_pc_w" ;; esac
-    }
+    [ -n "$_hi_pc_c" ] || ! _hi_prompt_fits "$_hi_pc_w" "$1" || _hi_pc_c="$_hi_pc_w"
     [ -z "$_hi_pc_c" ] || break
   done
   [ -n "$_hi_pc_c" ] || { [ -n "$_hi_pc_p" ] && _hi_pc_c=hi || _hi_pc_c=auto; }
@@ -302,7 +291,7 @@ function _hi_prompt_choice() {
 # what auto means here is hi.sh's own answer, sourced into a subshell
 # through its BASH_SOURCE hatch
 function _hi_prompt_tool_preview() {
-  local found off="" r name item n=1 note
+  local found off="" name item n=1 note
   setting_value _HI_DISABLE_PROMPT "$_HI_SETTINGS" off
   if [ "$off" = 1 ]; then
     printf "moot while the prompt is off (the item above): no program and no hi prompt draws\n"
@@ -312,17 +301,16 @@ function _hi_prompt_tool_preview() {
   found="$(unset _HI_PROMPT_TOOL && source "$_HI_LAUNCHER" && _hi_prompt_list)"
   note="no prompt program is installed here, so hi's prompt"
   for name in $found; do
-    _hi_prompt_row "$name" r || continue
-    r="${r#*|}"
-    case " ${r%%|*} " in *" $1 "*) note="the first of these a target has, else hi's: $found" && break ;; esac
+    ! _hi_prompt_fits "$name" "$1" || {
+      note="the first of these a target has, else hi's: $found"
+      break
+    }
   done
   for name in auto hi $_HI_PROMPT_TOOLS; do
     case "$name" in
     auto | hi) ;;
     *)
-      _hi_prompt_row "$name" r
-      r="${r#*|}"
-      _hi_list_has "${r%%|*}" "$1" || continue
+      _hi_prompt_fits "$name" "$1" || continue
       note="not found here"
       ! _hi_list_has "$found" "$name" || note="found here"
       ;;

@@ -515,7 +515,7 @@ function test_tables_render_without_error() {
 # says which scheme it is (HI.50)
 function test_tables_render_under_a_scheme() {
   local out
-  out="$(_HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_render_colors)" || _hi_why || return 1
+  out="$(_HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_render_colors)" || _hi_why || return 1
   [[ "$out" == *"scheme: custom (24)"* && "$out" == *";38;2;"* ]] || _hi_why out || return 1
   out="$(_HI_COLOR_SCHEME="" _HI_TRUECOLOR=0 _hi_render_colors)" || _hi_why || return 1
   [[ "$out" == *"scheme: default"* && "$out" != *";38;2;"* ]] || _hi_why out

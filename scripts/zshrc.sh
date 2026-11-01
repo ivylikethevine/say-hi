@@ -7,6 +7,23 @@
 # The values matched are ~/.zshenv's to expand (SC2016).
 # shellcheck disable=SC2016
 
+# _hi_rc_last_match <regex> <outvar> <file...> - the second group of the last
+# line of <file...> the regex matches, into <outvar>; 1 when none does. What
+# an rc *sets* - a theme name, a flag on an init line - lives in a shell
+# variable or a command line no child of the rc sees, so the file is read,
+# never sourced. An absent file is skipped.
+function _hi_rc_last_match() {
+  local _hi_rl_re="$1" _hi_rl_out="$2" _hi_rl_f _hi_rl_l _hi_rl_v=""
+  shift 2
+  for _hi_rl_f; do
+    [ -f "$_hi_rl_f" ] || continue
+    while IFS= read -r _hi_rl_l || [ -n "$_hi_rl_l" ]; do
+      [[ "$_hi_rl_l" =~ $_hi_rl_re ]] && _hi_rl_v="${BASH_REMATCH[2]}"
+    done <"$_hi_rl_f"
+  done
+  [ -n "$_hi_rl_v" ] && printf -v "$_hi_rl_out" '%s' "$_hi_rl_v"
+}
+
 # _hi_zshrc_here [outvar] - the .zshrc zsh reads on this machine: under
 # $ZDOTDIR, else under what the last ZDOTDIR= line of ~/.zshenv sets, else
 # ~/.zshrc. Only a zsh has a ~/.zshenv's ZDOTDIR in its environment, and
@@ -15,17 +32,13 @@
 # $XDG_CONFIG_HOME (bare, or with its ~/.config default) and expands nothing
 # else. Any other value reads as unset.
 function _hi_zshrc_here() {
-  local _hi_zh_l _hi_zh_v="" _hi_zh_x="${XDG_CONFIG_HOME:-$HOME/.config}"
+  local _hi_zh_v="" _hi_zh_x="${XDG_CONFIG_HOME:-$HOME/.config}"
   local _hi_zh_re="^[[:space:]]*(export[[:space:]]+)?ZDOTDIR=(\"[^\"]*\"|'[^']*'|[^[:space:]#;]*)"
   if [ -n "${ZDOTDIR:-}" ]; then
     _hi_out "${1:-}" "$ZDOTDIR/.zshrc"
     return 0
   fi
-  if [ -f "$HOME/.zshenv" ]; then
-    while IFS= read -r _hi_zh_l || [ -n "$_hi_zh_l" ]; do
-      [[ "$_hi_zh_l" =~ $_hi_zh_re ]] && _hi_zh_v="${BASH_REMATCH[2]}"
-    done <"$HOME/.zshenv"
-  fi
+  _hi_rc_last_match "$_hi_zh_re" _hi_zh_v "$HOME/.zshenv" || :
   _hi_zh_v="${_hi_zh_v#[\"\']}"
   _hi_zh_v="${_hi_zh_v%[\"\']}"
   case "$_hi_zh_v" in

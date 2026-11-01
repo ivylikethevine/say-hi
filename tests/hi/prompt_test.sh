@@ -211,10 +211,9 @@ function _hi_env_sources_core() {
     tr ' ' '\n'
 }
 
-# the same list as config.fish's `set -l order ...` spells it
+# the same list as config.fish's `# env: <word>` statements spell it
 function _hi_env_sources_fish() {
-  sed -n 's/^ *set -l order \(.*\)$/\1/p' "$_HI_ROOT/common/config.fish" |
-    tr ' ' '\n'
+  sed -n 's/^ *# env: \(.*\)$/\1/p' "$_HI_ROOT/common/config.fish"
 }
 
 function test_fish_env_order_default_matches_env_prompt() {
@@ -229,7 +228,7 @@ function test_fish_env_sources_all_have_an_arm() {
   for word in $(_hi_env_sources_core); do
     grep -q "^ *$word)" "$_HI_ROOT/common/env_prompt.sh" ||
       missing="$missing env_prompt.sh:$word"
-    grep -q "^ *case $word\$" "$_HI_ROOT/common/config.fish" ||
+    grep -q "^ *# env: $word\$" "$_HI_ROOT/common/config.fish" ||
       missing="$missing config.fish:$word"
   done
   [ -z "$missing" ] || _hi_because "source words with no branch:$missing"

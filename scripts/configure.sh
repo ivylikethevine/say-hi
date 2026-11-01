@@ -75,12 +75,11 @@ function setting_value() {
   _hi_out "${3:-}" "$_hi_sv_val"
 }
 
-# true if $1 is turned off: its value is $3. hi's own _HI_DISABLE_* vars use 1
-# for "off"; common/header.sh's per-line toggles use 0, hence the argument.
+# true if $1 is turned off: hi's own _HI_DISABLE_* vars use 1 for "off"
 function setting_off() {
-  local var="$1" target="$2" off="${3:-1}" answer
+  local var="$1" target="$2" answer
   setting_value "$var" "$target" answer
-  [ "$answer" = "$off" ]
+  [ "$answer" = 1 ]
 }
 
 # true if $1 is on. Two shapes of setting share this: a default-on toggle is
@@ -221,11 +220,12 @@ function _hi_is_truecolor_choice() {
   case "$1" in auto | on | off) ;; *) return 1 ;; esac
 }
 
-# _hi_is_header_word <word> - one of $_HI_HEADER_ORDER's vocabulary, off
-# header.sh's own list, which the menu loads on first use
-function _hi_is_header_word() {
-  _hi_load_preview_sources
-  _hi_is_header_order "$1"
+# _hi_prompt_fits <program> <shell> - does that prompt program draw that shell
+function _hi_prompt_fits() {
+  local _hi_pf_r
+  _hi_prompt_row "$1" _hi_pf_r || return 1
+  _hi_pf_r="${_hi_pf_r#*|}"
+  _hi_list_has "${_hi_pf_r%%|*}" "$2"
 }
 
 # the live previews the questions draw
@@ -236,14 +236,12 @@ source "$_HI_ROOT/scripts/configure_preview.sh"
 # number or name and written back into $_HI_PROMPT_TOOL as <shell>:<choice>
 # entries - `hi` alone for the shells that share it, nothing for auto
 function config_prompt_tool() {
-  local cur="" r sh choice fits="" reply w rejects=0 out="" hi_too=0 auto=0
+  local cur="" sh choice fits="" reply w rejects=0 out="" hi_too=0 auto=0
   local -a all=() picks=()
   setting_value _HI_PROMPT_TOOL "$_HI_SETTINGS" cur
   _hi_prompt_choice "$1" "$cur" choice
   for w in $_HI_PROMPT_TOOLS; do
-    _hi_prompt_row "$w" r
-    r="${r#*|}"
-    case " ${r%%|*} " in *" $1 "*) fits="$fits $w" ;; esac
+    ! _hi_prompt_fits "$w" "$1" || fits="$fits $w"
   done
   # shellcheck disable=SC2206 # space-separated words, no globs
   all=(auto hi $fits)
@@ -621,7 +619,6 @@ function _hi_collect_value() {
 
 function collect_setting_lines() {
   local row name shell
-  _hi_load_preview_sources
   _HI_SETTING_LINES=()
   _hi_collect_group _HI_HEADER_PROMPTS
   _hi_collect_value _HI_HEADER_ORDER "$_HI_HEADER_ORDER_DEFAULT" quoted

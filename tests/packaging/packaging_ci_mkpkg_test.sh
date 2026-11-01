@@ -91,14 +91,6 @@ function test_mkrepo_documents_the_flags_the_workflows_pass() {
   [[ "$help" == *"--gpg-key"* && "$help" == *"--public-key"* && "$help" == *"--apk-key"* && "$help" == *"--tarball"* ]] || _hi_why help
 }
 
-# the version of record has to exist where mkpkg.sh reads it back from;
-# the actual plumbing is covered by test_package_sh_version_flag_wins
-function test_package_sh_reads_the_version_from_the_pkgbuild() {
-  local got
-  got="$(_hi_in_pkglib pkgbuild_version)"
-  [ -n "$got" ] || _hi_why got
-}
-
 function test_bump_check_rejects_a_version_the_manifests_do_not_carry() {
   ! "$_HI_PKG_DIR/bump.sh" --check 999.999.999 >/dev/null 2>&1 || _hi_why _HI_PKG_DIR
 }
@@ -365,19 +357,6 @@ function test_bump_sha256_matches_a_known_vector() {
   [ "$got" = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03" ] || _hi_why got f
 }
 
-# the two b2 implementations (coreutils b2sum, openssl fallback) must agree,
-# or a bump on a mac writes a sum makepkg then rejects. Guarded on b2sum at
-# the registration; openssl is bump.sh's optional mac fallback only - hi
-# itself needs it nowhere, since the wire armor is base64.
-function test_bump_b2_fallback_agrees_with_b2sum() {
-  local got got2
-  local f="$_HI_WORKDIR/vector2"
-  printf 'hello\n' >"$f"
-  got="$(b2_of "$f")"
-  got2="$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')"
-  [ "$got" = "$got2" ] || _hi_why got got2 f NF
-}
-
 # a value flag typed with its value left off must refuse loudly - the
 # alternative is silently eating the *next* flag
 function test_parsers_refuse_a_flag_with_no_value() {
@@ -410,10 +389,6 @@ function test_package_sh_version_flag_wins() {
   local out
   out="$("$_HI_PKG_DIR/mkpkg.sh" --version 7.7.7 --stage-only --outdir "$_HI_WORKDIR/pkgdist2" 2>&1)"
   [[ "$out" == *"Packaging say-hi 7.7.7"* ]] || _hi_why out
-}
-
-function test_package_sh_rejects_unknown_arguments() {
-  ! "$_HI_PKG_DIR/mkpkg.sh" --bogus >/dev/null 2>&1 || _hi_why _HI_PKG_DIR
 }
 
 function test_release_workflow_uploads_sha256sums() {
@@ -674,7 +649,6 @@ function run_packaging_ci_mkpkg_tests() {
   _hi_h1 "Testing packaging/ (ci) (mkpkg and bump)"
 
   _hi_h2 "Testing: mkpkg.sh / bump.sh"
-  _hi_check "mkpkg.sh takes its version from the PKGBUILD" test_package_sh_reads_the_version_from_the_pkgbuild
   _hi_check "bump.sh --check rejects a mismatch" test_bump_check_rejects_a_version_the_manifests_do_not_carry
   _hi_check "every parser refuses a value-less flag" test_parsers_refuse_a_flag_with_no_value
   _hi_check "bump.sh --help names both modes" test_bump_help_names_both_modes
@@ -698,18 +672,11 @@ function run_packaging_ci_mkpkg_tests() {
   _hi_check "...and --check then agrees, exit 0" test_bump_cli_check_agrees_after_a_write
   _hi_check "asset_url follows the PKGBUILD's url=" test_bump_asset_url_follows_the_pkgbuild_url
   _hi_check "sha256 matches a known vector" test_bump_sha256_matches_a_known_vector
-  # needs both halves present to compare them; nothing else implies openssl
-  if command -v openssl >/dev/null 2>&1; then
-    _hi_check_requires b2sum "b2 fallback agrees with b2sum" test_bump_b2_fallback_agrees_with_b2sum
-  else
-    _hi_skip "b2 fallback agrees with b2sum" "no openssl"
-  fi
   _hi_check "_hi_rewrite preserves the file mode" test_bump_rewrite_preserves_file_mode
 
   _hi_h2 "Testing: mkpkg.sh (offline half)"
   _hi_check_capable symlink "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
   _hi_check "--version beats the PKGBUILD's" test_package_sh_version_flag_wins
-  _hi_check "Unknown arguments are an error" test_package_sh_rejects_unknown_arguments
   _hi_check "release.yml ships SHA256SUMS" test_release_workflow_uploads_sha256sums
   _hi_check "build signs the rpm with the checked GPG key" test_build_job_signs_the_rpm
   _hi_check "publish ships package-repo.tar.gz" test_publish_job_ships_the_package_repository

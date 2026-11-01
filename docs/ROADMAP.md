@@ -11,7 +11,8 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       end of file when the boot fails (GLOSSARY HI.19), and the ssh suite
       has `notty-stdin`, `notty-maxsessions1`, and `notty-forced` cases.
       **Ticks when:** those cases pass, and a connect with stdin off a tty
-      measures about two round trips shorter at 150 ms added.
+      measures about two round trips shorter at 150 ms added. Its sentence
+      is already under `## Unreleased`, so ticking only removes this entry.
 
 - [ ] **Every default and preset audited before the tag** —
       [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
@@ -29,7 +30,9 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       **Ticks when:** the 1.0.0 release note lists those, the known changes,
       and any others that move.
 
-- [ ] **The target side keeps up on a starved CPU** — with the target held
+- [ ] **The target side keeps up on a starved CPU** — every figure here
+      predates 40aa937d, which rewrote 400 lines of the shipped tree, so
+      rerun both scripts before cutting. With the target held
       to an eighth of one core (`scratch/slow_target.sh`: a CFS quota on the
       suites' sshd image, loopback, no netem; 16CPU/60GB host, at b8b3759a),
       what a cold connect adds over a plain `ssh host true` grows from
@@ -55,7 +58,8 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       the probes in a directory the tree comes with, one `ls --color`
       check, `du` with no `--version` probe or `awk`, no `rm` of what the
       tree's removal takes, the end's kept-session lookup only where a
-      `hi --keep` left its claim or the connect started one, and two shortcuts in bash. What is left:
+      `hi --keep` left its claim or the connect started one, and two
+      shortcuts in bash. What is left:
       the kept-session lookup at the start, where the target has a
       multiplexer; the bootloader's `date` and `awk` for the copy time and
       its `tr | base64`; and the header's probes (`git`, `uname`, `nproc`,
@@ -63,13 +67,15 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       line below is about 110 ms away, some 35 execs at the 3 ms each the
       script's `fork_ms` shows under that cap, so execs alone barely reach it.
       **Ticks when:** the same script puts hi's share at an eighth of a core
-      within twice its full-core figure, 280 ms today.
+      within twice its full-core figure, 280 ms at b8b3759a.
 
 - [ ] **The session starts once the core files land** — on a fresh
       connection a script past about 45 KB costs two extra round trips over
       a small one, and one under 40 KB costs one (at 150 ms added). At
-      7165ce44 the script is 68.7 KB, 61.1 KB of it the gzipped tree.
-      Without `hi.sh`, the zsh completion, and the zsh and fish files, the
+      081bbd6a the script is 68.9 KB (the README badge's 67 KB, which counts
+      1024 bytes to the KB), 61.3 KB of it the gzipped tree.
+      At 7165ce44, when both were 0.2 KB smaller: without `hi.sh`, the zsh
+      completion, and the zsh and fish files, the
       tree is 39.1 KB, a script of about 46.7 KB: still past the line. It
       is 34.2 KB, about 41.8 KB with the script, only with `keep.sh` held
       back too, and `load()` calls `keep.sh`'s functions as the session
@@ -83,14 +89,6 @@ an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
       **Ticks when:** a cold connect is a round trip shorter at
       150 ms added, with nothing dropped from the tree, and the relay, fish,
       zsh, and kept-session suites pass.
-
-- [ ] **A greeting that does not read as an error** — a bash session opens
-      on `hi loaded: bash today :(` in red, which on a first connect looks
-      like something went wrong; the text is outside the 1.x contract, so
-      this waits on nothing. **Do:** reword bash's line and its color, with
-      `load.sh`'s greeting and the load suite's three greeting cases
-      together. **Ticks when:** a bash session's greeting is no longer red
-      or a frown, and the load suite passes.
 
 ## Release Stages
 
@@ -128,14 +126,12 @@ review that lands when it lands.
 
 Scripts under `scratch/` to fix or drop; nothing here ships.
 
-- [ ] **`scratch/bp_answers.py` reads a doc this repository lacks** — it turns
-      `docs/OPENSSF-IMPROVEMENTS.md` into paste-ready entries, and there is no
-      such file here. **Do:** add the answer sheet or delete the script.
-      **Ticks when:** the script runs or is gone.
-
-- [ ] **The scratch scripts nothing names** — no tracked file names
-      `watch_pr.sh`, `time_plugins_load.sh`, `trace_sweep.sh`,
+- [ ] **The scratch scripts nothing names** — no tracked file outside
+      `scratch/` names `watch_pr.sh`, `time_plugins_load.sh`,
       `profile_plugins_load.sh`, `coverage_rank.py`, `doc_paths.py`,
-      `continuation_lines.py`, `bsd_vm.sh`, `ci_failures.sh`, `cov_suite.sh`,
-      `gate.sh`, `client_prep.sh` or `bp_answers.py`. **Do:** keep what is still
-      wanted and delete the rest. **Ticks when:** each is kept or gone.
+      `continuation_lines.py`, `ci_failures.sh`, `cov_suite.sh`,
+      `gate.sh`, `client_prep.sh` or `bp_answers.py`, and
+      `bp_answers.py` reads `docs/OPENSSF-IMPROVEMENTS.md`, which this
+      repository lacks. **Do:** keep what is still wanted and delete the rest,
+      adding that answer sheet if `bp_answers.py` stays. **Ticks when:** each
+      is kept or gone, and `bp_answers.py` runs or is gone.

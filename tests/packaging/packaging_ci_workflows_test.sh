@@ -47,8 +47,6 @@ function test_release_workflow_opens_the_tap_pr_after_brew() {
   [ -n "$job" ] || _hi_because "release.yml has no tap job" || return 1
   [[ "$job" == *"needs: brew"* ]] &&
     [[ "$job" == *"needs.brew.result == 'success'"* ]] &&
-    [[ "$job" == *"needs.brew.outputs.debug != 'true'"* ]] &&
-    [[ "$job" == *"needs.brew.outputs.prerelease != 'true'"* ]] &&
     [[ "$job" == *"secrets.HOMEBREW_TAP_TOKEN"* ]] &&
     [[ "$job" == *"gh pr create"* ]] &&
     [[ "$job" == *"tap_formula.sh <dist/manifests/say-hi.rb >"* ]] &&

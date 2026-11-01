@@ -429,6 +429,10 @@ ranking, not the milliseconds. `ci.yml`'s `profile` job runs it beside `bench`
 and uploads the `profiles` artifact (14 days); it is advisory
 (`continue-on-error`), the bench ceilings stay the gate.
 
+`scratch/trace_volume.sh <suite>` ranks a suite's traced lines by function, the
+cost bashcov pays, and `scratch/trace_sweep.sh` ranks every suite the same way:
+the first place to look when a CI job nears its time limit.
+
 ### Timing and shared state
 
 The Windows and BSD runners are where a timing assumption shows up, so the
@@ -489,6 +493,11 @@ nothing, which tells a silent run from a capture that lost its words.
 `doctor.sh` and `install.sh`, the slowest cases there are: where a
 flake may pass, a run that wrote nothing is made once more and listed under
 _Flaky cases_. A run that said anything is never made twice.
+
+A case that fails only on one BSD runner can be reproduced locally:
+`scratch/bsd_vm.sh up` boots FreeBSD's cloud image under qemu with KVM, and
+`scratch/bsd_vm.sh cases <suite> <word>` runs matching cases there through
+`scratch/run_cases.sh`.
 
 ### The images are files; the build contexts are not
 

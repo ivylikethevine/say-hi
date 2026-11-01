@@ -87,10 +87,10 @@ function _hi_fish_mirror_is() {
 # left where it is.
 function test_session_env_names_match_the_roster() {
   local hi_list core_list
-  # _hi_session_env's own pairs, then the verdicts it hands to
-  # _hi_client_verdicts, in the order the two print them
+  # _hi_session_env's own pairs, then _hi_client_verdicts', in the order the
+  # two print them: every name a printf format holds before its tab
   hi_list="$(awk '/^function _hi_(session_env|client_verdicts)\(\)/{p=1} p{print} /^}/{p=0}' "$_HI_ROOT/hi.sh" |
-    grep -oE "printf ('|\"\\\$1\" )_HI_[A-Z0-9_]+" | sed -E "s/printf ('|\"\\\$1\" )//")"
+    grep -oE '_HI_[A-Z0-9_]+\\t' | sed -E 's/\\t$//')"
   core_list="$(printf '%s\n' "${_HI_SESSION_VARS[@]}")"
   [ "$hi_list" = "$core_list" ] || _hi_because "hi.sh: [${hi_list//$'\n'/ }], core.sh: [${_HI_SESSION_VARS[*]}]"
 }

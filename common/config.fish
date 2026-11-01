@@ -367,44 +367,39 @@ if test "$_HI_DISABLE_PROMPT" != 1
     # which is _HI_ENV_DEFER=1 on the bash side. GLOSSARY: HI.54
     function __hi_env_prompt --description 'name every active environment manager'
       test "$_HI_DISABLE_ENV_STATUS" = 1; and return
-      set -l order mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv
       set -l names
-      for src in $order
-        switch $src
-          case mise
-            test -n "$MISE_SHELL"; and __hi_mise_local; and set -a names mise
-          case asdf
-            test -n "$ASDF_DIR"; and set -a names asdf
-          case pyenv
-            test -n "$PYENV_VERSION"; and set -a names "py:$PYENV_VERSION"
-          case rbenv
-            test -n "$RBENV_VERSION"; and set -a names "rb:$RBENV_VERSION"
-          case nodenv
-            test -n "$NODENV_VERSION"; and set -a names "node:$NODENV_VERSION"
-          case nix
-            if test -n "$IN_NIX_SHELL"
-              test -n "$name"; and set -a names "nix:$name"; or set -a names nix
-            end
-          case guix
-            test -n "$GUIX_ENVIRONMENT"; and set -a names guix
-          case devbox
-            test -n "$DEVBOX_SHELL_ENABLED"; and set -a names devbox
-          case devenv
-            test -n "$DEVENV_ROOT"; and set -a names devenv
-          case direnv
-            test -n "$DIRENV_DIR"; and set -a names "direnv:"(string replace -r '^-?.*/' '' -- $DIRENV_DIR)
-          case conda
-            test -n "$CONDA_DEFAULT_ENV"; and test -z "$CONDA_PROMPT_MODIFIER"
-            and set -a names $CONDA_DEFAULT_ENV
-          case venv
-            set -l venv_name "$VIRTUAL_ENV_PROMPT"
-            test -z "$venv_name"; and set venv_name (string replace -r '.*/' '' -- $VIRTUAL_ENV)
-            contains -- "$venv_name" .venv venv .env env
-            and set venv_name (string replace -r '.*/([^/]*)/[^/]*$' '$1' -- $VIRTUAL_ENV)
-            test -n "$venv_name"; and not functions -q _old_fish_prompt
-            and set -a names $venv_name
-        end
+      # env: mise
+      test -n "$MISE_SHELL"; and __hi_mise_local; and set -a names mise
+      # env: asdf
+      test -n "$ASDF_DIR"; and set -a names asdf
+      # env: pyenv
+      test -n "$PYENV_VERSION"; and set -a names "py:$PYENV_VERSION"
+      # env: rbenv
+      test -n "$RBENV_VERSION"; and set -a names "rb:$RBENV_VERSION"
+      # env: nodenv
+      test -n "$NODENV_VERSION"; and set -a names "node:$NODENV_VERSION"
+      # env: nix
+      if test -n "$IN_NIX_SHELL"
+        test -n "$name"; and set -a names "nix:$name"; or set -a names nix
       end
+      # env: guix
+      test -n "$GUIX_ENVIRONMENT"; and set -a names guix
+      # env: devbox
+      test -n "$DEVBOX_SHELL_ENABLED"; and set -a names devbox
+      # env: devenv
+      test -n "$DEVENV_ROOT"; and set -a names devenv
+      # env: direnv
+      test -n "$DIRENV_DIR"; and set -a names "direnv:"(string replace -r '^-?.*/' '' -- $DIRENV_DIR)
+      # env: conda
+      test -n "$CONDA_DEFAULT_ENV"; and test -z "$CONDA_PROMPT_MODIFIER"
+      and set -a names $CONDA_DEFAULT_ENV
+      # env: venv
+      set -l venv_name "$VIRTUAL_ENV_PROMPT"
+      test -z "$venv_name"; and set venv_name (string replace -r '.*/' '' -- $VIRTUAL_ENV)
+      contains -- "$venv_name" .venv venv .env env
+      and set venv_name (string replace -r '.*/([^/]*)/[^/]*$' '$1' -- $VIRTUAL_ENV)
+      test -n "$venv_name"; and not functions -q _old_fish_prompt
+      and set -a names $venv_name
       test -n "$names"; or return
       set -l out (string join '|' $names)
       test (string length -- "$out") -gt 32
@@ -588,10 +583,6 @@ if test "$_HI_ASCII" = 1
     set -g __hi_symbols '>' '#' '*' '@'
 end
 
-# see common/bash.sh for why the paths are compared before sourcing
-if test "$_HI_CONFIG_DIR/config.fish" != "$_HI_ROOT/common/config.fish"
-    and test -f $_HI_CONFIG_DIR/config.fish
-  source $_HI_CONFIG_DIR/config.fish
-end
+test -f $_HI_CONFIG_DIR/config.fish; and source $_HI_CONFIG_DIR/config.fish
 set -e _hi_rc_loading
 end

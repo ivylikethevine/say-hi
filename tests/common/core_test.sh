@@ -113,23 +113,23 @@ function test_truecolor_override_wins_both_ways() {
 # finds what it found before
 function test_scheme_escape_keeps_the_16_color_prefix() {
   local red brred got
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_var red red
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_var brred brred
-  got="$(_HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape red)"
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_escape_var red red
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_escape_var brred brred
+  got="$(_HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_escape red)"
   [ "$red" = '\e[0;31;38;2;243;139;168m' ] && [ "$brred" = '\e[1;31;38;2;243;119;153m' ] && [ "$got" = $'\e[0;31;38;2;243;139;168m' ] || _hi_why got red brred
 }
 
 function test_scheme_is_inert_without_truecolor() {
   local out
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=0 _hi_color_escape_var out red
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=0 _hi_color_escape_var out red
   [ "$out" = '\e[0;31m' ] || _hi_why out || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=0 _hi_color_hex out red
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=0 _hi_color_hex out red
   [ -z "$out" ] || _hi_why out
 }
 
 function test_scheme_is_inert_under_no_color() {
   local got
-  got="$(NO_COLOR=1 _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape red)"
+  got="$(NO_COLOR=1 _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_escape red)"
   [ -z "$got" ] || _hi_why got
 }
 
@@ -141,7 +141,7 @@ function test_unknown_scheme_falls_back_to_16_color() {
 
 function test_scheme_hex_is_six_hex_digits_for_every_slot() {
   local scheme i hex
-  for scheme in "$_HI_TEST_L24" "$_HI_TEST_L48"; do
+  for scheme in "$_HI_TEST_SCHEME24" "$_HI_TEST_SCHEME48"; do
     i=0
     while [ "$i" -lt "${#_HI_COLOR_NAMES[@]}" ]; do
       _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex hex "$i"
@@ -157,7 +157,7 @@ function test_scheme_hex_is_six_hex_digits_for_every_slot() {
 # prints - preview.sh's reverse map depends on that
 function test_palette_vars_agree_with_color_escape_under_a_scheme() {
   local out
-  out="$(env _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
+  out="$(env _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
     . "$_HI_HOME/say-hi/common/core.sh"
     . "$_HI_HOME/say-hi/scripts/lib.sh"
     for n in RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN; do
@@ -171,42 +171,42 @@ function test_palette_vars_agree_with_color_escape_under_a_scheme() {
 # the hash is untouched by a scheme: a name, never a hex
 function test_hash_color_ignores_the_scheme() {
   local got got2
-  got="$(_HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_hash_color prod-db)"
+  got="$(_HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_hash_color prod-db)"
   got2="$(_hi_hash_color prod-db)"
   [ "$got" = "$got2" ] || _hi_why got got2
 }
 
-# _HI_TEST_L24/_HI_TEST_L48: tests/lib/fixtures.sh, shared with header_test.sh
+# _HI_TEST_SCHEME24/_HI_TEST_SCHEME48: tests/lib/fixtures.sh, shared with header_test.sh
 
 function test_scheme_words_counts_a_list() {
   local n
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _hi_scheme_words n
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _hi_scheme_words n
   [ "$n" -eq 24 ] || _hi_why n || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_L48" _hi_scheme_words n
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _hi_scheme_words n
   [ "$n" -eq 48 ] || _hi_why n || return 1
-  _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_L24#* }" _hi_scheme_words n
+  _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_SCHEME24#* }" _hi_scheme_words n
   [ "$n" -eq 24 ] || _hi_why n || return 1
   # twelve words: not a scheme
-  _HI_COLOR_SCHEME="${_HI_TEST_L24% * * * * * * * * * * * *}" _hi_scheme_words n
+  _HI_COLOR_SCHEME="${_HI_TEST_SCHEME24% * * * * * * * * * * * *}" _hi_scheme_words n
   [ "$n" -eq 0 ] || _hi_why n || return 1
   _HI_COLOR_SCHEME=solarized _hi_scheme_words n
   [ "$n" -eq 0 ] || _hi_why n || return 1
   _HI_COLOR_SCHEME="" _hi_scheme_words n
   [ "$n" -eq 0 ] || _hi_why n || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_L24 cd3131" _hi_scheme_words n
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24 cd3131" _hi_scheme_words n
   [ "$n" -eq 0 ] || _hi_why n || return 1
-  _HI_COLOR_SCHEME="zzzzzz ${_HI_TEST_L24#* }" _hi_scheme_words n
+  _HI_COLOR_SCHEME="zzzzzz ${_HI_TEST_SCHEME24#* }" _hi_scheme_words n
   [ "$n" -eq 0 ] || _hi_why n || return 1
-  _HI_COLOR_SCHEME="$(printf '%s' "$_HI_TEST_L24" | tr ' ' ',')" _hi_scheme_words n
+  _HI_COLOR_SCHEME="$(printf '%s' "$_HI_TEST_SCHEME24" | tr ' ' ',')" _hi_scheme_words n
   [ "$n" -eq 0 ] || _hi_why n
 }
 
 # the first word paints red, with the 16-color half in front as ever
 function test_scheme_list_of_twenty_four_renders() {
   local out
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_var out red
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_escape_var out red
   [ "$out" = '\e[0;31;38;2;243;139;168m' ] || _hi_why out || return 1
-  _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_L24#* }" _HI_TRUECOLOR=1 _hi_color_escape_var out red
+  _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_SCHEME24#* }" _HI_TRUECOLOR=1 _hi_color_escape_var out red
   [ "$out" = '\e[0;31;38;2;243;139;168m' ] || _hi_why out
 }
 
@@ -214,8 +214,8 @@ function test_scheme_list_of_twenty_four_renders() {
 # under everything else - and always red's 16-color half
 function test_scheme_second_bank_folds_without_48_words() {
   local a b c
-  _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 _hi_color_escape_at a 24
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_at b 24
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1 _hi_color_escape_at a 24
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_escape_at b 24
   _HI_COLOR_SCHEME=solarized _HI_TRUECOLOR=1 _hi_color_escape_at c 24
   [ "$a" = '\e[0;31;38;2;205;49;49m' ] && [ "$b" = '\e[0;31;38;2;243;139;168m' ] && [ "$c" = '\e[0;31m' ] || _hi_why a b c
 }
@@ -224,21 +224,21 @@ function test_scheme_second_bank_folds_without_48_words() {
 # names, no complaint here
 function test_scheme_bad_list_falls_back_to_16_color() {
   local out
-  _HI_COLOR_SCHEME="$_HI_TEST_L24 cd3131" _HI_TRUECOLOR=1 _hi_color_escape_var out red
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24 cd3131" _HI_TRUECOLOR=1 _hi_color_escape_var out red
   [ "$out" = '\e[0;31m' ] || _hi_why out || return 1
-  _HI_COLOR_SCHEME="zzzzzz ${_HI_TEST_L24#* }" _HI_TRUECOLOR=1 _hi_color_escape_var out brcyan
+  _HI_COLOR_SCHEME="zzzzzz ${_HI_TEST_SCHEME24#* }" _HI_TRUECOLOR=1 _hi_color_escape_var out brcyan
   [ "$out" = '\e[1;36m' ] || _hi_why out
 }
 
 # scripts/lib.sh's three readers of the setting, tested beside the primitive
 # they wrap (test_lib.sh sources lib.sh)
 function test_scheme_ok_takes_names_and_lists() {
-  _hi_scheme_ok "$_HI_TEST_L24" && _hi_scheme_ok "$_HI_TEST_L48" || _hi_why || return 1
+  _hi_scheme_ok "$_HI_TEST_SCHEME24" && _hi_scheme_ok "$_HI_TEST_SCHEME48" || _hi_why || return 1
   # hi ships no named schemes, so a name is just a word
   ! _hi_scheme_ok catppuccin || _hi_why || return 1
   ! _hi_scheme_ok solarized || _hi_why || return 1
   ! _hi_scheme_ok custom || _hi_why || return 1
-  ! _hi_scheme_ok "$_HI_TEST_L24 cd3131" || _hi_why || return 1
+  ! _hi_scheme_ok "$_HI_TEST_SCHEME24 cd3131" || _hi_why || return 1
   ! _hi_scheme_ok "" || _hi_why
 }
 
@@ -305,9 +305,9 @@ function test_scheme_label_names_every_shape() {
   local l
   _HI_COLOR_SCHEME="" _hi_scheme_label l
   [ "$l" = default ] || _hi_why l || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _hi_scheme_label l
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _hi_scheme_label l
   [ "$l" = "custom (24)" ] || _hi_why l || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_L48" _hi_scheme_label l
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _hi_scheme_label l
   [ "$l" = "custom (48)" ] || _hi_why l || return 1
   _HI_COLOR_SCHEME=solarized _hi_scheme_label l
   [ "$l" = "solarized (ignored - not a scheme)" ] || _hi_why l
@@ -361,9 +361,9 @@ function test_extra_names_render_by_fallback_and_hex() {
   [ "$out" = '\e[0;36;38;2;32;178;170m' ] || _hi_why out || return 1
   # a list whose thirteenth word is not the built-in orange, so the assertion
   # tells "the list's word for an extra" from "the built-in one"
-  _HI_COLOR_SCHEME="$_HI_TEST_L12 fd971f${_HI_TEST_L24#"$_HI_TEST_L12 ff8c00"}" _HI_TRUECOLOR=1 _hi_color_escape_var out orange
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME12 fd971f${_HI_TEST_SCHEME24#"$_HI_TEST_SCHEME12 ff8c00"}" _HI_TRUECOLOR=1 _hi_color_escape_var out orange
   [ "$out" = '\e[1;33;38;2;253;151;31m' ] || _hi_why out || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 _hi_color_escape_at out 36
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1 _hi_color_escape_at out 36
   [ "$out" = '\e[1;33;38;2;224;123;57m' ] || _hi_why out
 }
 
@@ -387,7 +387,7 @@ function test_color_base_names_the_16_color_half() {
 function test_extra_names_have_a_hex_in_every_table() {
   local scheme i j hex other
   [ "${#_HI_COLOR_FALLBACK}" -eq $((${#_HI_COLOR_NAMES[@]} * 3 - 1)) ] || _hi_why _HI_COLOR_FALLBACK _HI_COLOR_NAMES || return 1
-  for scheme in "" "$_HI_TEST_L24" "$_HI_TEST_L48"; do
+  for scheme in "" "$_HI_TEST_SCHEME24" "$_HI_TEST_SCHEME48"; do
     i=12
     while [ "$i" -lt 24 ]; do
       _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex hex "$i"
@@ -410,13 +410,7 @@ function test_prompt_colors_hand_fish_the_base_name() {
   [ "$out" = $'ff8c00 bryellow\nred' ] || _hi_why out
 }
 
-function test_override_color_exact_match() {
-  local got
-  local colors="$_HI_WORKDIR/colors.exact"
-  printf '[username]\nalice = "red"\n' >"$colors"
-  got="$(_HI_COLORS="$colors" _hi_override_color username alice)"
-  [ "$got" = "red" ] || _hi_why got colors
-}
+function test_override_color_exact_match() { _hi_colors_say red '[username]\nalice = "red"\n' _hi_override_color username alice; }
 
 function test_override_color_no_match_fails() {
   local colors="$_HI_WORKDIR/colors.nomatch"
@@ -424,21 +418,9 @@ function test_override_color_no_match_fails() {
   ! _HI_COLORS="$colors" _hi_override_color username bob || _hi_why colors
 }
 
-function test_override_color_localuser_special_case() {
-  local got
-  local colors="$_HI_WORKDIR/colors.localuser"
-  printf '[username]\nLOCALUSER = "cyan"\n' >"$colors"
-  got="$(_HI_COLORS="$colors" _HI_LOCAL_USER=testuser _hi_override_color username testuser)"
-  [ "$got" = "cyan" ] || _hi_why got colors
-}
+function test_override_color_localuser_special_case() { local _HI_LOCAL_USER=testuser && _hi_colors_say cyan '[username]\nLOCALUSER = "cyan"\n' _hi_override_color username testuser; }
 
-function test_override_color_localhostname_special_case() {
-  local got
-  local colors="$_HI_WORKDIR/colors.localhost"
-  printf '[hostname]\nLOCALHOSTNAME = "magenta"\n' >"$colors"
-  got="$(_HI_COLORS="$colors" _HI_LOCAL_HOSTNAME=testhost _hi_override_color hostname testhost)"
-  [ "$got" = "magenta" ] || _hi_why got colors
-}
+function test_override_color_localhostname_special_case() { local _HI_LOCAL_HOSTNAME=testhost && _hi_colors_say magenta '[hostname]\nLOCALHOSTNAME = "magenta"\n' _hi_override_color hostname testhost; }
 
 # A row's optional fourth column - that pin's own 24-bit color. It comes back
 # joined to the name, "<color>#<rrggbb>", from every reader of the file: the
@@ -472,11 +454,11 @@ function test_pin_hex_accepts_a_leading_hash_and_either_case() {
 # without truecolor is given.
 function test_pin_hex_paints_the_escape_over_the_scheme() {
   local out got
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_var out 'red#3ba55d'
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_escape_var out 'red#3ba55d'
   [ "$out" = '\e[0;31;38;2;59;165;93m' ] || _hi_why out || return 1
   _HI_COLOR_SCHEME="" _HI_TRUECOLOR=1 _hi_color_escape_var out 'brgreen#3ba55d'
   [ "$out" = '\e[1;32;38;2;59;165;93m' ] || _hi_why out || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=0 _hi_color_escape_var out 'red#3ba55d'
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=0 _hi_color_escape_var out 'red#3ba55d'
   [ "$out" = '\e[0;31m' ] || _hi_why out || return 1
   got="$(NO_COLOR=1 _HI_TRUECOLOR=1 _hi_color_escape 'red#3ba55d')"
   [ -z "$got" ] || _hi_why got || return 1
@@ -490,9 +472,9 @@ function test_pin_hex_paints_the_escape_over_the_scheme() {
 # which is the third column's and never carries the pin
 function test_pin_hex_reaches_the_hex_and_base_readers() {
   local out
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_hex out 'red#3ba55d'
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_hex out 'red#3ba55d'
   [ "$out" = '3ba55d' ] || _hi_why out || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=0 _hi_color_hex out 'red#3ba55d'
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=0 _hi_color_hex out 'red#3ba55d'
   [ -z "$out" ] || _hi_why out || return 1
   _hi_color_base out 'orange#3ba55d'
   [ "$out" = bryellow ] || _hi_why out || return 1
@@ -659,6 +641,16 @@ function test_zsh_pin_hex_agrees_with_bash() {
 # $_HI_SSH_TAG_FIXTURE holds the path from then on - the zsh-agreement cases
 # reach the same file through _hi_in_shell's constant _HI_SSH_CONFIG.
 _HI_SSH_TAG_FIXTURE=""
+
+# _hi_colors_say <want> <rows> <cmd...> - what <cmd> prints over a colors file
+# of <rows>, and the tag fixture as the ssh config
+function _hi_colors_say() {
+  local want="$1" rows="$2" colors="$_HI_WORKDIR/colors" got
+  shift 2
+  printf '%b' "$rows" >"$colors"
+  got="$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" "$@")"
+  [ "$got" = "$want" ] || _hi_because "from: $* over [$rows] - wanted [$want], got [$got]"
+}
 
 function _hi_ssh_tag_fixture() {
   local f="$_HI_WORKDIR/ssh_config"

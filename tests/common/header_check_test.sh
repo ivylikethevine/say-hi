@@ -137,10 +137,7 @@ function test_full_check_skips_comments_and_blanks() {
 # leave the check empty, not a bare line
 function test_full_check_empty_when_everything_is_silent() {
   local out
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one silent "[required]\n$_HI_REAL_CMD = []\n[unwanted]\n$_HI_FAKE_CMD = []\n")"
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one silent "[required]\n$_HI_REAL_CMD = []\n[unwanted]\n$_HI_FAKE_CMD = []\n")" full_check)"
   [ -z "$out" ] || _hi_why out
 }
 
@@ -187,11 +184,7 @@ function test_package_groups_lists_sections_in_file_order() {
 # key, a comment behind the row, and the alternatives in the order given
 function test_full_check_reads_a_toml_row() {
   local out
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one toml-row "[alpha]\n  \"$_HI_FAKE_CMD\"   =   [ \"$_HI_FAKE_CMD-2\",\"$_HI_REAL_CMD\" ]  # a note\n$_HI_FAKE_CMD-3 = \"not an array\"\nbare words\n")"
-    _HI_PACKAGES_GROUPS=alpha
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one toml-row "[alpha]\n  \"$_HI_FAKE_CMD\"   =   [ \"$_HI_FAKE_CMD-2\",\"$_HI_REAL_CMD\" ]  # a note\n$_HI_FAKE_CMD-3 = \"not an array\"\nbare words\n")" _HI_PACKAGES_GROUPS=alpha full_check)"
   _hi_contains "$out" " $_HI_REAL_CMD " && _hi_contains "$out" "$_HI_FAKE_CMD-3" || _hi_why out _HI_REAL_CMD _HI_FAKE_CMD || return 1
   case "$out" in *words* | *note*) _hi_why out || return 1 ;; esac
   return 0
@@ -202,11 +195,7 @@ function test_full_check_reads_a_toml_row() {
 function test_full_check_reads_a_group_by_its_tables() {
   local out body
   body="[alpha]\nls = []\n[alpha.required]\n$_HI_FAKE_CMD = []\n$_HI_REAL_CMD = []\n[alpha.unwanted]\ncat = []\n$_HI_FAKE_CMD-2 = []\n"
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one tables "$body")"
-    _HI_PACKAGES_GROUPS=alpha
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one tables "$body")" _HI_PACKAGES_GROUPS=alpha full_check)"
   _hi_contains "$out" " ls " && _hi_contains "$out" " cat " && _hi_contains "$out" " $_HI_FAKE_CMD " || _hi_why out _HI_FAKE_CMD || return 1
   case "$out" in *" $_HI_REAL_CMD "* | *"$_HI_FAKE_CMD-2"*) _hi_why out _HI_REAL_CMD _HI_FAKE_CMD || return 1 ;; esac
   out="$(
@@ -222,11 +211,7 @@ function test_full_check_reads_a_group_by_its_tables() {
 # separates them.
 function test_full_check_runs_only_the_named_groups() {
   local out
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one groups-one "[alpha]\n$_HI_REAL_CMD = []\n[beta]\nbash = []\n")"
-    _HI_PACKAGES_GROUPS=alpha
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one groups-one "[alpha]\n$_HI_REAL_CMD = []\n[beta]\nbash = []\n")" _HI_PACKAGES_GROUPS=alpha full_check)"
   _hi_contains "$out" " $_HI_REAL_CMD " || _hi_why out _HI_REAL_CMD || return 1
   case "$out" in *bash*) _hi_why out || return 1 ;; esac
   return 0
@@ -235,11 +220,7 @@ function test_full_check_runs_only_the_named_groups() {
 # ...a comma-separated list runs each group it names
 function test_full_check_reads_a_comma_separated_list() {
   local out
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one groups-comma "[alpha]\n$_HI_REAL_CMD = []\n[beta]\nbash = []\n")"
-    _HI_PACKAGES_GROUPS=alpha,beta
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one groups-comma "[alpha]\n$_HI_REAL_CMD = []\n[beta]\nbash = []\n")" _HI_PACKAGES_GROUPS=alpha,beta full_check)"
   { _hi_contains "$out" " $_HI_REAL_CMD " && _hi_contains "$out" " bash "; } || _hi_why out _HI_REAL_CMD
 }
 
@@ -259,11 +240,7 @@ function test_full_check_unset_runs_the_default_groups() {
 # a hand-written [none] section is not run by the word that turns groups off
 function test_full_check_none_is_not_a_group() {
   local out
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one groups-none-section "[none]\n$_HI_REAL_CMD = []\n")"
-    _HI_PACKAGES_GROUPS=none
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one groups-none-section "[none]\n$_HI_REAL_CMD = []\n")" _HI_PACKAGES_GROUPS=none full_check)"
   [ -z "$out" ] || _hi_why out
 }
 
@@ -271,11 +248,7 @@ function test_full_check_none_is_not_a_group() {
 # always run
 function test_full_check_none_keeps_the_ungrouped_rows() {
   local out
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one groups-none "$_HI_REAL_CMD = []\n[alpha]\nbash = []\n")"
-    _HI_PACKAGES_GROUPS=none
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one groups-none "$_HI_REAL_CMD = []\n[alpha]\nbash = []\n")" _HI_PACKAGES_GROUPS=none full_check)"
   _hi_contains "$out" " $_HI_REAL_CMD " || _hi_why out _HI_REAL_CMD || return 1
   case "$out" in *bash*) _hi_why out || return 1 ;; esac
   return 0
@@ -283,11 +256,7 @@ function test_full_check_none_keeps_the_ungrouped_rows() {
 
 function test_full_check_wraps_at_max_width() {
   local out lines
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one wrap "$_HI_REAL_CMD = []\nbash = []\n")"
-    _HI_MAX_WIDTH=1
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one wrap "$_HI_REAL_CMD = []\nbash = []\n")" _HI_MAX_WIDTH=1 full_check)"
   lines="$(printf '%s\n' "$out" | grep -c .)"
   [ "$lines" -ge 2 ] || _hi_why lines
 }
@@ -352,10 +321,7 @@ function test_full_check_is_silent_on_stderr() {
 # A visible package must actually reach the output, not just fail to error.
 function test_full_check_emits_a_row_for_an_installed_package() {
   local out
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one emits "$_HI_REAL_CMD = []\n")"
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one emits "$_HI_REAL_CMD = []\n")" full_check)"
   [[ "$out" == *"$_HI_REAL_CMD"* ]] || _hi_why out _HI_REAL_CMD
 }
 
@@ -364,11 +330,7 @@ function test_full_check_emits_a_row_for_an_installed_package() {
 # though the file lists them the other way round
 function test_full_check_orders_by_tier_then_file_order() {
   local out got got2 got3
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one rank-order "[extras]\ncat = []\n[useful]\nsh = []\n[core]\nls = []\n")"
-    _HI_PACKAGES_GROUPS="extras useful core"
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one rank-order "[extras]\ncat = []\n[useful]\nsh = []\n[core]\nls = []\n")" _HI_PACKAGES_GROUPS="extras useful core" full_check)"
   got="$(_hi_pos "$out" " cat ")"
   got2="$(_hi_pos "$out" " ls ")"
   got3="$(_hi_pos "$out" " sh ")"
@@ -383,11 +345,7 @@ function test_full_check_orders_by_tier_then_file_order() {
 # file order between themselves
 function test_full_check_sorts_warnings_and_alarms_first() {
   local out w a c
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one warn-first "[core]\nls = []\n[extras.unwanted]\n$_HI_REAL_CMD = []\n[extras.required]\n$_HI_FAKE_CMD = []\n")"
-    _HI_PACKAGES_GROUPS="core extras"
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one warn-first "[core]\nls = []\n[extras.unwanted]\n$_HI_REAL_CMD = []\n[extras.required]\n$_HI_FAKE_CMD = []\n")" _HI_PACKAGES_GROUPS="core extras" full_check)"
   w="$(_hi_pos "$out" " $_HI_REAL_CMD ")" a="$(_hi_pos "$out" " $_HI_FAKE_CMD ")"
   c="$(_hi_pos "$out" " ls ")"
   { [ -n "$w" ] && [ -n "$a" ] && [ -n "$c" ] && ((w < a && a < c)); } || _hi_why w a c
@@ -461,13 +419,13 @@ function test_shipped_ramp_names_are_all_real_colors() {
 # A 48-word scheme: the check paints from the second bank, every other cell
 # from the first, so bank 2's cyan (slot 17, 11a8cd) is what the shipped
 # ramp's tier-0 installed color becomes.
-# _HI_TEST_L24/_HI_TEST_L48: tests/lib/fixtures.sh, shared with core_test.sh
+# _HI_TEST_SCHEME24/_HI_TEST_SCHEME48: tests/lib/fixtures.sh, shared with core_test.sh
 
 function test_packages_palette_uses_the_second_bank_under_48_words() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1
     local want
     _hi_assign_palette
     unset _HI_PACKAGES_PALETTE
@@ -486,7 +444,7 @@ function test_packages_palette_keeps_the_first_bank_under_24_words() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1
     _hi_assign_palette
     unset _HI_PACKAGES_PALETTE
     _hi_packages_palette
@@ -501,7 +459,7 @@ function test_packages_palette_second_bank_is_inert_under_no_color() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 NO_COLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1 NO_COLOR=1
     _hi_assign_palette
     _hi_packages_palette
     [ -z "${_HI_YES[0]}" ] && [ -z "${_HI_NO[3]}" ]
@@ -511,6 +469,7 @@ function test_packages_palette_second_bank_is_inert_under_no_color() {
 
 function run_header_check_tests() {
   _hi_header_begin
+  _hi_packages_palette
 
   _hi_h1 "Testing common/header.sh (the package check)"
 

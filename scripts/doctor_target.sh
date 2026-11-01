@@ -7,45 +7,37 @@
 # the same chain _hi dispatches on, each predicate timed, first match wins -
 # ssh leads (its predicate isn't a backend row), then the roster in order
 function doctor_target() {
-  local target="$1" kind="" label="" pair row name what predicate t0 t1
+  local target="$1" kind="" label="" row name what predicate t0 t1
+  local -a arms=("ssh|ssh host||_hi_is_ssh_host" "${_HI_BACKENDS[@]}")
   doctor_section target "Target: $target"
   if [ -n "${_HI_DOC_BACKEND:-}" ]; then
     # a forced arm skips the probe chain below entirely - the point of the
     # flag is to not run it
-    if [ "$_HI_DOC_BACKEND" = ssh ]; then
-      kind="ssh host"
-      doctor_row resolves "ssh host (forced by --use ssh)" ok
-    else
-      for row in "${_HI_BACKENDS[@]}"; do
-        IFS='|' read -r name what _ _ <<<"$row"
-        [ "$name" = "$_HI_DOC_BACKEND" ] || continue
-        kind="$what"
-        label="$name"
-        doctor_row resolves "$what (forced by --use $name)" ok
-        break
-      done
-    fi
+    for row in "${arms[@]}"; do
+      IFS='|' read -r name what _ _ <<<"$row"
+      [ "$name" = "$_HI_DOC_BACKEND" ] || continue
+      kind="$what"
+      label="$name"
+      doctor_row resolves "$what (forced by --use $name)" ok
+      break
+    done
   else
     # the label rides along beside the human name: doctor_transport_target
     # needs "docker", not "docker container", to build the same exec the
     # session would
-    local -a chain=("ssh host::_hi_is_ssh_host")
-    for row in "${_HI_BACKENDS[@]}"; do
+    for row in "${arms[@]}"; do
       IFS='|' read -r name what _ predicate <<<"$row"
-      chain+=("$what:$name:$predicate")
-    done
-    for pair in "${chain[@]}"; do
-      IFS=':' read -r name label predicate <<<"$pair"
-      t0="$(_hi_now)"
+      _hi_doc_now t0
       # shellcheck disable=SC2086 # a command line, as the probe column is
       if $predicate "$target" >/dev/null 2>&1; then
-        t1="$(_hi_now)"
-        kind="$name"
-        doctor_row resolves "$name ($(_hi_elapsed "$t0" "$t1")s)" ok
+        _hi_doc_now t1
+        kind="$what"
+        label="$name"
+        doctor_row resolves "$what ($(_hi_elapsed "$t0" "$t1")s)" ok
         break
       fi
-      t1="$(_hi_now)"
-      doctor_row checked "not a $name ($(_hi_elapsed "$t0" "$t1")s)"
+      _hi_doc_now t1
+      doctor_row checked "not a $what ($(_hi_elapsed "$t0" "$t1")s)"
     done
     if [ -z "$kind" ]; then
       doctor_row resolves "nothing matched - hi would hand it to ssh anyway"
@@ -140,26 +132,17 @@ function doctor_transport_target() {
   # load.sh under bash, the best of the ladder with hi's aliases without it,
   # and the target's own session where the script cannot land
   shells="$(_hi_ladder_first "$tools")"
-  # padded both ends, so a word matches whatever spacing the answer came in
-  case " $tools " in
-  *" base64 "* | *" openssl "*)
-    case " $tools " in *" tar-z "*) ;; *)
-      doctor_row session "the target's own - no tar that reads gzip, so hi's tree cannot unpack there" bad
-      shells=-
-      ;;
-    esac
-    ;;
-  *)
+  if ! _hi_list_has "$tools" base64 && ! _hi_list_has "$tools" openssl; then
     doctor_row session "the target's own - no base64 or openssl, so hi's script cannot decode there" bad
-    shells=-
-    ;;
-  esac
-  case "$shells: $tools " in
-  -:*) ;;
-  *" bash "*) doctor_row session "full - bash is there, so hi ships the tree and load.sh runs" ;;
-  :*) doctor_row session "no shell hi knows - not even ${_HI_SHELL_LADDER%% *}" bad ;;
-  *) doctor_row session "aliases only - no bash, so a session lands in $shells with hi's aliases" warn ;;
-  esac
+  elif ! _hi_list_has "$tools" tar-z; then
+    doctor_row session "the target's own - no tar that reads gzip, so hi's tree cannot unpack there" bad
+  elif _hi_list_has "$tools" bash; then
+    doctor_row session "full - bash is there, so hi ships the tree and load.sh runs"
+  elif [ -z "$shells" ]; then
+    doctor_row session "no shell hi knows - not even ${_HI_SHELL_LADDER%% *}" bad
+  else
+    doctor_row session "aliases only - no bash, so a session lands in $shells with hi's aliases" warn
+  fi
 
   doctor_row install "hi ships $(_hi_wire_estimate) each session - a say-hi installed on the target is not used from here"
   _hi_ctl_close
@@ -185,16 +168,16 @@ function _hi_ladder_first() {
 function doctor_ssh_connect() {
   local t0 t1 err
   err="$(mktemp -t hi.doc.err.XXXXXX)"
-  t0="$(_hi_now)"
+  _hi_doc_now t0
   if ! ssh "${ctl_opts[@]}" ${SSHARGS[@]+"${SSHARGS[@]}"} -o ConnectTimeout=5 "$DOMAIN" true 2>"$err"; then
-    t1="$(_hi_now)"
+    _hi_doc_now t1
     doctor_row connect "FAILED after $(_hi_elapsed "$t0" "$t1")s (BatchMode - a password/2FA prompt fails here but may work interactively)" bad
     doctor_row "" "$(cat "$err")"
     rm -f "$err"
     _hi_ctl_close
     return 1
   fi
-  t1="$(_hi_now)"
+  _hi_doc_now t1
   rm -f "$err"
   doctor_row connect "ok ($(_hi_elapsed "$t0" "$t1")s to authenticate - later probes reuse the socket)" ok
 }

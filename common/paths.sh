@@ -26,10 +26,6 @@ export _HI_COLOR_PIN="$_HI_ROOT/scripts/set_color.sh"
 export _HI_PLUGINS_CMD="$_HI_ROOT/scripts/plugins.sh"
 export _HI_EDIT="$_HI_ROOT/scripts/edit.sh"
 
-# tests - only the two entry points every session needs
-export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
-export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
-
 # User config lives in $_HI_CONFIG_DIR, outside the tree; settings.sh has no
 # in-tree half. hi's own files resolve here, re-derived on every source, so a
 # child shell told `_HI_CONFIG_DIR=elsewhere` reads that overlay, and an

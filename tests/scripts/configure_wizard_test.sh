@@ -116,10 +116,10 @@ function _hi_run_in() {
 # own - is adopted into the block rather than written again beside itself
 function test_configure_adopts_a_hand_written_line() {
   local out got got2
-  out="$(_hi_run_in adopt "export _HI_COLOR_SCHEME='$_HI_TEST_L24'")" || _hi_why || return 1
+  out="$(_hi_run_in adopt "export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME24'")" || _hi_why || return 1
   got="$(printf '%s\n' "$out" | grep -c _HI_COLOR_SCHEME)"
   got2="$(printf '%s\n' "$out" | grep _HI_COLOR_SCHEME)"
-  [ "$got" -eq 1 ] && [[ "$got2" == *"$_HI_TEST_L24"*"$_HI_MARKER" ]] || _hi_why got got2 out _HI_MARKER
+  [ "$got" -eq 1 ] && [[ "$got2" == *"$_HI_TEST_SCHEME24"*"$_HI_MARKER" ]] || _hi_why got got2 out _HI_MARKER
 }
 
 # ...and with 256 KB after it: an early-exiting reader in the match pipe gets
@@ -130,10 +130,10 @@ function test_configure_adopts_a_hand_line_in_a_large_file() {
     pad="$pad# padding padding padding padding padding padding padding pad"$'\n'
     i=$((i + 1))
   done
-  out="$(_hi_run_in adopt_large "export _HI_COLOR_SCHEME='$_HI_TEST_L24'"$'\n'"$pad")" || _hi_why || return 1
+  out="$(_hi_run_in adopt_large "export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME24'"$'\n'"$pad")" || _hi_why || return 1
   got="$(printf '%s\n' "$out" | grep -c _HI_COLOR_SCHEME)"
   got2="$(printf '%s\n' "$out" | grep _HI_COLOR_SCHEME)"
-  [ "$got" -eq 1 ] && [[ "$got2" == *"$_HI_TEST_L24"*"$_HI_MARKER" ]] || _hi_why got got2 _HI_MARKER
+  [ "$got" -eq 1 ] && [[ "$got2" == *"$_HI_TEST_SCHEME24"*"$_HI_MARKER" ]] || _hi_why got got2 _HI_MARKER
 }
 
 # ...and a hand line for a name this run does not write is left as it is
@@ -229,7 +229,7 @@ function test_apply_preset_seeds_every_answer() {
   apply_preset minimal >/dev/null || _hi_why || return 1
   # named by the preset: off; not named: back to on, even though the file
   # says off; outside the vocabulary: still the file's
-  { setting_off _HI_DISABLE_HEADER "$target" 1 && ! setting_off _HI_DISABLE_PROMPT "$target" 1; } || _hi_why target || return 1
+  { setting_off _HI_DISABLE_HEADER "$target" && ! setting_off _HI_DISABLE_PROMPT "$target"; } || _hi_why target || return 1
   got="$(setting_value _HI_MAX_WIDTH "$target")"
   [ "$got" = 120 ] || _hi_why got target
 }

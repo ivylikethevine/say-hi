@@ -105,8 +105,6 @@
 # quote operator, and reading `'load-path` as an opening quote swallows the
 # rest of the file.
 # wlen() is the length of one shell word, quotes and $(...) nesting included.
-# Nothing in the AWK body carries a `#` comment - strip.awk spares a heredoc
-# body, so every one of them would ride the wire on every connect.
 function _hi_lint_awk() {
   cat <<'AWK'
 function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }

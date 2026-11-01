@@ -54,7 +54,6 @@ function test_remote_session_exports_overlay_config() {
   esac
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" "$@" _HI_REMOTE_SESSION=1)"
   home="$(_hi_rc_shell xterm-256color "$shell" "$script" "$@")"
-  rm -f "$_HI_WORKDIR/cfg/$file" "$_HI_WORKDIR/cfg/wiring.sh"
   [ "$out" = "$want" ] && [ -z "$home" ] || _hi_why out want home
 }
 
@@ -80,8 +79,6 @@ function test_remote_session_aliases_overlay_config() {
   # runner has micro: a stub on PATH stands in for it
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1 \
     PATH="$(_hi_fake_path rc-tools micro tmux screen zellij):$PATH" 2>/dev/null)"
-  rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux" "$_HI_WORKDIR/cfg/screenrc" "$_HI_WORKDIR/.tmux.conf" \
-    "$_HI_WORKDIR/cfg/wiring.sh"
   if [[ "$out" != *"$want"* ]] || { [ -n "$bad" ] && [[ "$out" == *"$bad"* ]]; }; then
     _hi_because "$name is: [$out]" || return 1
   fi
@@ -563,7 +560,6 @@ function test_fish_rc_reentry_returns() {
 function test_sh_rc_re_source_after_an_upgrade() {
   local got
   local shell="$1" rc="$2" base="$_HI_WORKDIR/upgrade-$1"
-  rm -rf "$base" "$base.out"
   mkdir -p "$base/say-hi" "$base/cfg"
   cp -R "$_HI_ROOT/common" "$_HI_ROOT/config" "$base/say-hi/"
   (exec env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" _HI_HOME="$base" _HI_PROMPT_TOOL=hi \
@@ -613,7 +609,6 @@ function _hi_prompt_ends() {
 # it for every other case), which is why this runs fish directly.
 function _hi_fish_cfg_answer() {
   local base="$_HI_WORKDIR/fishxdg.$1" out
-  rm -rf "$base"
   mkdir -p "$base"
   case "$1" in
   new) mkdir -p "$base/say-hi" ;;
@@ -634,7 +629,6 @@ function test_fish_config_dir_matches_bash() {
 # hi.sh points a target at its shipped overlay; fish must honour that too
 function test_fish_config_dir_explicit_value_wins() {
   local base="$_HI_WORKDIR/fishxdg.explicit" out
-  rm -rf "$base"
   mkdir -p "$base/say-hi"
   out="$(env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" \
     _HI_HOME="$_HI_HOME" XDG_CONFIG_HOME="$base" _HI_CONFIG_DIR="$base/shipped" \

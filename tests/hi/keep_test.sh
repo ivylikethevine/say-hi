@@ -369,8 +369,7 @@ _hi_kept; printf "%s|%s|%s\n" "$?" "$_hi_k" "${_hi_ks:-}"' "$@" | sed -n '1p'
 }
 
 function test_kept_asks_tmux_then_zellij_then_screen() {
-  local got
-  local screens="There is a screen on:\n\t411.hi-box-$_HI_KEEP_KEY\t(Detached)\n1 Socket in /run/screen.\n"
+  local got screens="There is a screen on:\n\t411.hi-box-$_HI_KEEP_KEY\t(Detached)\n1 Socket in /run/screen.\n"
   got="$(_hi_kept_answer _HI_TEST_HAS=0)"
   [ "$got" = "0|tmux|" ] || _hi_because "tmux has it: $got" || return 1
   got="$(_hi_kept_answer _HI_TEST_ZELLIJ="hi-box-$_HI_KEEP_KEY [Created 3s ago] \n")"
@@ -484,8 +483,7 @@ function test_keep_start_without_a_terminal_is_the_plain_handoff() {
 }
 
 function test_keep_start_without_a_multiplexer_holds_the_tree() {
-  local got
-  local log="$_HI_WORKDIR/nomux.log" out bare
+  local got log="$_HI_WORKDIR/nomux.log" out bare
   bare="$_HI_WORKDIR/keepbare"
   _hi_script "$bare/bash" '#!/bin/sh' 'printf '\''BASH %s hold=%s\n'\'' "$*" "${_HI_KEEP_HOLD:-}" >>"$_HI_TEST_LOG"'
   : >"$log"
@@ -532,8 +530,7 @@ function _hi_keep_held_trees() {
 # its own empty one goes, the claim is its pid, the timer's is gone, and it
 # starts where that session was, holding as it did
 function test_keep_held_takes_the_tree_a_drop_left() {
-  local got
-  local d="$_HI_WORKDIR/held" dead out
+  local got d="$_HI_WORKDIR/held" dead out
   dead="$(_hi_keep_held_trees "$d")"
   out="$(_hi_keep_held_run "$d" pty)"
   [ "$out" = "HELD=1 HOME=$d/u.hi.old PWD=$d/where it was HOLD=hi-box" ] || _hi_because "the take: $out" || return 1
@@ -948,8 +945,7 @@ function test_mux_alias_keeps_a_bare_multiplexer() {
 # an owner pane), a multiplexer already around it, no terminal; with none to
 # start the session holds its tree instead, unless its window is 0
 function test_keep_here_refuses_what_it_cannot_keep() {
-  local got
-  local log="$_HI_WORKDIR/hereno.log" t out bare="$_HI_WORKDIR/herebare"
+  local got log="$_HI_WORKDIR/hereno.log" t out bare="$_HI_WORKDIR/herebare"
   t="$(_hi_keep_here_tree hereno)"
   out="$(_hi_keep_here_run "$log" "$t" TMUX=/tmp/tmux-1/default,1,0)"
   [[ "$out" == *"already inside a multiplexer here"* && "$out" != *new-session* ]] || _hi_because "nested: $out" || return 1

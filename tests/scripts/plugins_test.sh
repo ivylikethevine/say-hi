@@ -37,14 +37,8 @@ function _hi_plugins_run() {
   return "$rc"
 }
 
-# _hi_plugins_cfg <name> - a fresh overlay directory's path; nothing is made.
-# Numbered past what an earlier try of the case left, so a traced rerun
-# starts as clean as the first.
-function _hi_plugins_cfg() {
-  local n=1
-  while [ -e "$_HI_WORKDIR/$1-cfg.$n" ] || [ -e "$_HI_WORKDIR/$1-cfg.$n.home" ]; do n=$((n + 1)); done
-  printf '%s' "$_HI_WORKDIR/$1-cfg.$n"
-}
+# _hi_plugins_cfg <name> - a fresh overlay directory's path; nothing is made
+function _hi_plugins_cfg() { printf '%s' "$_HI_WORKDIR/$1-cfg"; }
 
 # _hi_plugins_off_line <list> - the line the list is kept on, as the wizard
 # pads and tags its own

@@ -29,6 +29,12 @@ concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# every runner step's: the job's limit less three minutes, so the runner ends
+# itself and names what was running where the limit would end the job with no
+# log (test_runner.sh --help)
+env:
+  _HI_RUN_DEADLINE: "420"
+
 jobs:
 
   # `changes` runs on every event but a draft, so `needs.changes.outputs.code`
@@ -70,7 +76,8 @@ jobs:
     outputs:
       code: ${{ steps.gate.outputs.code }}
       reuse-run: ${{ steps.reuse.outputs.run }}
-      trusted: ${{ steps.trust.outputs.trusted }}
+      # a push, or a pull_request from this repository: a fork PR's head repository is the fork
+      trusted: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
@@ -95,21 +102,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # trusted: a push, or a pull_request from this repository - read by
-      # mark-tree below, test-macos's HI_LOOPBACK, and the e2e-* platform
-      # jobs' and e2e-windows-client's `if:`. A fork PR's head repository is the fork.
-      - id: trust
-        env:
-          EVENT: ${{ github.event_name }}
-          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-        run: |
-          set -eu
-          trusted=false
-          if [ "$EVENT" = push ] || { [ "$EVENT" = pull_request ] && [ "$SAME_REPO" = true ]; }; then
-            trusted=true
-          fi
-          echo "trusted=$trusted" >>"$GITHUB_OUTPUT"
-
       # push/pull_request only: a schedule run has no diff to
       # take, and `gate` below reads that as "assume yes" the same way it
       # reads this step failing outright. some-with-excludes, not `some`: a
@@ -130,7 +122,7 @@ jobs:
       # same-repo only: find_tree_run.sh's header says why
       - if: >-
           github.event_name == 'pull_request'
-          && steps.trust.outputs.trusted == 'true'
+          && github.event.pull_request.head.repo.full_name == github.repository
         uses: ./.github/actions/mark-tree
         with:
           prefix: ci-tree
@@ -278,12 +270,7 @@ jobs:
       # ::error annotation - only the live stream is lost.
       # fast plus ci here, and here only: ci is the suites a second platform
       # could only repeat - workflow and manifest checks, ubuntu-only tooling.
-      # _HI_RUN_DEADLINE, here and on every runner step: the job's limit less
-      # three minutes, so the runner ends itself and names what was running
-      # where the limit would end the job with no log (test_runner.sh --help)
       - name: Run fast test suites
-        env:
-          _HI_RUN_DEADLINE: "420"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast,ci --totals-file ${{ runner.temp }}/totals"
 
       # The tests badge's number: pages.yml reads this artifact and publishes it
@@ -317,8 +304,6 @@ jobs:
       - uses: ./.github/actions/setup-shells
 
       - name: Run fast test suites
-        env:
-          _HI_RUN_DEADLINE: "420"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
 
   # The lint group's four suites (shellcheck, dialects, tools, drift), against
@@ -392,8 +377,6 @@ jobs:
       - id: bench
         name: Run benchmarks
         continue-on-error: true
-        env:
-          _HI_RUN_DEADLINE: "420"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group bench"
 
       # the lint suite's shfmt/checkbashisms halves skip yellow when the tools
@@ -418,8 +401,6 @@ jobs:
         run: npm ci --prefix .github --ignore-scripts --no-audit --no-fund
 
       - name: Run the lint group
-        env:
-          _HI_RUN_DEADLINE: "420"
         run: "${{ github.workspace }}/tests/test_runner.sh --group lint --require-run"
 
       # Blocking, unlike link-check.yml's weekly sweep: --offline checks only
@@ -470,7 +451,6 @@ jobs:
       # and pty sessions rather than on the CPU.
       - name: Run fast test suites
         env:
-          _HI_RUN_DEADLINE: "420"
           _HI_RUNNER_WIDTH: "6"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
 
@@ -767,16 +747,12 @@ jobs:
       # green image with the framework missing), is fixed in the fixtures
       # rather than ignored here.
       #
-      # `|| true` and a verdict read afterwards rather than continue-on-error:
-      # hadolint exits non-zero per file and every one must be linted first.
+      # `|| true` and a verdict read afterwards rather than continue-on-error
       - id: hadolint
         name: Lint the fixture Dockerfiles
         run: |
           set -uo pipefail
-          : >"$RUNNER_TEMP/hadolint.out"
-          for f in tests/dockerfiles/*.Dockerfile; do
-            hadolint --no-color --config .hadolint.yaml "$f" >>"$RUNNER_TEMP/hadolint.out" 2>&1 || true
-          done
+          hadolint --no-color --config .hadolint.yaml tests/dockerfiles/*.Dockerfile >"$RUNNER_TEMP/hadolint.out" 2>&1 || true
           if [ -s "$RUNNER_TEMP/hadolint.out" ]; then
             cat "$RUNNER_TEMP/hadolint.out"
             # the summary gets the first 80 lines
@@ -1098,7 +1074,6 @@ jobs:
         env:
           HI_SHARD: ${{ matrix.shard }}
           _HI_SHARD_BY: e2e
-          _HI_RUN_DEADLINE: "420"
           _HI_E2E_WIDTH: "2"
         run: |
           "${{ github.workspace }}/tests/test_runner.sh" --host-report --require-run --group e2e --shard "$HI_SHARD"
@@ -1166,7 +1141,6 @@ jobs:
         env:
           HI_SHARD: ${{ matrix.shard }}
           _HI_SHARD_BY: backends
-          _HI_RUN_DEADLINE: "420"
         run: |
           "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group backends --shard "$HI_SHARD"
 

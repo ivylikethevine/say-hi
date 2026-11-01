@@ -48,56 +48,36 @@ function _hi_run_install_here() {
   mkdir -p "$home"
   _hi_run_said --both "install.sh $*" env HOME="$home" TERM="${TERM:-xterm-256color}" SHELL=/bin/bash \
     XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/.config/say-hi" \
-    bash "$_HI_ROOT/scripts/install.sh" "$@" </dev/null
+    bash "$_HI_INSTALL" "$@" </dev/null
 }
 
 # the four modes are one choice: `hi --configure` injects --configure,
 # so `hi --configure --uninstall` reached run_uninstall
-function test_two_modes_are_refused() {
-  local out rc=0
-  out="$(bash "$_HI_ROOT/scripts/install.sh" --configure --uninstall 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --configure --uninstall"* ]] || _hi_why rc out
-}
+function test_two_modes_are_refused() { _hi_refused "pick one of --configure --uninstall" bash "$_HI_INSTALL" --configure --uninstall; }
 
 function test_usage_names_what_was_typed() {
   local got got2
-  got="$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --help | head -1)"
-  got2="$(bash "$_HI_ROOT/scripts/install.sh" --help | head -1)"
+  got="$(_HI_ARGV0="hi --install" bash "$_HI_INSTALL" --help | head -1)"
+  got2="$(bash "$_HI_INSTALL" --help | head -1)"
   [[ "$got" == "Usage: hi --install "* ]] && [[ "$got2" == "Usage: install.sh "* ]] || _hi_why got got2
 }
 
-function test_prefix_flag_requires_a_path() {
-  local out rc=0
-  out="$(bash "$_HI_ROOT/scripts/install.sh" --prefix 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix needs a path"* ]] || _hi_why rc out
-}
+function test_prefix_flag_requires_a_path() { _hi_refused "--prefix needs a path" bash "$_HI_INSTALL" --prefix; }
 
 # --prefix is the packager's flag: reached through `hi --install` it would
 # rm -rf a live prefix, and a relative one lands in /etc/profile.d as typed
-function test_prefix_is_refused_through_hi_install() {
-  local out rc=0
-  out="$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --prefix /opt 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix is packaging mode"* ]] || _hi_why rc out
-}
+function test_prefix_is_refused_through_hi_install() { _HI_ARGV0="hi --install" _hi_refused "--prefix is packaging mode" bash "$_HI_INSTALL" --prefix /opt; }
 
-function test_prefix_must_be_absolute() {
-  local out rc=0
-  out="$(bash "$_HI_ROOT/scripts/install.sh" --prefix opt 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix needs an absolute path (got opt)"* ]] || _hi_why rc out
-}
+function test_prefix_must_be_absolute() { _hi_refused "--prefix needs an absolute path (got opt)" bash "$_HI_INSTALL" --prefix opt; }
 
-function test_preset_flag_requires_a_name() {
-  local out rc=0
-  out="$(bash "$_HI_ROOT/scripts/install.sh" --preset 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--preset needs a name"* ]] || _hi_why rc out
-}
+function test_preset_flag_requires_a_name() { _hi_refused "--preset needs a name" bash "$_HI_INSTALL" --preset; }
 
 # one red line naming --help, no usage dump: the shape every command's
 # refusal has
 function test_an_unknown_argument_gets_the_usage() {
   local got
   local out rc=0
-  out="$(bash "$_HI_ROOT/scripts/install.sh" --bogus 2>&1)" || rc=$?
+  out="$(bash "$_HI_INSTALL" --bogus 2>&1)" || rc=$?
   got="$(printf '%s\n' "$out" | wc -l)"
   [ "$rc" -eq 1 ] &&
     [[ "$out" == *"unknown option --bogus (install.sh --help lists them)"* ]] &&
@@ -108,7 +88,7 @@ function test_an_unknown_argument_gets_the_usage() {
 # --configure is the script-side spelling too, and names itself in its usage
 function test_configure_is_features_only() {
   local out
-  out="$(bash "$_HI_ROOT/scripts/install.sh" --configure --help)" || _hi_why || return 1
+  out="$(bash "$_HI_INSTALL" --configure --help)" || _hi_why || return 1
   [[ "$out" == "Usage: install.sh --configure ["* ]] || _hi_why out
 }
 
@@ -251,18 +231,14 @@ function test_install_mode_fails_on_a_read_only_rc() {
 # outside those is refused by name, and the flag alone asks for its list
 function test_shell_flag_refuses_a_stranger() {
   local out rc=0
-  out="$(bash "$_HI_ROOT/scripts/install.sh" --shell bash,tcsh 2>&1)" || rc=$?
+  out="$(bash "$_HI_INSTALL" --shell bash,tcsh 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--shell wants bash, zsh, fish, or all (got tcsh)"* ]] || _hi_why rc out || return 1
   rc=0
-  out="$(bash "$_HI_ROOT/scripts/install.sh" --shell 2>&1)" || rc=$?
+  out="$(bash "$_HI_INSTALL" --shell 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--shell needs a list of bash, zsh, and fish, or all"* ]] || _hi_why rc out
 }
 
-function test_purge_is_refused_outside_uninstall() {
-  local out rc=0
-  out="$(_hi_run_install un-purge-mode --install --purge 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--purge does not apply here"* ]] || _hi_why rc out
-}
+function test_purge_is_refused_outside_uninstall() { _hi_refused "--purge does not apply here" _hi_run_install un-purge-mode --install --purge; }
 
 # --configure (the `hi --configure` shape) writes the overlay's settings
 # and nothing else: no rc file appears, and the run says which mode it was.
@@ -569,7 +545,7 @@ function test_install_away_from_a_tree_says_so() {
 # install it undoes
 function test_errors_name_what_was_typed() {
   local out rc=0
-  out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --bogus 2>&1)" || rc=$?
+  out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_INSTALL" --uninstall --bogus 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"hi --uninstall: unknown option --bogus (hi --uninstall --help lists them)"* && "$out" != *"Usage:"* ]] || _hi_why rc out
 }
 
@@ -577,7 +553,7 @@ function test_errors_name_what_was_typed() {
 # rather than silently taking over: `hi --install --uninstall` once uninstalled
 function test_install_plus_another_mode_is_refused() {
   local out rc=0
-  out="$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --install --uninstall --dry-run 2>&1)" || rc=$?
+  out="$(_HI_ARGV0="hi --install" bash "$_HI_INSTALL" --install --uninstall --dry-run 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --install --uninstall"* && "$out" != *"Uninstalling"* ]] || _hi_why rc out
 }
 
@@ -585,10 +561,10 @@ function test_install_plus_another_mode_is_refused() {
 # must not read as a confirmation that meant something
 function test_a_switch_outside_its_mode_is_refused() {
   local out rc=0
-  out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --yes 2>&1)" || rc=$?
+  out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_INSTALL" --uninstall --yes 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--yes does not apply here"* ]] || _hi_why rc out || return 1
   rc=0
-  out="$(_HI_ARGV0="hi --configure" bash "$_HI_ROOT/scripts/install.sh" --configure --link none 2>&1)" || rc=$?
+  out="$(_HI_ARGV0="hi --configure" bash "$_HI_INSTALL" --configure --link none 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--link does not apply here"* ]] || _hi_why rc out
 }
 
@@ -600,7 +576,7 @@ function test_a_switch_outside_its_mode_is_refused() {
 # there also loses `ln -s` and `mkdir -m`, so a dead child is a real candidate).
 function _hi_mode_help_is_its_own() {
   local mode="$1" usage="$2" phrase="$3" out rc=0
-  out="$(_HI_ARGV0="hi --$mode" bash "$_HI_ROOT/scripts/install.sh" "--$mode" --help)" || rc=$?
+  out="$(_HI_ARGV0="hi --$mode" bash "$_HI_INSTALL" "--$mode" --help)" || rc=$?
   [ "$rc" -eq 0 ] || _hi_because "hi --$mode --help exited $rc" || return 1
   [[ "$out" == "$usage"* && "$out" == *"$phrase"* && "$out" != *"Wires up"* ]] || {
     _hi_cecho " | hi --$mode --help was:" "$RED"

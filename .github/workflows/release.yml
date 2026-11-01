@@ -911,9 +911,8 @@ jobs:
     if: github.event_name == 'push' && !cancelled() && needs.publish.result == 'success' && needs.publish.outputs.debug != 'true' && needs.publish.outputs.prerelease != 'true'
     runs-on: macos-latest
     timeout-minutes: 20
-    outputs:
-      prerelease: ${{ needs.publish.outputs.prerelease }}
-      debug: ${{ needs.publish.outputs.debug }}
+    env:
+      TAP: ${{ github.repository_owner }}/tap
     steps:
       # audit until this job has an allowlist taken from its audit runs
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -926,8 +925,6 @@ jobs:
           path: dist
 
       - name: Put the formula in a throwaway tap
-        env:
-          TAP: ${{ github.repository_owner }}/tap
         run: |
           set -euo pipefail
           brew tap-new --no-git "$TAP"
@@ -939,8 +936,6 @@ jobs:
           brew trust --tap "$TAP" 2>/dev/null || true
 
       - name: brew install --build-from-source
-        env:
-          TAP: ${{ github.repository_owner }}/tap
         run: brew install --build-from-source "$TAP/say-hi"
 
       - name: brew test
@@ -949,10 +944,7 @@ jobs:
       # || true on the audit and the verdict read afterwards (hadolint's shape
       # in ci.yml): the two expected lines are filtered out before the exit
       # status means anything
-      - id: audit
-        name: brew audit --strict --new
-        env:
-          TAP: ${{ github.repository_owner }}/tap
+      - name: brew audit --strict --new
         run: |
           set -euo pipefail
           brew audit --strict --new "$TAP/say-hi" >"$RUNNER_TEMP/audit.out" 2>&1 || true
@@ -960,21 +952,10 @@ jobs:
           grep -E '^ *\* ' "$RUNNER_TEMP/audit.out" |
             grep -vE 'homepage URL .* is not reachable|HEAD: The URL .* is not a valid Git URL' \
               >"$RUNNER_TEMP/audit.real" || true
-          if [ -s "$RUNNER_TEMP/audit.real" ]; then
-            echo "found=1" >>"$GITHUB_OUTPUT"
-          else
-            echo "found=0" >>"$GITHUB_OUTPUT"
-          fi
-
-      - name: Report the verdict
-        env:
-          FOUND: ${{ steps.audit.outputs.found }}
-        run: |
-          set -euo pipefail
           {
             echo "### brew audit --strict --new"
             echo
-            if [ "$FOUND" = 1 ]; then
+            if [ -s "$RUNNER_TEMP/audit.real" ]; then
               echo "Findings beyond the two RELEASING.md expects while the repository is private:"
               echo
               echo '```'
@@ -984,7 +965,7 @@ jobs:
               echo "Clean, apart from any of the two findings RELEASING.md expects while the repository is private."
             fi
           } >>"$GITHUB_STEP_SUMMARY"
-          if [ "$FOUND" = 1 ]; then
+          if [ -s "$RUNNER_TEMP/audit.real" ]; then
             echo "::error title=brew audit::the formula has audit findings - see the step summary and the tap PR"
             exit 1
           fi
@@ -1004,7 +985,8 @@ jobs:
   tap:
     name: open the Homebrew tap PR
     needs: brew
-    if: github.event_name == 'push' && !cancelled() && needs.brew.result == 'success' && needs.brew.outputs.debug != 'true' && needs.brew.outputs.prerelease != 'true'
+    # brew passed its own push, debug and prerelease checks to succeed at all
+    if: ${{ !cancelled() && needs.brew.result == 'success' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:

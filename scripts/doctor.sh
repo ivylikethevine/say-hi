@@ -93,13 +93,6 @@ exit status is 1 when that count is not 0, never the count itself.
 EOF
 }
 
-case "${1:-}" in
--h | --help)
-  _hi_doctor_help
-  exit 0
-  ;;
-esac
-
 # hi.sh's source hatch hands over everything this needs without connecting
 # anywhere: the backend predicates, $_HI_PAYLOAD, and _hi_use_backend. The args are saved before the source line clears "$@" (hi.sh
 # reads it at source time, and must see none) and classified after, so an arm
@@ -284,8 +277,6 @@ function doctor_row() {
 # only sending a padded payload, while GNU's and OpenBSD's run gzip off $PATH
 # and have nothing to fall back on. hi.sh's _hi_can_gzip is the question both
 # this and the connect path ask.
-_HI_LOCAL_FLOOR=(base64 tar)
-
 function doctor_local() {
   local branch="" changes=0 wire missing nice_missing line
   doctor_section local "The local tree"
@@ -298,9 +289,7 @@ function doctor_local() {
     line=""
     [ ! -r "$_HI_ROOT/.git/HEAD" ] || IFS= read -r line <"$_HI_ROOT/.git/HEAD" || true
     case "$line" in 'ref: refs/heads/'*) branch="${line#ref: refs/heads/}" ;; esac
-    while IFS= read -r line; do
-      [ -z "$line" ] || changes=$((changes + 1))
-    done < <(git -C "$_HI_ROOT" status --short 2>/dev/null)
+    _hi_count_lines changes < <(git -C "$_HI_ROOT" status --short 2>/dev/null)
     doctor_row checkout "git, ${branch:-detached HEAD (a release tag?)}, $changes local change(s)"
   else
     doctor_row checkout "no .git - a package or tarball install (hi --update names the way forward for each)"
@@ -315,9 +304,9 @@ function doctor_local() {
   # the report is looking at. The difference is the whole of what
   # doctor_test.sh's floor cases stub, and on a box with no base64(1) at all -
   # stock OpenBSD - freezing it names openssl in a row about base64.
-  local -a floor=("${_HI_LOCAL_FLOOR[@]}")
-  command -v base64 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1 ||
-    floor=("${floor[@]/#base64/openssl}")
+  local armor=base64
+  command -v base64 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1 || armor=openssl
+  local -a floor=("$armor" tar)
   _hi_missing_into missing "${floor[@]}"
   _hi_missing_into nice_missing gzip
   if [ -n "$missing" ]; then
@@ -421,11 +410,7 @@ _HI_SECRET_AWK='
 # _hi_doc_now <outvar> - core.sh's _hi_now, with no fork where bash keeps
 # the clock itself
 function _hi_doc_now() {
-  if [ -n "${EPOCHREALTIME:-}" ]; then
-    printf -v "$1" '%s' "$EPOCHREALTIME"
-  else
-    printf -v "$1" '%s' "$(_hi_now)"
-  fi
+  printf -v "$1" '%s' "${EPOCHREALTIME:-$(_hi_now)}"
 }
 
 # doctor_riding <member...> - what rides that should not: a secret-shaped
@@ -504,23 +489,18 @@ function doctor_config() {
   # _HI_OVERLAY_FILES is the contract, and the plugins rows' members after
   # it); where each comes from is that table's
   for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}; do
-    [ "$f" = extensions/ ] && {
-      doctor_code_dir "$f" "$_HI_EXTENSIONS" bash zsh fish
-      continue
-    }
+    case "$f" in
+    extensions/) doctor_code_dir "$f" "$_HI_EXTENSIONS" bash zsh fish ;;
     # header.sh is bash's, and with the header off no cell loads
-    [ "$f" = header/ ] && {
-      _hi_plugin_off "$f" || doctor_code_dir "$f" "$_HI_HEADER_CELLS" bash
-      continue
-    }
-    [ "$f" = ssh_tags ] && {
+    header/) _hi_plugin_off "$f" || doctor_code_dir "$f" "$_HI_HEADER_CELLS" bash ;;
+    ssh_tags)
       ! _hi_overlay_src "$f" t ||
         doctor_row "$f" "the # Tags: and Tag lines of $_HI_SSH_CONFIG ride along - a hop taken from inside a session keeps its tag colors"
-      continue
-    }
+      ;;
     # bin/: what stays home, and why
-    [ "$f" != bin/ ] || _hi_plugin_off "$f" || doctor_bin_dir
-    case "$f" in settings.sh | */) continue ;; esac
+    bin/) _hi_plugin_off "$f" || doctor_bin_dir ;;
+    esac
+    case "$f" in settings.sh | ssh_tags | */) continue ;; esac
     [ -f "$_HI_CONFIG_DIR/$f" ] || continue
     _hi_member_label "$f" label
     t=""
@@ -871,7 +851,7 @@ function doctor_backends() {
   if [ -f "$_HI_SSH_CONFIG" ]; then
     # counted through targets.sh, whose awk owns the "literal Host" rule for
     # completion (hi.sh keeps a documented hot-path copy) - not a third copy
-    hosts="$(_HI_TARGETS_TTL=0 sh "$_HI_TARGETS" ssh 2>/dev/null | grep -c . || true)"
+    _hi_count_lines hosts < <(_HI_TARGETS_TTL=0 sh "$_HI_TARGETS" ssh 2>/dev/null)
     doctor_row ssh "$hosts literal host(s) in $_HI_SSH_CONFIG"
   else
     doctor_row ssh "no $_HI_SSH_CONFIG - names still reach ssh, just without completion or tags"
@@ -928,9 +908,8 @@ if [ "$_HI_DOC_JSON" = 1 ]; then
 else
   # --problems' box is its whole answer, and the full report has no second
   # copy of its rows; the closing line stands in for an empty one
-  [ "$_HI_DOC_PROBLEMS" != 1 ] || doctor_findings
   if [ "$_HI_DOC_PROBLEMS" = 1 ] && [ "${#_HI_DOC_F_SEV[@]}" -gt 0 ]; then
-    :
+    doctor_findings
   elif [ "$_HI_DOC_BAD" -eq 0 ]; then
     _hi_h1 "Nothing looks broken" "$BRGREEN"
   else

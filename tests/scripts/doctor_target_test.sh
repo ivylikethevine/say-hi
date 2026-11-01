@@ -217,8 +217,7 @@ function test_ssh_target_reports_a_connect_failure() {
   )"
   [[ "$out" == *"FAILED after"* ]] || _hi_why out || return 1
   [[ "$out" == *"Permission denied"* ]] || _hi_why out || return 1
-  case "$out" in *'bad=1'*) return 0 ;; esac
-  return 1
+  [[ "$out" == *'bad=1'* ]] || _hi_why out
 }
 
 # the text report's closing line: green with nothing to say, red with the
@@ -320,8 +319,6 @@ function test_install_section_flags_a_foreign_tree() {
 function test_install_section_knows_this_tree_by_another_path() {
   local home="$_HI_WORKDIR/inst-alias" out rc=0
   mkdir -p "$home"
-  # a rerun starts where the first try did: without the link
-  rm -f "$home/alias"
   ln -s "$_HI_HOME" "$home/alias"
   _hi_wired_line sh "$home/alias" >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home")" || rc=$?

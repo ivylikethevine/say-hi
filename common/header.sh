@@ -69,18 +69,10 @@ function _hi_cell_hue() {
 # instead of writing into it.
 function _hi_draw_width() {
   local _hi_dw_max=${_HI_MAX_WIDTH:-$_HI_MAX_WIDTH_DEFAULT} _hi_dw_cols=""
-  if [ -n "${_HI_TERM_COLS+x}" ]; then
-    _hi_dw_cols="$_HI_TERM_COLS"
-  elif [ -t 1 ]; then
-    _hi_dw_cols="${COLUMNS:-}"
-    case "$_hi_dw_cols" in '' | *[!0-9]*) _hi_dw_cols="" ;; esac
-    if [ -z "$_hi_dw_cols" ]; then
-      _hi_dw_cols="$(command -v tput >/dev/null 2>&1 && tput cols 2>/dev/null || true)"
-      case "$_hi_dw_cols" in '' | *[!0-9]*) _hi_dw_cols="" ;; esac
-      _HI_TERM_COLS="$_hi_dw_cols"
-    fi
-  fi
-  [ -n "$_hi_dw_cols" ] && ((_hi_dw_cols > 0 && _hi_dw_cols < _hi_dw_max)) && _hi_dw_max=$_hi_dw_cols
+  _hi_term_cols _hi_dw_cols
+  # a tput answer is remembered for the header's many draws
+  [ -n "${_HI_TERM_COLS+x}" ] || [ ! -t 1 ] || case "${COLUMNS:-}" in '' | *[!0-9]*) _HI_TERM_COLS="$_hi_dw_cols" ;; esac
+  [ -n "$_hi_dw_cols" ] && ((_hi_dw_cols < _hi_dw_max)) && _hi_dw_max=$_hi_dw_cols
   printf -v "$1" '%d' "$_hi_dw_max"
 }
 
@@ -200,7 +192,6 @@ function _hi_header_version() {
     [ -n "$_HI_HEADER_VERSION" ] || _HI_HEADER_VERSION="unknown"
     _hi_shorten_describe "$_HI_HEADER_VERSION" _HI_HEADER_VERSION
   fi
-  printf '%s\n' "$_HI_HEADER_VERSION"
 }
 
 # _hi_cell_clock <outvar> <color> [utc] - a clock cell, a pure getter (the
@@ -227,7 +218,7 @@ function _hi_cell_clock() {
 function _hi_cell_utc() { _hi_cell_clock "$1" "$BRBLUE" utc; }
 
 function _hi_cell_version() {
-  _hi_header_version >/dev/null # primes the memo; read the variable, not a $( )
+  _hi_header_version
   printf -v "$1" '%s' "$GREEN$_HI_HEADER_VERSION"
 }
 
@@ -423,9 +414,6 @@ function _hi_system_info_probe() {
   _hi_sanitize_var os "$os"
   # every probe above yields MHz (hence base_mhz keeps its name)
   [ -n "${base_mhz:-}" ] && _hi_ghz base_mhz "$base_mhz"
-  # a stripped-down awk or a locale that prints a comma decimal both fail
-  # closed to "?", not a garbled cell
-  case "$load" in '' | *[!0-9.]*) load="" ;; esac
   _hi_load_pct load_pct "$load" "${cpus:-}"
   _HI_SI_ARCH="$PURPLE${_HI_ARCH:-?}"
   _HI_SI_OS="$GREEN${os:-?}"
@@ -548,10 +536,9 @@ function _hi_ip_list() {
 # rather than word-split in a `for`, which would also pathname-expand a glob
 # against the cwd.
 function _hi_ip_filter() {
-  local _hi_if_hide="${_HI_IP_HIDE:-$_HI_IP_HIDE_DEFAULT}" _hi_if_rest="$2" _hi_if_kept="" _hi_if_ip _hi_if_dev
+  local _hi_if_hide="${_HI_IP_HIDE:-$_HI_IP_HIDE_DEFAULT}" _hi_if_rest="${2:+$2,}" _hi_if_kept="" _hi_if_ip _hi_if_dev
   while [ -n "$_hi_if_rest" ]; do
-    _hi_if_ip="${_hi_if_rest%%,*}"
-    if [ "$_hi_if_ip" = "$_hi_if_rest" ]; then _hi_if_rest=""; else _hi_if_rest="${_hi_if_rest#*,}"; fi
+    _hi_if_ip="${_hi_if_rest%%,*}" _hi_if_rest="${_hi_if_rest#*,}"
     _hi_if_dev=""
     case "$_hi_if_ip" in *%*) _hi_if_dev="${_hi_if_ip#*%}" _hi_if_ip="${_hi_if_ip%%%*}" ;; esac
     if [ "$_hi_if_hide" != none ]; then
@@ -851,12 +838,6 @@ function banner() {
   printf '%b\n' "$lead$changes$color$thin$start_fill $color$label ${NC}[$host_esc$host$NC]$color$thin $end_fill$NC"
 }
 
-# hi_header's default row order, and $_HI_HEADER_ORDER's vocabulary - one word
-# per feature, in the shipped default order: any word may
-# be reordered or left out on its own, independent of the others. Named here
-# rather than only in the case below, so a doc or test can read the default
-# without parsing the dispatch.
-
 # The header/ overlay member's cells (GLOSSARY: HI.58, HI.48): a file each,
 # its word the name up to the first `.`, defining _hi_cell_<word> the way the
 # built-ins below do. Sourced in name order on the header's first word, not
@@ -1117,12 +1098,6 @@ function _hi_ramp_escape() {
   _hi_color_index _hi_re_i "$2" || return 0
   _hi_color_escape_at "$1" $((_hi_re_i + 24))
 }
-
-# Assigned at source time. `|| true` because this is a call rather than a
-# literal: header.sh is sourced into a stripped `env -i` in the suites and into
-# callers running under their own strict mode, and neither could be aborted by
-# a plain array assignment.
-_hi_packages_palette || true
 
 # _hi_group_tier <outvar> <group> - the ramp tier a group's rows paint in
 function _hi_group_tier() {

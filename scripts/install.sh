@@ -54,9 +54,8 @@ function _hi_install_mode() {
 # `hi --uninstall`, the mode flag is already in the name; by hand it is
 # spelled out, and the plain form lists the script-only modes too.
 function _hi_install_usage() {
-  local me="$_HI_ME" mode
-  mode="$(_hi_install_mode)"
-  case "$mode" in
+  local me="$_HI_ME"
+  case "$(_hi_install_mode)" in
   uninstall)
     [ -n "${_HI_ARGV0:-}" ] || me="$me --uninstall"
     printf 'Usage: %s [--purge] [--dry-run]\n' "$me"

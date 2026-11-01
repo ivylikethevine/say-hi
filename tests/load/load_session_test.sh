@@ -274,7 +274,6 @@ function test_session_rc_notes_the_directory_of_a_session_that_holds() {
 function test_load_notes_the_name_and_directory_a_session_holds_under() {
   local t="$_HI_WORKDIR/held/u.hi.ffffff" home="$_HI_WORKDIR/held/home" noted="$_HI_WORKDIR/held/noted" out got want
   mkdir -p "$t/say-hi" "$home"
-  rm -f "$noted"
   printf '%s\n' "$t/before" >"$t/say-hi/hi.cwd"
   out="$( (
     builtin cd "$home" || exit 1
@@ -297,7 +296,6 @@ function test_load_notes_the_name_and_directory_a_session_holds_under() {
 # runs (the shell proves it from inside) and gone once load() has exited
 function test_load_cleans_up_its_session_rc_dir() {
   local marker="$_HI_WORKDIR/load.rcdir" dir
-  rm -f "$marker"
   _hi_load_run "[ -d \"\$_HI_SESSION_RC\" ] && printf 'live:%s' \"\$_HI_SESSION_RC\" >\"$marker\"; exit 0" \
     SHELL=/bin/bash _HI_DISABLE_HEADER=1 || _hi_why marker _HI_SESSION_RC || return 1
   dir="$(cat "$marker" 2>/dev/null)"
@@ -456,9 +454,9 @@ function test_a_tree_without_keep_sh_never_holds() {
   home="$(_hi_scratch_tree nokeep common config link:load.sh)"
   rm -f "$home/say-hi/common/keep.sh"
   out="$(_HI_HOME="$home" _HI_ROOT="$home/say-hi" HOME="$_HI_WORKDIR/nokeep" bash -c \
-    'source "$1/load.sh"; _hi_keep_limit=5; _hi_keep_holds; printf "%s %s|" "$?" "$_hi_keep_limit"; _hi_keep_stays; printf "%s|" "$?"; declare -F _hi_keep_held' \
+    'source "$1/load.sh"; _hi_keep_holds; printf "%s|" "$?"; _hi_keep_stays; printf "%s|" "$?"; declare -F _hi_keep_held' \
     _ "$home/say-hi" 2>&1)"
-  [ "$out" = "1 0|1|" ] || _hi_why out
+  [ "$out" = "1|1|" ] || _hi_why out
 }
 
 # zellij's client list, read: only a header with nothing under it is nobody.
@@ -747,7 +745,7 @@ function run_load_session_tests() {
 
   _hi_h2 "Testing: load()"
   _hi_check "Propagates the session shell's exit code" test_load_propagates_the_session_shells_exit_code
-  _hi_check "Greets a bash session honestly" test_load_greets_the_chosen_shell bash "bash today :("
+  _hi_check "Greets a bash session honestly" test_load_greets_the_chosen_shell bash "bash today | init:"
   _hi_check_requires zsh "...a zsh one" test_load_greets_the_chosen_shell zsh "zsh shell! :)"
   _hi_check_requires fish "...and a fish one" test_load_greets_the_chosen_shell fish "fish shell! :^)"
   _hi_check "_HI_DISABLE_GREETING=1 hides the line and its timers" test_load_greeting_toggle_hides_the_line
