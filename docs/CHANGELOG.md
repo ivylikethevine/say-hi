@@ -1,23 +1,20 @@
 # Changelog
 
-What changed for someone using hi, release by release, newest first: each
-entry is its pull requests' release notes, written before the tag by
-`.github/scripts/changelog.sh`
-([RELEASING.md](RELEASING.md#cutting-a-release)), and the
-[roadmap](ROADMAP.md) entries finished since the last one, a sentence
-each; they, and the sentences of work not yet merged, wait under
-`## Unreleased` until then. Releases before the first
-entry list theirs on
-[the releases page](https://github.com/ivylikethevine/say-hi/releases).
+What changed for someone using hi, a sentence each. Each release's page on
+[the releases page](https://github.com/ivylikethevine/say-hi/releases) lists the
+sentences this file gained since the release before it, beside its pull
+requests' notes ([RELEASING.md](RELEASING.md#cutting-a-release)); a new one goes
+in the list below, and nothing else is ever done to this file.
 
-## Unreleased
+## Since the last release
 
 - A pull request into `main` takes nine fewer CI runners, and the Debian and Ubuntu test and package-build images move to rebuilt bases that close the fixable high and critical CVEs the scan found in them.
 
 From the roadmap:
 
 - The README opens with the pitch, the sixty-second install, and a GIF of a 502 fixed on a web host with the aliases and vimrc that ride in; the seven stories moved to [TOUR.md](TOUR.md).
-- Every release's source tarball carries a `CHANGELOG.md` that opens on that release's own entry.
+- Every release's source tarball carries `CHANGELOG.md`.
+- A signed tag on `main` is all a release needs: its page's list is built when it publishes, and `CHANGELOG.md` can no longer refuse it.
 - The target side is measured on a Pi-class box, simulated by holding the target to an eighth of one core: a cold connect reaches its prompt in 559 ms there, against 272 ms at a full core, and hi's share of it is 390 ms against 140 ms.
 - A connect from a git checkout no longer runs `git describe` each time: the version it sends is kept in `.git/hi-version` until a commit, a checkout, a tag, or the index changes it.
 - A scripted `hi host cmd`, with stdin off a terminal, opens its session while the script is still landing, as a terminal's connect does.
