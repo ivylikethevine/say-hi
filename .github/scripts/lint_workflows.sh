@@ -34,8 +34,11 @@
 #   8. no `# zizmor: ignore[...]` sits on the `on:` line: zizmor flags the
 #      trigger's own key, and 1.31.0 ignores a comment on `on:` that 1.30.1
 #      and 1.31.1 honour, so it goes on the trigger's line instead
+#   9. a workflow triggered by a pushed tag has no `run:` line that checks a
+#      changelog (one naming it with `--check`, `grep` or `exit 1`): a tag is
+#      all a release needs, and only a further commit could satisfy that check
 #
-# Workflows get all eight; composite actions (action.yml) get 2 and 5.
+# Workflows get all nine; composite actions (action.yml) get 2 and 5.
 #
 #   .github/scripts/lint_workflows.sh [file...]
 #
@@ -72,7 +75,7 @@ if [ $# -eq 0 ]; then
   )
 fi
 
-# Rules 1, 3, 4, 6 and 7: workflows only.
+# Rules 1, 3, 4, 6, 7 and 9: workflows only.
 # shellcheck disable=SC2016 # jq's $vars, not the shell's
 workflow_filter='
   def triggers: (.on // .["true"]) as $on
@@ -114,7 +117,14 @@ workflow_filter='
     | $steps[] | (.uses // "") | select(startswith("./"))
     | ltrimstr("./") | sub("/+$"; "") as $path
     | select([$sparse[] | . as $p | select($path == $p or ($path | startswith($p + "/")))] | length == 0)
-    | "job \($job): uses: ./\($path) is not in its checkout'"'"'s sparse-checkout list")
+    | "job \($job): uses: ./\($path) is not in its checkout'"'"'s sparse-checkout list"),
+  ((.on // .["true"]) as $on
+    | if ($on | type) == "object" and (($on.push // {}) | type) == "object" and ($on.push // {}).tags != null then
+        jobs | .key as $job | (.value.steps // [])[] | (.run // "") | tostring | split("\n")[]
+        | select(test("^\\s*#") | not)
+        | select(test("changelog"; "i") and test("--check|\\bgrep\\b|\\bexit 1\\b"))
+        | "job \($job): checks a changelog on a tag push, so the tag needs a commit first: \(sub("^\\s+"; ""))"
+      else empty end)
 '
 
 # Rule 2: workflows and composite actions alike ("false" as a string is
