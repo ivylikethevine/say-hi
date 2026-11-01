@@ -599,16 +599,6 @@ function _hi_dispatch_probe() {
   cat "$marker"
 }
 
-function test_hi_exits_1_when_root_is_missing() {
-  local out ec
-  out="$(
-    _HI_ROOT="$_HI_WORKDIR/no-such-root"
-    _hi 2>&1
-  )"
-  ec=$?
-  [ "$ec" -eq 1 ] && [[ "$out" == *"no such directory"* ]] || _hi_why ec out
-}
-
 # _HI_PLAIN=1 is --plain where neither flag was typed, and --no-plain beats it
 function test_hi_dispatch_plain_setting_is_a_default() {
   local out
@@ -675,7 +665,6 @@ function run_hi_parse_help_tests() {
   _hi_check "ssh: no command means no trailing word" test_plain_ssh_with_no_command_passes_none
 
   _hi_h2 "Testing: _hi (the dispatch)"
-  _hi_check "Exits 1 when \$_HI_ROOT is missing" test_hi_exits_1_when_root_is_missing
   _hi_check "PLAIN=0, no arm -> _say_hi" test_hi_dispatch_plain0_no_arm_calls_say_hi
   _hi_check "PLAIN=0, an arm -> _say_hi with it" test_hi_dispatch_plain0_with_arm_calls_say_hi_with_the_arm
   _hi_check "PLAIN=1, no arm -> _say_hi_plain" test_hi_dispatch_plain1_no_arm_calls_say_hi_plain

@@ -35,8 +35,7 @@ function test_overlay_carries_the_home_tool_configs() {
 # each tool's own variable names the file, whatever it is called - here with
 # no overlay member of its own, so nothing comes from the overlay directory
 function test_overlay_home_configs_follow_the_tools_variables() {
-  local got got2
-  local o="$_HI_WORKDIR/tool-vars" dir d
+  local got got2 o="$_HI_WORKDIR/tool-vars" dir d
   mkdir -p "$o/ezadir"
   printf 'format = "var"\n' >"$o/prompt.toml"
   printf 'filekinds: var\n' >"$o/ezadir/theme.yml"
@@ -53,8 +52,7 @@ function test_overlay_home_configs_follow_the_tools_variables() {
 # without it; lazygit's is its variable's, else its XDG file. Each rides
 # only with its tool here.
 function test_overlay_home_configs_of_the_cli_tools() {
-  local got got2
-  local o="$_HI_WORKDIR/cli-vars" dir d stubs lg="$_HI_WORKDIR/tool-home/.config/lazygit/config.yml"
+  local got got2 o="$_HI_WORKDIR/cli-vars" dir d stubs lg="$_HI_WORKDIR/tool-home/.config/lazygit/config.yml"
   mkdir -p "$o" "${lg%/*}"
   printf -- '--smart-case\n' >"$o/rg"
   printf -- '--height=40%%\n' >"$o/fzf"
@@ -117,8 +115,7 @@ function test_overlay_copy_of_a_prompt_framework_file_wins() {
 # `extends` naming a local file goes out emptied - a URL or a theme name
 # resolves on the target and stays.
 function test_oh_my_posh_config_rides_from_home_or_overlay() {
-  local got got2 got3
-  local h="$_HI_WORKDIR/omp-home" dir d
+  local got got2 got3 h="$_HI_WORKDIR/omp-home" dir d
   mkdir -p "$h"
   printf '{\n  "extends": "~/base.omp.json",\n  "version": 3\n}\n' >"$h/mine.omp.json"
   printf 'extends: https://example.com/base.yaml\nversion: 3\n' >"$h/rc.omp.yaml"
@@ -142,8 +139,7 @@ function test_oh_my_posh_config_rides_from_home_or_overlay() {
 }
 
 function test_overlay_carries_the_prompt_frameworks_home_files() {
-  local got got2 got3
-  local dir d h="$_HI_WORKDIR/fw-home"
+  local got got2 got3 dir d h="$_HI_WORKDIR/fw-home"
   set -- HOME="$h" XDG_CONFIG_HOME="$h/.config"
   _hi_fw_home_fixture
   dir="$(_hi_overlay_fixture fw-none colors)"
@@ -165,8 +161,7 @@ function test_overlay_carries_the_prompt_frameworks_home_files() {
 # p10k's wizard writes under $ZDOTDIR, which a ~/.zshenv sets for zsh alone:
 # hi run from bash or fish finds that file, not a stale ~/.p10k.zsh
 function test_p10k_rides_from_a_zshenv_zdotdir() {
-  local got
-  local dir d h="$_HI_WORKDIR/p10k-zshenv"
+  local got dir d h="$_HI_WORKDIR/p10k-zshenv"
   mkdir -p "$h/zd"
   # shellcheck disable=SC2016 # zsh's to expand
   printf 'export ZDOTDIR="$HOME/zd"\n' >"$h/.zshenv"
@@ -182,8 +177,7 @@ function test_p10k_rides_from_a_zshenv_zdotdir() {
 # the custom themes dir ($BASH_IT_CUSTOM, else ~/.bash_it/custom) over the
 # built-in one; oh-my-bash takes a .theme.bash where there is no .theme.sh
 function test_overlay_carries_the_bash_it_theme_by_loader_order() {
-  local got
-  local h="$_HI_WORKDIR/bashit-home" dir d f
+  local got h="$_HI_WORKDIR/bashit-home" dir d f
   mkdir -p "$h/.bash_it/themes/bobby" "$h/.bash_it/custom/themes/bobby" "$h/elsewhere/themes/bobby" "$h/.oh-my-bash/themes/font"
   printf 'export BASH_IT_THEME="bobby"\nOSH_THEME=font\n' >"$h/.bashrc"
   printf 'PS1=stock\n' >"$h/.bash_it/themes/bobby/bobby.theme.bash"
@@ -211,8 +205,7 @@ function test_overlay_carries_the_bash_it_theme_by_loader_order() {
 # ships; set, the setting as written; and a target passes its own along
 # rather than looking. GLOSSARY: HI.32
 function test_prompt_list_is_what_home_has() {
-  local got got2 got3 got4 got5
-  local h="$_HI_WORKDIR/fw-home" p
+  local got got2 got3 got4 got5 h="$_HI_WORKDIR/fw-home" p
   _hi_fw_home_fixture
   p="$(_hi_fake_path list-bins starship powerline-go)"
   # The fixture is the stale-config case: a ~/.p10k.zsh beside a .zshrc whose
@@ -320,8 +313,7 @@ function _hi_tags_at() {
 # config; an older one is recut, and a config with an Include is recut every
 # time, since the Included files have mtimes of their own
 function test_ssh_tags_cut_is_reused_until_the_config_is_newer() {
-  local got
-  local dir="$_HI_WORKDIR/tags-cache" cut
+  local got dir="$_HI_WORKDIR/tags-cache" cut
   mkdir -p "$dir/rt" "$dir/.ssh"
   printf '# Tags: one\nHost a\n' >"$dir/config"
   touch -t 202001010000 "$dir/config"
@@ -341,14 +333,18 @@ function test_ssh_tags_cut_is_reused_until_the_config_is_newer() {
   touch -t 202001040000 "$cut"
   got="$(HOME="$dir" _hi_tags_at "$dir")"
   [ "$got" = $'# Tags: one\nHost a\n# Tags: inc\nHost b' ] ||
-    _hi_because "a config with an Include was not recut"
+    _hi_because "a config with an Include was not recut" || return 1
+  # the same cut again keeps its mtime: the overlay cache watches this file
+  touch -t 202001050000 "$cut"
+  touch -t 202001060000 "$dir/after"
+  got="$(HOME="$dir" _hi_tags_at "$dir")"
+  [ ! "$cut" -nt "$dir/after" ] || _hi_because "an unchanged recut moved the mtime: [$got]"
 }
 
 # a config with no tag makes no cut, and a runtime dir the cut cannot be
 # written into fails cleanly, leaving no temp file behind
 function test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir() {
-  local got
-  local dir="$_HI_WORKDIR/tags-fail" out
+  local got dir="$_HI_WORKDIR/tags-fail" out
   mkdir -p "$dir/rt"
   printf 'Host untagged\n' >"$dir/config"
   got="$(_hi_tags_at "$dir")"
@@ -364,8 +360,7 @@ function test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir() {
 
 # a cut that cannot be moved into place leaves no temp file beside it
 function test_ssh_tags_leaves_no_temp_file_when_the_cut_fails() {
-  local got
-  local dir="$_HI_WORKDIR/tags-mv" out
+  local got dir="$_HI_WORKDIR/tags-mv" out
   mkdir -p "$dir/rt"
   printf '# Tags: one\nHost a\n' >"$dir/config"
   out="$(
@@ -434,8 +429,7 @@ function test_shell_rcs_ride_only_from_the_overlay() {
 # and themes/ files ride one by one, the overlay's winning name by name -
 # with the tool here
 function test_screen_and_zellij_ride_like_tmux() {
-  local got
-  local h="$_HI_WORKDIR/mux-home" o="$_HI_WORKDIR/mux-home/overlay" z p out
+  local got h="$_HI_WORKDIR/mux-home" o="$_HI_WORKDIR/mux-home/overlay" z p out
   z="$h/zj"
   mkdir -p "$o/zellij/layouts" "$z/layouts" "$z/themes"
   printf 'startup_message off\n' >"$h/.screenrc"
@@ -461,8 +455,7 @@ function test_screen_and_zellij_ride_like_tmux() {
 # kakrc's $KAKOUNE_CONFIG_DIR is what points kak at it
 # shellcheck disable=SC2016 # the wanted line holds $_HI_CONFIG_DIR unexpanded
 function test_kak_colors_ride_beside_the_kakrc() {
-  local got
-  local h="$_HI_WORKDIR/kak-home" k p w
+  local got h="$_HI_WORKDIR/kak-home" k p w
   k="$h/kk"
   mkdir -p "$h/overlay" "$k/colors"
   printf 'colorscheme mine\n' >"$k/kakrc"
@@ -483,8 +476,7 @@ function test_kak_colors_ride_beside_the_kakrc() {
 # /etc/inputrc names a file no target has, so it is dropped unless allowed
 # shellcheck disable=SC2016 # readline's $include, not an expansion
 function test_inputrc_rides_like_the_tool_configs() {
-  local got
-  local h="$_HI_WORKDIR/rl-home" dir d
+  local got h="$_HI_WORKDIR/rl-home" dir d
   mkdir -p "$h"
   printf '$include /etc/inputrc\n# a comment\n$include ~/.inputrc.local\nset editing-mode vi\n# hi-allow\n$include ~/.inputrc.kept\n' >"$h/.inputrc"
   printf 'set bell-style none\n' >"$h/named"

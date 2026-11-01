@@ -96,13 +96,6 @@ EOF
 }
 
 # --text, read ahead of core.sh above, is the list's alone
-_hi_argv=()
-for _hi_a in "$@"; do
-  [ "$_hi_a" != --text ] || continue
-  _hi_argv+=("$_hi_a")
-done
-set -- ${_hi_argv[@]+"${_hi_argv[@]}"}
-unset _hi_argv _hi_a
 [ "$_HI_TEXT" != 1 ] || [ "$mode" = list ] || _hi_die "--text is hi --plugins' switch ($me --help)"
 _hi_args _hi_plugins_help "$usage" "$@"
 

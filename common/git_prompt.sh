@@ -10,36 +10,28 @@ set -euo pipefail
 # stdout, saving bash.sh's per-prompt fork. GLOSSARY: HI.05
 # shellcheck disable=SC2120 # the argument is optional by design
 _hi_git_prompt() {
-  # %s '', not a bare '' format: bash 3.2's printf -v skips the assignment
-  # outright for a zero-conversion, zero-argument format (verified against a
-  # real bash 3.2.0 build - `printf -v x ''` leaves $x untouched), so a
-  # stale out-var from a previous prompt draw would survive both early
-  # returns below instead of being cleared
+  # %s '': HI.05; clears a stale out-var before the early returns
   [[ -n "${1:-}" ]] && printf -v "$1" '%s' ''
   [[ "${_HI_DISABLE_GIT_STATUS:-0}" == 1 ]] && return
 
   # no fork outside a repository: a builtin walk up for a .git, or a bare
   # repo's HEAD and objects/, gates rev-parse, which then answers as before
-  local git_dir ref="" oid="" detached=0 up="$PWD"
+  local git_dir="" ref="" oid="" detached=0 up="$PWD"
   if [[ -z "${GIT_DIR:-}" ]]; then
     while [[ ! -e "$up/.git" && ! (-f "$up/HEAD" && -d "$up/objects") ]]; do
       [[ -n "$up" ]] || return
       up="${up%/*}"
     done
+    # the ordinary case, a .git directory, is rev-parse's answer with no fork
+    [[ -d "$up/.git" && -f "$up/.git/HEAD" ]] && git_dir="$up/.git"
   fi
-  # --no-optional-locks, or `git status` rewrites .git/index per prompt
+  # a .git *file* (worktree, submodule), a bare repo, or $GIT_DIR asks git.
   # `exec`, because the 2>/dev/null defeats bash's "last command in the
   # subshell runs in place" optimisation and this would otherwise cost two
   # processes per prompt draw rather than one
-  # the walk found the ordinary case, a .git directory: that is rev-parse's
-  # answer, so no fork for it; a .git *file* (worktree, submodule), a bare
-  # repo, or $GIT_DIR still asks git
-  if [[ -z "${GIT_DIR:-}" && -d "$up/.git" && -f "$up/.git/HEAD" ]]; then
-    git_dir="$up/.git"
-  else
-    git_dir=$(LC_ALL=C exec git --no-optional-locks rev-parse --git-dir 2>/dev/null) || return
-  fi
+  [[ -n "$git_dir" ]] || git_dir=$(LC_ALL=C exec git --no-optional-locks rev-parse --git-dir 2>/dev/null) || return
 
+  # --no-optional-locks, or `git status` rewrites .git/index per prompt
   local ahead=0 behind=0 staged=0 dirty=0 invalid=0 untracked=0 line
   while IFS= read -r line; do
     case "$line" in
@@ -78,7 +70,6 @@ _hi_git_prompt() {
       _HI_DESC_OID="$oid" _HI_DESC_REF="$ref"
     fi
   fi
-  [[ -n "$ref" ]] || return
 
   # in-progress operation, in fish_vcs_prompt's slot and with its labels
   local state="" dir="" step total
@@ -144,10 +135,4 @@ _hi_git_prompt() {
   _hi_out "${1:-}" "$out"
 }
 
-# see the top of the file; a caller that sourced this without core.sh (a
-# suite, fish's bash child) gets strict mode off and nothing more
-if type _hi_opts_restore >/dev/null 2>&1; then
-  _hi_opts_restore "$_hi_git_o"
-else
-  set +euo pipefail
-fi
+_hi_opts_restore "$_hi_git_o"

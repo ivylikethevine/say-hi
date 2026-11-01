@@ -161,7 +161,6 @@ function test_am_conflict_shows_state() {
   git -C "$dir" format-patch -1 am-branch --stdout >"$_HI_WORKDIR/am.patch" 2>/dev/null
   git -C "$dir" am "$_HI_WORKDIR/am.patch" >/dev/null 2>&1 || true
   out="$(cd "$dir" && _hi_git_prompt)"
-  git -C "$dir" am --abort >/dev/null 2>&1 || true
   [[ "$out" == *"|AM"* ]] || _hi_why out
 }
 
@@ -175,7 +174,6 @@ function test_am_rebase_with_neither_marker_shows_state() {
   printf '1\n' >"$dir/.git/rebase-apply/next"
   printf '1\n' >"$dir/.git/rebase-apply/last"
   out="$(cd "$dir" && _hi_git_prompt)"
-  rm -rf "$dir/.git/rebase-apply"
   [[ "$out" == *"|AM/REBASE"* ]] || _hi_why out
 }
 
@@ -212,7 +210,6 @@ function test_bisect_shows_state() {
   git -C "$dir" bisect bad >/dev/null 2>&1
   git -C "$dir" bisect good "$old_sha" >/dev/null 2>&1
   out="$(cd "$dir" && _hi_git_prompt)"
-  git -C "$dir" bisect reset >/dev/null 2>&1 || true
   [[ "$out" == *"|BISECTING"* ]] || _hi_why out
 }
 
@@ -238,7 +235,6 @@ function test_rebase_merge_backend_shows_state() {
   printf '1\n' >"$dir/.git/rebase-merge/msgnum"
   printf '1\n' >"$dir/.git/rebase-merge/end"
   out="$(cd "$dir" && _hi_git_prompt)"
-  rm -rf "$dir/.git/rebase-merge"
   [[ "$out" == *"|REBASE-m 1/1"* ]] || _hi_why out
 }
 

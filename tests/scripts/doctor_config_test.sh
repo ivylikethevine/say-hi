@@ -13,15 +13,21 @@ _HI_DOCTOR_PART=config
 # shellcheck source=./doctor_test.sh
 source "${BASH_SOURCE[0]%/*}/doctor_test.sh"
 
+# _hi_doc_at <dir> <cmd...> - <cmd> in a subshell, with <dir> as the overlay
+function _hi_doc_at() {
+  (
+    _HI_CONFIG_DIR="$1"
+    _HI_SETTINGS="$1/settings.sh"
+    shift
+    "$@"
+  )
+}
+
 function test_config_flags_a_settings_file_that_does_not_parse() {
   local dir="$_HI_WORKDIR/badcfg" out
   mkdir "$dir"
   printf 'if [ x\n' >"$dir/settings.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_configs
-  )"
+  out="$(_hi_doc_at "$dir" doctor_configs)"
   [[ "$out" == *"settings.sh"*"has issues (sh)"* ]] || _hi_why out
 }
 
@@ -33,11 +39,7 @@ function test_config_leaves_a_members_source_to_the_files_table() {
   mkdir "$dir"
   printf 'a\nb\n' >"$dir/colors"
   printf 'set number\n' >"$dir/.vimrc"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    HOME="$dir" doctor_config
-  )"
+  out="$(HOME="$dir" _hi_doc_at "$dir" doctor_config)"
   [[ "$out" == *"toggles"* && "$out" != *colors* && "$out" != *packages* && "$out" != *vimrc* ]] || _hi_why out
 }
 
@@ -96,11 +98,7 @@ function test_config_flags_an_overlay_copy_nothing_ships() {
   mkdir -p "$dir/bat"
   printf -- '--theme=x\n' >"$dir/bat/config"
   printf 'format = "x"\n' >"$dir/starship.toml"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    BAT_CONFIG_PATH="$dir/elsewhere" doctor_config
-  )"
+  out="$(BAT_CONFIG_PATH="$dir/elsewhere" _hi_doc_at "$dir" doctor_config)"
   [[ "$out" != *"bat/config"* ]] &&
     [[ "$out" == *"starship.toml"*"not sent - its prompt program is not one a target is handed"* ]] || _hi_why out
 }
@@ -286,11 +284,7 @@ function test_config_calls_an_unedited_overlay_copy_unchanged() {
   local dir="$_HI_WORKDIR/copied" out
   mkdir "$dir"
   cp "$_HI_ROOT/config/colors" "$dir/colors"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" == *"colors"*"a copy of the tree's, unchanged - edit it to override"* && "$out" != *overridden* ]] || _hi_why out
 }
 
@@ -301,11 +295,7 @@ function test_config_names_an_unresolvable_include() {
   local dir="$_HI_WORKDIR/incl" out
   mkdir -p "$dir/vim"
   printf 'set number\nsource ~/.vim/extra.vim\ncall plug#begin()\n' >"$dir/vim/vimrc"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" == *"vim/vimrc:2"*"reads a file hi does not carry"*"source ~/.vim/extra.vim"*"dropped on the way out"* ]] &&
     [[ "$out" == *"vim/vimrc:3"*"names a plugin manager"* ]] || _hi_why out
 }
@@ -331,11 +321,7 @@ function test_config_names_a_shell_include_unless_allowed() {
   local dir="$_HI_WORKDIR/inclsh" out
   mkdir "$dir"
   printf '. ~/.secrets\n# hi-allow\n. ~/.kept\n# hi-quiet\n. ~/.hushed\n' >"$dir/aliases.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" == *"aliases.sh:1"*"reads a file hi does not carry"*"hi-allow"*"hi-quiet"* ]] &&
     [[ "$out" != *"aliases.sh:3"* && "$out" != *"aliases.sh:5"* ]] || _hi_why out
 }
@@ -348,11 +334,7 @@ function test_config_names_an_unclosed_block_marker() {
   printf '# hi-quiet-start\n. ~/.secrets\n' >"$dir/aliases.sh"
   mkdir -p "$dir/vim"
   printf '" hi-allow-start\nsource ~/.vim/kept.vim\n" hi-allow-end\n' >"$dir/vim/vimrc"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" == *"aliases.sh:1"*"# hi-quiet-start has no # hi-quiet-end below it, so it decides nothing"* ]] &&
     [[ "$out" == *"aliases.sh:2"*"reads a file hi does not carry"* && "$out" != *"vim/vimrc:"* ]] || _hi_why out
 }
@@ -487,11 +469,7 @@ function test_config_flags_a_settings_file_that_is_not_fish() {
   local dir="$_HI_WORKDIR/shonly" out
   mkdir "$dir"
   printf 'foo=1\n' >"$dir/settings.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_configs
-  )"
+  out="$(_hi_doc_at "$dir" doctor_configs)"
   [[ "$out" == *"settings.sh"*"parses (sh)"* ]] || _hi_why out || return 1
   [[ "$out" == *"settings.sh"*"has issues (fish)"* ]] || _hi_why out
 }
@@ -752,11 +730,7 @@ function test_config_flags_a_secret_in_a_riding_file() {
     'export DEMO_SECRET=public' \
     'alias gh="GH_HOST=x gh"' \
     'export X=ghp_abcdefghij' >"$dir/bashrc"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" == *"bashrc:1"*"secret-shaped"* && "$out" == *"bashrc:8"* ]] &&
     [[ "$out" != *"bashrc:2"* && "$out" != *"bashrc:3"* && "$out" != *"bashrc:4"* &&
       "$out" != *"bashrc:6"* && "$out" != *"bashrc:7"* && "$out" != *"abc123def"* ]] ||
@@ -770,11 +744,7 @@ function test_config_passes_a_require_of_a_module_that_rides() {
   mkdir -p "$dir/nvim/lua/mine"
   printf 'require("mine.keys")\nrequire("absent")\n' >"$dir/nvim/init.lua"
   printf 'return {}\n' >"$dir/nvim/lua/mine/keys.lua"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" != *"nvim/init.lua:1"* && "$out" == *"nvim/init.lua:2"*"reads a file hi does not carry"* ]] ||
     _hi_because "the report said: $out"
 }
@@ -809,11 +779,7 @@ function test_config_lists_the_tag_settings() {
   mkdir "$dir"
   printf 'export _HI_PLAIN=1\n' >"$dir/settings.prod.sh"
   printf 'export _HI_KEEP=1\n' >"$dir/settings.my tag.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" == *"tag settings"*"prod - each settings.<tag>.sh"* && "$out" == *"settings.my tag.sh"*"never read"* ]] ||
     _hi_because "the report said: $out"
 }
@@ -894,18 +860,10 @@ function test_config_flags_values_set_in_aliases_sh() {
     'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' \
     'export _HI_TOOL_ALIASES=1' \
     'export _HI_SUDO_ALIAS=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_SUDO_ALIAS _HI_TOOL_ALIASES - "* ]] || _hi_why out || return 1
   printf '%s\n' 'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' >"$dir/aliases.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" != *"alias-vars"* ]] || _hi_why out
 }
 
@@ -921,11 +879,7 @@ function test_config_flags_aliases_that_replace_a_wired_one() {
   printf 'x\n' >"$dir/tmux/tmux.conf"
   printf '%s\n' 'alias nano="nano -l"' '# alias tmux=tmux' 'alias ll="ls -l"' \
     '[ -n "$X" ] && alias nano=pico' >"$dir/aliases.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" == *"alias-wired"*"aliases.sh aliases nano - "* ]] || _hi_because "rides: $out" || return 1
   out="$(
     _HI_CONFIG_DIR="$dir"

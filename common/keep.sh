@@ -488,16 +488,15 @@ function _hi_keep_wait() {
 # ssh's drop is retried: a container's exec that ends is not a link that
 # went. GLOSSARY: HI.65
 function _hi_keep_connect() {
-  local log="$1" arm="${2:-ssh}" ec rec="" probes=0 window="${_HI_KEEP_RETRY:-$_HI_KEEP_RETRY_DEFAULT}" limit t0="" t1 expected="" until
-  ! _hi_keep_probes || probes=1
-  [ "$probes" = 0 ] || _hi_keep_record rec || rec=""
+  local log="$1" arm="${2:-ssh}" ec rec="" window="${_HI_KEEP_RETRY:-$_HI_KEEP_RETRY_DEFAULT}" limit t0="" t1 expected="" until
+  ! _hi_keep_probes || _hi_keep_record rec || rec=""
   [ -z "$rec" ] || [ ! -e "$rec" ] || expected=1
   [ -z "$rec" ] || ! _hi_keep_starts || : >"$rec"
   _hi_keep_seconds "$window" limit || { window="$_HI_KEEP_RETRY_DEFAULT" && _hi_keep_seconds "$window" limit; }
   while :; do
     ec=0 t1=$SECONDS _HI_LINK_UP=0 _HI_KEEP_EXPECTED="$expected"
     _say_hi "$arm" "$log" || ec=$?
-    if [ "$probes" = 1 ]; then
+    if _hi_keep_probes; then
       case "$ec" in
       86)
         ec=0

@@ -336,76 +336,55 @@ function test_suite_begin_zeroes_both_counters() {
   [ "$_HI_TOTAL" -eq 0 ] && [ "$_HI_FAILED" -eq 0 ] || _hi_why _HI_TOTAL _HI_FAILED
 }
 
-function test_suite_end_exits_zero_when_nothing_failed() {
+# _hi_ended <total> <failed> <arg...> - _hi_suite_end at those counts, in a
+# subshell as it exits
+function _hi_ended() {
   (
-    _HI_TOTAL=4
-    _HI_FAILED=0
-    _hi_suite_end thing >/dev/null
-  ) || _hi_why
+    _HI_TOTAL="$1"
+    _HI_FAILED="$2"
+    shift 2
+    _hi_suite_end "$@"
+  )
+}
+
+function test_suite_end_exits_zero_when_nothing_failed() {
+  _hi_ended 4 0 thing >/dev/null || _hi_why
 }
 
 function test_suite_end_exits_with_the_failure_count() {
   local rc=0
-  (
-    _HI_TOTAL=5
-    _HI_FAILED=3
-    _hi_suite_end thing >/dev/null
-  ) || rc=$?
+  _hi_ended 5 3 thing >/dev/null || rc=$?
   [ "$rc" -eq 3 ] || _hi_why rc
 }
 
 function test_suite_end_default_wording_uses_the_subject() {
   local out
-  out="$(
-    _HI_TOTAL=2
-    _HI_FAILED=0
-    _hi_suite_end "check.sh"
-  )"
+  out="$(_hi_ended 2 0 "check.sh")"
   [[ "$out" == *"All check.sh checks passed (2 cases)"* ]] || _hi_why out
 }
 
 function test_suite_end_default_failure_wording_shows_the_ratio() {
   local out
-  out="$(
-    _HI_TOTAL=5
-    _HI_FAILED=2
-    _hi_suite_end "check.sh"
-  )" || true
+  out="$(_hi_ended 5 2 "check.sh")" || true
   [[ "$out" == *"2/5 check.sh checks FAILED"* ]] || _hi_why out
 }
 
 function test_suite_end_honours_custom_banners() {
   local pass fail
-  pass="$(
-    _HI_TOTAL=1
-    _HI_FAILED=0
-    _hi_suite_end "" "custom pass line" "custom fail line"
-  )"
-  fail="$(
-    _HI_TOTAL=1
-    _HI_FAILED=1
-    _hi_suite_end "" "custom pass line" "custom fail line"
-  )" || true
+  pass="$(_hi_ended 1 0 "" "custom pass line" "custom fail line")"
+  fail="$(_hi_ended 1 1 "" "custom pass line" "custom fail line")" || true
   [[ "$pass" == *"custom pass line"* && "$fail" == *"custom fail line"* ]] || _hi_why pass fail
 }
 
 function test_report_counts_writes_total_and_failed() {
-  local file
-  file="$_HI_WORKDIR/counts.reported"
-  (
-    _HI_COUNTS_FILE="$file"
-    _hi_report_counts 9 2
-  )
+  local file="$_HI_WORKDIR/counts.reported"
+  _HI_COUNTS_FILE="$file" _hi_report_counts 9 2
   _hi_file_is "$file" "9 2 0" || _hi_why file
 }
 
 function test_report_counts_writes_the_skip_tally() {
-  local file
-  file="$_HI_WORKDIR/counts.skiptally"
-  (
-    _HI_COUNTS_FILE="$file"
-    _hi_report_counts 9 2 3
-  )
+  local file="$_HI_WORKDIR/counts.skiptally"
+  _HI_COUNTS_FILE="$file" _hi_report_counts 9 2 3
   _hi_file_is "$file" "9 2 3" || _hi_why file
 }
 

@@ -121,7 +121,7 @@ function test_zsh_walks_the_order_list_the_same_way() {
     env -u _HI_DISABLE_ENV_STATUS -u _HI_ENV_DEFER \
       HOME="$_hi_mise_home" \
       MISE_SHELL=zsh DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj \
-      zsh -c "cd '$_hi_mise_project' && source '$_HI_ENV_PROMPT' && _hi_env_prompt"
+      zsh -c "cd '$_hi_mise_project' && source '$_HI_CORE' && source '$_HI_ENV_PROMPT' && _hi_env_prompt"
   )"
   [ -n "$want" ] && [ "$want" = "$got" ] || _hi_why want got
 }

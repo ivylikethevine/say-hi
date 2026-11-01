@@ -315,16 +315,6 @@ function _hi_preamble_env_value() { # <name> - what the preamble delivers, via s
 printf %s "$'"$1"'"' 2>/dev/null
 }
 
-# ...and the container transport folds the same stream into one `sh -c export`
-# line, so it gets the same round trip rather than trusting the shared helper
-function test_container_env_quotes_a_hostile_hostname() {
-  local kv got
-  kv="$(DOMAIN=host _HI_HOSTNAME_CACHE="$_HI_MEAN" _hi_env_each ' %s=%s')"
-  got="$(sh -c "export$kv"'
-printf %s "$_HI_LOCAL_HOSTNAME"' 2>/dev/null)"
-  [ "$got" = "$_HI_MEAN" ] || _hi_why got kv _HI_LOCAL_HOSTNAME _HI_MEAN
-}
-
 # ...and the target as typed reaches the no-bash fallback line as one quoted
 # word, since the session carries no variable for it
 function test_suffix_quotes_a_hostile_target_name() {
@@ -357,8 +347,7 @@ printf %s "$TERM"' 2>/dev/null
 }
 
 function test_term_fallback_keeps_a_term_with_terminfo() {
-  local got
-  local ti="$_HI_WORKDIR/terminfo"
+  local got ti="$_HI_WORKDIR/terminfo"
   mkdir -p "$ti/h"
   : >"$ti/h/hi-test-present-term"
   got="$(_hi_preamble_final_term TERM=hi-test-present-term TERMINFO="$ti")"
@@ -421,8 +410,7 @@ function test_boot_probe_bakes_no_client_path() {
 # that exited non-zero and printed nothing gets none (the PowerShell notice
 # is the caller's)
 function test_boot_why_names_each_failure() {
-  local got
-  local DOMAIN=h
+  local got DOMAIN=h
   got="$(_hi_boot_why 64 '')"
   [ "$got" = "no base64 or openssl on [h]" ] || _hi_why got || return 1
   got="$(_hi_boot_why 67 '')"
@@ -650,7 +638,6 @@ function run_hi_remote_tests() {
 
   _hi_h2 "Testing: what the client bakes in stays data"
   _hi_check_eq "A hostile hostname survives the ssh preamble" "$_HI_MEAN" _hi_preamble_env_value _HI_LOCAL_HOSTNAME
-  _hi_check "...and the container transport's export line" test_container_env_quotes_a_hostile_hostname
   _hi_check "A hostile target name is one quoted word in the suffix" test_suffix_quotes_a_hostile_target_name
   _hi_check "...and the sh-tier prompt renders it literally" test_fallback_prompt_escapes_a_hostile_host
 

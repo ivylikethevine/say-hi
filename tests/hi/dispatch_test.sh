@@ -53,88 +53,10 @@ function _hi_ds_dispatch() {
 # _hi_dispatch_subcommand / _hi_run_script
 # ---------------------------------------------------------------------------
 
-function test_dispatch_hands_a_flag_to_its_script() {
-  local got
-  _hi_ds_dispatch --doctor --json
-  got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --doctor
-args=--json" ] || _hi_why got _HI_DS_OUT
-}
-
-# the row's <first arg> column goes in front of whatever was typed: one script
-# backs three flags and reads that word to tell them apart
-function test_dispatch_prepends_the_rows_first_argument() {
-  local got
-  _hi_ds_dispatch --uninstall
-  got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --uninstall
-args=--uninstall" ] || _hi_why got _HI_DS_OUT
-}
-
-function test_dispatch_keeps_the_first_argument_ahead_of_the_rest() {
-  local got
-  _hi_ds_dispatch --configure --preset dev
-  got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --configure
-args=--configure --preset dev" ] || _hi_why got _HI_DS_OUT
-}
-
-# --add-package has no <first arg> column (its group and rows are
-# positional, not a switch word), so its own arguments reach the script
-# untouched - the row this covers alongside --doctor's (no first-arg column
-# either) and --uninstall's/--configure's (one each, above)
-function test_dispatch_hands_add_package_its_rows() {
-  local got
-  _hi_ds_dispatch --add-package core 'bat,batcat' -exa --dry-run
-  got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --add-package
-args=core bat,batcat -exa --dry-run" ] || _hi_why got _HI_DS_OUT
-}
-
-# --remove-package shares the script, told apart by its first-arg column
-function test_dispatch_hands_remove_package_its_switch() {
-  local got
-  _hi_ds_dispatch --remove-package exa --dry-run
-  got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --remove-package
-args=--remove exa --dry-run" ] || _hi_why got _HI_DS_OUT
-}
-
-# --add-color's words reach the script untouched, a hex and all
-function test_dispatch_hands_set_color_its_words() {
-  local got
-  _hi_ds_dispatch --add-color hostname 'web-*' orange fd971f --dry-run
-  got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --add-color
-args=hostname web-* orange fd971f --dry-run" ] || _hi_why got _HI_DS_OUT
-}
-
-# --remove-color shares the script, told apart by its first-arg column
-function test_dispatch_hands_unset_color_its_switch() {
-  local got
-  _hi_ds_dispatch --remove-color username root
-  got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --remove-color
-args=--unset username root" ] || _hi_why got _HI_DS_OUT
-}
-
-# the three plugin flags share one script too: --plugins reaches it bare, the
-# rest behind the word that tells them apart; --edit's script takes its
-# word as given
-function test_dispatch_hands_the_plugin_flags_their_switches() {
-  local got
-  _hi_ds_dispatch --plugins
-  got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --plugins
-args=" ] || _hi_why got _HI_DS_OUT || return 1
-  _hi_ds_dispatch --disable-plugin vim bat --dry-run
-  got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --disable-plugin
-args=--off vim bat --dry-run" ] || _hi_why got _HI_DS_OUT || return 1
-  _hi_ds_dispatch --edit plugins
-  got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --edit
-args=plugins" ] || _hi_why got _HI_DS_OUT
+# what the stub script was handed for those words
+function _hi_ds_out() {
+  _hi_ds_dispatch "$@"
+  cat "$_HI_DS_OUT"
 }
 
 # test_dispatch_declines [arg] - declined, not exec'd: an unknown flag, no
@@ -340,14 +262,18 @@ function run_dispatch_tests() {
   _hi_suite_begin
 
   _hi_h2 "Testing: _hi_dispatch_subcommand / _hi_run_script"
-  _hi_check "Hands a flag to its script" test_dispatch_hands_a_flag_to_its_script
-  _hi_check "Prepends the row's first argument" test_dispatch_prepends_the_rows_first_argument
-  _hi_check "Keeps it ahead of the rest" test_dispatch_keeps_the_first_argument_ahead_of_the_rest
-  _hi_check "--add-package's rows reach the script untouched" test_dispatch_hands_add_package_its_rows
-  _hi_check "--remove-package reaches the same script with --remove" test_dispatch_hands_remove_package_its_switch
-  _hi_check "--add-color's words reach the script untouched" test_dispatch_hands_set_color_its_words
-  _hi_check "--remove-color reaches the same script with --unset" test_dispatch_hands_unset_color_its_switch
-  _hi_check "The plugin flags reach one script, each behind its word" test_dispatch_hands_the_plugin_flags_their_switches
+  _hi_check "Hands a flag to its script" _hi_prints $'argv0=hi --doctor\nargs=--json' _hi_ds_out --doctor --json
+  # the row's <first arg> column goes in front of whatever was typed: one script
+  # backs three flags and reads that word to tell them apart
+  _hi_check "Prepends the row's first argument" _hi_prints $'argv0=hi --uninstall\nargs=--uninstall' _hi_ds_out --uninstall
+  _hi_check "Keeps it ahead of the rest" _hi_prints $'argv0=hi --configure\nargs=--configure --preset dev' _hi_ds_out --configure --preset dev
+  _hi_check "--add-package's rows reach the script untouched" _hi_prints $'argv0=hi --add-package\nargs=core bat,batcat -exa --dry-run' _hi_ds_out --add-package core 'bat,batcat' -exa --dry-run
+  _hi_check "--remove-package reaches the same script with --remove" _hi_prints $'argv0=hi --remove-package\nargs=--remove exa --dry-run' _hi_ds_out --remove-package exa --dry-run
+  _hi_check "--add-color's words reach the script untouched" _hi_prints $'argv0=hi --add-color\nargs=hostname web-* orange fd971f --dry-run' _hi_ds_out --add-color hostname 'web-*' orange fd971f --dry-run
+  _hi_check "--remove-color reaches the same script with --unset" _hi_prints $'argv0=hi --remove-color\nargs=--unset username root' _hi_ds_out --remove-color username root
+  _hi_check "--plugins reaches its script bare" _hi_prints $'argv0=hi --plugins\nargs=' _hi_ds_out --plugins
+  _hi_check "--disable-plugin reaches it behind its word" _hi_prints $'argv0=hi --disable-plugin\nargs=--off vim bat --dry-run' _hi_ds_out --disable-plugin vim bat --dry-run
+  _hi_check "--edit's script takes its word as given" _hi_prints $'argv0=hi --edit\nargs=plugins' _hi_ds_out --edit plugins
   _hi_check "Declines a row with no script" test_dispatch_declines --plain
   _hi_check "Declines an unknown flag" test_dispatch_declines --nonesuch
   _hi_check "Declines with no argument at all" test_dispatch_declines

@@ -185,52 +185,17 @@ function _hi_sc_chunks() {
   # first, always onto the chunk with the fewest bytes placed so far. Every
   # file that shares a sourced tree still lands in one shellcheck invocation
   # together; only which chunk that invocation is changes.
-  local n_groups=0 gi picked best best_size c smallest smallest_size
-  # shellcheck disable=SC2086 # deliberate split: $seen is a space-joined list
-  for s in $seen; do n_groups=$((n_groups + 1)); done
-
-  local -a placed chunksize
-  gi=0
-  while [ "$gi" -lt "$n_groups" ]; do
-    placed[gi]=0
-    gi=$((gi + 1))
-  done
-  c=0
-  while [ "$c" -lt "$width" ]; do
-    chunksize[c]=0
-    c=$((c + 1))
-  done
-
-  picked=0
-  while [ "$picked" -lt "$n_groups" ]; do
-    best=0
-    best_size=-1
-    gi=0
-    while [ "$gi" -lt "$n_groups" ]; do
-      if [ "${placed[gi]}" -eq 0 ] && [ "${groupsize[gi]:-0}" -gt "$best_size" ]; then
-        best="$gi"
-        best_size="${groupsize[gi]:-0}"
-      fi
+  local gi=0 c
+  while read -r c gi; do
+    cat "$out/group.$gi" >>"$out/chunk.$c"
+    rm -f "$out/group.$gi"
+  done < <(
+    # shellcheck disable=SC2086 # deliberate split: $seen is a space-joined list
+    for s in $seen; do
+      printf '%s %s\n' "${groupsize[gi]:-0}" "$gi"
       gi=$((gi + 1))
-    done
-
-    smallest=0
-    smallest_size="${chunksize[0]}"
-    c=1
-    while [ "$c" -lt "$width" ]; do
-      if [ "${chunksize[c]}" -lt "$smallest_size" ]; then
-        smallest="$c"
-        smallest_size="${chunksize[c]}"
-      fi
-      c=$((c + 1))
-    done
-
-    cat "$out/group.$best" >>"$out/chunk.$smallest"
-    rm -f "$out/group.$best"
-    chunksize[smallest]=$((smallest_size + best_size))
-    placed[best]=1
-    picked=$((picked + 1))
-  done
+    done | sort -k1,1nr -k2,2n | _hi_deal "$width"
+  )
 
   c=0
   while [ "$c" -lt "$width" ]; do

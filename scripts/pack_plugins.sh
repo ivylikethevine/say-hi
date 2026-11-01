@@ -94,7 +94,7 @@ function _hi_plugins_load() {
   # (-2), or above the first table (-3)
   local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to _hi_rc_i _hi_rc_p _hi_rc_df _hi_rc_sh _hi_rc_q _hi_rc_e
   local -a _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
-  _HI_PLUGIN_GEN=$((${_HI_PLUGIN_GEN:-0} + 1))
+  _HI_OVERLAY_INDEX=""
   _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=()
   _HI_PLUGIN_HOOKS=() _HI_PLUGIN_ENVS=() _HI_PLUGIN_DEFAULT_OFF=" "
   # the last connect's reading, where nothing it was read from has changed
@@ -478,16 +478,9 @@ function _hi_hook_here() {
   return 1
 }
 
-# _hi_hook_off <row> - is the hook's plugin switched off: named in
+# _hi_plugin_switched_off <name> - is the plugin switched off: named in
 # $_HI_PLUGINS_OFF, or off by default and not in $_HI_PLUGINS_ON. core.sh's
 # _hi_hook_on is the target's reading.
-function _hi_hook_off() {
-  local _hi_ho_n
-  _hi_hook_col "$1" name _hi_ho_n
-  _hi_plugin_switched_off "$_hi_ho_n"
-}
-
-# _hi_plugin_switched_off <name> - the two lists' verdict on a plugin
 function _hi_plugin_switched_off() {
   ! _hi_list_has "${_HI_PLUGINS_OFF:-}" "$1" || return 0
   case "$_HI_PLUGIN_DEFAULT_OFF" in *" $1 "*) ;; *) return 1 ;; esac

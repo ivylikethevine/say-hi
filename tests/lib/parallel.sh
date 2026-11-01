@@ -37,6 +37,22 @@ declare -a _HI_PAR_RUNNING=()
 # case <n>'s subshell and the $SECONDS it started at, while it runs
 declare -a _HI_PAR_PID=() _HI_PAR_T0=()
 
+# _hi_deal <n> - stdin's `<cost> <key>` lines, costliest first, dealt onto <n>
+# slots: each to the least loaded, the first of equals; `<slot> <key>` a line
+function _hi_deal() {
+  local -a loads=()
+  local i c k min
+  for ((i = 0; i < $1; i++)); do loads[i]=0; done
+  while read -r c k; do
+    min=0
+    for ((i = 1; i < $1; i++)); do
+      [ "${loads[i]}" -ge "${loads[min]}" ] || min=$i
+    done
+    loads[min]=$((loads[min] + c))
+    printf '%s %s\n' "$min" "$k"
+  done
+}
+
 # How wide to fan out. Unbounded is the wrong answer on a laptop: twenty sshd
 # containers, twenty ssh clients, and twenty pty feeders thrash the docker daemon
 # and swap the box, which is both slower and flakier than four. So the default

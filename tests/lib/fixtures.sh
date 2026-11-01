@@ -335,11 +335,11 @@ function _hi_capable() {
 # OK for a case that never ran.
 function _hi_check_capable() { _hi_par_capable_body "$1" _hi_check "${@:2}"; }
 
-# _hi_script <file> <line...> - <file> written as those lines, executable, its
-# directory made first when missing
+# _hi_script <file> [line...] - <file> written as those lines, or stdin with
+# none, executable, its directory made first when missing
 function _hi_script() {
   [ -d "${1%/*}" ] || mkdir -p "${1%/*}"
-  printf '%s\n' "${@:2}" >"$1" && chmod +x "$1"
+  if [ $# -gt 1 ]; then printf '%s\n' "${@:2}" >"$1"; else cat >"$1"; fi && chmod +x "$1"
 }
 
 # _hi_fake_path <name> <bin...> - a $_HI_SUITE_WORKDIR/<name> directory of

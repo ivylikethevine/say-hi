@@ -75,8 +75,7 @@ function test_overlay_sends_nothing_outside_the_roster() {
 # the overlay's packages file rides as packages, comment-stripped like the
 # tree's, every table and row intact - a quoted key included
 function test_overlay_carries_packages_stripped() {
-  local got2
-  local dir="$_HI_WORKDIR/packages-overlay" got="$_HI_WORKDIR/packages-sent" out
+  local got2 dir="$_HI_WORKDIR/packages-overlay" got="$_HI_WORKDIR/packages-sent" out
   mkdir -p "$dir" "$got"
   printf '# a note\n[core]\nbat = ["batcat"]\n\n  # indented\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []\n' >"$dir/packages"
   _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
@@ -90,8 +89,7 @@ function test_overlay_carries_packages_stripped() {
 # an extension rides as extensions/<name>, comment-stripped, and only the
 # ones _hi_dir_member_ok admits (GLOSSARY: HI.59)
 function test_overlay_carries_extensions() {
-  local got2
-  local dir got="$_HI_WORKDIR/plugins-sent" out
+  local got2 dir got="$_HI_WORKDIR/plugins-sent" out
   dir="$_HI_WORKDIR/plugins"
   mkdir -p "$dir/extensions" "$got"
   printf '#!/bin/sh\n# a comment\nexport _HI_SEGMENT="printf x"\n' >"$dir/extensions/10-x"
@@ -105,8 +103,7 @@ export _HI_SEGMENT="printf x"' ] || _hi_because "extensions/10-x arrived as: [$o
 }
 
 function test_overlay_is_empty_without_one() {
-  local got got2
-  local dir="$_HI_WORKDIR/no-overlay"
+  local got got2 dir="$_HI_WORKDIR/no-overlay"
   mkdir -p "$dir"
   got="$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)"
   got2="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar)"
@@ -207,8 +204,7 @@ function test_overlay_tar_has_no_wiring_without_a_wired_member() {
 # directory is on $PATH for the whole run. (GLOSSARY: HI.63)
 # shellcheck disable=SC2016 # the tables and the wanted lines hold their $ unexpanded
 function test_carry_row_rides_from_home_with_its_wiring() {
-  local got got2
-  local dir d h="$_HI_WORKDIR/tool-home" stubs
+  local got got2 dir d h="$_HI_WORKDIR/tool-home" stubs
   dir="$(_hi_overlay_fixture carry-rides)"
   mkdir -p "$h/.config/task" "$h/with space"
   printf 'data.location=~/.task\n' >"$h/.config/task/taskrc"
@@ -454,8 +450,7 @@ function test_plugin_off_keeps_its_members_home() {
 # ...nor its wiring line: what a tool is not to use has no business on the
 # wire
 function test_a_plugin_off_has_no_wiring_line() {
-  local got
-  local dir w=""
+  local got dir w=""
   dir="$(_hi_overlay_fixture wire-off vim/vimrc nvim/init.lua nano/nanorc kak/kakrc bat/config)"
   got="$(_HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)"
   [ "$got" = "bat/config,nano/nanorc,nvim/init.lua,vim/vimrc,wiring.sh" ] || _hi_why got dir || return 1
@@ -664,8 +659,7 @@ function test_the_harness_clears_every_home_variable() {
 # an overlay read-only by mode, directories included - one a nix store holds -
 # packs, and what unpacks is its owner's to write and remove
 function test_a_read_only_overlay_packs_and_unpacks_writable() {
-  local got2
-  local dir="$_HI_WORKDIR/ro-overlay" got="$_HI_WORKDIR/ro-got" rc=0
+  local got2 dir="$_HI_WORKDIR/ro-overlay" got="$_HI_WORKDIR/ro-got" rc=0
   mkdir -p "$dir/zellij/layouts" "$got"
   printf 'theme "x"\n' >"$dir/zellij/config.kdl"
   printf 'layout {\n}\n' >"$dir/zellij/layouts/mine.kdl"

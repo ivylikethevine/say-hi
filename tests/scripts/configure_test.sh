@@ -170,7 +170,7 @@ function test_header_presets_hold_the_vocabulary() {
     [ -z "$words" ] && continue
     # shellcheck disable=SC2086 # the split is the point: one word per feature
     for word in $words; do
-      _hi_is_header_word "$word" || _hi_why word || return 1
+      _hi_is_header_order "$word" || _hi_why word || return 1
     done
   done
   got="$(preset_names)"
@@ -204,10 +204,10 @@ function test_validators_hold_their_grammars() {
   ! _hi_is_package_groups "" || _hi_why || return 1
   ! _hi_is_package_groups 'core;rm' || _hi_why || return 1
   ! _hi_is_package_groups "[core]" || _hi_why || return 1
-  _hi_is_header_word utc || _hi_why || return 1
-  _hi_is_header_word check || _hi_why || return 1
-  ! _hi_is_header_word bogus || _hi_why || return 1
-  ! _hi_is_header_word "" || _hi_why
+  _hi_is_header_order utc || _hi_why || return 1
+  _hi_is_header_order check || _hi_why || return 1
+  ! _hi_is_header_order bogus || _hi_why || return 1
+  ! _hi_is_header_order "" || _hi_why
 }
 
 # _hi_setting_check, the one verdict the wizard takes an answer by and doctor
@@ -473,8 +473,8 @@ function test_setting_off_sees_this_runs_answer() {
   local target="$_HI_WORKDIR/pending"
   : >"$target"
   local _HI_SETTING_PENDING=("_HI_DISABLE_HEADER=1")
-  { setting_off _HI_DISABLE_HEADER "$target" 1 &&
-    ! setting_off _HI_DISABLE_PROMPT "$target" 1; } || _hi_why target
+  { setting_off _HI_DISABLE_HEADER "$target" &&
+    ! setting_off _HI_DISABLE_PROMPT "$target"; } || _hi_why target
 }
 
 function test_setting_off_false_when_absent() {
@@ -487,12 +487,6 @@ function test_setting_off_true_when_off_present() {
   local target="$_HI_WORKDIR/off"
   printf 'export _HI_DISABLE_FOO=1\n' >"$target"
   setting_off _HI_DISABLE_FOO "$target" || _hi_why target
-}
-
-function test_setting_off_respects_custom_off_value() {
-  local target="$_HI_WORKDIR/customoff"
-  printf 'export _HI_DISABLE_BANNER=1\n' >"$target"
-  setting_off _HI_DISABLE_BANNER "$target" 1 || _hi_why target
 }
 
 # the line as config_shell really writes it: marker-padded, unquoted - the
@@ -692,15 +686,6 @@ function test_menu_row_notes_an_absent_needs_command() {
   [[ "$out" == *"needy"*"(no hi-no-such-cmd here)"*"easy"* && "${out#*easy}" != *" here)"* ]] || _hi_because "the rows: $out"
 }
 
-# ...and with no index given, _hi_menu_rows draws every row, in order
-function test_menu_rows_default_to_every_row() {
-  local out
-  local -a _HI_NEEDS_ROWS=('_HI_NO_SUCH|1|||bash|first - a row' '_HI_NO_SUCH|1|||bash|second - a row')
-  out="$(_HI_MENU_ITEMS=() _HI_MENU_DRAW=1 _HI_MENU_W=80 _HI_MENU_SUM_N=0 && _hi_menu_rows _HI_NEEDS_ROWS)"
-  out="$(_hi_strip_ansi "$out")"
-  [[ "$out" == *"first"*"second"* ]] || _hi_because "the rows: $out"
-}
-
 # a switch's key finds its table row, `row|<table>|<index>`, and its name;
 # a key no switch has, or a switch whose row has left its table, finds none
 function test_menu_switch_keys_find_their_rows() {
@@ -755,6 +740,7 @@ function _hi_configure_begin() {
     : >"$_HI_CONFIG_DIR/$_hi_f"
   done
   _hi_items_load
+  _hi_load_preview_sources
   _hi_suite_begin
 }
 
@@ -804,7 +790,6 @@ function run_configure_tests() {
   _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
   _hi_check "Menu: every table row has a number" test_menu_numbers_every_row
   _hi_check "Menu: a row names the command it needs and this machine lacks" test_menu_row_notes_an_absent_needs_command
-  _hi_check "Menu: a table's rows default to every row" test_menu_rows_default_to_every_row
   _hi_check "Menu: a switch's key finds its row, and only a real one" test_menu_switch_keys_find_their_rows
   _hi_check "Menu: a name keeps its color, and a key a line names is painted" test_menu_paints_names_and_keys
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
@@ -817,7 +802,6 @@ function run_configure_tests() {
   _hi_h2 "Testing: setting_off"
   _hi_check "Not off when absent" test_setting_off_false_when_absent
   _hi_check "Off when off-value present" test_setting_off_true_when_off_present
-  _hi_check "Respects a custom off value" test_setting_off_respects_custom_off_value
   _hi_check "Reads the marker-padded line config_shell writes" test_setting_off_reads_marker_padded_line
 
   _hi_h2 "Testing: _hi_setting_get sources the file for real"

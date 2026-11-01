@@ -18,14 +18,12 @@ unset _hi_d
 # after core.sh, which ends with `set +euo pipefail`. GLOSSARY: HI.15
 set -euo pipefail
 
-mode="set"
+mode="add"
 [ "${1:-}" != --unset ] || {
-  mode="unset"
+  mode="remove"
   shift
 }
-me="hi --add-color"
-[ "$mode" = set ] || me="hi --remove-color"
-me="${_HI_ARGV0:-$me}"
+me="${_HI_ARGV0:-hi --$mode-color}"
 _HI_ME="$me"
 _HI_DRY_RUN="" args=()
 # the colors file's [type] sections: common/flags' --add-color words
@@ -35,10 +33,10 @@ while IFS='|' read -r _hi_w _; do
 done <"$_HI_ROOT/common/flags"
 unset _hi_w
 usage="$me <type> <name> <color> [rrggbb] [--dry-run]"
-[ "$mode" = set ] || usage="$me <type> <name> [--dry-run]"
+[ "$mode" = add ] || usage="$me <type> <name> [--dry-run]"
 
 function _hi_set_color_help() {
-  if [ "$mode" = unset ]; then
+  if [ "$mode" = remove ]; then
     cat <<EOF
 Usage: $usage
 
@@ -71,7 +69,7 @@ EOF
 
 _hi_args _hi_set_color_help "$usage" "$@"
 
-if [ "$mode" = set ]; then
+if [ "$mode" = add ]; then
   [ "${#args[@]}" -eq 3 ] || [ "${#args[@]}" -eq 4 ] || _hi_die "needs a type, a name, and a color ($me --help)"
 else
   [ "${#args[@]}" -eq 2 ] || _hi_die "needs a type and a name ($me --help)"
@@ -83,7 +81,7 @@ _hi_list_has "$types" "$type" || _hi_die "not a type: $type (one of $types)"
 _hi_name_re='^[^]["\\#[:space:]]+$'
 [[ "$name" =~ $_hi_name_re ]] ||
   _hi_die "not a name: $name (no spaces, quotes, # or brackets)"
-if [ "$mode" = set ]; then
+if [ "$mode" = add ]; then
   _hi_color_index ci "$color" || _hi_die "not a color: $color (one of ${_HI_COLOR_NAMES[*]})"
   hex="${hex#\#}"
   [ -z "$hex" ] || [[ "$hex" =~ ^[0-9a-fA-F]{6}$ ]] || _hi_die "not six hex digits: ${args[3]}"
@@ -101,7 +99,7 @@ match=-1 old=""
 _hi_rows_index match "$name" "$type"
 [ "$match" -lt 0 ] || _hi_toml_row "${_hi_rows[match]}" _ old
 
-if [ "$mode" = unset ]; then
+if [ "$mode" = remove ]; then
   if [ "$match" -lt 0 ]; then
     _hi_cecho "$read_file has no [$type] pin for $name - nothing to write" "$GREEN"
     exit 0

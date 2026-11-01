@@ -200,14 +200,10 @@ function _hi_overlay_tar() {
 # overlay's path as the tree's cache is on its own: two overlays of the same
 # members share the runtime dir, and staleness is only "no file newer than
 # the cache", so one keyed by its list alone was served the other's files.
-# Hashed, not spelled out, to keep the cache filename short. `-v <outvar>`
-# fills it rather than printing it, the connect's way, with no subshell.
+# Hashed, not spelled out, to keep the cache filename short.
 function _hi_overlay_cache_key() {
-  local _hi_ok_w _hi_ok_out=""
-  if [ "${1:-}" = -v ]; then
-    _hi_ok_out="$2"
-    shift 2
-  fi
+  local _hi_ok_w _hi_ok_out="$1"
+  shift
   _hi_overlay_wiring _hi_ok_w "$@"
   _hi_hash "${_HI_CONFIG_DIR:-}|$*$_hi_ok_w" "$_hi_ok_out"
 }
@@ -260,7 +256,7 @@ function _hi_overlay_cached() {
     _hi_overlay_src "$_hi_oc_f" _hi_oc_src && [ "$_hi_oc_src" != "$_HI_CONFIG_DIR/$_hi_oc_f" ] &&
       cache_also+=("$_hi_oc_src")
   done
-  _hi_overlay_cache_key -v _hi_oc_key "$@" ${cache_also[@]+"${cache_also[@]}"}
+  _hi_overlay_cache_key _hi_oc_key "$@" ${cache_also[@]+"${cache_also[@]}"}
   _hi_runtime_dir _hi_oc_dir
   if [ -n "$_hi_oc_dir" ]; then
     _hi_carry_list="$_hi_oc_dir/hi.overlay.$_hi_oc_key.carry"
@@ -287,29 +283,14 @@ function _hi_payload_cached() {
     "$_HI_ROOT/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
 }
 
-# The overlay tar on stdout: the cache when warm and clean, a fresh build
-# otherwise. An if/else and not `cat && || tar`, which would emit both halves
-# if the cat died partway through. Prefixed local: GLOSSARY: HI.04.
-function _hi_overlay_bytes() {
-  local _hi_ob_cache=""
-  if _hi_overlay_cached _hi_ob_cache "$@"; then
-    cat "$_hi_ob_cache"
-  else
-    _hi_overlay_tar "$@"
-  fi
-}
-
 # _hi_overlay_file <outvar> <dir> <member...> - the overlay's archive as
 # <dir>/overlay.tgz: a copy of the cache when warm and clean, for
 # _hi_payload_file's reason, else a build.
 function _hi_overlay_file() {
   local _hi_of_out="$1" _hi_of_dir="$2" _hi_of_c=""
   shift 2
-  if _hi_overlay_cached _hi_of_c "$@" && cp "$_hi_of_c" "$_hi_of_dir/overlay.tgz" 2>/dev/null; then
-    printf -v "$_hi_of_out" '%s' "$_hi_of_dir/overlay.tgz"
-    return 0
-  fi
-  _hi_overlay_tar "$@" >"$_hi_of_dir/overlay.tgz" || return 1
+  { _hi_overlay_cached _hi_of_c "$@" && cp "$_hi_of_c" "$_hi_of_dir/overlay.tgz" 2>/dev/null; } ||
+    _hi_overlay_tar "$@" >"$_hi_of_dir/overlay.tgz" || return 1
   printf -v "$_hi_of_out" '%s' "$_hi_of_dir/overlay.tgz"
 }
 

@@ -285,10 +285,10 @@ function test_header_version_resolves_once_per_shell() {
   (
     unset _HI_HEADER_VERSION
     _HI_RELEASE=1.0.0
-    _hi_header_version >/dev/null
+    _hi_header_version
     local first="$_HI_HEADER_VERSION"
     _HI_RELEASE=2.0.0 # a later change must not reach an already-memoized version
-    _hi_header_version >/dev/null
+    _hi_header_version
     [ "$_HI_HEADER_VERSION" = "$first" ] && [ "$first" = 1.0.0 ]
   ) || _hi_why -6 first _HI_HEADER_VERSION
 }
@@ -626,11 +626,7 @@ function _hi_pos() {
 # command, the wrap case above leans on it the same way.
 function test_full_check_closes_every_row_at_max_width() {
   local out lines
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one close "$_HI_REAL_CMD = []\nbash = []\n")"
-    _HI_MAX_WIDTH=12
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one close "$_HI_REAL_CMD = []\nbash = []\n")" _HI_MAX_WIDTH=12 full_check)"
   lines="$(printf '%s\n' "$out" | grep -c .)"
   { [ "$lines" -ge 2 ] && _hi_all_lines_are "$out" 12; } || _hi_why lines out
 }
@@ -640,22 +636,13 @@ function test_full_check_closes_every_row_at_max_width() {
 function test_full_check_closes_a_row_that_absorbed_a_carry() {
   local out
   local -a _HI_ROW_CARRY=(carriedcell)
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one close-carry "$_HI_REAL_CMD = []\nbash = []\n")"
-    _HI_MAX_WIDTH=20
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one close-carry "$_HI_REAL_CMD = []\nbash = []\n")" _HI_MAX_WIDTH=20 full_check)"
   _hi_all_lines_are "$out" 20 || _hi_why out
 }
 
 function test_full_check_right_edge_disabled_stays_under_max_width() {
   local out line n got
-  out="$(
-    _HI_PACKAGES="$(_hi_pkg_one no-edge "$_HI_REAL_CMD = []\nbash = []\n")"
-    _HI_MAX_WIDTH=20
-    _HI_DISABLE_RIGHT_EDGE=1
-    full_check
-  )"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one no-edge "$_HI_REAL_CMD = []\nbash = []\n")" _HI_MAX_WIDTH=20 _HI_DISABLE_RIGHT_EDGE=1 full_check)"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     got="$(_hi_strip_ansi "$line")"

@@ -410,13 +410,7 @@ function test_prompt_colors_hand_fish_the_base_name() {
   [ "$out" = $'ff8c00 bryellow\nred' ] || _hi_why out
 }
 
-function test_override_color_exact_match() {
-  local got
-  local colors="$_HI_WORKDIR/colors.exact"
-  printf '[username]\nalice = "red"\n' >"$colors"
-  got="$(_HI_COLORS="$colors" _hi_override_color username alice)"
-  [ "$got" = "red" ] || _hi_why got colors
-}
+function test_override_color_exact_match() { _hi_colors_say red '[username]\nalice = "red"\n' _hi_override_color username alice; }
 
 function test_override_color_no_match_fails() {
   local colors="$_HI_WORKDIR/colors.nomatch"
@@ -424,21 +418,9 @@ function test_override_color_no_match_fails() {
   ! _HI_COLORS="$colors" _hi_override_color username bob || _hi_why colors
 }
 
-function test_override_color_localuser_special_case() {
-  local got
-  local colors="$_HI_WORKDIR/colors.localuser"
-  printf '[username]\nLOCALUSER = "cyan"\n' >"$colors"
-  got="$(_HI_COLORS="$colors" _HI_LOCAL_USER=testuser _hi_override_color username testuser)"
-  [ "$got" = "cyan" ] || _hi_why got colors
-}
+function test_override_color_localuser_special_case() { _hi_colors_say cyan '[username]\nLOCALUSER = "cyan"\n' _HI_LOCAL_USER=testuser _hi_override_color username testuser; }
 
-function test_override_color_localhostname_special_case() {
-  local got
-  local colors="$_HI_WORKDIR/colors.localhost"
-  printf '[hostname]\nLOCALHOSTNAME = "magenta"\n' >"$colors"
-  got="$(_HI_COLORS="$colors" _HI_LOCAL_HOSTNAME=testhost _hi_override_color hostname testhost)"
-  [ "$got" = "magenta" ] || _hi_why got colors
-}
+function test_override_color_localhostname_special_case() { _hi_colors_say magenta '[hostname]\nLOCALHOSTNAME = "magenta"\n' _HI_LOCAL_HOSTNAME=testhost _hi_override_color hostname testhost; }
 
 # A row's optional fourth column - that pin's own 24-bit color. It comes back
 # joined to the name, "<color>#<rrggbb>", from every reader of the file: the
@@ -659,6 +641,16 @@ function test_zsh_pin_hex_agrees_with_bash() {
 # $_HI_SSH_TAG_FIXTURE holds the path from then on - the zsh-agreement cases
 # reach the same file through _hi_in_shell's constant _HI_SSH_CONFIG.
 _HI_SSH_TAG_FIXTURE=""
+
+# _hi_colors_say <want> <rows> <cmd...> - what <cmd> prints over a colors file
+# of <rows>, and the tag fixture as the ssh config
+function _hi_colors_say() {
+  local want="$1" rows="$2" colors="$_HI_WORKDIR/colors" got
+  shift 2
+  printf '%b' "$rows" >"$colors"
+  got="$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" "$@")"
+  [ "$got" = "$want" ] || _hi_because "from: $* over [$rows] - wanted [$want], got [$got]"
+}
 
 function _hi_ssh_tag_fixture() {
   local f="$_HI_WORKDIR/ssh_config"

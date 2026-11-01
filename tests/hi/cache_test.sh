@@ -35,14 +35,6 @@ function _hi_cache_config() {
   printf 'host,liona,BRCYAN\n' >"$_HI_CONFIG_DIR/colors"
 }
 
-# A runtime directory hi will vouch for: $XDG_RUNTIME_DIR is taken as-is when
-# it exists, so this is the cheapest way to give a case one.
-function _hi_cache_rt() {
-  local dir="$_HI_WORKDIR/$1"
-  mkdir -p "$dir"
-  printf '%s' "$dir"
-}
-
 # the marker the warm/stale cases read back
 function _hi_cache_mark() { printf 'MARK' >>"$1"; }
 function _hi_cache_marked() { grep -q MARK "$1"; }
@@ -53,7 +45,7 @@ function _hi_cache_marked() { grep -q MARK "$1"; }
 
 function test_runtime_dir_takes_xdg_runtime_dir_as_is() {
   local out="" dir
-  dir="$(_hi_cache_rt rt.xdg)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_runtime_dir out
   [ "$out" = "$dir" ] || _hi_why out dir
 }
@@ -61,8 +53,7 @@ function test_runtime_dir_takes_xdg_runtime_dir_as_is() {
 # an $XDG_RUNTIME_DIR naming something that is not a directory is not hi's to
 # trust either - it falls through to the private one below
 function test_runtime_dir_ignores_a_missing_xdg_runtime_dir() {
-  local got
-  local out=""
+  local got out=""
   mkdir -p "$_HI_WORKDIR/rt.tmp1"
   XDG_RUNTIME_DIR="$_HI_WORKDIR/rt.nope" TMPDIR="$_HI_WORKDIR/rt.tmp1" \
     _hi_runtime_dir out
@@ -120,20 +111,19 @@ function test_runtime_dir_is_empty_when_the_owner_cannot_be_read() {
 # ---------------------------------------------------------------------------
 
 function test_overlay_cache_key_is_stable_for_one_member_list() {
-  local a b c=""
-  a="$(_hi_overlay_cache_key settings.sh colors)"
-  b="$(_hi_overlay_cache_key settings.sh colors)"
-  _hi_overlay_cache_key -v c settings.sh colors
-  [ -n "$a" ] && [ "$a" = "$b" ] && [ "$c" = "$a" ] || _hi_why a b c
+  local a b
+  _hi_overlay_cache_key a settings.sh colors
+  _hi_overlay_cache_key b settings.sh colors
+  [ -n "$a" ] && [ "$a" = "$b" ] || _hi_why a b
 }
 
 # the list is in the key precisely so a toggle that trims a member gets its
 # own cache file rather than reusing the fuller one
 function test_overlay_cache_key_changes_with_the_member_list() {
   local full trimmed reordered
-  full="$(_hi_overlay_cache_key settings.sh colors packages)"
-  trimmed="$(_hi_overlay_cache_key settings.sh colors)"
-  reordered="$(_hi_overlay_cache_key colors settings.sh)"
+  _hi_overlay_cache_key full settings.sh colors packages
+  _hi_overlay_cache_key trimmed settings.sh colors
+  _hi_overlay_cache_key reordered colors settings.sh
   [ "$full" != "$trimmed" ] && [ "$full" != "$reordered" ] || _hi_why full trimmed reordered
 }
 
@@ -142,10 +132,11 @@ function test_overlay_cache_key_changes_with_the_member_list() {
 # older one cached under the same list
 function test_overlay_cache_key_changes_with_the_wiring() {
   local was now
-  was="$(_hi_overlay_cache_key bat/config)"
+  _hi_overlay_cache_key was bat/config
   now="$(
     function _hi_overlay_wiring() { printf -v "$1" '%s' 'export BAT_CONFIG_DIR=elsewhere'; }
-    _hi_overlay_cache_key bat/config
+    _hi_overlay_cache_key now bat/config
+    printf '%s' "$now"
   )"
   [ -n "$was" ] && [ "$was" != "$now" ] || _hi_why was now
 }
@@ -154,8 +145,8 @@ function test_overlay_cache_key_changes_with_the_wiring() {
 # another directory is another cache
 function test_overlay_cache_key_changes_with_the_overlay() {
   local a b
-  a="$(_HI_CONFIG_DIR="$_HI_WORKDIR/ok.a" _hi_overlay_cache_key colors)"
-  b="$(_HI_CONFIG_DIR="$_HI_WORKDIR/ok.b" _hi_overlay_cache_key colors)"
+  _HI_CONFIG_DIR="$_HI_WORKDIR/ok.a" _hi_overlay_cache_key a colors
+  _HI_CONFIG_DIR="$_HI_WORKDIR/ok.b" _hi_overlay_cache_key b colors
   [ -n "$a" ] && [ "$a" != "$b" ] || _hi_why a b
 }
 
@@ -167,7 +158,7 @@ function test_overlay_cache_key_changes_with_the_overlay() {
 # served its own file, never the first's archive
 function test_overlay_cached_keeps_two_overlays_apart() {
   local dir a="$_HI_WORKDIR/oc.two.a" b="$_HI_WORKDIR/oc.two.b" x="$_HI_WORKDIR/oc.two.x" out_a="" out_b="" got
-  dir="$(_hi_cache_rt oc.two)"
+  dir="$_HI_WORKDIR"
   mkdir -p "$a" "$b" "$x"
   printf 'which = b\n' >"$b/colors"
   touch -t 202001010000 "$b/colors"
@@ -182,13 +173,13 @@ function test_overlay_cached_keeps_two_overlays_apart() {
 
 function test_overlay_cached_refuses_an_empty_member_list() {
   local out="" dir
-  dir="$(_hi_cache_rt oc.empty)"
+  dir="$_HI_WORKDIR"
   ! XDG_RUNTIME_DIR="$dir" _hi_overlay_cached out || _hi_why dir
 }
 
 function test_overlay_cached_is_off_when_the_toggle_is_zero() {
   local out="" dir
-  dir="$(_hi_cache_rt oc.off)"
+  dir="$_HI_WORKDIR"
   ! XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 \
     _hi_overlay_cached out "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir _HI_CACHE_MEMBERS
 }
@@ -202,11 +193,10 @@ function test_overlay_cached_refuses_without_a_runtime_dir() {
 }
 
 function test_overlay_cached_builds_cold_and_names_the_file() {
-  local got
-  local out="" dir
-  dir="$(_hi_cache_rt oc.cold)"
+  local got out="" dir
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached out "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir _HI_CACHE_MEMBERS || return 1
-  got="$(_hi_overlay_cache_key "${_HI_CACHE_MEMBERS[@]}")"
+  _hi_overlay_cache_key got "${_HI_CACHE_MEMBERS[@]}"
   [ "$out" = "$dir/hi.overlay.$got" ] || _hi_why got out dir _HI_CACHE_MEMBERS || return 1
   [ -s "$out" ] || _hi_why out
 }
@@ -214,9 +204,8 @@ function test_overlay_cached_builds_cold_and_names_the_file() {
 # the write is `>$cache.$$` then `mv`, so a reader never sees a half-built
 # archive - and nothing is left behind under the temp name
 function test_overlay_cached_leaves_no_temp_file() {
-  local got
-  local out="" dir
-  dir="$(_hi_cache_rt oc.tmp)"
+  local got out="" dir
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached out "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir _HI_CACHE_MEMBERS || return 1
   got="$(find "$dir" -name 'hi.overlay.*.[0-9]*' -print)"
   [ -z "$got" ] || _hi_why got dir
@@ -226,9 +215,8 @@ function test_overlay_cached_leaves_no_temp_file() {
 # writing, not a cache under the real name - and answers rc 1, "build it
 # yourself", with the outvar untouched
 function test_cached_cleans_up_after_a_failed_build() {
-  local got
-  local out="" dir
-  dir="$(_hi_cache_rt c.fail)"
+  local got out="" dir
+  dir="$_HI_WORKDIR"
   ! XDG_RUNTIME_DIR="$dir" _hi_cached out fail k "$_HI_CONFIG_DIR/" false settings.sh || _hi_why dir || return 1
   got="$(find "$dir" -name 'hi.fail.k*' -print)"
   [ -z "$out" ] && [ -z "$got" ] || _hi_why got out dir
@@ -236,7 +224,7 @@ function test_cached_cleans_up_after_a_failed_build() {
 
 function test_overlay_cached_reuses_a_warm_cache() {
   local out="" dir
-  dir="$(_hi_cache_rt oc.warm)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached out "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir _HI_CACHE_MEMBERS || return 1
   _hi_cache_mark "$out"
   touch -t 203001010000 "$out"
@@ -248,7 +236,7 @@ function test_overlay_cached_reuses_a_warm_cache() {
 # cache's age, and not a checksum
 function test_overlay_cached_rebuilds_when_a_member_is_newer() {
   local out="" dir
-  dir="$(_hi_cache_rt oc.stale)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached out "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir _HI_CACHE_MEMBERS || return 1
   _hi_cache_mark "$out"
   touch -t 200001010000 "$out"
@@ -260,14 +248,13 @@ function test_overlay_cached_rebuilds_when_a_member_is_newer() {
 # path and watched where it lives - through a symlink, the dotfile-manager
 # shape, whose own mtime predates the cache while its target's does not
 function test_overlay_cached_rebuilds_when_a_home_config_is_newer() {
-  local got
-  local out="" dir home="$_HI_WORKDIR/oc.home"
-  dir="$(_hi_cache_rt oc.home.rt)"
+  local got out="" dir home="$_HI_WORKDIR/oc.home"
+  dir="$_HI_WORKDIR"
   mkdir -p "$home"
   printf -- '--theme=a\n' >"$home/real"
   ln -sf "$home/real" "$home/config"
   XDG_RUNTIME_DIR="$dir" BAT_CONFIG_PATH="$home/config" _hi_overlay_cached out bat/config || _hi_why dir home || return 1
-  got="$(_hi_overlay_cache_key bat/config "$home/config")"
+  _hi_overlay_cache_key got bat/config "$home/config"
   [ "$out" = "$dir/hi.overlay.$got" ] || _hi_why got out dir home || return 1
   _hi_cache_mark "$out"
   touch -t 203001010000 "$out"
@@ -284,7 +271,7 @@ function test_overlay_cached_rebuilds_when_a_home_config_is_newer() {
 # empty - three different bugs that read identically as a bare FAILED.
 function test_overlay_cached_keys_the_file_by_member_list() {
   local full="" trimmed="" dir
-  dir="$(_hi_cache_rt oc.key)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached full "${_HI_CACHE_MEMBERS[@]}" ||
     _hi_because "the full member list did not cache at all" || return 1
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached trimmed settings.sh ||
@@ -306,7 +293,7 @@ function test_overlay_cached_keys_the_file_by_member_list() {
 # need not list alike): the boot call sends whichever file it is handed
 function test_overlay_file_is_the_cache_or_a_build() {
   local dir w="$_HI_WORKDIR/of.build" warm="" cold="" c="" a b
-  dir="$(_hi_cache_rt of.either)"
+  dir="$_HI_WORKDIR"
   mkdir -p "$w/warm" "$w/cold"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_file warm "$w/warm" "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached c "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
@@ -324,7 +311,7 @@ function test_overlay_file_is_the_cache_or_a_build() {
 # over the cache, so the size counted is the size sent
 function test_overlay_file_is_byte_identical_off_a_warm_cache() {
   local dir w="$_HI_WORKDIR/of.same" a="" b="" c=""
-  dir="$(_hi_cache_rt of.same)"
+  dir="$_HI_WORKDIR"
   mkdir -p "$w/1" "$w/2"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached c "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
   touch -t 203001010000 "$c"
@@ -337,7 +324,7 @@ function test_overlay_file_is_byte_identical_off_a_warm_cache() {
 
 function test_payload_cached_builds_cold_then_reuses_it() {
   local out="" dir
-  dir="$(_hi_cache_rt pc.warm)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached out || _hi_why dir || return 1
   [[ "$out" == "$dir/hi.payload.tree."* ]] || _hi_why out dir || return 1
   [ -s "$out" ] || _hi_why out || return 1
@@ -350,11 +337,10 @@ function test_payload_cached_builds_cold_then_reuses_it() {
 # a tree cut for an overlay (_hi_payload_excl) is its own cache file, so a
 # changed overlay is never served the last one's tar, nor the whole tree's
 function test_payload_cached_is_keyed_on_the_cut_list() {
-  local got got2
-  local whole="" cut="" dir
+  local got got2 whole="" cut="" dir
   # shellcheck disable=SC2034 # _hi_payload_excl fills it, _hi_payload_cached reads it
   local -a payload_excl=()
-  dir="$(_hi_cache_rt pc.excl)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached whole || _hi_why dir || return 1
   _hi_payload_excl colors
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached cut || _hi_why dir || return 1
@@ -367,7 +353,7 @@ function test_payload_cached_is_keyed_on_the_cut_list() {
 # own: the cache is keyed on the tree, not only on the name
 function test_payload_cached_is_keyed_on_the_tree() {
   local a="" b="" dir other="$_HI_WORKDIR/another-home"
-  dir="$(_hi_cache_rt pc.trees)"
+  dir="$_HI_WORKDIR"
   mkdir -p "$other"
   ln -sfn "$_HI_ROOT" "$other/say-hi"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached a || _hi_why dir || return 1
@@ -377,7 +363,7 @@ function test_payload_cached_is_keyed_on_the_tree() {
 
 function test_payload_cached_rebuilds_when_a_source_file_is_newer() {
   local out="" dir
-  dir="$(_hi_cache_rt pc.stale)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached out || _hi_why dir || return 1
   _hi_cache_mark "$out"
   touch -t 200001010000 "$out"
@@ -387,13 +373,13 @@ function test_payload_cached_rebuilds_when_a_source_file_is_newer() {
 
 function test_payload_cached_is_off_when_the_toggle_is_zero() {
   local out="" dir
-  dir="$(_hi_cache_rt pc.off)"
+  dir="$_HI_WORKDIR"
   ! XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_payload_cached out || _hi_why dir
 }
 
 function test_payload_file_is_byte_identical_off_a_warm_cache() {
   local dir w="$_HI_WORKDIR/pf.same" a="" b="" c=""
-  dir="$(_hi_cache_rt pf.same)"
+  dir="$_HI_WORKDIR"
   mkdir -p "$w/1" "$w/2"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached c || _hi_why dir || return 1
   touch -t 203001010000 "$c"
@@ -408,7 +394,7 @@ function test_payload_file_is_byte_identical_off_a_warm_cache() {
 # the same members either way
 function test_payload_file_is_the_same_tree_with_the_cache_off() {
   local dir w="$_HI_WORKDIR/pf.off" warm="" cold="" a b
-  dir="$(_hi_cache_rt pf.off)"
+  dir="$_HI_WORKDIR"
   mkdir -p "$w/warm" "$w/cold"
   XDG_RUNTIME_DIR="$dir" _hi_payload_file warm "$w/warm" || _hi_why dir || return 1
   XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_payload_file cold "$w/cold" || _hi_why w || return 1
@@ -452,7 +438,7 @@ function test_ctl_open_shared_uses_the_runtime_dir() {
   local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.shared)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   [ "$ctl_shared" = 1 ] || _hi_why ctl_shared || return 1
   [ -z "$ctl_dir" ] || _hi_why ctl_dir || return 1
@@ -466,7 +452,7 @@ function test_ctl_open_shared_socket_name_stays_short() {
   local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0 base
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.short)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   base="${ctl_path##*/}"
   [ "${#base}" -le 20 ] || _hi_why base
@@ -478,7 +464,7 @@ function test_ctl_open_shared_key_splits_on_ssh_args() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared plain ported
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.key)"
+  dir="$_HI_WORKDIR"
   _hi_ctl_vars
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   plain="$ctl_path"
@@ -493,7 +479,7 @@ function test_ctl_open_shared_key_splits_on_the_target() {
   local dir ctl_dir ctl_path ctl_shared one two DOMAIN
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.dom)"
+  dir="$_HI_WORKDIR"
   DOMAIN=liona
   _hi_ctl_vars
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
@@ -510,7 +496,7 @@ function test_ctl_open_shared_falls_back_when_persist_is_zero() {
   local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.zero)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _HI_CTL_PERSIST=0 _hi_ctl_open 45 shared
   [ "$ctl_shared" = 0 ] || _hi_why ctl_shared || return 1
   { [ -n "$ctl_dir" ] && [ "$ctl_path" = "$ctl_dir/s" ] &&
@@ -550,6 +536,17 @@ function _hi_tag_run() {
   )
 }
 
+# a site settings.sh with no tag file joins alone: nothing reads the connect's stdin
+function test_tag_settings_join_a_site_file_without_reading_stdin() {
+  local dir rt out
+  dir="$(_hi_tag_fixture tag.site)"
+  rt="$_HI_WORKDIR"
+  mkdir -p "$dir/site"
+  printf 'export _HI_KEEP=1\n' >"$dir/site/settings.sh"
+  out="$(printf 'from stdin\n' | _hi_tag_run "$dir" "$rt" dev1)"
+  [[ "$out" == *"|joined|export _HI_KEEP=1;" ]] || _hi_because "the join: $out"
+}
+
 # a target that is no ssh host carries its backend's word: a docker
 # container reads settings.docker.sh, a pod settings.kube.sh, then its
 # context's and its namespace's files in that order, the last winning; an
@@ -557,7 +554,7 @@ function _hi_tag_run() {
 function test_tag_settings_read_a_backend_s_word() {
   local dir rt out
   dir="$(_hi_tag_fixture tag.backend)"
-  rt="$(_hi_cache_rt tag.backend.rt)"
+  rt="$_HI_WORKDIR"
   printf 'export _HI_KEEP=1\n' >"$dir/settings.docker.sh"
   printf 'export _HI_PLAIN=1\n' >"$dir/settings.kube.sh"
   printf 'export _HI_MAX_WIDTH=90\n' >"$dir/settings.ctx1.sh"
@@ -581,7 +578,7 @@ function test_tag_settings_read_a_backend_s_word() {
 function test_site_settings_ride_joined_under_the_user_s() {
   local dir rt out
   dir="$(_hi_tag_fixture tag.site)"
-  rt="$(_hi_cache_rt tag.site.rt)"
+  rt="$_HI_WORKDIR"
   mkdir -p "$dir/site"
   printf 'export _HI_MAX_WIDTH=70\n' >"$dir/site/settings.sh"
   printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
@@ -613,7 +610,7 @@ function test_site_packages_stand_in_until_the_user_copies() {
 function test_tag_settings_join_and_ride_for_a_tagged_host() {
   local dir rt out
   dir="$(_hi_tag_fixture tag.join)"
-  rt="$(_hi_cache_rt tag.join.rt)"
+  rt="$_HI_WORKDIR"
   printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
   out="$(_hi_tag_run "$dir" "$rt" me@web1)"
   [[ "$out" == "1|$rt/hi.settings."*"|joined|export _HI_MAX_WIDTH=100;export _HI_PLAIN=1;" ]] ||
@@ -624,7 +621,7 @@ function test_tag_settings_join_and_ride_for_a_tagged_host() {
 function test_tag_settings_read_a_config_d_file_s_name() {
   local dir rt out
   dir="$(_hi_tag_fixture tag.configd)"
-  rt="$(_hi_cache_rt tag.configd.rt)"
+  rt="$_HI_WORKDIR"
   mkdir -p "$dir/.ssh/config.d"
   printf 'Include config.d/*\n' >"$dir/ssh_config"
   printf 'Host web9\n  HostName 10.0.0.9\n' >"$dir/.ssh/config.d/acme"
@@ -637,7 +634,7 @@ function test_tag_settings_read_a_config_d_file_s_name() {
 function test_tag_settings_leave_other_hosts_alone() {
   local dir rt out
   dir="$(_hi_tag_fixture tag.other)"
-  rt="$(_hi_cache_rt tag.other.rt)"
+  rt="$_HI_WORKDIR"
   printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
   out="$(_hi_tag_run "$dir" "$rt" dev1)"
   [ "$out" = "0|$dir/settings.sh||export _HI_MAX_WIDTH=100;" ] || _hi_because "untagged: $out" || return 1
@@ -650,7 +647,7 @@ function test_tag_settings_leave_other_hosts_alone() {
 function test_tag_settings_stand_alone_and_keep_their_file() {
   local dir rt out first got2
   dir="$(_hi_tag_fixture tag.alone)"
-  rt="$(_hi_cache_rt tag.alone.rt)"
+  rt="$_HI_WORKDIR"
   out="$(_hi_tag_run "$dir" "$rt" web1)"
   [[ "$out" == "1|$rt/hi.settings."*"|joined|export _HI_PLAIN=1;" ]] || _hi_because "got: $out" || return 1
   first="$(ls -i "$rt"/hi.settings.*)"
@@ -664,7 +661,7 @@ function test_tag_settings_stand_alone_and_keep_their_file() {
 function test_tag_settings_ride_in_the_overlay_tar() {
   local dir rt out
   dir="$(_hi_tag_fixture tag.tar)"
-  rt="$(_hi_cache_rt tag.tar.rt)"
+  rt="$_HI_WORKDIR"
   printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" _HI_SSH_CONFIG="$dir/ssh_config"
@@ -695,7 +692,7 @@ function test_ctl_open_passes_nothing_when_disabled() {
   local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.off)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _HI_DISABLE_CONTROLMASTER=1 _hi_ctl_open 60 shared -o BatchMode=yes
   [ -z "$ctl_path" ] && [ -z "$ctl_dir" ] && [ "${ctl_opts[*]}" = "-o BatchMode=yes" ] || _hi_why ctl_path ctl_dir ctl_opts
 }
@@ -743,7 +740,7 @@ function test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket() {
 function test_ctl_open_declines_to_multiplex_on_msys() {
   local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
-  dir="$(_hi_cache_rt ctl.msys)"
+  dir="$_HI_WORKDIR"
   OSTYPE=msys XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   [ "$ctl_shared" = 0 ] && [ -z "$ctl_dir" ] && [ -z "$ctl_path" ] &&
     [ "${#ctl_opts[@]}" -eq 0 ] || _hi_why ctl_shared ctl_dir ctl_path ctl_opts || return 1
@@ -760,7 +757,7 @@ function test_ctl_open_run_never_shares() {
   local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.run)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run
   [ "$ctl_shared" = 0 ] || _hi_why ctl_shared || return 1
   { [ -d "$ctl_dir" ] && [ "$ctl_path" = "$ctl_dir/s" ] &&
@@ -774,7 +771,7 @@ function test_ctl_open_run_socket_dir_is_private() {
   local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0 mode
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.priv)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run
   # shellcheck disable=SC2012 # as above: one path, one fixed column
   mode="$(ls -ld "$ctl_dir" | cut -c1-10)"
@@ -785,7 +782,7 @@ function test_ctl_open_appends_extra_ssh_options() {
   local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.extra)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared -o BatchMode=yes
   _hi_ctl_has_opt "BatchMode=yes" || _hi_why
 }
@@ -796,7 +793,7 @@ function test_ctl_close_leaves_a_shared_socket_alone() {
   local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0 fake
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.keep)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   fake="$(_hi_fake_path ctlssh ssh)"
   PATH="$fake:$PATH" _hi_ctl_close || _hi_why fake || return 1
@@ -807,7 +804,7 @@ function test_ctl_close_removes_a_run_socket_dir() {
   local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0 fake
   local -a SSHARGS=() ctl_opts=()
   local OSTYPE=linux-gnu
-  dir="$(_hi_cache_rt ctl.drop)"
+  dir="$_HI_WORKDIR"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run
   [ -d "$ctl_dir" ] || _hi_why ctl_dir || return 1
   fake="$(_hi_fake_path ctlssh ssh)"
@@ -888,6 +885,7 @@ function run_cache_tests() {
   _hi_check "No runtime dir: the caller's own file" test_tag_settings_fall_back_without_a_runtime_dir
   _hi_check "A container reads its backend's file, a pod its context's and namespace's too" test_tag_settings_read_a_backend_s_word
   _hi_check "The site's settings.sh rides joined under the user's" test_site_settings_ride_joined_under_the_user_s
+  _hi_check "A site file with no tag's file leaves stdin alone" test_tag_settings_join_a_site_file_without_reading_stdin
   _hi_check "A site packages stands in for the tree's until the user copies one" test_site_packages_stand_in_until_the_user_copies
   _hi_check "Shared falls back without a runtime dir" test_ctl_open_shared_falls_back_without_a_runtime_dir
   _hi_check "Gives up quietly with nowhere to put a socket" test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket

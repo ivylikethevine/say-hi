@@ -380,8 +380,6 @@ function test_rc_home_names_a_keg_through_opt() {
   keg="$brew/Cellar/say-hi/1.2.3/libexec"
   opt="$brew/opt/say-hi/libexec"
   mkdir -p "$keg/say-hi" "$brew/Cellar/say-hi/1.2.2/libexec/say-hi" "$brew/opt"
-  # a rerun starts where the first try did: without the link
-  rm -f "$brew/opt/say-hi"
   ln -s ../Cellar/say-hi/1.2.3 "$brew/opt/say-hi"
   out="$(_hi_rc_out "$home" _HI_RC_PRELUDE='keg_lines() {
       _HI_HOME="$1"
@@ -458,8 +456,6 @@ function test_install_rc_lines_follows_a_zshenv_zdotdir() {
 function test_zshrc_here_reads_a_zshenv_by_grammar() {
   local home="$_HI_WORKDIR/zgrammar" line want got
   mkdir -p "$home"
-  # a rerun starts where the first try did: with no .zshenv from a row
-  rm -f "$home/.zshenv"
   got="$(_hi_rc_out "$home" -- _hi_zshrc_here)"
   [ "$got" = "$home/.zshrc" ] || _hi_because "with no .zshenv: [$got], not [$home/.zshrc]" || return 1
   while IFS='|' read -r line want; do

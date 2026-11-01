@@ -79,22 +79,15 @@ function writeSettings(text) {
   if (start === lines.length) return text;
   let rows;
   try {
-    rows = readFileSync(
-      new URL("../scripts/settings", import.meta.url),
-      "utf8",
-    );
+    rows = tableRows("../scripts/settings", " | ");
   } catch {
     return text;
   }
   const setBy = { advanced: "`hi --configure` advanced", you: "you" };
-  const table = rows
-    .split("\n")
-    .filter((l) => l && !l.startsWith("#"))
-    .map((l) => {
-      const c = l.split(" | ");
+  const table = rows.map((c) => {
       const by = setBy[c[0]] ?? "`hi --configure`";
       return `| \`${c[1]}\` | ${c[2]} | ${by} | ${c.slice(10).join(" | ")} |`;
-    });
+  });
   let end = start;
   while (end < lines.length && lines[end].startsWith("|")) end++;
   lines.splice(
@@ -107,12 +100,12 @@ function writeSettings(text) {
   return lines.join("\n");
 }
 
-// The rows of a `|`-separated table file, comments and blanks left out.
-function tableRows(path) {
+// The rows of a table file, comments and blanks left out.
+function tableRows(path, sep = "|") {
   return readFileSync(new URL(path, import.meta.url), "utf8")
     .split("\n")
     .filter((l) => l && !l.startsWith("#"))
-    .map((l) => l.split("|"));
+    .map((l) => l.split(sep));
 }
 
 // Prose from a table cell: nothing in it reads as markup.

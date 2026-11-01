@@ -85,7 +85,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-      pull-requests: read # dorny/paths-filter lists a PR's files via the API
     outputs:
       sweep: ${{ steps.gate.outputs.sweep }}
       sweep_kcov: ${{ steps.gate.outputs.sweep_kcov }}
@@ -95,15 +94,15 @@ jobs:
           egress-policy: block
           disable-sudo: true
           # Off this job's own audit log, which reached exactly one host: it
-          # checks out, asks the API for a green run to reuse and for a PR's
-          # file list, and uploads nothing. api.github.com is listed the way
+          # checks out, asks the API for a green run to reuse,
+          # and uploads nothing. api.github.com is listed the way
           # ci.yml's `changes` job lists it, though *.github.com is a GitHub
           # meta domain harden-runner allows itself either way.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
 
-      # fetch-depth 2 so the workflow_run arm below has HEAD^ to diff against
+      # fetch-depth 2 so the diff below has HEAD^
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -116,27 +115,11 @@ jobs:
       # .prettierrc.yaml are all read by the lint suites, so a change to one of
       # those can move coverage and has to sweep.
       #
-      # A PR's files come from the API; `some-with-excludes` and the bare `**`
-      # are what make a negated pattern mean anything at all (ci.yml says why).
-      - id: filter
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        with:
-          predicate-quantifier: some-with-excludes
-          filters: |
-            code:
-              - '**'
-              - '!.github/workflows/**'
-              - '!**/*.md'
-
-      # workflow_run carries no diff and gives paths-filter no base to compare
-      # against, so the range is read off the checkout instead. HEAD^..HEAD is
-      # the pushed commit, and on a merge to main its first parent, so the whole
-      # merged range. grep -v, so an unreadable or empty diff leaves code=true:
+      # The range is read off the checkout: HEAD^..HEAD is the pushed commit, on
+      # a merge to main its first parent, so the whole merged range, and on a PR
+      # the merge commit against its base. grep -v, so an unreadable or empty diff leaves code=true:
       # false only where something affirmatively says so, as in ci.yml's gate.
       - id: diff
-        if: github.event_name == 'workflow_run'
         continue-on-error: true
         run: |
           set -eu
@@ -188,8 +171,6 @@ jobs:
           WR_EVENT: ${{ github.event.workflow_run.event }}
           PR_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           FOUND_RUN: ${{ steps.find.outputs.run }}
-          FILTER_OUTCOME: ${{ steps.filter.outcome }}
-          FILTER_CODE: ${{ steps.filter.outputs.code }}
           DIFF_OUTCOME: ${{ steps.diff.outcome }}
           DIFF_CODE: ${{ steps.diff.outputs.code }}
         run: |
@@ -203,8 +184,7 @@ jobs:
           fi
           [ -z "$FOUND_RUN" ] || sweep=false
           # a docs-only diff, from whichever arm above ran
-          if { [ "$FILTER_OUTCOME" = success ] && [ "$FILTER_CODE" != true ]; } ||
-            { [ "$DIFF_OUTCOME" = success ] && [ "$DIFF_CODE" != true ]; }; then
+          if [ "$DIFF_OUTCOME" = success ] && [ "$DIFF_CODE" != true ]; then
             sweep=false sweep_kcov=false
           fi
           echo "sweep=$sweep" >>"$GITHUB_OUTPUT"
@@ -468,9 +448,7 @@ jobs:
           set -euo pipefail
           # shellcheck source=.github/actions/apt/lib.sh
           source .github/actions/apt/lib.sh
-          _ci_apt_drop_vendor_lists
-          _ci_apt_update
-          sudo apt-get install -y libdw1 libelf1 libcurl4 zlib1g libstdc++6
+          _ci_apt_install libdw1 libelf1 libcurl4 zlib1g libstdc++6
 
       - uses: ./.github/actions/setup-tools
         with:
@@ -612,15 +590,6 @@ jobs:
         with:
           prefix: coverage-tree
 
-      # absent where the merge published nothing; a PR sweeps no kcov, whose
-      # figure is main's below
-      - name: Take this run's bashcov figure
-        if: ${{ !cancelled() && env.HI_COMMENT == 'true' }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/pr"
-          [ ! -d coverage-v2-report/coverage-v2-pct ] || cp -R coverage-v2-report/coverage-v2-pct "$RUNNER_TEMP/pr/"
-
       # one lookup, both figures - dest-subdir carries no artifact name of its
       # own, so each still lands at main/<artifact-name>/pct, unchanged below
       - name: Fetch main's figures
@@ -694,9 +663,9 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          tests/coverage.sh --untested HEAD^1 - "$RUNNER_TEMP/pr/coverage-v2-pct/missed" \
+          tests/coverage.sh --untested HEAD^1 - "coverage-v2-report/coverage-v2-pct/missed" \
             >"$RUNNER_TEMP/untested" || rm -f "$RUNNER_TEMP/untested"
-          table="$(tests/coverage.sh --join "$RUNNER_TEMP/main/coverage-pct/files" "$RUNNER_TEMP/pr/coverage-v2-pct/files")"
+          table="$(tests/coverage.sh --join "$RUNNER_TEMP/main/coverage-pct/files" "coverage-v2-report/coverage-v2-pct/files")"
           printf '\n### Coverage by file (kcov: main)\n\n~~~text\n%s\n~~~\n' "$table" >>"$GITHUB_STEP_SUMMARY"
 
       # via env, never inline ${{ }} in the run block (zizmor: template-injection)
@@ -749,7 +718,7 @@ jobs:
           # kcov sweeps main alone, so this PR's average is main's kcov
           # figure beside its own bashcov one, and the verdict reads the
           # bashcov figure alone: the one this PR measured
-          b="$(fig "$RUNNER_TEMP/pr/coverage-v2-pct/pct")"
+          b="$(fig "coverage-v2-report/coverage-v2-pct/pct")"
           k0="$(fig "$RUNNER_TEMP/main/coverage-pct/pct")"
           b0="$(fig "$RUNNER_TEMP/main/coverage-v2-pct/pct")"
           a="$(avg "$k0" "$b")"

@@ -277,8 +277,7 @@ function test_payload_tar_stages_an_odd_tree_under_say_hi() {
 # list, and the overlay's copy of it all stay home; under _HI_DISABLE_LOCAL=1
 # only a line of settings.sh's own says so
 function test_header_off_keeps_the_header_home() {
-  local got
-  local dir="$_HI_WORKDIR/excl-header" listing _HI_PROMPT_TOOL="$_HI_PROMPT_TOOLS"
+  local got dir="$_HI_WORKDIR/excl-header" listing _HI_PROMPT_TOOL="$_HI_PROMPT_TOOLS"
   local -a payload_excl=()
   mkdir -p "$dir"
   printf '[core]\ngit = []\n' >"$dir/packages"
@@ -303,8 +302,7 @@ function test_header_off_keeps_the_header_home() {
 # ...and only there: _hi_wire_bytes and `hi --doctor` hold no $payload_excl,
 # so the figure the badge tracks is the stock tree whatever overlay is present
 function test_the_payload_is_whole_without_a_cut_list() {
-  local got
-  local dir="$_HI_WORKDIR/excl-none"
+  local got dir="$_HI_WORKDIR/excl-none"
   mkdir -p "$dir"
   printf '[hosttag]\nx = "red"\n' >"$dir/colors"
   got="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)"
@@ -314,8 +312,7 @@ function test_the_payload_is_whole_without_a_cut_list() {
 # the plugins rows are the packer's alone to read, and it never rides: the
 # tree's file is cut from every payload, and the overlay's is no member
 function test_the_plugins_rows_stay_home() {
-  local got
-  local dir="$_HI_WORKDIR/rows-home" listing
+  local got dir="$_HI_WORKDIR/rows-home" listing
   mkdir -p "$dir"
   printf '[mine.mine]\ntool = "-"\nwire = "env:MINE"\nhome = "/etc/mine"\nfiles = "mine.rc"\n' >"$dir/plugins"
   printf 'x\n' >"$dir/mine.rc"
@@ -576,8 +573,7 @@ function test_a_session_relays_its_tree_as_it_stands() {
 # ...and what an include of it names is the relaying hop's directory, which
 # the next hop makes its own
 function test_a_relay_hands_on_what_it_carried() {
-  local got
-  local dir next="$_HI_WORKDIR/nexthop/config" fix
+  local got dir next="$_HI_WORKDIR/nexthop/config" fix
   dir="$(_hi_session_tree)"
   mkdir -p "$next/vim"
   cp "$dir/say-hi/config/vim/vimrc" "$next/vim/vimrc"

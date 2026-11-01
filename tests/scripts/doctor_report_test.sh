@@ -37,11 +37,7 @@ function test_text_prints_rows_without_a_box() {
 }
 
 # the JSON document is its own form: asked for both, the run refuses
-function test_text_and_json_are_two_forms() {
-  local out rc=0
-  out="$("$_HI_DOCTOR" --text --json 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"two forms"* ]] || _hi_why rc out
-}
+function test_text_and_json_are_two_forms() { _hi_refused "two forms" "$_HI_DOCTOR" --text --json; }
 
 # a target never starts with a dash, so a dash word the parser does not know
 # is an error rather than the target; --keep and --no-keep
@@ -56,11 +52,7 @@ function test_unknown_flag_is_refused_not_taken_as_the_target() {
   [ "$rc" -eq 0 ] && [[ "$out" != *"Target: --"* ]] || _hi_why rc out
 }
 
-function test_a_second_target_is_refused() {
-  local out rc=0
-  out="$("$_HI_DOCTOR" one two 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time"* ]] || _hi_why rc out
-}
+function test_a_second_target_is_refused() { _hi_refused "one target at a time" "$_HI_DOCTOR" one two; }
 
 # an ssh option that takes a value takes the next word with it, so that word is
 # never the target; a bare ssh flag takes nothing
@@ -74,11 +66,7 @@ function test_an_ssh_value_option_takes_its_word() {
 }
 
 # ...and one that ends the line with no value is refused, not read as a flag
-function test_a_trailing_ssh_value_option_is_refused() {
-  local out rc=0
-  out="$("$_HI_DOCTOR" host -p 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"-p needs a value"* ]] || _hi_why rc out
-}
+function test_a_trailing_ssh_value_option_is_refused() { _hi_refused "-p needs a value" "$_HI_DOCTOR" host -p; }
 
 function test_use_equals_spelling_names_the_arm() {
   local out rc=0
@@ -91,18 +79,10 @@ function test_use_equals_spelling_names_the_arm() {
 
 # --use last on the line, with nothing after it, is the one arm the loop
 # cannot answer from inside: it falls out still waiting for the name
-function test_use_needs_a_backend_name() {
-  local out rc=0
-  out="$("$_HI_DOCTOR" --use 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--use needs a backend name"* ]] || _hi_why rc out
-}
+function test_use_needs_a_backend_name() { _hi_refused "--use needs a backend name" "$_HI_DOCTOR" --use; }
 
 # two --use naming different arms are refused, not resolved last-wins
-function test_use_twice_naming_two_backends_is_refused() {
-  local out rc=0
-  out="$("$_HI_DOCTOR" --use docker --use podman host 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--use podman and --use docker both name a backend; pick one"* ]] || _hi_why rc out
-}
+function test_use_twice_naming_two_backends_is_refused() { _hi_refused "--use podman and --use docker both name a backend; pick one" "$_HI_DOCTOR" --use docker --use podman host; }
 
 # --help anywhere on the line, not only first: after a flag, after a target
 function test_help_is_read_anywhere_on_the_line() {

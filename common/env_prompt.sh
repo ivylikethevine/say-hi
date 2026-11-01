@@ -49,16 +49,14 @@ _hi_mise_local() {
 # stdout, saving bash.sh's per-prompt fork. GLOSSARY: HI.05 + HI.54
 # shellcheck disable=SC2120 # the argument is optional by design
 _hi_env_prompt() {
-  # %s '', not a bare '' format: bash 3.2's printf -v skips a zero-conversion,
-  # zero-argument format outright, so a stale out-var from the previous draw
-  # would survive the early returns below (git_prompt.sh says the same)
+  # %s '': HI.05; clears a stale out-var before the early returns
   [[ -n "${1:-}" ]] && printf -v "$1" '%s' ''
   [[ "${_HI_DISABLE_ENV_STATUS:-0}" == 1 ]] && return
 
   # Every branch below is parameter expansion over a variable the tool
   # exported: no probe, no `command -v`, nothing that forks on a prompt draw.
   # mise is the one exception - see _hi_mise_local above.
-  local _hi_out="" _hi_src _hi_name _hi_outvar="${1:-}"
+  local _hi_out="" _hi_src _hi_name
   local _hi_defer="${_HI_ENV_DEFER:-0}"
   # The order is a word list, walked a word at a time by expansion rather than
   # by `for x in $list`: zsh does not word-split an unquoted expansion, and
@@ -125,17 +123,7 @@ _hi_env_prompt() {
   # cannot walk the prompt off the line
   ((${#_hi_out} > 32)) && _hi_out="${_hi_out:0:31}$_HI_GLYPH_ELLIPSIS"
 
-  if [[ -n "$_hi_outvar" ]]; then
-    printf -v "$_hi_outvar" '(%s) ' "$_hi_out"
-  else
-    printf '(%s) ' "$_hi_out"
-  fi
+  _hi_out "${1:-}" "($_hi_out) "
 }
 
-# see the top of the file; a caller that sourced this without core.sh (a
-# suite, fish's bash child) gets strict mode off and nothing more
-if type _hi_opts_restore >/dev/null 2>&1; then
-  _hi_opts_restore "$_hi_env_o"
-else
-  set +euo pipefail
-fi
+_hi_opts_restore "$_hi_env_o"

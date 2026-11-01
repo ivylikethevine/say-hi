@@ -26,14 +26,20 @@
 # to whatever it was, rather than left on for the rest of the caller. The
 # pattern matches test_lib.sh's _hi_strip_ansi: *(...) and not +(...), so a
 # bare `\e[m` reset counts as zero columns in both.
-function _hi_visible_len() {
-  local restore=0 stripped
+function _hi_strip_escapes() {
+  local _hi_se_r=0
   shopt -q extglob || {
     shopt -s extglob
-    restore=1
+    _hi_se_r=1
   }
-  stripped="${2//$'\e'\[*([0-9;])m/}"
-  ((restore)) && shopt -u extglob
+  printf -v "$1" '%s' "${2//$'\e'\[*([0-9;])m/}"
+  ((_hi_se_r)) && shopt -u extglob
+  return 0
+}
+
+function _hi_visible_len() {
+  local stripped
+  _hi_strip_escapes stripped "$2"
   # the same byte-vs-column split common/header.sh's _hi_visible_width takes,
   # and for the same reason: the box glyphs a rule is drawn from are three
   # bytes each, so a shell whose ${#} answers in bytes would size a column to

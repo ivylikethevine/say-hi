@@ -32,6 +32,7 @@ unset _hi_d
 # drift from the header. Sourcing header.sh only defines functions.
 # shellcheck source=../common/header.sh
 source "$_HI_HEADER"
+_hi_packages_palette || true
 # shellcheck source=./table.sh
 source "$_HI_ROOT/scripts/table.sh"
 
@@ -192,12 +193,7 @@ function _hi_pattern_for() {
 # every subnet-style pin, deduped in file order - each gets an example row in
 # the hosts table, since a globbed name never appears in targets.sh's list
 function _hi_pattern_pins() {
-  local cur_name
-  while IFS= read -r cur_name; do
-    case "$cur_name" in
-    *[\*\?]*) printf '%s\n' "$cur_name" ;;
-    esac
-  done < <(_hi_colors_rows hostname) | awk '!seen[$0]++'
+  _hi_colors_names hostname | grep '[*?]' || true
 }
 
 function _hi_color_source() {
@@ -278,27 +274,25 @@ function _hi_user_row() {
   _hi_row_end
 }
 
-# _hi_user_color_memo <user> <tag> <color-outvar> <escape-outvar> - most
-# groups share the same (user, tag) pair (usually the empty tag), and
-# _hi_resolve_color walks config/colors and ~/.ssh/config to answer one.
-# Reads/writes _hi_print_hosts_table's own parallel arrays through bash's
-# dynamic scoping, the same as _hi_group_index above.
+# _hi_user_color_memo <user> <tag> <escape-outvar> - most groups share the same
+# (user, tag) pair (usually the empty tag), and _hi_resolve_color walks
+# config/colors and ~/.ssh/config to answer one. Reads/writes
+# _hi_print_hosts_table's own parallel arrays through bash's dynamic scoping,
+# the same as _hi_group_index above. Prefixed locals: _hi_colors_scan assigns a
+# plain `color` (GLOSSARY: HI.04).
 function _hi_user_color_memo() {
-  local i color escape
-  for i in "${!_hi_upc_keys[@]}"; do
-    if [ "${_hi_upc_keys[i]}" = "$1"$'\x1f'"$2" ]; then
-      printf -v "$3" '%s' "${_hi_upc_colors[i]}"
-      printf -v "$4" '%s' "${_hi_upc_escapes[i]}"
+  local _hi_um_i _hi_um_c="" _hi_um_e
+  for _hi_um_i in "${!_hi_upc_keys[@]}"; do
+    if [ "${_hi_upc_keys[_hi_um_i]}" = "$1"$'\x1f'"$2" ]; then
+      printf -v "$3" '%s' "${_hi_upc_escapes[_hi_um_i]}"
       return 0
     fi
   done
-  color="$(_hi_resolve_color username "$1" "$2")"
-  _hi_color_escape "$color" escape
+  _hi_resolve_color username "$1" "$2" _hi_um_c
+  _hi_color_escape "$_hi_um_c" _hi_um_e
   _hi_upc_keys+=("$1"$'\x1f'"$2")
-  _hi_upc_colors+=("$color")
-  _hi_upc_escapes+=("$escape")
-  printf -v "$3" '%s' "$color"
-  printf -v "$4" '%s' "$escape"
+  _hi_upc_escapes+=("$_hi_um_e")
+  printf -v "$3" '%s' "$_hi_um_e"
 }
 
 # users table: every known real user with a non-default color, plus LOCALUSER
@@ -368,10 +362,7 @@ function _hi_print_users_table() {
 # table (LOCALUSER, each usertag) against that host's name(s)
 function _hi_print_hosts_table() {
   local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load # one load for every row
-  # shellcheck disable=SC2034 # user_color: a required outvar of
-  # _hi_user_color_memo below (its color half), never read on its own - only
-  # user_escape, the memo's second outvar, feeds the render loop
-  local name color_name source user user_color user_escape name_escape key
+  local name color_name source user user_escape name_escape key
   local cur_line sep sep_w candidate idx idx2 li total_lines itemtext previewtext
   local tag
   local user_width=0 pw pad local_hostname
@@ -384,7 +375,7 @@ function _hi_print_hosts_table() {
   local gidx localhostname_color="" localhostname_source
   # (user, tag) -> (color, escape), so the render loop below asks
   # _hi_resolve_color once per pair instead of once per (pair, group)
-  local _hi_upc_keys=() _hi_upc_colors=() _hi_upc_escapes=()
+  local _hi_upc_keys=() _hi_upc_escapes=()
 
   _hi_read_lines preview_users < <(_hi_preview_users)
   _hi_widen user_width ${preview_users[@]+"${preview_users[@]}"}
@@ -520,7 +511,7 @@ function _hi_print_hosts_table() {
 
       if ((li < ${#group_users[@]})); then
         user="${group_users[li]}"
-        _hi_user_color_memo "$user" "${group_tag[gidx]}" user_color user_escape
+        _hi_user_color_memo "$user" "${group_tag[gidx]}" user_escape
         # pad after the hostname so the next column lands at the same spot in
         # every user row beneath it, regardless of that user's name length;
         # depends only on $user, so once per row rather than once per column

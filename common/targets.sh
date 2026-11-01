@@ -16,10 +16,8 @@
 # wedged daemons cost the longest ceiling rather than the sum (the trade
 # header.sh's _hi_probe_start makes for the banner). Emission order stays the
 # roster's; a host with no writable scratch directory gets the in-turn sweep.
-# shellcheck disable=SC2329 # every function here is reached indirectly - by
-# the completion hook that sources this file, through run_lister's dispatch, or
-# as a background job - so "never invoked" is true of the file, not of five
-# lines in it.
+# shellcheck disable=SC2329 # every function here is reached indirectly, through
+# run_lister's dispatch or as a background job.
 
 # ssh_config_flat config|files <path> | ssh_config_flat include <words> - an ssh config
 # with every `Include` followed in place by the files it names (the line is
@@ -158,13 +156,6 @@ fi
 # hi.sh (parse_test.sh pins the two against each other). Answered before the
 # probes, like the flags. The membership test is paths.sh's $_HI_WORD_FLAGS.
 
-# plugin_tables <file> - the `[<group>.<name>]` tables of a plugins file, a
-# `<group>|<name>` line each; nothing when there is no file
-plugin_tables() {
-  [ -f "$1" ] || return 0
-  sed -n 's/^[[:space:]]*\[[[:space:]]*\([A-Za-z0-9_-]\{1,\}\)[[:space:]]*\.[[:space:]]*\([A-Za-z0-9_-]\{1,\}\)[[:space:]]*\].*/\1|\2/p' "$1"
-}
-
 if [ "$kind" = words ]; then
   # The packages file this session would actually read/write: the overlay's
   # when one exists, else the tree's (common/paths.sh's cascade, reimplemented
@@ -201,10 +192,10 @@ if [ "$kind" = words ]; then
     ;;
   --disable-plugin)
     # the plugins files read as text, since this file cannot source the
-    # packer: each table's plugin. A session has neither file, and no use
-    # for the flag.
+    # packer: each `[<group>.<name>]` table's plugin. A session has neither
+    # file, and no use for the flag.
     for f in "$hi_tree/config/plugins" "${_HI_CONFIG_DIR:-}/plugins"; do
-      plugin_tables "$f"
+      [ ! -f "$f" ] || sed -n 's/^[[:space:]]*\[[[:space:]]*\([A-Za-z0-9_-]\{1,\}\)[[:space:]]*\.[[:space:]]*\([A-Za-z0-9_-]\{1,\}\)[[:space:]]*\].*/\1|\2/p' "$f"
     done | awk -F'|' '!seen[$2]++ { printf "%s\ta plugin\n", $2 }'
     ;;
   --enable-plugin)
@@ -291,17 +282,9 @@ cache_body() {
   } <"$1"
 }
 
-# Private per-run scratch for a fan-out's output, made at most once and only
-# on a path that fans out (a host with no backends never reaches for `mkdir`).
-# `mkdir -m 700` and no `-p`: -p succeeds on a path somebody else got to first,
-# which would then be adopted and `rm -rf`'d on the way out.
+# Private per-run scratch for a fan-out's output, made only on a path that fans
+# out (a host with no backends never reaches for `mkdir`).
 scratch=""
-scratch_dir() {
-  [ -n "$scratch" ] && return 0
-  _hi_scratch="${TMPDIR:-/tmp}/hi-probe.$$"
-  mkdir -m 700 "$_hi_scratch" 2>/dev/null || return 1
-  scratch="$_hi_scratch"
-}
 
 # backend_wanted <label> - does the kind gate pass, is it left on, and is
 # its CLI (kube's is kubectl) here? Every half is a builtin, so the roster is sized before
@@ -386,7 +369,10 @@ emit_targets() {
   # worth its two forks only where something fans out: two or more backends,
   # or nomad/kube alone, whose own calls fan out inside the lane
   if [ "$n_wanted" -ge 2 ] || [ "$wanted" = nomad ] || [ "$wanted" = kube ]; then
-    scratch_dir
+    # `mkdir -m 700` and no `-p`: -p succeeds on a path somebody else got to
+    # first, which would then be adopted and `rm -rf`'d on the way out
+    _hi_scratch="${TMPDIR:-/tmp}/hi-probe.$$"
+    ! mkdir -m 700 "$_hi_scratch" 2>/dev/null || scratch="$_hi_scratch"
   fi
 
   # the dedupe pass only where two family lanes could list one daemon twice
@@ -469,11 +455,9 @@ list_kube() {
     kube_pods >"$scratch/kube.pods" 2>/dev/null
     wait
     IFS= read -r _hi_ns <"$scratch/kube.ns" 2>/dev/null || _hi_ns=""
-    [ -n "$_hi_ns" ] || _hi_ns=default
     kube_rows <"$scratch/kube.pods"
   else
     _hi_ns="$(kube_ns 2>/dev/null)"
-    [ -n "$_hi_ns" ] || _hi_ns=default
     kube_pods 2>/dev/null | kube_rows
   fi
 }
@@ -486,6 +470,7 @@ kube_pods() {
 
 # stdin is kube_pods' output; $_hi_ns decides which pods are emitted bare
 kube_rows() {
+  [ -n "${_hi_ns:-}" ] || _hi_ns=default
   while read -r ns pod c1 c2 rest; do
     [ -n "$pod" ] || continue
     [ "$ns" = "$_hi_ns" ] || pod="$ns:$pod"
@@ -526,12 +511,12 @@ if [ -z "$cache_dir" ] || [ ! -d "$cache_dir" ]; then
   # prints the owner as a number always, so the uid we already have answers
   # for a host with a passwd entry and for one without alike, and no second
   # `id -un` fork is needed to cover the difference.
-  # shellcheck disable=SC2012 # `find -maxdepth` is not POSIX and `find -user`
+  # shellcheck disable=SC2012,SC2046 # `find -maxdepth` is not POSIX and `find -user`
   # takes a user *name*, which is exactly what a host with no passwd entry for
   # the caller cannot supply. SC2012's hazard is parsing file *names* out of
   # ls; this reads a fixed column off one path this script built itself.
-  _hi_owner="$(ls -ldn "$cache_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
-  if [ ! -d "$cache_dir" ] || [ -L "$cache_dir" ] || [ -z "$_hi_owner" ] || [ "$_hi_owner" != "$_hi_uid" ]; then
+  set -- $(exec ls -ldn "$cache_dir" 2>/dev/null)
+  if [ ! -d "$cache_dir" ] || [ -L "$cache_dir" ] || [ "${3:-}" != "$_hi_uid" ]; then
     emit_targets
     exit 0
   fi
@@ -545,12 +530,8 @@ write_cache() {
   _hi_tmp="$cache.$$"
   # stderr first: a 2>/dev/null after the redirection that fails comes too
   # late to catch the shell's own message
-  # shellcheck disable=SC2086 # ${1:+"$1"} - vanishes when empty, one word when not
-  if printf '%s\n' "$now" ${1:+"$1"} 2>/dev/null >"$_hi_tmp"; then
-    mv "$_hi_tmp" "$cache" 2>/dev/null || rm -f "$_hi_tmp" 2>/dev/null
-  else
-    rm -f "$_hi_tmp" 2>/dev/null
-  fi
+  # shellcheck disable=SC2015,SC2086 # ${1:+"$1"} - vanishes when empty, one word when not
+  printf '%s\n' "$now" ${1:+"$1"} 2>/dev/null >"$_hi_tmp" && mv "$_hi_tmp" "$cache" 2>/dev/null || rm -f "$_hi_tmp" 2>/dev/null
 }
 
 # The timestamp is the cache's first line, not the mtime (every portable way
@@ -570,20 +551,13 @@ if [ -f "$cache" ] && [ -r "$cache" ]; then
   IFS= read -r stamp <"$cache" 2>/dev/null || stamp=""
   case "$stamp" in
   '' | *[!0-9]*) ;; # not a timestamp - treat as a miss and rewrite it
-  *)
-    if [ "$now" -ge "$stamp" ]; then
-      age=$((now - stamp))
-      if [ "$age" -lt "$ttl" ]; then
-        cache_body "$cache"
-        exit 0
-      fi
-    fi
-    ;;
+  *) [ "$now" -lt "$stamp" ] || age=$((now - stamp)) ;;
   esac
 fi
 
-if [ -n "$age" ] && [ "$age" -lt "$stale_for" ]; then
+if [ -n "$age" ] && { [ "$age" -lt "$ttl" ] || [ "$age" -lt "$stale_for" ]; }; then
   cache_body "$cache"
+  [ "$age" -ge "$ttl" ] || exit 0
   # One refresh at a time, or every TAB in the window a sweep takes would
   # start another. The lock is a directory (made or not in one call) holding
   # the time it was taken; one older than any sweep runs (a flat 30s) was left

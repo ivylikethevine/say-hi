@@ -82,6 +82,23 @@ function _hi_because() {
   return 1
 }
 
+# _hi_prints <want> <cmd...> - a case whose whole claim is one command's output
+function _hi_prints() {
+  local want="$1" got
+  shift
+  got="$("$@")" || :
+  [ "$got" = "$want" ] || _hi_because "from: $* - wanted [$want], got [$got]"
+}
+
+# _hi_refused <phrase> <cmd...> - a case whose claim is a refusal: exit 1, with
+# <phrase> in what it said
+function _hi_refused() {
+  local phrase="$1" out rc=0
+  shift
+  out="$("$@" 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"$phrase"* ]] || _hi_because "from: $* - exit $rc, wanted [$phrase], got [$out]"
+}
+
 # _hi_why [-N] [name...] - _hi_because for an assertion with no words of its
 # own: the statement that failed, read off the suite's file at the caller's
 # line, and each named variable as the case had it, cut at 300 characters.

@@ -501,11 +501,13 @@ function test_hi_cell_hue_reads_a_truecolor_escape() {
   [ -z "$h" ] || _hi_why h
 }
 
+# test_header_hues_never_repeat_under_a_scheme <$_HI_COLOR_SCHEME> - a word list,
+# or a name no scheme has, which takes the fallback
 function test_header_hues_never_repeat_under_a_scheme() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # the scheme lives and dies in this subshell
-    export _HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$1" _HI_TRUECOLOR=1
     _hi_assign_palette
     _hi_packages_palette
     test_header_hues_never_repeat_in_the_default_order
@@ -660,7 +662,6 @@ function test_a_header_cell_that_does_not_parse_is_skipped() {
     unset _HI_HEADER_WORDS
     _HI_HEADER_CELLS="$dir" _hi_header_vocab v 2>&1 && printf '|%s' "${v#"$_HI_HEADER_ORDER_DEFAULT"}"
   )"
-  rm -f "$dir/torn"
   [[ "$out" == *"header cell torn does not parse in bash; skipped"*"| sea sky" && "$out" != *HALF-RUN* ]] ||
     _hi_because "got: [$out]"
 }
@@ -725,18 +726,6 @@ function test_header_hues_are_inert_under_no_color() {
   [[ "$out" != *$'\e['* ]] || _hi_why out
 }
 
-function test_header_hues_never_repeat_under_a_24_word_scheme() {
-  local ok=0
-  (
-    # shellcheck disable=SC2030,SC2031 # the scheme lives and dies in this subshell
-    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1
-    _hi_assign_palette
-    _hi_packages_palette
-    test_header_hues_never_repeat_in_the_default_order
-  ) && ok=1
-  [ "$ok" = 1 ] || _hi_why ok
-}
-
 function run_header_whole_tests() {
   _hi_header_begin
 
@@ -790,8 +779,9 @@ function run_header_whole_tests() {
   _hi_check "Every order word has an alternate defined" test_header_word_alt_is_defined_for_every_order_word
   _hi_check "The default order never needs its own alternate" test_header_default_order_needs_no_alternate
   _hi_check "No two adjacent cells share a hue in the default order" test_header_hues_never_repeat_in_the_default_order
-  _hi_check "...nor under a color scheme" test_header_hues_never_repeat_under_a_scheme
-  _hi_check "...nor under a 24-word scheme" test_header_hues_never_repeat_under_a_24_word_scheme
+  _hi_check "...nor under a color scheme" test_header_hues_never_repeat_under_a_scheme vscode
+  _hi_check "...nor under a 24-word scheme" test_header_hues_never_repeat_under_a_scheme "$_HI_TEST_L24"
+  _hi_check "...under a 48-word scheme" test_header_hues_never_repeat_under_a_scheme "$_HI_TEST_L48"
   _hi_check "...nor in a pathological same-hue order" test_header_hues_never_repeat_in_a_pathological_order
   _hi_check "A header/ member's cell draws where the order puts it" test_a_header_cell_of_your_own_draws
   _hi_check "...one that does not parse is skipped, and says so" test_a_header_cell_that_does_not_parse_is_skipped

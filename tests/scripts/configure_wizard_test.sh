@@ -229,7 +229,7 @@ function test_apply_preset_seeds_every_answer() {
   apply_preset minimal >/dev/null || _hi_why || return 1
   # named by the preset: off; not named: back to on, even though the file
   # says off; outside the vocabulary: still the file's
-  { setting_off _HI_DISABLE_HEADER "$target" 1 && ! setting_off _HI_DISABLE_PROMPT "$target" 1; } || _hi_why target || return 1
+  { setting_off _HI_DISABLE_HEADER "$target" && ! setting_off _HI_DISABLE_PROMPT "$target"; } || _hi_why target || return 1
   got="$(setting_value _HI_MAX_WIDTH "$target")"
   [ "$got" = 120 ] || _hi_why got target
 }

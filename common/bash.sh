@@ -77,8 +77,6 @@ function _hi_prompt_fw() {
     ;;
   esac
 }
-_hi_pt=""
-[[ "${_HI_DISABLE_PROMPT:-0}" == 1 ]] || _hi_prompt_tool bash _hi_pt || true
 
 # complete `hi` from the same target list zsh/fish use.
 #
@@ -206,19 +204,10 @@ function _hi_ps1_stock() {
 
 # modified from: https://github.com/riobard/bash-powerline/blob/master/bash-powerline.sh
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
-  # an extension's decision first (HI.59): $_HI_PROMPT_DRAWN=1 says it drew
-  # the prompt itself, $_HI_PROMPT_INIT names a program's init to run where
-  # this box has it; either way hi stands down, else the list below decides
-  _hi_pdone="" _hi_marks_for=""
-  if [[ "${_HI_PROMPT_DRAWN:-0}" == 1 ]]; then
-    _hi_pdone=1
-  elif [ -n "${_HI_PROMPT_INIT:-}" ]; then
-    # shellcheck disable=SC2086 # the words are the command's
-    _hi_run_init bash $_HI_PROMPT_INIT && _hi_pdone=1
-  fi
-  if [ -n "$_hi_pdone" ]; then
+  _hi_pt="" _hi_marks_for=""
+  if _hi_prompt_ext bash; then
     :
-  elif [ -n "$_hi_pt" ]; then
+  elif _hi_prompt_tool bash _hi_pt; then
     # each the way its own README wires it into an rc. GLOSSARY: HI.32
     case "$_hi_pt" in
     powerline-go)
@@ -439,7 +428,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     unset _hi_t _hi_q _hi_e
   fi
 fi
-unset _hi_pt _hi_pdone _hi_omb_theme _hi_bashit_theme _hi_marks_for
+unset _hi_pt _hi_omb_theme _hi_bashit_theme _hi_marks_for
 
 # Last in the required block, once every alias has expanded its paths:
 # children inherit core.sh's _HI_CHILD_ENV and nothing else with the prefix.

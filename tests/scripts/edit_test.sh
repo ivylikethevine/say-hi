@@ -34,11 +34,7 @@ function _hi_edit_run() {
 }
 
 # _hi_edit_cfg <name> - a fresh overlay directory's path; nothing is made
-function _hi_edit_cfg() {
-  local n=1
-  while [ -e "$_HI_WORKDIR/$1-cfg.$n" ] || [ -e "$_HI_WORKDIR/$1-cfg.$n.opened" ]; do n=$((n + 1)); done
-  printf '%s' "$_HI_WORKDIR/$1-cfg.$n"
-}
+function _hi_edit_cfg() { printf '%s' "$_HI_WORKDIR/$1-cfg"; }
 
 # _hi_edit_opened <config> - what the recorder was handed, one argument a line
 function _hi_edit_opened() { cat "$1.opened" 2>/dev/null; }

@@ -117,8 +117,12 @@ function test_example_cell_marks_a_group_with_nothing_to_show() {
 # points at the table code, not at whatever the child's environment did.
 _HI_GROUPS_OUT=""
 
+function _hi_groups_out() { _HI_PACKAGES_GROUPS="$_HI_PREVIEW_GROUPS" _hi_shared_out _HI_GROUPS_OUT _hi_print_groups_table; }
+
+function _hi_groups_rectangular() { _hi_groups_out && _hi_table_is_rectangular "$_HI_GROUPS_OUT"; }
+
 function test_groups_table_renders_all_columns() {
-  _HI_GROUPS_OUT="$(_HI_PACKAGES_GROUPS="$_HI_PREVIEW_GROUPS" _hi_print_groups_table)" || _hi_why || return 1
+  _hi_groups_out || _hi_why || return 1
   local stripped
   stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
   [[ "$stripped" == *"| GROUP "* && "$stripped" == *"| STATE "* ]] &&
@@ -128,6 +132,7 @@ function test_groups_table_renders_all_columns() {
 
 # file order, the order a reader finds the groups in
 function test_groups_table_keeps_file_order() {
+  _hi_groups_out || _hi_why || return 1
   local stripped
   stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
   { _hi_before "$stripped" '^| (no group) ' '^| core ' &&
@@ -137,6 +142,7 @@ function test_groups_table_keeps_file_order() {
 
 # STATE is whether $_HI_PACKAGES_GROUPS runs the group
 function test_groups_table_says_on_and_off() {
+  _hi_groups_out || _hi_why || return 1
   local stripped got got2
   stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
   got="$(printf '%s\n' "$stripped" | grep '^| core ')"
@@ -147,6 +153,7 @@ function test_groups_table_says_on_and_off() {
 # the INSTALLED/MISSING cells name the colors of the group's tier: core is
 # tier 3, the shipped ramp's brgreen/brred, and platform tier 0, cyan/blue
 function test_groups_table_names_the_ramp_colors() {
+  _hi_groups_out || _hi_why || return 1
   local stripped row
   stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
   row="$(printf '%s\n' "$stripped" | grep '^| core ')"
@@ -157,6 +164,7 @@ function test_groups_table_names_the_ramp_colors() {
 
 # the EXAMPLE column shows the fixture's own rows, an off group's included
 function test_groups_table_shows_the_real_examples() {
+  _hi_groups_out || _hi_why || return 1
   local stripped got got2
   stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
   got="$(printf '%s\n' "$stripped" | grep '^| core ')"
@@ -180,6 +188,7 @@ function test_groups_table_drops_an_empty_no_group_row() {
 # that leaves groups off - the same numbers the child render asserts, proved
 # here to come from the table code itself
 function test_groups_table_counts_below_the_table() {
+  _hi_groups_out || _hi_why || return 1
   [[ "$_HI_GROUPS_OUT" == *"14 listed, 8 shown, 2 silent by their table"* ]] &&
     [[ "$_HI_GROUPS_OUT" == *"4 more in groups \$_HI_PACKAGES_GROUPS leaves off (core useful deprecated run)"* ]] || _hi_why _HI_GROUPS_OUT _HI_PACKAGES_GROUPS
 }
@@ -303,8 +312,12 @@ function test_packages_stray_argument_is_refused() {
 # negated case then passes no matter what the table said.
 _HI_PACKAGES_OUT=""
 
+function _hi_packages_out() { _hi_shared_out _HI_PACKAGES_OUT _hi_render_packages; }
+
+function _hi_packages_rectangular() { _hi_packages_out && _hi_table_is_rectangular "$_HI_PACKAGES_OUT"; }
+
 function test_preview_renders_without_error() {
-  _HI_PACKAGES_OUT="$(_hi_render_packages)" || _hi_why || return 1
+  _hi_packages_out || _hi_why || return 1
   [[ "$_HI_PACKAGES_OUT" == *"| GROUP "* && "$_HI_PACKAGES_OUT" == *MARK* ]] || _hi_why _HI_PACKAGES_OUT
 }
 
@@ -312,6 +325,7 @@ function test_preview_renders_without_error() {
 # ramp is on screen, not just render one - the same three shapes the scheme
 # line prints
 function test_preview_names_the_active_palette() {
+  _hi_packages_out || _hi_why || return 1
   local out
   [[ "$_HI_PACKAGES_OUT" == *"palette: default"* && "$_HI_PACKAGES_OUT" == *"scheme: default"* ]] || _hi_why _HI_PACKAGES_OUT || return 1
   out="$(_HI_PACKAGES_PALETTE="$_HI_TEST_RAMP" _hi_render_packages)" || _hi_why || return 1
@@ -335,6 +349,7 @@ function test_preview_names_a_custom_scheme_and_its_bank() {
 }
 
 function test_preview_names_every_group() {
+  _hi_packages_out || _hi_why || return 1
   local g stripped
   stripped="$(_hi_strip_ansi "$_HI_PACKAGES_OUT")"
   for g in core useful deprecated extras platform; do
@@ -345,10 +360,12 @@ function test_preview_names_every_group() {
 # the lines under the marks are the only place the three tables are
 # explained, so the render has to carry them
 function test_preview_explains_the_markers() {
+  _hi_packages_out || _hi_why || return 1
   printf '%s\n' "$_HI_PACKAGES_OUT" | grep -qF 'a row under [group.unwanted] speaks only when installed' || _hi_why _HI_PACKAGES_OUT
 }
 
 function test_preview_counts_what_it_read() {
+  _hi_packages_out || _hi_why || return 1
   { printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q '14 listed, 8 shown, 2 silent by their table' &&
     printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q '4 more in groups'; } || _hi_why _HI_PACKAGES_OUT
 }
@@ -357,6 +374,7 @@ function test_preview_counts_what_it_read() {
 # header would show has to appear below the tables as well as inside them -
 # and one from a group that is off, only inside them
 function test_preview_ends_with_the_real_check() {
+  _hi_packages_out || _hi_why || return 1
   local tail
   tail="$(printf '%s\n' "$_HI_PACKAGES_OUT" | tail -3)"
   [[ "$tail" == *hialpha* && "$tail" != *hicharlie* ]] || _hi_why tail
@@ -441,7 +459,7 @@ function run_preview_packages_tests() {
   _hi_check "Legend counts below the table" test_groups_table_counts_below_the_table
   _hi_check "Off note vanishes with nothing off" test_groups_table_drops_the_off_note_at_zero
   _hi_check "A file of your own names what it lacks" test_packages_drift_names_groups_and_stray_markers
-  _hi_check "Legend is rectangular" _hi_table_is_rectangular "$_HI_GROUPS_OUT"
+  _hi_check "Legend is rectangular" _hi_groups_rectangular
   _hi_check "Marks table explains every mark" test_marks_table_explains_every_mark
   _hi_check "Marks table paints each glyph" test_marks_table_paints_each_glyph
   _hi_check "Marks table is rectangular" test_marks_table_is_rectangular
@@ -459,7 +477,7 @@ function run_preview_packages_tests() {
   _hi_check "Explains the tables" test_preview_explains_the_markers
   _hi_check "Counts what it read" test_preview_counts_what_it_read
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
-  _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
+  _hi_check "Every line of a table is the same width" _hi_packages_rectangular
   _hi_check "Follows \$_HI_PACKAGES_GROUPS" test_preview_follows_the_groups_setting
   _hi_check "Reports no packages file at all" test_preview_reports_no_packages_file
   _hi_check "An exported \$_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages

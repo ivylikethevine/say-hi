@@ -617,7 +617,7 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 ```
 
-`$_HI_TEST_LIB` is exported by `common/paths.sh`, so under `test_runner.sh` the
+`$_HI_TEST_LIB` is exported by `test_lib.sh`, so under `test_runner.sh` the
 harness is found through the tree the runner resolved. The `${...:-}` tail is
 the fallback for running a suite directly; its `../` depth is the suite's
 distance from `tests/`, so a suite that moves has to have it re-counted.
@@ -764,8 +764,8 @@ shell will parse, and some of it is data: `$DOMAIN` off argv,
 `git describe --dirty`. An unescaped `$`, quote, or backtick in any of them
 breaks the bootloader's parse and lets the target run a command substitution
 it should not. `_hi_on_target` quotes ssh's `sh -c` word through the same
-function, and `_hi_env_each` hands its format values already quoted (`%s=%s`,
-never `%s="%s"`), so quoting is one decision rather than one per transport.
+function, and `_hi_env_each` prints its export lines already quoted, so quoting
+is one decision.
 
 ## HI.41 overlay stream
 

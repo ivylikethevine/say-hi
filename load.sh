@@ -74,10 +74,7 @@ if [ -r "$_HI_ROOT/common/keep.sh" ]; then
 else
   function _hi_keep_file() { :; }
   function _hi_keep_claim() { :; }
-  function _hi_keep_holds() {
-    _hi_keep_limit=0
-    return 1
-  }
+  function _hi_keep_holds() { return 1; }
   function _hi_keep_panes() { :; }
   function _hi_keep_watch() { :; }
   function _hi_keep_stays() { return 1; }

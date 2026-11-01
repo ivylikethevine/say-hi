@@ -439,17 +439,11 @@ if [ -n "$_HI_SHARD" ]; then
     _hi_cecho "test_runner.sh: --shard $_HI_SHARD is out of range (1/$_hi_shard_n to $_hi_shard_n/$_hi_shard_n)" "$RED"
     exit 1
   fi
-  declare -a _hi_sharded=() _hi_loads=()
+  declare -a _hi_sharded=()
   _hi_mine=" "
   if _hi_shard_by_cost; then
-    for ((_hi_k = 0; _hi_k < _hi_shard_n; _hi_k++)); do _hi_loads[_hi_k]=0; done
-    while read -r _hi_c _hi_k; do
-      _hi_min=0
-      for ((_hi_j = 1; _hi_j < _hi_shard_n; _hi_j++)); do
-        if [ "${_hi_loads[_hi_j]}" -lt "${_hi_loads[_hi_min]}" ]; then _hi_min=$_hi_j; fi
-      done
-      _hi_loads[_hi_min]=$((_hi_loads[_hi_min] + _hi_c))
-      if [ "$_hi_min" -eq $((_hi_shard_i - 1)) ]; then _hi_mine="$_hi_mine$_hi_k "; fi
+    while read -r _hi_j _hi_k; do
+      if [ "$_hi_j" -eq $((_hi_shard_i - 1)) ]; then _hi_mine="$_hi_mine$_hi_k "; fi
     done < <(
       _hi_k=0
       for _hi_t in "${_HI_SELECTED[@]}"; do
@@ -457,7 +451,7 @@ if [ -n "$_HI_SHARD" ]; then
         _hi_test_cost "$_hi_tn"
         printf '%s %s\n' "$_hi_cost" "$_hi_k"
         _hi_k=$((_hi_k + 1))
-      done | sort -k1,1nr -k2,2n
+      done | sort -k1,1nr -k2,2n | _hi_deal "$_hi_shard_n"
     )
   fi
   _hi_k=0

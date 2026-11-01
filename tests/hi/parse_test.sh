@@ -37,12 +37,13 @@ function _hi_parse_out() {
   )
 }
 
-function test_parse_handles_several_flags_before_the_target() {
-  local got got2
-  got="$(_hi_parse_out -4 -o StrictHostKeyChecking=no -i /tmp/k myhost)"
-  got2="$(printf 'myhost\n\n-4\n-o\nStrictHostKeyChecking=no\n-i\n/tmp/k\n')"
-  [ "$got" = \
-    "$got2" ] || _hi_why got got2
+# a refusal _hi_refused can read: what _hi_parse said, from a subshell as it exits
+function _hi_parse_says() { (_hi_parse "$@" </dev/null 2>&1 >/dev/null); }
+
+function test_parse_use_rejects_a_stranger() {
+  local rc=0 out
+  out="$(_hi_parse_says --use frobnicate myhost)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--use"*ssh*docker*kube* ]] || _hi_why rc out
 }
 
 # a trailing command becomes CMDARG - suffixed with "; exit" so the target
@@ -63,12 +64,6 @@ function test_parse_dashed_word_after_the_target_is_the_command() {
   [[ "$out" == myhost*"-la;"*exit* ]] && [ "$got" -eq 2 ] || _hi_why got out
 }
 
-function test_parse_leaves_cmdarg_empty_for_a_plain_session() {
-  local got
-  got="$(_hi_parse_out myhost | sed -n 2p)"
-  [ "$got" = "" ] || _hi_why got
-}
-
 # "--" is ssh's own option terminator and rides along as one more ssh
 # argument: it does not end option parsing, and the word after it is still
 # read as a flag, not a target. With no DOMAIN set and SSHARGS non-empty,
@@ -76,56 +71,12 @@ function test_parse_leaves_cmdarg_empty_for_a_plain_session() {
 # status - it never returns to _hi_parse_out, so this shims ssh to log its
 # argv and exit 3, and asserts both.
 function test_parse_dashdash_does_not_end_option_parsing() {
-  local got
-  local bin="$_HI_WORKDIR/dashdash.bin" log="$_HI_WORKDIR/dashdash.log" rc=0
+  local got bin="$_HI_WORKDIR/dashdash.bin" log="$_HI_WORKDIR/dashdash.log" rc=0
   _hi_script "$bin/ssh" '#!/bin/sh' "printf '%s\n' \"\$*\" >\"$log\"" 'exit 3'
   (PATH="$bin:$PATH" _hi_parse -- -oddtarget >/dev/null 2>&1) || rc=$?
   [ "$rc" -eq 3 ] || _hi_why rc || return 1
   got="$(cat "$log")"
   [ "$got" = "-- -oddtarget" ] || _hi_why got log
-}
-
-# ssh takes no option that starts with two dashes, so every --word is hi's:
-# a stranger is hi's error and exit 1, never ssh's usage message
-function test_parse_unknown_double_dash_word_is_his_error() {
-  local out rc=0
-  out="$( (_hi_parse --docter myhost 2>&1 >/dev/null) )" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"hi: unknown option --docter"* ]] || _hi_why rc out
-}
-
-# a local command is dispatched on the first word alone; behind an ssh
-# option it is named as out of place, not as a stranger
-function test_parse_local_command_behind_an_option_is_named() {
-  local out rc=0
-  out="$( (_hi_parse -v --doctor myhost 2>&1 >/dev/null) )" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--doctor goes first"* ]] || _hi_why rc out
-}
-
-# the target ends the options: a dashed word after it is the remote
-# command's, the way `ssh host ls -la` reads - and one of hi's own flags
-# there is refused by name rather than run on the far end
-function test_parse_own_flag_after_the_target_is_refused() {
-  local out rc=0
-  out="$( (_hi_parse myhost --use docker 2>&1 >/dev/null) )" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--use goes before the target"* ]] || _hi_why rc out
-}
-
-# hi's own flags with nothing to connect to:
-# hi's error, never ssh's usage message (ssh saw none of them)
-function test_parse_own_flag_without_a_target_is_his_error() {
-  local out rc=0
-  out="$( (_hi_parse --plain </dev/null 2>&1 >/dev/null) )" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"no target to connect to"* ]] || _hi_why rc out || return 1
-  rc=0
-  out="$( (_hi_parse --use docker </dev/null 2>&1 >/dev/null) )" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"no target to connect to"* ]] || _hi_why rc out
-}
-
-# a bare flag given a joined value is told so, not told to go first
-function test_parse_bare_flag_with_a_value_is_refused() {
-  local out rc=0
-  out="$( (_hi_parse --plain=1 myhost 2>&1 >/dev/null) )" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--plain takes no value"* ]] || _hi_why rc out
 }
 
 # ...and which flags are bare is common/flags' empty <argument> column plus
@@ -174,8 +125,7 @@ function test_is_ssh_host_ignores_a_wildcard_block() {
 }
 
 function test_select_arm_wildcard_host_does_not_shadow_a_container() {
-  local got
-  local DOMAIN=yes BACKEND=
+  local got DOMAIN=yes BACKEND=
   got="$(_HI_SSH_CONFIG="$(_hi_wild_ssh_config)" PATH="$_HI_SHIM_PATH" _hi_select_arm)"
   [ "$got" = docker ] || _hi_why got _HI_SHIM_PATH
 }
@@ -190,20 +140,6 @@ function test_select_arm_takes_user_at_host_unprobed() {
   DOMAIN=admin@cluster:default:web
   got2="$(PATH="$shims:$PATH" _hi_select_arm)"
   [ -z "$got" ] && [ -n "$got2" ] || _hi_why got got2 shims
-}
-
-# a value-taking flag with nothing after it must report itself, not die on an
-# unbound $2 or swallow the next argument
-function test_parse_rejects_a_flag_missing_its_value() {
-  local rc=0
-  (_hi_parse -p >/dev/null 2>&1) || rc=$?
-  [ "$rc" -eq 1 ] || _hi_why rc
-}
-
-function test_parse_names_the_offending_flag() {
-  local out
-  out="$( (_hi_parse -o 2>&1 >/dev/null) || true)"
-  [[ "$out" == *"-o"* ]] || _hi_why out
 }
 
 # Bare `hi` - no target, no ssh option - prints the help and exits 0, terminal
@@ -346,8 +282,7 @@ function test_resolve_backend_prints_nothing_for_a_stranger() {
 
 # no CLI at all: every predicate is false, and _hi falls through to ssh
 function test_resolve_backend_prints_nothing_without_any_cli() {
-  local got
-  local empty="$_HI_WORKDIR/empty"
+  local got empty="$_HI_WORKDIR/empty"
   mkdir -p "$empty"
   got="$(PATH="$empty" _hi_resolve_backend yes)"
   [ -z "$got" ] || _hi_why got empty
@@ -386,31 +321,6 @@ function test_use_backend_refuses_a_second_arm() {
   [ -z "$out" ] && [[ "$err" == *"--use podman and --use docker both name a backend; pick one"* ]] || _hi_why out err
 }
 
-# --use=<backend> is the same flag with its word joined, the spelling
-# install.sh's --prefix and --preset already take, and must not fall through
-# to ssh as an unknown option
-function test_parse_use_takes_the_equals_spelling() {
-  local got got2 got3 got4
-  got="$(_hi_backend_parse_out --use=nerdctl myhost)"
-  got2="$(printf 'myhost\nnerdctl\n')"
-  got3="$(_hi_parse_out --use=podman myhost)"
-  got4="$(printf 'myhost\n\n')"
-  [ "$got" = "$got2" ] && [ "$got3" = "$got4" ] || _hi_why got got2 got3 got4
-}
-
-function test_parse_use_equals_rejects_a_stranger() {
-  local rc=0
-  (_hi_parse --use=frobnicate myhost >/dev/null 2>&1) || rc=$?
-  [ "$rc" -eq 1 ] || _hi_why rc
-}
-
-function test_parse_use_rejects_a_stranger() {
-  local rc=0 out
-  out="$( (_hi_parse --use frobnicate myhost 2>&1 >/dev/null) || true)"
-  (_hi_parse --use frobnicate myhost >/dev/null 2>&1) || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--use"*ssh*docker*kube* ]] || _hi_why rc out
-}
-
 # --use reaches every arm, not only the family: ssh (the empty arm) and the
 # orchestrators too, the same values their shorthand flags set
 function test_parse_use_names_every_arm() {
@@ -422,17 +332,10 @@ function test_parse_use_names_every_arm() {
   done
 }
 
-function test_parse_use_without_a_word_exits_one() {
-  local rc=0
-  (_hi_parse --use >/dev/null 2>&1) || rc=$?
-  [ "$rc" -eq 1 ] || _hi_why rc
-}
-
 # the same arm twice is no conflict; two different arms are one, and the
 # message names both
 function test_parse_use_twice_agrees_or_refuses() {
-  local got got2
-  local rc=0 out
+  local got got2 rc=0 out
   got="$(_hi_backend_parse_out --use docker --use docker myhost)"
   got2="$(printf 'myhost\ndocker\n')"
   [ "$got" = "$got2" ] || _hi_why got got2 || return 1
@@ -466,38 +369,6 @@ function _hi_plain_parse_out() {
   _hi_var_parse_out PLAIN 0 "$@"
 }
 
-# --no-plain is the pair's other half: the last of the two wins
-function test_parse_no_plain_is_the_other_half() {
-  local got got2 got3 got4 got5 got6 got7
-  got="$(_hi_var_parse_out PLAIN unset --no-plain myhost)"
-  got2="$(printf 'myhost\n0\n')"
-  got3="$(_hi_plain_parse_out --no-plain --plain myhost)"
-  got4="$(printf 'myhost\n1\n')"
-  got5="$(_hi_var_parse_out PLAIN unset --plain --no-plain myhost)"
-  got6="$(_hi_var_parse_out PLAIN unset myhost)"
-  got7="$(printf 'myhost\nunset\n')"
-  [ "$got" = "$got2" ] && [ "$got3" = "$got4" ] && [ "$got5" = "$got2" ] && [ "$got6" = "$got7" ] || _hi_why got got2 got3 got4 got5 got6 got7
-}
-
-function test_parse_plain_sets_plain_not_sshargs() {
-  local got got2 got3 got4
-  got="$(_hi_plain_parse_out --plain myhost)"
-  got2="$(printf 'myhost\n1\n')"
-  got3="$(_hi_parse_out --plain myhost)"
-  got4="$(printf 'myhost\n\n')"
-  [ "$got" = "$got2" ] && [ "$got3" = "$got4" ] || _hi_why got got2 got3 got4
-}
-
-# combines freely with --use - orthogonal, checked in either order
-function test_parse_plain_combines_with_use() {
-  local got got2 got3 got4
-  got="$(_hi_plain_parse_out --plain --use docker myhost)"
-  got2="$(printf 'myhost\n1\n')"
-  got3="$(_hi_backend_parse_out --use docker --plain myhost)"
-  got4="$(printf 'myhost\ndocker\n')"
-  [ "$got" = "$got2" ] && [ "$got3" = "$got4" ] || _hi_why got got2 got3 got4
-}
-
 # RAWCMD is CMDARG's raw material, without the "; exit" suffix baked in for
 # the bootloader's own embedding - --plain execs the words directly and has
 # no bootloader to close out
@@ -516,15 +387,13 @@ function test_parse_rawcmd_has_no_exit_suffix() {
 # _hi_select_arm is what _hi calls to choose $arm; testing it directly means
 # asserting the choice without a real connect
 function test_select_arm_backend_flag_wins_over_a_real_match() {
-  local got
-  local DOMAIN=yes BACKEND=ssh
+  local got DOMAIN=yes BACKEND=ssh
   got="$(PATH="$_HI_SHIM_PATH" _hi_select_arm)"
   [ -z "$got" ] || _hi_why got _HI_SHIM_PATH
 }
 
 function test_select_arm_backend_flag_names_the_arm_with_no_probe() {
-  local got
-  local DOMAIN=no BACKEND=docker
+  local got DOMAIN=no BACKEND=docker
   # PATH has nothing at all: a probe would find no CLI and print nothing, so
   # a printed "docker" here can only have come from $BACKEND
   local empty="$_HI_WORKDIR/empty"
@@ -534,8 +403,7 @@ function test_select_arm_backend_flag_names_the_arm_with_no_probe() {
 }
 
 function test_select_arm_falls_back_to_resolution_when_backend_unset() {
-  local got
-  local DOMAIN=yes BACKEND=
+  local got DOMAIN=yes BACKEND=
   got="$(PATH="$_HI_SHIM_PATH" _hi_select_arm)"
   [ "$got" = docker ] || _hi_why got _HI_SHIM_PATH
 }
@@ -543,8 +411,7 @@ function test_select_arm_falls_back_to_resolution_when_backend_unset() {
 # a backend $_HI_BACKENDS_OFF names is not asked, so the name is ssh's: by
 # word, a comma or a space apart, and by `all`
 function test_select_arm_skips_a_backend_switched_off() {
-  local got got2 got3
-  local DOMAIN=yes BACKEND=
+  local got got2 got3 DOMAIN=yes BACKEND=
   got="$(_HI_BACKENDS_OFF="docker,podman nerdctl finch nomad kube" PATH="$_HI_SHIM_PATH" _hi_select_arm)"
   got2="$(_HI_BACKENDS_OFF=all PATH="$_HI_SHIM_PATH" _hi_select_arm)"
   got3="$(_HI_BACKENDS_OFF=nomad PATH="$_HI_SHIM_PATH" _hi_select_arm)"
@@ -571,8 +438,7 @@ function test_reset_terminal_closes_the_prompt_mark_with_the_status() {
 }
 
 function test_report_failure_is_silent_once_hi_already_said_it() {
-  local got
-  local _HI_SAID=1
+  local got _HI_SAID=1
   got="$(_hi_report_failure 255 "" "" 2>&1)"
   [ -z "$got" ] || _hi_why got
 }
@@ -587,8 +453,7 @@ function test_report_failure_is_silent_for_a_non_255_ssh_exit() {
 }
 
 function test_report_failure_speaks_on_255() {
-  local got
-  local DOMAIN=myhost f="$_HI_WORKDIR/ssh255.log"
+  local got DOMAIN=myhost f="$_HI_WORKDIR/ssh255.log"
   : >"$f"
   got="$(_hi_report_failure 255 "" "$f" 2>&1)"
   [[ "$got" == *"could not reach [myhost]"* ]] || _hi_why got f
@@ -596,8 +461,7 @@ function test_report_failure_speaks_on_255() {
 
 # ...and a session that was up was cut, not missed: ssh's ~. ends 255 too
 function test_report_failure_says_disconnected_once_the_link_was_up() {
-  local got
-  local DOMAIN=myhost f="$_HI_WORKDIR/ssh255-up.log" _HI_LINK_UP=1
+  local got DOMAIN=myhost f="$_HI_WORKDIR/ssh255-up.log" _HI_LINK_UP=1
   : >"$f"
   got="$(_hi_report_failure 255 "" "$f" 2>&1)"
   [[ "$got" == *"hi: disconnected from [myhost]"* && "$got" != *"could not reach"* ]] || _hi_why got f
@@ -606,8 +470,7 @@ function test_report_failure_says_disconnected_once_the_link_was_up() {
 # a container arm with nothing filed in its errlog means nothing hi ran on
 # the way in complained, so the exit is the session's, not hi's to announce
 function test_report_failure_is_silent_for_a_quiet_container_errlog() {
-  local got
-  local f="$_HI_WORKDIR/empty.log"
+  local got f="$_HI_WORKDIR/empty.log"
   : >"$f"
   got="$(_hi_report_failure 1 docker "$f" 2>&1)"
   [ -z "$got" ] || _hi_why got f
@@ -624,8 +487,7 @@ function test_report_failure_speaks_with_a_filed_container_error() {
 # no \r anywhere when stderr is not a terminal - a captured/piped failure
 # gets a plain newline instead of a cursor move that has nothing to move
 function test_report_failure_has_no_carriage_return_off_a_tty() {
-  local got
-  local DOMAIN=myhost f="$_HI_WORKDIR/notty.log"
+  local got DOMAIN=myhost f="$_HI_WORKDIR/notty.log"
   : >"$f"
   got="$(_hi_report_failure 255 "" "$f" 2>&1)"
   [[ "$got" != *$'\r'* ]] || _hi_why got f
@@ -773,20 +635,23 @@ function run_hi_parse_tests() {
   _hi_check_eq "-J's value is not mistaken for the target" "$(printf 'myhost\n\n-J\nbastion\n')" _hi_parse_out -J bastion myhost
   _hi_check_eq "-B's value is not mistaken for the target" "$(printf 'myhost\n\n-B\neth0\n')" _hi_parse_out -B eth0 myhost
   _hi_check_eq "-P's value is not mistaken for the target" "$(printf 'myhost\n\n-P\nmytag\n')" _hi_parse_out -P mytag myhost
-  _hi_check "Several flags before the target" test_parse_handles_several_flags_before_the_target
+  _hi_check "Several flags before the target" _hi_prints $'myhost\n\n-4\n-o\nStrictHostKeyChecking=no\n-i\n/tmp/k' _hi_parse_out -4 -o StrictHostKeyChecking=no -i /tmp/k myhost
   _hi_check "'--' does not end option parsing, and ssh's status comes back" test_parse_dashdash_does_not_end_option_parsing
 
   _hi_h2 "Testing: _hi_parse (commands and errors)"
   _hi_check "Trailing words become a command" test_parse_turns_trailing_words_into_a_command
   _hi_check "A dashed word after the target is the command's" test_parse_dashed_word_after_the_target_is_the_command
-  _hi_check "A plain session has no command" test_parse_leaves_cmdarg_empty_for_a_plain_session
-  _hi_check "Rejects a flag missing its value" test_parse_rejects_a_flag_missing_its_value
-  _hi_check "Names the offending flag" test_parse_names_the_offending_flag
-  _hi_check "An unknown --word is hi's error, not ssh's" test_parse_unknown_double_dash_word_is_his_error
-  _hi_check "A local command behind an option is named" test_parse_local_command_behind_an_option_is_named
-  _hi_check "hi's own flag after the target is refused" test_parse_own_flag_after_the_target_is_refused
-  _hi_check "hi's own flag with no target is hi's error" test_parse_own_flag_without_a_target_is_his_error
-  _hi_check "A bare flag takes no value" test_parse_bare_flag_with_a_value_is_refused
+  _hi_check "A plain session has no command" _hi_prints $'myhost' _hi_parse_out myhost
+  # a value-taking flag with nothing after it reports itself, not an unbound $2
+  _hi_check "Refuses a flag missing its value, by name" _hi_refused "-o" _hi_parse_says -o
+  _hi_check "...-p too" _hi_refused "" _hi_parse_says -p
+  # ssh takes no option that starts with two dashes, so every --word is hi's
+  _hi_check "An unknown --word is hi's error, not ssh's" _hi_refused "hi: unknown option --docter" _hi_parse_says --docter myhost
+  _hi_check "A local command behind an option is named" _hi_refused "--doctor goes first" _hi_parse_says -v --doctor myhost
+  _hi_check "hi's own flag after the target is refused" _hi_refused "--use goes before the target" _hi_parse_says myhost --use docker
+  _hi_check "hi's own flag with no target is hi's error" _hi_refused "no target to connect to" _hi_parse_says --plain
+  _hi_check "...a flag with a word too" _hi_refused "no target to connect to" _hi_parse_says --use docker
+  _hi_check "A bare flag takes no value" _hi_refused "--plain takes no value" _hi_parse_says --plain=1 myhost
   _hi_check "...every bare row of common/flags, and -h/-V" test_parse_every_bare_flag_refuses_a_value
   _hi_check "-h behind an ssh option is still hi's" test_parse_help_is_honoured_behind_an_ssh_option
   _hi_check "help and version are plain target names" test_bare_help_and_version_words_are_targets
@@ -822,14 +687,20 @@ function run_hi_parse_tests() {
   _hi_check_eq "--use <cli> sets BACKEND to that member" "$(printf 'myhost\nnerdctl\n')" _hi_backend_parse_out --use nerdctl myhost
   _hi_check_eq "--use and its word never reach SSHARGS" "$(printf 'myhost\n\n')" _hi_parse_out --use podman myhost
   _hi_check "--use rejects a stranger, naming every arm" test_parse_use_rejects_a_stranger
-  _hi_check "--use=<backend> is the same flag" test_parse_use_takes_the_equals_spelling
-  _hi_check "--use=<stranger> is refused" test_parse_use_equals_rejects_a_stranger
+  _hi_check "--use=<backend> is the same flag" _hi_prints $'myhost\nnerdctl' _hi_backend_parse_out --use=nerdctl myhost
+  _hi_check "...and never reaches SSHARGS" _hi_prints $'myhost' _hi_parse_out --use=podman myhost
+  _hi_check "--use=<stranger> is refused" _hi_refused "" _hi_parse_says --use=frobnicate myhost
   _hi_check "--use <backend> reaches ssh and every backend" test_parse_use_names_every_arm
-  _hi_check "--use with no word exits 1" test_parse_use_without_a_word_exits_one
+  _hi_check "--use with no word exits 1" _hi_refused "" _hi_parse_says --use
   _hi_check "--use twice: same arm agrees, different arms refuse, both named" test_parse_use_twice_agrees_or_refuses
-  _hi_check "--plain sets PLAIN, not SSHARGS" test_parse_plain_sets_plain_not_sshargs
-  _hi_check "--no-plain is the pair's other half" test_parse_no_plain_is_the_other_half
-  _hi_check "--plain combines with --use" test_parse_plain_combines_with_use
+  _hi_check "--plain sets PLAIN" _hi_prints $'myhost\n1' _hi_plain_parse_out --plain myhost
+  _hi_check "...not SSHARGS" _hi_prints $'myhost' _hi_parse_out --plain myhost
+  _hi_check "--no-plain is the pair's other half" _hi_prints $'myhost\n0' _hi_var_parse_out PLAIN unset --no-plain myhost
+  _hi_check "...the last of the two wins: --plain" _hi_prints $'myhost\n1' _hi_plain_parse_out --no-plain --plain myhost
+  _hi_check "...the last of the two wins: --no-plain" _hi_prints $'myhost\n0' _hi_var_parse_out PLAIN unset --plain --no-plain myhost
+  _hi_check "...neither leaves it unset" _hi_prints $'myhost\nunset' _hi_var_parse_out PLAIN unset myhost
+  _hi_check "--plain combines with --use" _hi_prints $'myhost\n1' _hi_plain_parse_out --plain --use docker myhost
+  _hi_check "...in either order" _hi_prints $'myhost\ndocker' _hi_backend_parse_out --use docker --plain myhost
   _hi_check "RAWCMD carries no \"; exit\" suffix" test_parse_rawcmd_has_no_exit_suffix
   _hi_check "select_arm: the flag wins over a real match" test_select_arm_backend_flag_wins_over_a_real_match
   _hi_check "select_arm: the flag names the arm with no probe" test_select_arm_backend_flag_names_the_arm_with_no_probe

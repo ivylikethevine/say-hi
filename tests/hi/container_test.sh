@@ -171,32 +171,8 @@ function _hi_ct_cmds() {
   printf 'probe=%s\ncp=%s\nattach=%s\n' "${probe[*]}" "${cp[*]}" "${attach[*]}"
 }
 
-function test_cmds_docker_uses_docker_exec() {
-  local out
-  out="$(PATH="$_HI_CT_BIN:$PATH" _hi_ct_cmds mybox docker)"
-  [ "$out" = "probe=docker exec mybox
-cp=docker exec -i mybox
-attach=docker exec -i mybox" ] || _hi_why out
-}
-
-# the CLI is the arm's own name and the grammar is docker's (GLOSSARY: HI.51)
-function test_cmds_podman_is_a_drop_in_for_docker() {
-  local out
-  out="$(PATH="$_HI_CT_BIN:$PATH" _hi_ct_cmds mybox podman)"
-  [ "$out" = "probe=podman exec mybox
-cp=podman exec -i mybox
-attach=podman exec -i mybox" ] || _hi_why out
-}
-
-# nomad wants -i/-t spelled out either way: its stdin-is-a-tty guess lands
-# wrong on a wrapped pty and hangs the exec
-function test_cmds_nomad_spells_out_both_flags() {
-  local out
-  out="$(_hi_ct_cmds alloc123 nomad)"
-  [ "$out" = "probe=nomad alloc exec -i=false -t=false alloc123
-cp=nomad alloc exec -i=true -t=false alloc123
-attach=nomad alloc exec -i=true -t=false alloc123" ] || _hi_why out
-}
+# ...with the shimmed CLIs on $PATH
+function _hi_ct_cmds_shimmed() { PATH="$_HI_CT_BIN:$PATH" _hi_ct_cmds "$@"; }
 
 function test_cmds_nomad_names_the_task_when_one_is_given() {
   local out
@@ -205,14 +181,6 @@ function test_cmds_nomad_names_the_task_when_one_is_given() {
   "probe=nomad alloc exec -task web -i=false -t=false alloc123"*) ;;
   *) _hi_why -3 out || return 1 ;;
   esac
-}
-
-function test_cmds_kube_ends_every_shape_with_a_double_dash() {
-  local out
-  out="$(_hi_ct_cmds mypod kube)"
-  [ "$out" = "probe=kubectl exec mypod --
-cp=kubectl exec -i mypod --
-attach=kubectl exec -i mypod --" ] || _hi_why out
 }
 
 function test_cmds_kube_names_the_container_when_one_is_given() {
@@ -368,11 +336,11 @@ function run_container_tests() {
   _hi_ct_shim
 
   _hi_h2 "Testing: _hi_transport_cmds"
-  _hi_check "docker: docker exec" test_cmds_docker_uses_docker_exec
-  _hi_check "podman is a drop-in" test_cmds_podman_is_a_drop_in_for_docker
-  _hi_check "nomad spells out -i and -t" test_cmds_nomad_spells_out_both_flags
+  _hi_check "docker: docker exec" _hi_prints $'probe=docker exec mybox\ncp=docker exec -i mybox\nattach=docker exec -i mybox' _hi_ct_cmds_shimmed mybox docker
+  _hi_check "podman is a drop-in" _hi_prints $'probe=podman exec mybox\ncp=podman exec -i mybox\nattach=podman exec -i mybox' _hi_ct_cmds_shimmed mybox podman
+  _hi_check "nomad spells out -i and -t" _hi_prints $'probe=nomad alloc exec -i=false -t=false alloc123\ncp=nomad alloc exec -i=true -t=false alloc123\nattach=nomad alloc exec -i=true -t=false alloc123' _hi_ct_cmds alloc123 nomad
   _hi_check "nomad names the task" test_cmds_nomad_names_the_task_when_one_is_given
-  _hi_check "kube ends every shape with --" test_cmds_kube_ends_every_shape_with_a_double_dash
+  _hi_check "kube ends every shape with --" _hi_prints $'probe=kubectl exec mypod --\ncp=kubectl exec -i mypod --\nattach=kubectl exec -i mypod --' _hi_ct_cmds mypod kube
   _hi_check "kube names the container" test_cmds_kube_names_the_container_when_one_is_given
   _hi_check "ssh rides the ControlMaster" test_cmds_ssh_rides_the_control_master
 

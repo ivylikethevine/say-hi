@@ -71,6 +71,7 @@ function _hi_args() {
       exit 0
       ;;
     -n | --dry-run) _HI_DRY_RUN=1 ;;
+    --text) [ "${_HI_TEXT:-0}" = 1 ] || _hi_die "unknown option $1 ($_hi_ag_usage)" ;;
     --*) _hi_die "unknown option $1 ($_hi_ag_usage)" ;;
     *) args+=("$1") ;;
     esac
@@ -310,19 +311,6 @@ function _hi_packages_drift() {
   done <"$2"
   [ -z "$_hi_pd_lack" ] ||
     printf "info|lacks the tree's groups, which are never checked: %s (%s has them to copy)\n" "$_hi_pd_lack" "$2"
-}
-
-# _hi_term_cols <outvar> - the terminal's width, or empty: $_HI_TERM_COLS (a
-# suite's pin), else - only when stdout is a tty, so captured output keeps
-# its fixed width - $COLUMNS, then tput. header.sh's _hi_draw_width rule.
-function _hi_term_cols() {
-  local _hi_tc="${_HI_TERM_COLS-}"
-  if [ -z "${_HI_TERM_COLS+x}" ] && [ -t 1 ]; then
-    _hi_tc="${COLUMNS:-}"
-    case "$_hi_tc" in '' | *[!0-9]*) _hi_tc="$(tput cols 2>/dev/null || true)" ;; esac
-  fi
-  case "$_hi_tc" in *[!0-9]* | 0) _hi_tc="" ;; esac
-  printf -v "$1" '%s' "$_hi_tc"
 }
 
 # _hi_out_width <outvar> - what a rule or a wrapped line draws to:
@@ -672,7 +660,7 @@ function _hi_hook_rows() {
     _hi_hook_col "$_hi_hr_r" init _hi_hr_i
     if ! _hi_hook_here "$_hi_hr_r"; then
       _hi_state_row absent "$_hi_hr_n" "$_hi_hr_i - not installed here, so not sent"
-    elif _hi_hook_off "$_hi_hr_r"; then
+    elif _hi_plugin_switched_off "$_hi_hr_n"; then
       _hi_hr_why="switched off (_HI_PLUGINS_OFF)"
       ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_hr_n" || _hi_hr_why="off by default (hi --enable-plugin $_hi_hr_n)"
       _hi_state_row off "$_hi_hr_n" "$_hi_hr_i - $_hi_hr_why"
@@ -744,22 +732,19 @@ function _hi_member_label() {
 # `none anywhere` row, so a sparse setup stays a short table, unless it is
 # switched off, which is its own row.
 function _hi_member_rows() {
-  local row m used eff p state text label none="" found draw="${_HI_ROW_FN:-_hi_row}"
+  local row m eff site tree p state text label none="" found draw="${_HI_ROW_FN:-_hi_row}"
   local -a locs _hi_paths=()
   _hi_plugins_load
   for m; do
     _hi_overlay_row "$m" row || continue
-    used="" eff="" text="" found=""
-    _hi_overlay_src "$m" used || used=""
+    eff="" text="" found="" site="" tree=""
+    _hi_overlay_src "$m" eff || eff=""
     _hi_overlay_places "$m" "$row"
+    case "$row" in *'|tree|'*) site="${_HI_SITE_DIR:+$_HI_SITE_DIR/$m}" tree="$_HI_ROOT/config/$m" ;; esac
     # the tiers in order: the overlay's copy, the site's (for a member
     # config/ holds a default of), home, the tree's default
-    locs=("$_HI_CONFIG_DIR/$m")
-    case "$row" in *'|tree|'*) [ -z "${_HI_SITE_DIR:-}" ] || locs+=("$_HI_SITE_DIR/$m") ;; esac
-    locs+=(${_hi_paths[@]+"${_hi_paths[@]}"})
-    case "$row" in *'|tree|'*) locs+=("$_HI_ROOT/config/$m") ;; esac
-    eff="$used"
-    [ -n "$eff" ] || case "$row" in *'|tree|'*) ! _hi_tool_here "$m" || eff="$_HI_ROOT/config/$m" ;; esac
+    locs=("$_HI_CONFIG_DIR/$m" "$site" ${_hi_paths[@]+"${_hi_paths[@]}"} "$tree")
+    [ -n "$eff" ] || [ -z "$tree" ] || ! _hi_tool_here "$m" || eff="$tree"
     for p in "${locs[@]}"; do
       [ -n "$p" ] || continue
       if [ -z "${m##*/}" ]; then
@@ -830,13 +815,12 @@ function _hi_plugin_words() {
   _hi_plugin_rows | cut -d'|' -f1,3 | tr '|' '\n' | sort -u
 }
 
-# _hi_plugin_word_ok <word> [words] - may $_HI_PLUGINS_OFF hold it: a word of
-# _hi_plugin_words (handed in, space-bounded, by a caller with several to
-# ask about), or one file of a directory row the list switches
-# (extensions/10-kube), there or not
+# _hi_plugin_word_ok <word> <words> - may $_HI_PLUGINS_OFF hold it: a word of
+# _hi_plugin_words (space-bounded), or one file of a directory row the list
+# switches (extensions/10-kube), there or not
 function _hi_plugin_word_ok() {
   local _hi_pk_r _hi_pk_g
-  case "${2:- $(_hi_plugin_words | tr '\n' ' ')}" in *" $1 "*) return 0 ;; esac
+  case "$2" in *" $1 "*) return 0 ;; esac
   _hi_overlay_row "$1" _hi_pk_r || return 1
   case "${_hi_pk_r%%|*}" in */) ;; *) return 1 ;; esac
   [ "${_hi_pk_r%%|*}${1##*/}" = "$1" ] || return 1
