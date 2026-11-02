@@ -75,16 +75,27 @@ if [ $# -eq 0 ]; then
   )
 fi
 
+# What the filters below share: the `on:` value, each job, a sparse-checkout
+# list's paths, and a step's local action.
+# shellcheck disable=SC2016 # jq's $vars, not the shell's
+defs='
+  def trigger_on: .on // .["true"];
+  def jobs: (.jobs // {}) | to_entries[];
+  def sparse_paths: tostring | split("\n")[]
+    | sub("^\\s+"; "") | sub("\\s+$"; "") | select(. != "")
+    | sub("^/"; "") | sub("/+$"; "");
+  def local_action: (.uses // "") | select(startswith("./")) | ltrimstr("./") | sub("/+$"; "");
+'
+
 # Rules 1, 3, 4, 6, 7 and 9: workflows only.
 # shellcheck disable=SC2016 # jq's $vars, not the shell's
 workflow_filter='
-  def triggers: (.on // .["true"]) as $on
+  def triggers: trigger_on as $on
     | if ($on | type) == "string" then [$on]
       elif ($on | type) == "array" then $on
       elif ($on | type) == "object" then ($on | keys)
       else [] end;
   def cond: (.if // "") | tostring;
-  def jobs: (.jobs // {}) | to_entries[];
   (if .permissions == null then "no top-level permissions: block" else empty end),
   (jobs | .key as $job | .value as $j
     | select($j.uses == null)
@@ -111,14 +122,11 @@ workflow_filter='
     | [$steps[] | select((.uses // "") | startswith("actions/checkout@"))
         | (.with // {})["sparse-checkout"] | select(. != null)] as $lists
     | select($lists | length > 0)
-    | [$lists[] | tostring | split("\n")[]
-        | sub("^\\s+"; "") | sub("\\s+$"; "") | select(. != "")
-        | sub("^/"; "") | sub("/+$"; "")] as $sparse
-    | $steps[] | (.uses // "") | select(startswith("./"))
-    | ltrimstr("./") | sub("/+$"; "") as $path
+    | [$lists[] | sparse_paths] as $sparse
+    | $steps[] | local_action as $path
     | select([$sparse[] | . as $p | select($path == $p or ($path | startswith($p + "/")))] | length == 0)
     | "job \($job): uses: ./\($path) is not in its checkout'"'"'s sparse-checkout list"),
-  ((.on // .["true"]) as $on
+  (trigger_on as $on
     | if ($on | type) == "object" and (($on.push // {}) | type) == "object" and ($on.push // {}).tags != null then
         jobs | .key as $job | (.value.steps // [])[] | (.run // "") | tostring | split("\n")[]
         | select(test("^\\s*#") | not)
@@ -131,7 +139,7 @@ workflow_filter='
 # equally honoured by the action).
 # shellcheck disable=SC2016 # jq's $vars, not the shell's
 checkout_filter='
-  ([(.jobs // {}) | to_entries[] | .key as $job
+  ([jobs | .key as $job
      | (.value.steps // []) | to_entries[] | {where: "job \($job) step \(.key + 1)", s: .value}]
    + [(.runs.steps // []) | to_entries[] | {where: "composite step \(.key + 1)", s: .value}])[]
   | select((.s.uses // "") | startswith("actions/checkout@"))
@@ -143,13 +151,12 @@ checkout_filter='
 # the checkout's list and its local actions colon-separated.
 # shellcheck disable=SC2016 # jq's $vars, not the shell's
 sparse_filter='
-  (.jobs // {}) | to_entries[] | .key as $job | (.value.steps // []) as $steps
+  jobs | .key as $job | (.value.steps // []) as $steps
   | [$steps[] | select((.uses // "") | startswith("actions/checkout@"))
-      | (.with // {})["sparse-checkout"] | select(. != null) | tostring | split("\n")[]
-      | sub("^\\s+"; "") | sub("\\s+$"; "") | select(. != "" and (contains("${{") | not))
-      | sub("^/"; "") | sub("/+$"; "")] as $sparse
+      | (.with // {})["sparse-checkout"] | select(. != null) | sparse_paths
+      | select(contains("${{") | not)] as $sparse
   | select($sparse | length > 0)
-  | [$steps[] | (.uses // "") | select(startswith("./")) | ltrimstr("./") | sub("/+$"; "")] as $actions
+  | [$steps[] | local_action] as $actions
   | "\($job)\t\($sparse | join(":"))\t\($actions | join(":"))"
 '
 
@@ -200,10 +207,18 @@ sparse_sources() {
   done
 }
 
+# sparse_push <file> <path> - sparse_sources' paths onto sparse_check's $todo
+sparse_push() {
+  local src
+  for src in $(sparse_sources "$1" "$2"); do
+    todo="$src:$todo"
+  done
+}
+
 # sparse_check <workflow> - rule 7 for the files each sparse job's scripts and
 # local actions source
 sparse_check() {
-  local file="$1" tree job list actions path found seen todo src entry covered
+  local file="$1" tree job list actions path found seen todo entry covered
   case "$file" in
   */.github/workflows/*) tree="${file%%/.github/workflows/*}" ;;
   *) tree=. ;;
@@ -220,10 +235,7 @@ sparse_check() {
       found="$(sparse_found "$tree" "$path")" || continue
       if [ -d "$found" ]; then
         for entry in "$found"/*.sh "$found"/action.yml; do
-          [ -f "$entry" ] || continue
-          for src in $(sparse_sources "$entry" "$path/$(basename "$entry")"); do
-            todo="$src:$todo"
-          done
+          [ ! -f "$entry" ] || sparse_push "$entry" "$path/$(basename "$entry")"
         done
         continue
       fi
@@ -232,11 +244,9 @@ sparse_check() {
         case "$path" in "$entry" | "$entry"/*) covered=1 ;; esac
       done
       [ -n "$covered" ] || report "$file" "job $job: $path is sourced but not in its checkout's sparse-checkout list"
-      for src in $(sparse_sources "$found" "$path"); do
-        todo="$src:$todo"
-      done
+      sparse_push "$found" "$path"
     done
-  done < <(printf '%s\n' "$json" | jq -r "$sparse_filter")
+  done < <(printf '%s\n' "$json" | jq -r "$defs $sparse_filter")
 }
 
 # Rules 5 and 8 are line-based: comments are not part of the parsed YAML.
@@ -267,7 +277,7 @@ for file in "$@"; do
   action.y*ml | */action.y*ml) filter="$checkout_filter" workflow="" ;;
   *) filter="($workflow_filter), ($checkout_filter)" workflow=1 ;;
   esac
-  msgs="$(printf '%s\n' "$json" | jq -r "$filter")" || {
+  msgs="$(printf '%s\n' "$json" | jq -r "$defs $filter")" || {
     report "$file" "jq could not evaluate the rules"
     continue
   }

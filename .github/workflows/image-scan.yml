@@ -88,6 +88,7 @@ jobs:
           .github/scripts/scan_pinned_images.sh || rc=$?
           echo "verdict=$rc" >>"$GITHUB_OUTPUT"
           [ "$rc" -le 2 ] || exit "$rc"
+          [ "$rc" = 2 ] || cat "$SCAN_REPORT" >>"$GITHUB_STEP_SUMMARY"
 
       # An issue, not a pull request: the repin is a hand edit. The report is
       # the summary and the issue body both, so the two can't disagree.
@@ -100,7 +101,6 @@ jobs:
           resolved: ${{ steps.scan.outputs.verdict != '2' }}
           close-comment: The pins no longer have a fixable finding a repin would clear.
           resolved-when: the pins no longer need it
-          write-summary-on-resolved: "true"
           body-file: ${{ runner.temp }}/image-scan-report.md
           warning-title: trivy
           warning-body: A pinned image can be repinned to close known vulnerabilities - see the image-scan issue

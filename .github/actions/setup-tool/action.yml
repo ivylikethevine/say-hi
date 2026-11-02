@@ -19,11 +19,6 @@ inputs:
     required: false
     default: ""
 
-outputs:
-  version:
-    description: the version that was installed
-    value: ${{ steps.resolve.outputs.version }}
-
 runs:
   using: composite
   steps:
