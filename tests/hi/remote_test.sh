@@ -550,7 +550,7 @@ function _hi_stub_orders() {
 # FIFO when it starts first, and straight through when it comes after the
 # landing; either way the script ran and its directory went with it
 function test_the_stub_runs_the_script_once_it_lands() {
-  _hi_stub_orders "$_HI_WORKDIR/stub.boot" "$_HI_WORKDIR/stub.out" boot
+  _hi_stub_orders "$_HI_WORKDIR/stub.boot" "$_HI_WORKDIR/stub.out" boot || _hi_why
 }
 
 # ...and its form with no tty: the client's `go` line ahead of the session's

@@ -337,7 +337,7 @@ function test_update_refuses_a_bad_signature() {
   local gh home
   gh="$(_hi_update_gpg_home bad)" || _hi_why || return 1
   home="$(_hi_update_signed_fixture upd-bad "$gh")" || _hi_why gh || return 1
-  GNUPGHOME="$gh" _hi_update_refuses_tampered "$home"
+  GNUPGHOME="$gh" _hi_update_refuses_tampered "$home" || _hi_why home
 }
 
 # _hi_update_ssh_fixture <name> <signer-key> <listed-key> - the fixture plus a
@@ -389,7 +389,7 @@ function test_update_refuses_an_ssh_key_not_listed() {
 function test_update_refuses_a_bad_ssh_signature() {
   local home
   home="$(_hi_update_ssh_fixture upd-ssh-bad sshkey sshkey)" || _hi_why || return 1
-  _hi_update_refuses_tampered "$home"
+  _hi_update_refuses_tampered "$home" || _hi_why home
 }
 
 # bare: the newest tag by version, which the fetch brings in - and that

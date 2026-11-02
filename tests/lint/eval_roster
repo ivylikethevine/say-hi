@@ -65,7 +65,7 @@ source|scripts/add_package.sh|2
 source|scripts/add_tag.sh|2
 source|scripts/configure.sh|5
 source|scripts/configure_menu.sh|1
-source|scripts/configure_preview.sh|3
+source|scripts/configure_preview.sh|2
 source|scripts/convert_settings.sh|3
 source|scripts/doctor.sh|7
 source|scripts/edit.sh|4

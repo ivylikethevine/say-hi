@@ -287,9 +287,10 @@ function test_unlink_hi_instructs_with_no_sudo_at_all() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"no sudo here"* ]] && [ -L "$dir/bin/hi" ] || _hi_why rc out dir
 }
 
-# _hi_link_fixture <dir> - a launcher for config_hi to link, in <dir>
+# _hi_link_fixture <dir> - a launcher for config_hi to link, in <dir>, beside a
+# bin/ for the link
 function _hi_link_fixture() {
-  mkdir -p "$1"
+  mkdir -p "$1/bin"
   printf '#!/bin/bash\n' >"$1/hi.sh"
   chmod 755 "$1/hi.sh"
 }

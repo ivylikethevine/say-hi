@@ -246,7 +246,7 @@ function test_files_table_hides_the_tree_default_behind_a_copy() {
 # thing folded into one (`not installed | podman finch`), and $HOME as ~ -
 # while --json keeps a row per check and whole paths.
 function test_the_box_folds_and_shortens() {
-  local out
+  local out got
   out="$(
     HOME=/h
     _HI_ROWS_LABEL=(podman finch docker vim/vimrc)
@@ -256,8 +256,9 @@ function test_the_box_folds_and_shortens() {
     _hi_rows_box
   )"
   out="$(_hi_strip_ansi "$out")"
-  [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 5 ] &&
-    [[ "$out" == *"not installed"*"podman finch"* && "$out" == *"~/.vimrc"* && "$out" != *"/h/.vimrc"* ]] || _hi_because "the rows above are not all in: $out"
+  got="$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+  [ "$got" = 5 ] &&
+    [[ "$out" == *"not installed"*"podman finch"* && "$out" == *"~/.vimrc"* && "$out" != *"/h/.vimrc"* ]] || _hi_because "wanted 5 lines, got $got, holding the folded row and ~/.vimrc: $out"
 }
 
 # an overlay copy of the tree's own file, byte for byte: not an override

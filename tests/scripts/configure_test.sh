@@ -629,24 +629,26 @@ function test_header_edit_preset_refuses_a_stranger() {
 # a header preset: its words on and first, in its order, the rest off after,
 # as one pending _HI_HEADER_ORDER - and `full`, whose word list is empty,
 # lands back on the shipped order, which writes nothing
+function _hi_hdr_on_count() {
+  local v n=0
+  for v in "${_HI_HDR_ON[@]}"; do [ "$v" != 1 ] || n=$((n + 1)); done
+  printf '%d' "$n"
+}
+
 function test_header_edit_preset_turns_on_its_words_in_order() {
   local got
   (
     _HI_SETTINGS=/dev/null
     _HI_SETTING_PENDING=()
     _hi_header_edit_preset quiet || _hi_why || exit 1
-    got="${_HI_HDR_ON[*]//0/}"
-    got="${got// /}"
-    got="${#got}"
+    got="$(_hi_hdr_on_count)"
     [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=utc localtime gitid" ] &&
       [ "${_HI_HDR_WORDS[*]:0:3}" = "utc localtime gitid" ] &&
       [ "$got" = 3 ] &&
       [[ "$_HI_MENU_NOTE" == *"the 'quiet' preset"* ]] ||
       _hi_because "quiet: pending [${_HI_SETTING_PENDING[*]}], words [${_HI_HDR_WORDS[*]}]" || exit 1
     _hi_header_edit_preset full || _hi_why || exit 1
-    got="${_HI_HDR_ON[*]//0/}"
-    got="${got// /}"
-    got="${#got}"
+    got="$(_hi_hdr_on_count)"
     [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=" ] && [ "$got" = "${#_HI_HDR_WORDS[@]}" ] ||
       _hi_because "full: pending [${_HI_SETTING_PENDING[*]}]"
   ) || _hi_why _HI_HDR_WORDS _HI_SETTING_PENDING

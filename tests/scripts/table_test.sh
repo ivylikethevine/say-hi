@@ -27,12 +27,14 @@ function test_visible_len_strips_ansi_escapes() {
 
 function test_widen_grows_to_the_longest_string() {
   local w=0
-  _hi_var_is 7 _hi_widen one three seven-x
+  _hi_widen w one three seven-x
+  [ "$w" = 7 ] || _hi_why w
 }
 
 function test_widen_never_shrinks() {
   local w=10
-  _hi_var_is 10 _hi_widen abc
+  _hi_widen w abc
+  [ "$w" = 10 ] || _hi_why w
 }
 
 function test_widen_to_takes_widths_not_strings() {
@@ -41,7 +43,8 @@ function test_widen_to_takes_widths_not_strings() {
   [ "$w" = 12 ] || _hi_why w || return 1
   # the trap _hi_widen_to exists for: _hi_widen would measure "12" as 2 chars
   w=3
-  _hi_var_is 3 _hi_widen 12
+  _hi_widen w 12
+  [ "$w" = 3 ] || _hi_why w
 }
 
 function test_pad_to_pads_either_side_by_printed_width() {
