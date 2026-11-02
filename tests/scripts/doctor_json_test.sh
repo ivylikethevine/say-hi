@@ -143,6 +143,16 @@ function _hi_doctor_wire_evidence() {
     _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_wire_bytes' 2>&1)"
 }
 
+# _hi_docs_differ_by_a_wire_k <file> <file> - the same document but for a wire
+# figure at most 1K apart
+function _hi_docs_differ_by_a_wire_k() {
+  local k='s/.*[^0-9.]([0-9]+)K over the wire.*/\1/p' mask='s/[0-9]+K over the wire/NK over the wire/'
+  local ka kb ma mb
+  ka="$(sed -E -n "$k" "$1")" kb="$(sed -E -n "$k" "$2")"
+  ma="$(sed -E "$mask" "$1")" mb="$(sed -E "$mask" "$2")"
+  [ -n "$ka" ] && [ -n "$kb" ] && [ "$ma" = "$mb" ] && ((ka - kb <= 1 && kb - ka <= 1))
+}
+
 # --problems narrows the text report only: beside --json the document is the
 # one --json alone prints, byte for byte once the timings are masked
 # the exit status is the findings count's (a box with a finding exits 1), so
@@ -150,7 +160,8 @@ function _hi_doctor_wire_evidence() {
 # Two runs compared, the bare one the document the first case read, so both
 # must see the same world: the same probe cap, and a difference prints. It
 # found the payload cache serving another tree's payload to one of the two
-# runs - a wire size off by 1K on FreeBSD. Compared as files.
+# runs. Compared as files, the wire figure within 1K: it rounds to 1K, so a few
+# bytes either side of a rounding line move it.
 function test_problems_leaves_json_unchanged() {
   local a="$_HI_WORKDIR/json.a" b="$_HI_WORKDIR/json.b"
   _hi_doctor_json_report
@@ -158,6 +169,7 @@ function test_problems_leaves_json_unchanged() {
   sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g' "$_HI_DOC_JSON" >"$a" || true
   _HI_PROBE_TIMEOUT=30 _hi_doctor_json --problems | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g' >"$b" || true
   [ -s "$a" ] && cmp -s "$a" "$b" && return 0
+  [ ! -s "$a" ] || ! _hi_docs_differ_by_a_wire_k "$a" "$b" || return 0
   _hi_cecho " | the two documents differ:" "$RED"
   diff <(tr ',' '\n' <"$a") <(tr ',' '\n' <"$b") | sed 's/^/      /' || true
   _hi_doctor_wire_evidence "$_HI_DOC_JSON" || true
