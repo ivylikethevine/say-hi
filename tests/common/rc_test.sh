@@ -777,11 +777,9 @@ function test_shell_ships_no_preference_default() {
 }
 
 function test_shell_user_file_applies() {
-  local got
   local row="$1" shell file script line value
   IFS='|' read -r shell file script line value <<<"$row"
-  got="$(_hi_shell_override_probe "$row" user)"
-  [ "$got" = "$value" ] || _hi_why got row value
+  _hi_prints "$value" _hi_shell_override_probe "$row" user
 }
 
 # _hi_rc_begin - what every part of this suite starts from, and the tally

@@ -57,26 +57,26 @@ function _hi_write_preview_tree() {
 # the subject switch
 #
 
+# _hi_preview_tree [arg...] - preview.sh from the suite's whole tree, at its home
+function _hi_preview_tree() {
+  HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" "$@"
+}
+
 # a bare `preview.sh` is a usage error, never a silent default subject
 function test_a_missing_subject_is_refused() {
   local out rc=0
-  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
-    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one of colors, packages, or header"* ]] || _hi_why rc out
+  _hi_refused "one of colors, packages, or header" _hi_preview_tree || _hi_why
 }
 
 function test_an_unknown_subject_is_refused() {
   local out rc=0
-  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
-    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" swatches 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"unknown subject 'swatches'"* ]] || _hi_why rc out
+  _hi_refused "unknown subject 'swatches'" _hi_preview_tree swatches || _hi_why
 }
 
 # --help with no subject lists the three, and exits 0
 function test_bare_help_lists_the_subjects() {
   local out
-  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
-    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" --help 2>&1)" || _hi_why || return 1
+  out="$(_hi_preview_tree --help 2>&1)" || _hi_why || return 1
   [[ "$out" == 'Usage: preview.sh <colors|packages|header>'* && "$out" == *header* ]] || _hi_why out
 }
 
@@ -91,9 +91,7 @@ function test_header_subject_renders_the_header() {
 
 function test_header_subject_refuses_an_argument() {
   local out rc=0
-  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
-    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" header nonsense 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* ]] || _hi_why rc out
+  _hi_refused "takes no arguments" _hi_preview_tree header nonsense || _hi_why
 }
 
 # a header that is off says so, and names the toggle: the wizard's preview
@@ -202,14 +200,12 @@ function test_default_source_still_resolves_to_a_palette_color() {
 }
 
 function test_colors_names_dedupes_and_skips() {
-  local got
   local colors="$_HI_WORKDIR/colors.names" out
   printf '[hostname]\na = "red"\nb = "blue"\na = "green"\n[username]\nc = "red"\n' >"$colors"
   out="$(_HI_COLORS="$colors" _hi_colors_names hostname)"
   [ "$out" = "a
 b" ] || _hi_why out || return 1
-  got="$(_HI_COLORS="$colors" _hi_colors_names hostname a)"
-  [ "$got" = b ] || _hi_why got colors
+  _HI_COLORS="$colors" _hi_prints b _hi_colors_names hostname a
 }
 
 # _hi_colors_rows reads the [type] sections core.sh's scan does: a name only
@@ -316,10 +312,8 @@ function test_group_index_handles_an_empty_table() {
 # widths are per-host: user_width + a space + the host name, plus two spaces
 # between each pair of groups
 function test_group_preview_width_sums_its_hosts() {
-  local got
   local user_width=4
-  got="$(_hi_group_preview_width abc de)"
-  [ "$got" = "$((4 + 1 + 3 + 4 + 1 + 2 + 2))" ] || _hi_why got
+  _hi_prints "$((4 + 1 + 3 + 4 + 1 + 2 + 2))" _hi_group_preview_width abc de
 }
 
 # The two table renderers, called in-process against the exported fixtures

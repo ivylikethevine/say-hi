@@ -214,9 +214,8 @@ attach=ssh -o ControlPath=/s -p 22 box" ] || _hi_why out
 # the probe stands in for the container: whatever word the case wants, back
 # through the same channel the real one uses
 function _hi_ct_word() {
-  local w="$_HI_WORKDIR/echoword"
-  _hi_script "$w" '#!/bin/sh' 'printf "%s" "$1"'
-  printf '%s' "$w"
+  _HI_CT_WORD="$_HI_SUITE_WORKDIR/echoword"
+  _hi_script "$_HI_CT_WORD" '#!/bin/sh' 'printf "%s" "$1"'
 }
 
 # test_fallback_shell_answer <answer> [expected] - checked against the fixed
@@ -224,11 +223,9 @@ function _hi_ct_word() {
 # come from the probe, and a busybox echo with a mind of its own (or a shell
 # that wrote something extra on the way past) is one word or it is nothing
 function test_fallback_shell_answer() {
-  local got
   local -a probe
-  probe=("$(_hi_ct_word)" "$1")
-  got="$(_hi_container_fallback_shell)"
-  [ "$got" = "${2-}" ] || _hi_why got
+  probe=("$_HI_CT_WORD" "$1")
+  _hi_prints "${2-}" _hi_container_fallback_shell
 }
 
 # ---------------------------------------------------------------------------
@@ -334,6 +331,7 @@ function run_container_tests() {
   _hi_workdir hicontainer
   _hi_suite_begin
   _hi_ct_shim
+  _hi_ct_word
 
   _hi_h2 "Testing: _hi_transport_cmds"
   _hi_check "docker: docker exec" _hi_prints $'probe=docker exec mybox\ncp=docker exec -i mybox\nattach=docker exec -i mybox' _hi_ct_cmds_shimmed mybox docker

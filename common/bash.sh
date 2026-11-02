@@ -118,7 +118,7 @@ function _hi_complete() {
   # a `-` word is hi's own options - or, behind a local command (`hi --install
   # --<TAB>`), that command's switches. Neither touches the target cache or
   # its probes; uncached on purpose, the rosters are a dozen printfs.
-  case " $_HI_WORD_FLAGS " in *" $prev "*) ask=(words "$prev") ;; esac
+  ! _hi_list_has "$_HI_WORD_FLAGS" "$prev" || ask=(words "$prev")
   ((${#ask[@]})) || [[ "$cur" != -* ]] || ask=(flags "${COMP_WORDS[1]}")
   if ((${#ask[@]})); then
     # "<word>\t<help>" lines; bash's menu has no room for the second column

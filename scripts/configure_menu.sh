@@ -112,14 +112,13 @@ function _hi_menu_num() {
 # $BRYELLOW, a green [x] on and a red [ ] off, a current value $BRPURPLE, the
 # help after a label's " - " $BLUE like the intro's, a missing command's note
 # and a changed row's "(default ...)" $YELLOW.
-# _hi_menu_add <kind> <text> [no_newline] - number the next item and draw it
+# _hi_menu_add <kind> <text> - number the next item and draw it
 function _hi_menu_add() {
   local num
   _HI_MENU_ITEMS+=("$1")
   [ "$_HI_MENU_DRAW" = 1 ] || return 0
   _hi_menu_num num
-  printf '  %s %s' "$num" "$2"
-  [ $# -ge 3 ] || printf '\n'
+  printf '  %s %s\n' "$num" "$2"
 }
 
 # _hi_menu_check <outvar> <1|0> - a row's checkbox, counted toward its
@@ -231,16 +230,13 @@ function _hi_menu_switch_item() {
 # numbered like any other item and drawn on the main page alone, where its
 # key flips it too
 function _hi_menu_switch() {
-  local k item name table i var off on label state key text
-  local -a rows=()
+  local k item name table i var off on preview label state key text
   for k; do
     _hi_menu_switch_item "$k" item name || continue
     _HI_MENU_ITEMS+=("$item")
     [ -z "$_HI_MENU_PAGE" ] || continue
     IFS='|' read -r _ table i <<<"$item"
-    _hi_prompt_rows "$table" rows
-    IFS='|' read -r var off on _ _ label <<<"${rows[$i]}"
-    setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
+    _hi_menu_row_fields "$table" "$i"
     if [ "$state" = 1 ]; then _hi_paint state "$BRGREEN" "[x]"; else _hi_paint state "$RED" "[ ]"; fi
     _hi_paint key "$BRYELLOW" "[$k]"
     _hi_fit text "${label#* - }" "$_HI_MENU_TW"
@@ -285,29 +281,27 @@ function _hi_menu_value() {
   _hi_menu_add "$1" "$_hi_mv_text"
 }
 
-# _hi_menu_row <table> <index> - one yes/no row, checked when on. A row whose
-# <needs> command is absent here says so but still toggles - the setting
-# applies wherever the command exists. The help after " - " is what gives way
-# to a narrow terminal; the name, the note, and "(default ...)" stay.
-function _hi_menu_row() {
-  local var off on needs alt label state def name help="" note="" dnote="" room
+# _hi_menu_row_fields <table> <index> - that row's fields, and whether it is
+# on, into the caller's var off on preview label state
+function _hi_menu_row_fields() {
   local -a rows=()
   _hi_prompt_rows "$1" rows
-  IFS='|' read -r var off on _ needs label <<<"${rows[$2]}"
+  IFS='|' read -r var off on preview label <<<"${rows[$2]}"
   setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
+}
+
+# _hi_menu_row <table> <index> - one yes/no row, checked when on. The help
+# after " - " is what gives way to a narrow terminal; the name and
+# "(default ...)" stay.
+function _hi_menu_row() {
+  local var off on preview label state def name help="" dnote="" room
+  _hi_menu_row_fields "$1" "$2"
   # a default-on toggle has no on-value; an opt-in has one
   [ -z "$on" ] && def=1 || def=0
   name="${label%% - *}"
-  # <needs> may name alternatives, `hx/helix`: any one of them is enough
-  if [ -n "$needs" ]; then
-    note=" (no ${needs%%/*} here)"
-    for alt in ${needs//\// }; do
-      ! command -v "$alt" >/dev/null 2>&1 || note=""
-    done
-  fi
   [ "$state" = "$def" ] || { [ "$def" = 1 ] && dnote=" (default on)" || dnote=" (default off)"; }
   # "  NN) [x] " is ten columns
-  room=$((_HI_MENU_W - 11 - ${#name} - ${#note} - ${#dnote}))
+  room=$((_HI_MENU_W - 11 - ${#name} - ${#dnote}))
   case "$label" in *' - '*)
     if ((room > 8)); then
       _hi_fit help "${label#* - }" $((room - 3))
@@ -315,10 +309,9 @@ function _hi_menu_row() {
     fi
     ;;
   esac
-  [ -z "$note" ] || _hi_paint note "$YELLOW" "$note"
   [ -z "$dnote" ] || _hi_paint dnote "$YELLOW" "$dnote"
   _hi_menu_check state "$state"
-  _hi_menu_add "row|$1|$2" "$state $name$help$note$dnote"
+  _hi_menu_add "row|$1|$2" "$state $name$help$dnote"
 }
 
 # The list, grouped by what a setting changes, a heading over each part of a
@@ -356,9 +349,7 @@ function _hi_menu_list() {
   _hi_menu_section i
   for row in _HI_FEATURE_PROMPTS:0:header _HI_FEATURE_PROMPTS:1:greeting _HI_HEADER_PROMPTS:0:banner; do
     IFS=: read -r name i word <<<"$row"
-    _hi_prompt_rows "$name" rows
-    IFS='|' read -r var off on _ <<<"${rows[$i]}"
-    setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
+    _hi_menu_row_fields "$name" "$i"
     _hi_menu_grid_item "row|$name|$i" "$state" "$word" "$cols"
   done
   _hi_menu_grid_end "$cols"
@@ -649,12 +640,10 @@ function _hi_menu_grid_end() {
 # row, a header item, a package group, or a plugin, or ask for a value
 function _hi_menu_pick() {
   local kind a b var off on preview label state
-  local -a rows=()
   IFS='|' read -r kind a b <<<"$1"
   case "$kind" in
   row)
-    _hi_prompt_rows "$a" rows
-    IFS='|' read -r var off on preview _ label <<<"${rows[$b]}"
+    _hi_menu_row_fields "$a" "$b"
     _hi_setting_flip "$var" "$off" "$on" state
     # not boxed again where the page's own preview already shows it, and
     # never under the main page's table
@@ -666,7 +655,7 @@ function _hi_menu_pick() {
   word)
     # an empty $_HI_HEADER_ORDER means the default order at runtime, not
     # none, so the last item stays on
-    if [ "${_HI_HDR_ON[$a]}" = 1 ] && [ "$(_hi_header_edit_count_on)" -le 1 ]; then
+    if [ "${_HI_HDR_ON[$a]}" = 1 ] && [[ "${_HI_HDR_ON[*]}" != *1*1* ]]; then
       _hi_menu_note " keep at least one header item - the Header page's header switch turns it all off" "$YELLOW"
     else
       [ "${_HI_HDR_ON[$a]}" = 1 ] && _HI_HDR_ON[a]=0 || _HI_HDR_ON[a]=1
@@ -690,7 +679,6 @@ function _hi_menu_pick() {
 # third junk answer in a row ends the run too, but as a quit: three words
 # that are not menu items are not an instruction to write the file. Enter
 # alone redraws.
-_HI_CONFIGURE_QUIT=""
 function config_hub() {
   local reply cmd arg idx last rejects=0 max_rejects=3 draw=1 p h s q b="" back title row
   _hi_load_preview_sources
@@ -842,14 +830,6 @@ function _hi_header_edit_commit() {
   on="${on% }"
   [ "$on" = "$_HI_HEADER_ORDER_DEFAULT" ] && on=""
   _hi_pending_set _HI_HEADER_ORDER "$on"
-}
-
-# how many words are on - the menu refuses to turn the last one off, since
-# an empty $_HI_HEADER_ORDER means the default order at runtime, not none
-function _hi_header_edit_count_on() {
-  local i n=0
-  for i in "${!_HI_HDR_ON[@]}"; do [ "${_HI_HDR_ON[$i]}" = 1 ] && n=$((n + 1)); done
-  printf '%d' "$n"
 }
 
 # _hi_header_edit_preset <name> - the header items from a header preset:
@@ -1066,7 +1046,7 @@ function _hi_plugin_states() {
 # --disable-plugin` and `--enable-plugin` keep too (GLOSSARY: HI.64). One that is off
 # by default moves through the second, as there.
 function _hi_plugin_flip() {
-  local kept="" on="" w entry n s d state=1 dflt="" said="stays home" next=""
+  local kept="" on="" entry n s d state=1 dflt="" said="stays home"
   setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" kept
   setting_value _HI_PLUGINS_ON "$_HI_SETTINGS" on
   for entry in ${_HI_MENU_PLUGINS[@]+"${_HI_MENU_PLUGINS[@]}"}; do
@@ -1079,18 +1059,22 @@ function _hi_plugin_flip() {
   if [ "$state" != 1 ]; then
     said="is sent"
     kept="${kept/" $1 "/ }"
-    [ "$dflt" != 1 ] || case "$on" in *" $1 "*) ;; *) on="$on$1 " ;; esac
+    [ "$dflt" != 1 ] || _hi_list_has "$on" "$1" || on="$on$1 "
   elif [ "$dflt" = 1 ]; then
     on="${on/" $1 "/ }"
   else
     kept="$kept$1 "
   fi
-  for w in $kept; do next="$next${next:+ }$w"; done
-  _hi_pending_set _HI_PLUGINS_OFF "$next"
-  if [ "$dflt" = 1 ]; then
-    next=""
-    for w in $on; do next="$next${next:+ }$w"; done
-    _hi_pending_set _HI_PLUGINS_ON "$next"
-  fi
+  # shellcheck disable=SC2086 # word lists
+  _hi_pending_words _HI_PLUGINS_OFF $kept
+  # shellcheck disable=SC2086 # word lists
+  [ "$dflt" != 1 ] || _hi_pending_words _HI_PLUGINS_ON $on
   _hi_menu_note " $1: $said" "$GREEN"
+}
+
+# _hi_pending_words <var> <word...> - <var> pending as the words, a space apart
+function _hi_pending_words() {
+  local var="$1"
+  shift
+  _hi_pending_set "$var" "$*"
 }

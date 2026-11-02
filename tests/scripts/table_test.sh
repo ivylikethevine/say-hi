@@ -14,19 +14,15 @@ source "$_HI_ROOT/scripts/table.sh"
 source "$_HI_ROOT/scripts/lib.sh"
 
 function test_visible_len_counts_plain_text() {
-  local n
-  _hi_visible_len n "hello"
-  [ "$n" = 5 ] || _hi_why n
+  _hi_var_is 5 _hi_visible_len "hello"
 }
 
 function test_visible_len_strips_ansi_escapes() {
-  local n colored
+  local colored
   printf -v colored '%b' "${RED}ab${NC}"
-  _hi_visible_len n "$colored"
-  [ "$n" = 2 ] || _hi_why n || return 1
+  _hi_var_is 2 _hi_visible_len "$colored" || return 1
   # a bare reset with no parameters counts as zero columns too
-  _hi_visible_len n $'\e[mx'
-  [ "$n" = 1 ] || _hi_why n
+  _hi_var_is 1 _hi_visible_len $'\e[mx'
 }
 
 function test_widen_grows_to_the_longest_string() {
@@ -52,16 +48,14 @@ function test_widen_to_takes_widths_not_strings() {
 }
 
 function test_pad_to_pads_either_side_by_printed_width() {
-  local out colored
+  local colored out
   _hi_pad_to out 4 ab
   [ "$out" = 'ab  ' ] || _hi_why out || return 1
   _hi_pad_to out 4 7 right
   [ "$out" = '   7' ] || _hi_why out || return 1
   printf -v colored '%b' "${RED}ab${NC}"
-  _hi_pad_to out 4 "$colored" right
-  [ "$out" = "  $colored" ] || _hi_why out colored || return 1
-  _hi_pad_to out 2 toolong
-  [ "$out" = toolong ] || _hi_why out
+  _hi_var_is "  $colored" _hi_pad_to 4 "$colored" right || return 1
+  _hi_var_is toolong _hi_pad_to 2 toolong
 }
 
 # the awk writers' column: only a line with a \037 is padded, and a last line
@@ -77,10 +71,8 @@ function test_fit_cuts_with_an_ellipsis() {
   local out
   _hi_fit out abcdefgh 8
   [ "$out" = abcdefgh ] || _hi_why out || return 1
-  _hi_fit out abcdefgh 6
-  [ "$out" = abc... ] || _hi_why out || return 1
-  _hi_fit out abcdefgh 2
-  [ "$out" = ... ] || _hi_why out
+  _hi_var_is abc... _hi_fit abcdefgh 6 || return 1
+  _hi_var_is ... _hi_fit abcdefgh 2
 }
 
 function test_hotkey_brackets_the_letter() {
@@ -146,11 +138,10 @@ function test_hbar_positions_differ_on_the_glyph_set() {
 }
 
 function test_cell_pads_to_the_width() {
-  local want padded got
+  local want padded
   printf -v padded '%-5s' ab
   printf -v want '%s %b ' "$_HI_BOX_V" "${RED}${padded}${NC}"
-  got="$(_hi_cell 5 "$RED" ab)"
-  [ "$got" = "$want" ] || _hi_why got want
+  _hi_prints "$want" _hi_cell 5 "$RED" ab
 }
 
 function test_cell_visible_width_is_stable() {
@@ -162,20 +153,18 @@ function test_cell_visible_width_is_stable() {
 }
 
 function test_cell_empty_renders_the_continuation_blank() {
-  local want padded got
+  local want padded
   printf -v padded '%-4s' ''
   printf -v want '%s %b ' "$_HI_BOX_V" "${padded}${NC}"
-  got="$(_hi_cell 4 '' '')"
-  [ "$got" = "$want" ] || _hi_why got want
+  _hi_prints "$want" _hi_cell 4 '' ''
 }
 
 function test_cell_raw_pads_by_the_declared_width() {
-  local text want got
+  local text want
   printf -v text '%b' "${BRCYAN}ab${NC}"
   # caller says the text prints as 2 columns; the cell pads the other 4
   printf -v want '%s %b%*s ' "$_HI_BOX_V" "${text}${NC}" 4 ''
-  got="$(_hi_cell_raw 6 2 "$text")"
-  [ "$got" = "$want" ] || _hi_why got text want
+  _hi_prints "$want" _hi_cell_raw 6 2 "$text"
 }
 
 # _hi_hrule/_hi_h1/_hi_h2 (scripts/lib.sh) draw every section heading
@@ -212,7 +201,7 @@ function test_hrule_clamps_and_overflows_for_a_wide_label() {
 # doctor report both print it, and only the default arm is reached by their
 # cases. A custom scheme is twenty-four (or forty-eight) hex words.
 function test_scheme_label_names_each_kind() {
-  local label custom
+  local custom label
   custom="$(printf 'abcdef %.0s' $(seq 1 24))"
   custom="${custom% }"
   _HI_COLOR_SCHEME="" _hi_scheme_label label
@@ -221,8 +210,7 @@ function test_scheme_label_names_each_kind() {
   [ "$label" = "custom (24)" ] || _hi_why label || return 1
   _HI_COLOR_SCHEME="$custom $custom" _hi_scheme_label label
   [ "$label" = "custom (48)" ] || _hi_why label || return 1
-  _HI_COLOR_SCHEME=nope _hi_scheme_label label
-  [ "$label" = "nope (ignored - not a scheme)" ] || _hi_why label
+  _HI_COLOR_SCHEME=nope _hi_var_is "nope (ignored - not a scheme)" _hi_scheme_label
 }
 
 # a line's pieces: cut at the last space that fits, the space gone with the
@@ -333,11 +321,8 @@ function test_text_cells_print_head_and_cell() {
 
 # under --text a heading is its words alone: no rule, no color
 function test_text_headings_are_their_words() {
-  local got
-  got="$(_hi_text_mode _hi_h1 "Local")"
-  [ "$got" = Local ] || _hi_why got || return 1
-  got="$(_hi_text_mode _hi_h2 "Targets")"
-  [ "$got" = Targets ] || _hi_why got
+  _hi_prints Local _hi_text_mode _hi_h1 "Local" || return 1
+  _hi_prints Targets _hi_text_mode _hi_h2 "Targets"
 }
 
 function run_table_tests() {

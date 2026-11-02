@@ -193,14 +193,20 @@ function _hi_shrc_toggle_in() {
 }
 
 function test_session_shrc_reads_the_settings_first() {
-  local got
   local root="$_HI_WORKDIR/shrc-root"
   mkdir -p "$root/config"
   ln -sfn "$_HI_ROOT/common" "$root/common"
   printf 'export _HI_TOOL_ALIASES=1\n' >"$root/config/settings.sh"
   # in a subshell: the setup exports ZDOTDIR and ENV
-  got="$(_hi_shrc_toggle_in "$root")"
-  [ "$got" = 1 ] || _hi_why got root
+  _hi_prints 1 _hi_shrc_toggle_in "$root"
+}
+
+# _hi_rc_dir_after_setup - the directory _hi_session_rc_setup made, printed:
+# called in a $( ), under the settings the case gives it there
+function _hi_rc_dir_after_setup() {
+  _HI_SESSION_RC_DIR=""
+  _hi_session_rc_setup || exit 1
+  printf '%s' "$_HI_SESSION_RC_DIR"
 }
 
 # Only the *set* session vars are written - an unset one is skipped rather
@@ -208,24 +214,18 @@ function test_session_shrc_reads_the_settings_first() {
 # copies. HI.47's other half: the content of the lines, not just that the
 # files exist.
 function test_session_rc_setup_writes_only_the_set_vars() {
-  local dir bashrc fish_config ok=1
-  (
-    local _HI_SESSION_RC_DIR="" _HI_LOCAL_USER=myself _HI_TARGET_COLOR=blue
+  local dir bashrc fish_config
+  dir="$(
+    _HI_LOCAL_USER=myself _HI_TARGET_COLOR=blue
     unset _HI_TARGET_TAG _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR
-    _hi_session_rc_setup || _hi_why || exit 1
-    printf '%s\n' "$_HI_SESSION_RC_DIR"
-  ) >"$_HI_WORKDIR/onlyset_out"
-  dir="$(cat "$_HI_WORKDIR/onlyset_out")"
+    _hi_rc_dir_after_setup
+  )" || _hi_why || return 1
   bashrc="$(cat "$dir/bashrc")"
   fish_config="$(cat "$dir/fish.config")"
   rm -rf "$dir"
-  case "$bashrc" in *'_HI_LOCAL_USER=myself'*) ;; *) ok=0 ;; esac
-  case "$bashrc" in *'_HI_TARGET_COLOR=blue'*) ;; *) ok=0 ;; esac
-  case "$bashrc" in *_HI_TARGET_TAG*) ok=0 ;; esac
-  case "$fish_config" in *"set -g _HI_LOCAL_USER 'myself'"*) ;; *) ok=0 ;; esac
-  case "$fish_config" in *"set -g _HI_TARGET_COLOR 'blue'"*) ;; *) ok=0 ;; esac
-  case "$fish_config" in *_HI_TARGET_TAG*) ok=0 ;; esac
-  [ "$ok" -eq 1 ] || _hi_why ok
+  [[ "$bashrc" == *'_HI_LOCAL_USER=myself'* && "$bashrc" == *'_HI_TARGET_COLOR=blue'* && "$bashrc" != *_HI_TARGET_TAG* &&
+    "$fish_config" == *"set -g _HI_LOCAL_USER 'myself'"* && "$fish_config" == *"set -g _HI_TARGET_COLOR 'blue'"* &&
+    "$fish_config" != *_HI_TARGET_TAG* ]] || _hi_why bashrc fish_config
 }
 
 # With $_HI_CLEANUP set (the ephemeral shape), the rc directory nests
@@ -234,13 +234,8 @@ function test_session_rc_setup_writes_only_the_set_vars() {
 # that trap.
 function test_session_rc_setup_nests_under_cleanup_when_set() {
   local dir
-  (
-    local _HI_SESSION_RC_DIR="" _HI_CLEANUP="$_HI_WORKDIR/nesttest"
-    mkdir -p "$_HI_CLEANUP"
-    _hi_session_rc_setup || _hi_why || exit 1
-    printf '%s\n' "$_HI_SESSION_RC_DIR"
-  ) >"$_HI_WORKDIR/nest_out"
-  dir="$(cat "$_HI_WORKDIR/nest_out")"
+  mkdir -p "$_HI_WORKDIR/nesttest"
+  dir="$(_HI_CLEANUP="$_HI_WORKDIR/nesttest" _hi_rc_dir_after_setup)" || _hi_why || return 1
   case "$dir" in
   "$_HI_WORKDIR/nesttest"/*) ;;
   *)
@@ -254,13 +249,10 @@ function test_session_rc_setup_nests_under_cleanup_when_set() {
 # unaffected.
 function test_session_rc_setup_stands_alone_without_cleanup() {
   local dir
-  (
-    local _HI_SESSION_RC_DIR=""
+  dir="$(
     unset _HI_CLEANUP
-    _hi_session_rc_setup || _hi_why || exit 1
-    printf '%s\n' "$_HI_SESSION_RC_DIR"
-  ) >"$_HI_WORKDIR/nofollow_out"
-  dir="$(cat "$_HI_WORKDIR/nofollow_out")"
+    _hi_rc_dir_after_setup
+  )" || _hi_why || return 1
   case "$dir" in
   "$_HI_WORKDIR"/*)
     _hi_cecho " | $dir landed under \$_HI_WORKDIR unexpectedly" "$RED"
@@ -455,13 +447,12 @@ function test_session_shell_passes_over_a_fish_too_old() {
   [ "$got" = zsh ] && [ "$got2" = fish ] || _hi_why got got2
 }
 
-# _hi_shell_case <installed> <env-string> - _hi_shell_answer with the env
-# pairs taken from one table field. eval'd so a value with spaces in it
-# stays one argument; the field is literal text in this file, not input.
+# _hi_shell_case <installed> <env-pairs> - _hi_shell_answer with the env pairs
+# taken from one table field, a ; between them so a value may hold a space
 function _hi_shell_case() {
-  local installed="$1" envs="$2"
-  eval "set -- $envs"
-  _hi_shell_answer "$installed" "$@"
+  local -a pairs=()
+  IFS=';' read -r -a pairs <<<"$2"
+  _hi_shell_answer "$1" "${pairs[@]}"
 }
 
 # $SHELL unset - _hi_login_shell falls back to getent, then to a direct
@@ -504,20 +495,17 @@ function test_login_shell_falls_back_to_etc_passwd_without_getent() {
 # SHELL= prefix from sticking to this shell (a NAME=VALUE prefix on a
 # *function* call persists, unlike on a command).
 function test_login_shell_answers_with_the_basename_of_shell() {
-  local got
-  got="$(SHELL=/opt/odd/bin/tcsh _hi_login_shell)"
-  [ "$got" = tcsh ] || _hi_why got
+  SHELL=/opt/odd/bin/tcsh _hi_prints tcsh _hi_login_shell
 }
 
 # Exported-but-empty $SHELL (a minimal container's shape) falls back the same
 # way an unset one does: ${SHELL:-}, not ${SHELL-}.
 function test_login_shell_treats_an_empty_shell_as_unset() {
-  local want got
+  local want
   want="$(getent passwd "$(id -un)" | awk -F: '{ print $NF }')"
   want="${want##*/}"
   [ -n "$want" ] || _hi_why want || return 1
-  got="$(SHELL="" _hi_login_shell)"
-  [ "$got" = "$want" ] || _hi_why got want
+  SHELL="" _hi_prints "$want" _hi_login_shell
 }
 
 # getent present but silent (an NSS-only misconfiguration, or a user the DB
@@ -568,7 +556,8 @@ function _hi_nano_case() {
 # added goes where it has none; a nanorc with nothing dropped, or outside a
 # disposable tree, is left alone
 function test_nano_fallback_follows_the_target() {
-  local fb='include "/usr/share/nano/*.nanorc"' out want
+  local out
+  local fb='include "/usr/share/nano/*.nanorc"' want
   local dropped='# hi dropped: include "~/.nano/*.nanorc"'
   want="$dropped"$'\nset tabsize 4'
   set -- /usr/share/nano/*.nanorc
@@ -577,10 +566,8 @@ function test_nano_fallback_follows_the_target() {
   [ "$out" = "$want" ] || _hi_because "fresh: [$out]" || return 1
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-b" "$dropped"$'\n'"$fb"$'\nset tabsize 4\n')"
   [ "$out" = "$want" ] || _hi_because "carried from a hop: [$out]" || return 1
-  out="$(_hi_nano_case "$_HI_WORKDIR/nano-c" $'set tabsize 4\n')"
-  [ "$out" = "set tabsize 4" ] || _hi_why out || return 1
-  out="$(_hi_nano_case "$_HI_WORKDIR/nano-d" "$dropped"$'\n' "")"
-  [ "$out" = "$dropped" ] || _hi_why out dropped
+  _hi_prints "set tabsize 4" _hi_nano_case "$_HI_WORKDIR/nano-c" $'set tabsize 4\n' || return 1
+  _hi_prints "$dropped" _hi_nano_case "$_HI_WORKDIR/nano-d" "$dropped"$'\n' ""
 }
 
 # an include the nanorc kept counts too, a ~/ one read under this $HOME: an
@@ -598,16 +585,14 @@ function test_nano_fallback_reads_a_kept_home_include() {
 # takes the spelling the target defines, and one naming no syntax there is
 # dropped, then restored by a hop that has it
 function test_nano_fallback_resolves_extendsyntax() {
-  local syn="$_HI_WORKDIR/nano-syn" out want
+  local syn="$_HI_WORKDIR/nano-syn" want
   mkdir -p "$syn"
   printf 'syntax "GO" "\\.go$"\n' >"$syn/go.nanorc"
   local inc="include \"$syn/*.nanorc\""
   want="# hi dropped: $inc"$'\n'"$inc"$'\nsyntax mine "\\.x$"\nextendsyntax GO tabgives " "\nextendsyntax mine tabgives " "\n# hi dropped: extendsyntax JSX linter eslint'
-  out="$(_hi_nano_case "$_HI_WORKDIR/nano-e" "# hi dropped: $inc"$'\nsyntax mine "\\.x$"\nextendsyntax go tabgives " "\nextendsyntax mine tabgives " "\nextendsyntax JSX linter eslint\n')"
-  [ "$out" = "$want" ] || _hi_because "resolved: [$out]" || return 1
+  _hi_prints "$want" _hi_nano_case "$_HI_WORKDIR/nano-e" "# hi dropped: $inc"$'\nsyntax mine "\\.x$"\nextendsyntax go tabgives " "\nextendsyntax mine tabgives " "\nextendsyntax JSX linter eslint\n' || return 1
   printf 'syntax "JSX" "\\.jsx$"\n' >"$syn/jsx.nanorc"
-  out="$(_hi_nano_case "$_HI_WORKDIR/nano-f" "$want"$'\n')"
-  [ "$out" = "${want/\# hi dropped: extendsyntax/extendsyntax}" ] || _hi_because "carried to a hop that has it: [$out]"
+  _hi_prints "${want/\# hi dropped: extendsyntax/extendsyntax}" _hi_nano_case "$_HI_WORKDIR/nano-f" "$want"$'\n'
 }
 
 # _hi_load_begin - what every part of this suite starts from, and the tally
@@ -694,11 +679,11 @@ A bash-less tier is never the session shell (dash)|bash dash zsh|SHELL=/bin/dash
 # $_HI_SHELL_PREFERENCE reorders the ladder: its words first, in order, then
 # the tree; a word that is no shell hi styles is passed over, and `login` in
 # it is the login shell wherever it sits
-The preference leads the login shell|bash zsh fish|SHELL=/bin/bash _HI_SHELL_PREFERENCE="zsh fish"|zsh
-...and falls to the next word it names|bash fish|SHELL=/bin/bash _HI_SHELL_PREFERENCE="zsh fish"|fish
-...then to the tree past its last word|bash fish|SHELL=/bin/bash _HI_SHELL_PREFERENCE=zsh|fish
-...a word that is no shell of hi's is passed over|bash zsh fish|SHELL=/bin/zsh _HI_SHELL_PREFERENCE="nope login"|zsh
-...and bash is still the floor|bash|SHELL=/bin/bash _HI_SHELL_PREFERENCE="fish zsh"|bash
+The preference leads the login shell|bash zsh fish|SHELL=/bin/bash;_HI_SHELL_PREFERENCE=zsh fish|zsh
+...and falls to the next word it names|bash fish|SHELL=/bin/bash;_HI_SHELL_PREFERENCE=zsh fish|fish
+...then to the tree past its last word|bash fish|SHELL=/bin/bash;_HI_SHELL_PREFERENCE=zsh|fish
+...a word that is no shell of hi's is passed over|bash zsh fish|SHELL=/bin/zsh;_HI_SHELL_PREFERENCE=nope login|zsh
+...and bash is still the floor|bash|SHELL=/bin/bash;_HI_SHELL_PREFERENCE=fish zsh|bash
 EOF
   _hi_check "...and bash is the answer even off-PATH" test_session_shell_floors_at_bash_even_off_path
   _hi_check "A fish older than 3.4 gives way to the next shell" test_session_shell_passes_over_a_fish_too_old

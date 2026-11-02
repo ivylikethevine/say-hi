@@ -26,11 +26,10 @@ mode=add
   mode=remove
   shift
 }
-me="${_HI_ARGV0:-hi --$mode-package}"
-_HI_ME="$me"
+_HI_ME="${_HI_ARGV0:-hi --$mode-package}"
 _HI_DRY_RUN="" group="" rows=() args=()
-usage="$me <group> <pkg>[,...] [--dry-run]"
-[ "$mode" = add ] || usage="$me <pkg>... [--dry-run]"
+usage="$_HI_ME <group> <pkg>[,...] [--dry-run]"
+[ "$mode" = add ] || usage="$_HI_ME <pkg>... [--dry-run]"
 
 function _hi_add_package_help() {
   if [ "$mode" = remove ]; then
@@ -68,7 +67,6 @@ EOF
 
 # --help and --dry-run anywhere on the line; adding, the first other word is
 # the group and the rest rows - a single-dash word such as `-exa` is a row.
-# Loop shape matches scripts/update.sh's.
 _hi_args _hi_add_package_help "$usage" "$@"
 rows=(${args[@]+"${args[@]}"})
 [ "$mode" != add ] || [ "${#rows[@]}" -eq 0 ] || {
@@ -77,10 +75,10 @@ rows=(${args[@]+"${args[@]}"})
 }
 
 if [ "$mode" = remove ]; then
-  [ "${#rows[@]}" -gt 0 ] || _hi_die "needs at least one package ($me --help)"
+  [ "${#rows[@]}" -gt 0 ] || _hi_die "needs at least one package ($_HI_ME --help)"
 else
   [ -n "$group" ] && [ "${#rows[@]}" -gt 0 ] ||
-    _hi_die "needs a group and at least one row ($me --help)"
+    _hi_die "needs a group and at least one row ($_HI_ME --help)"
   # A group name is what a `[...]` line can hold and $_HI_PACKAGES_GROUPS can
   # list: no spaces, commas, brackets, or #, and not a word a table line
   # reads as a row's kind.
@@ -98,7 +96,7 @@ fi
 _hi_row_re='^[-+]?[^]["\\,:#[:space:]+-][^]["\\,:#[:space:]]*(,[^]["\\,:#[:space:]+-][^]["\\,:#[:space:]]*)*$'
 for _hi_row in "${rows[@]}"; do
   [[ "$_hi_row" =~ $_hi_row_re ]] ||
-    _hi_die "not a package-check row: $_hi_row ([-|+]pkg[,pkg2...], no spaces, colons, quotes, # or brackets; $me --help)"
+    _hi_die "not a package-check row: $_hi_row ([-|+]pkg[,pkg2...], no spaces, colons, quotes, # or brackets; $_HI_ME --help)"
 done
 unset _hi_row
 

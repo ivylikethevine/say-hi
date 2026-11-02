@@ -237,12 +237,11 @@ function test_system_info_probes_once_for_all_five_cells() {
   count="$_HI_WORKDIR/uname.calls"
   mkdir -p "$dir"
   : >"$count"
-  cat >"$dir/uname" <<EOF
+  _hi_script "$dir/uname" <<EOF
 #!/bin/sh
 printf 'x\n' >>"$count"
 echo "Darwin arm64"
 EOF
-  chmod +x "$dir/uname"
   # awk, not wc: _hi_platform_header's PATH carries only the tools the probes
   # themselves fork, and wc is not one of them
   probe="pre=\$(awk 'END { print NR }' '$count')"
@@ -285,31 +284,23 @@ function test_system_info_on_windows() {
 # filter is checked on its own, then through the cell on a mac-shaped box
 # whose ifconfig answers three interfaces and on a linux-shaped one's ip.
 function test_ip_filter_hides_the_bridges_by_default() {
-  local out
   unset _HI_IP_HIDE
-  _hi_ip_filter out "172.17.0.2%docker0,10.0.0.5%eth0"
-  [ "$out" = "10.0.0.5" ] || _hi_why out || return 1
-  _hi_ip_filter out "10.0.0.5%eth0,172.18.0.1%br-0123456789ab,10.88.0.1%podman0,192.168.122.1%virbr0,192.0.2.10%eth1"
-  [ "$out" = "10.0.0.5,192.0.2.10" ] || _hi_why out
+  _hi_var_is "10.0.0.5" _hi_ip_filter "172.17.0.2%docker0,10.0.0.5%eth0" || return 1
+  _hi_var_is "10.0.0.5,192.0.2.10" _hi_ip_filter "10.0.0.5%eth0,172.18.0.1%br-0123456789ab,10.88.0.1%podman0,192.168.122.1%virbr0,192.0.2.10%eth1"
 }
 
 # a public 172 address is a box's own: the default looks at the interface, and
 # one with no interface named is kept, as nothing says it is a bridge
 function test_ip_filter_keeps_a_public_172_address() {
-  local out
   unset _HI_IP_HIDE
-  _hi_ip_filter out "172.104.1.2%eth0,172.17.0.2"
-  [ "$out" = "172.104.1.2,172.17.0.2" ] || _hi_why out
+  _hi_var_is "172.104.1.2,172.17.0.2" _hi_ip_filter "172.104.1.2%eth0,172.17.0.2"
 }
 
 # `none` hides nothing and still drops the interfaces; an empty value is
 # unset, so it hides the default's - what the wizard's preview shows for it too
 function test_ip_filter_none_and_empty_keep_everything() {
-  local out
-  _HI_IP_HIDE=none _hi_ip_filter out "172.17.0.2%docker0,10.0.0.5%eth0"
-  [ "$out" = "172.17.0.2,10.0.0.5" ] || _hi_why out || return 1
-  _HI_IP_HIDE="" _hi_ip_filter out "172.17.0.2%docker0,10.0.0.5%eth0"
-  [ "$out" = "10.0.0.5" ] || _hi_why out
+  _HI_IP_HIDE=none _hi_var_is "172.17.0.2,10.0.0.5" _hi_ip_filter "172.17.0.2%docker0,10.0.0.5%eth0" || return 1
+  _HI_IP_HIDE="" _hi_var_is "10.0.0.5" _hi_ip_filter "172.17.0.2%docker0,10.0.0.5%eth0"
 }
 
 function test_ip_filter_takes_a_glob_list() {

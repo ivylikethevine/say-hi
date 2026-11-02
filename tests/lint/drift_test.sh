@@ -90,27 +90,25 @@ _HI_EVAL_KIN_LINT=(
 # real hit still point at the right line. Any _HI_*_LINT table, not just one by
 # name: a table added below has to be blanked too, and finding out that it
 # wasn't means reading a report of this file against itself.
-function _hi_lint_source_lines() {
-  awk '/^_HI_[A-Z0-9_]*_LINT=\(/ { inside = 1 }
-       inside { print ""; if (/^\)/) inside = 0; next }
-       { print }' "$1"
-}
-
+#
 # _hi_lint_blanks <dir> <file...> - the blanked mirror of <file...> under
 # <dir>, laid out like the source tree so one recursive `grep -H` per pattern
 # reports the real path. Blanking each file once and grepping the tree is what
 # keeps a table cheap: a grep per (pattern x file) was ~1000 processes a run,
-# and this is the CI gate.
+# and this is the CI gate. An empty file has no lines to mirror.
 function _hi_lint_blanks() {
-  local dir="$1" file rel
+  local dir="$1" d
   shift
   rm -rf "$dir"
   mkdir -p "$dir"
-  for file in "$@"; do
-    rel="${file#"$_HI_ROOT/"}"
-    case "$rel" in */*) mkdir -p "$dir/${rel%/*}" ;; esac
-    _hi_lint_source_lines "$file" >"$dir/$rel"
-  done
+  while IFS= read -r d; do
+    mkdir -p "$dir/${d#"$_HI_ROOT"}"
+  done < <(printf '%s\n' "${@%/*}" | sort -u)
+  awk -v root="$_HI_ROOT" -v dir="$dir" '
+    FNR == 1 { if (out != "") close(out); out = dir "/" substr(FILENAME, length(root) + 2); inside = 0 }
+    /^_HI_[A-Z0-9_]*_LINT=\(/ { inside = 1 }
+    inside { print "" >out; if (/^\)/) inside = 0; next }
+    { print >out }' "$@"
 }
 
 # _hi_lint_table <dir> <include> <what-plural> <entry...> - every
@@ -243,8 +241,7 @@ function lint_ignored_payload() {
   fi
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   while IFS= read -r f; do
-    _hi_align " | $f" "IGNORED" "$RED"
-    _hi_note_failure "gitignored shipped file: $f"
+    _hi_lint_fail " | $f" "gitignored shipped file: $f" "" IGNORED
     bad=1
   done < <(cd "$_HI_ROOT" && find common config scripts hi.sh load.sh -type f 2>/dev/null |
     git check-ignore --stdin 2>/dev/null)
@@ -341,9 +338,7 @@ function lint_image_tags() {
     if [ -z "$hits" ]; then
       _hi_align " | $image: every tag is one of the pins ($hit)" "OK" "$GREEN"
     else
-      _hi_align " | $image: a tag matches no pin ($hit)" "FAILED" "$RED"
-      printf '%s' "$hits" | sed "s#^$_HI_ROOT/#      #"
-      _hi_note_failure "image tag drift: $image (pinned $hit)"
+      _hi_lint_fail " | $image: a tag matches no pin ($hit)" "image tag drift: $image (pinned $hit)" "${hits//"$_HI_ROOT/"/}"
       bad=$((bad + 1))
     fi
   done
@@ -508,7 +503,7 @@ function lint_mise() {
 # than diffed, since the dialects genuinely differ - bash's $EUID against
 # POSIX `id -u`, `printf -v` against a plain assignment.
 function lint_runtime_dir() {
-  local file name first="" guard bad=0 lost
+  local file name first="" guard owner bad=0 lost
   _hi_h2 "Checking the runtime-directory copy (common/core.sh, common/targets.sh)"
   for file in common/core.sh common/targets.sh; do
     _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
@@ -530,7 +525,9 @@ function lint_runtime_dir() {
     [ -n "$first" ] || first="$name"
     # the three guards that make the shared name safe on a shared /tmp
     lost=0
-    for guard in 'XDG_RUNTIME_DIR' 'mkdir -m 700' 'ls -ldn'; do
+    owner='! -O '
+    [ "$file" = common/core.sh ] || owner='ls -ldn'
+    for guard in 'XDG_RUNTIME_DIR' 'mkdir -m 700' "$owner"; do
       if ! grep -qF -- "$guard" "$_HI_ROOT/$file"; then
         _hi_lint_fail " | $file: lost the '$guard' guard" "runtime dir: $file lost '$guard'"
         lost=$((lost + 1))
@@ -581,15 +578,15 @@ function lint_eval_roster() {
     $3 !~ /^(const|name|own|tool)$/ { print "unknown|" $0; next }
     { text = $0; sub(/^[^|]*\|[^|]*\|[^|]*\|/, "", text); print "eval|" $2 "|" text }' "$roster")"
   while IFS= read -r line; do
-    if [ -z "$line" ] || grep -qxF -- "$line" <<<"$want"; then continue; fi
+    [ -n "$line" ] || continue
     _hi_align " | not in the roster: $line" "FOUND" "$RED"
     bad=$((bad + 1))
-  done <<<"$found"
+  done < <(grep -vxFf <(printf '%s\n' "$want") <<<"$found")
   while IFS= read -r line; do
-    if [ -z "$line" ] || grep -qxF -- "$line" <<<"$found"; then continue; fi
+    [ -n "$line" ] || continue
     _hi_align " | in the roster alone: $line" "FOUND" "$RED"
     bad=$((bad + 1))
-  done <<<"$want"
+  done < <(grep -vxFf <(printf '%s\n' "$found") <<<"$want")
   if [ "$bad" = 0 ]; then
     _hi_align " | every eval, source, sh -c, and rm -r has its row" "OK" "$GREEN"
     return 0
@@ -701,8 +698,8 @@ function lint_dockerfiles() {
 #           that was wrong is in neither. Captured into a variable on the
 #           line above, the reason has it.
 #
-# A reporter is _hi_because, _hi_why, _hi_cecho, _hi_show_*, _hi_dump_*, or a
-# printf or echo that is neither captured nor sent to a file. Statements are
+# A reporter is _hi_because, _hi_why, _hi_cecho, _hi_prints, _hi_refused,
+# _hi_says, _hi_var_is, _hi_arrives, _hi_show_*, _hi_dump_*, or a printf or echo that is neither captured nor sent to a file. Statements are
 # joined across `||`, `&&`, `|`, and `\` line ends and across an open quote or
 # $( ), a heredoc's body and a nested function are skipped, and a quoted
 # `return 1` (a stub's `{ return 1; }`, a fixture's text) is not one. What it
@@ -713,7 +710,7 @@ function lint_dockerfiles() {
 function _hi_reasons_awk() {
   cat <<'AWK'
 function says(s) {
-  if (s ~ /_hi_because|_hi_why|_hi_cecho|_hi_show_[a-z_]+|_hi_dump_[a-z_]+/) return 1
+  if (s ~ /_hi_because|_hi_why|_hi_cecho|_hi_prints|_hi_refused|_hi_says|_hi_var_is|_hi_arrives|_hi_show_[a-z_]+|_hi_dump_[a-z_]+/) return 1
   if (s ~ /(^|[^A-Za-z0-9_])(printf|echo)[ \t]/ && s !~ /^[A-Za-z_][A-Za-z0-9_]*=/ && s !~ />>?[ \t]*["$\/A-Za-z]/) return 1
   return 0
 }

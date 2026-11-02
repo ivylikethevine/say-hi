@@ -53,24 +53,7 @@ exists in a brew prefix, and `tests/packaging/packaging_ci_test.sh` (the
 
 ## Layout
 
-Under `packaging/`:
-
-| path                 | what it is                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------ |
-| `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                                    |
-| `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it              |
-| `stamp_badge.sh`     | writes README's `ssh_payload` badge from a pinned measurement; `--check` is `--group bench`'s    |
-| `bump.sh`            | writes the version + real checksums into a release's own manifests; `--check` verifies the write |
-| `lib.sh`             | the tree locator and shared primitives the other scripts (and `release.yml`) source              |
-| `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes                 |
-| `mkrepo.sh`          | turns the built packages into the apt/rpm/apk [package repository](#package-repository)          |
-| `aur/say-hi/`        | the versioned AUR package (`PKGBUILD`, `.SRCINFO`)                                               |
-| `aur/say-hi-git/`    | the same package built from `main`                                                               |
-| `homebrew/say-hi.rb` | the tap formula                                                                                  |
-| `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                                          |
-| `nix/`               | the package and the home-manager module that `flake.nix`, at the root, exports                   |
-| `gpg/say-hi.asc`     | the public half of the key that signs the rpm and the apt/rpm repository metadata                |
-| `apk/say-hi.rsa.pub` | the public half of the key that signs the apk and its `APKINDEX`                                 |
+[FILES.md's `packaging/`](FILES.md#packaging) lists what lives there.
 
 **The version stamp.** `stamp.sh` writes `_HI_RELEASE=` into the installed
 `hi.sh` and the version into the man page's `.TH` line. It cannot live in git:
@@ -160,8 +143,8 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    always use the ones the release attached
    (`gh release download v1.0.0 --pattern …`).
 5. `brew` installs, tests, and audits the formula on a hosted mac, and when it
-   passes, `tap` opens a PR against the tap ([Homebrew tap](#homebrew-tap));
-   merging it is yours.
+   passes, `tap` opens a PR against the tap ([Homebrew tap](#homebrew-tap)),
+   which auto-merges once the tap's CI passes.
 6. Once `AUR_SSH_KEY` exists, dispatch `publish-external.yml` with
    `tag: v1.0.0` to push the AUR, a separate, later, manual step. It reads
    the manifest off the release itself, never the template. Until the key
@@ -200,8 +183,7 @@ titles.
 `release-note.yml` (the `release note (pr body)` check, re-run on each
 body edit) fails any non-draft PR, `dev` → `main` included and only
 Dependabot's exempt, whose section is missing or holds only whitespace and
-comments. Skim `gh pr list --state merged` before tagging and fix a section in
-place if it reads badly; the release reads the bodies as they are then.
+comments. The release reads the bodies as they are at the tag.
 
 **The body opens with the tag's own badges.** README's tests, kcov, and
 bashcov badges track the newest green `main`; the release body freezes the
@@ -301,10 +283,10 @@ refused shows there), not by guessing.
 
 ## Publishing each channel
 
-The tap is a PR you merge; the AUR is a dispatch you run against an
-already-published tag (`gh workflow run publish-external.yml -f tag=v1.0.0`,
-or the Actions UI). Neither reaches a `v0.0.x` debug tag or a candidate. Each
-section's checks are yours to run first.
+The tap is a PR that merges itself; the AUR, until its flow is proven, is a
+dispatch you run against an already-published tag
+(`gh workflow run publish-external.yml -f tag=v1.0.0`, or the Actions UI).
+Neither reaches a `v0.0.x` debug tag or a candidate.
 
 ### AUR
 

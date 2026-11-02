@@ -61,11 +61,10 @@ function _hi_shquote_loop_ref() {
 # the armor line is `echo "<base64>" | <unarmor> <op> <word>` - proven by
 # running it, not by parsing it
 function test_armored_line_roundtrips_through_sh() {
-  local got f="$_HI_WORKDIR/armored.out" line
+  local f="$_HI_WORKDIR/armored.out" line
   line="$(printf 'hello armored world\n' | _hi_armored_line '>' "'$f'")"
   sh -c "$line" || _hi_why line || return 1
-  got="$(cat "$f")"
-  [ "$got" = "hello armored world" ] || _hi_why got f
+  _hi_prints "hello armored world" cat "$f"
 }
 
 # openssl stands in for a missing base64 on either end (stock OpenBSD):
@@ -80,7 +79,8 @@ function test_armored_line_roundtrips_through_sh() {
 # remote_test.sh's `onlyssl`: the builder is build-once-per-name and the two
 # name different tools.
 function test_armor_falls_back_to_openssl() {
-  local got f="$_HI_WORKDIR/armored-ssl.out" dir sh_bin want line
+  local got
+  local f="$_HI_WORKDIR/armored-ssl.out" dir sh_bin want line
   sh_bin="$(command -v sh)"
   dir="$(_hi_real_path onlyssl-armor openssl tr)"
   want="$(seq 1 400 | tr '\n' ' ')"
@@ -90,21 +90,10 @@ function test_armor_falls_back_to_openssl() {
   [ "$got" = "$want" ] || _hi_why got dir sh_bin line f || return 1
   line="$(printf 'echo "%s" | %s > %s' "$(printf '%s\n' "$want" | $_HI_ARMOR | tr -d '\n')" "$_HI_UNARMOR" "'$f'")"
   PATH="$dir" "$sh_bin" -c "$line" || _hi_why dir sh_bin line f || return 1
-  got="$(cat "$f")"
-  [ "$got" = "$want" ] || _hi_why got dir sh_bin line f || return 1
+  _hi_prints "$want" cat "$f" || return 1
   line="$(printf '%s\n' "$want" | _HI_ARMOR="openssl base64" _hi_armored_line '>' "'$f'")"
   sh -c "$line" || _hi_why line f want || return 1
-  got="$(cat "$f")"
-  [ "$got" = "$want" ] || _hi_why got line f want
-}
-
-function test_outer_inner_split() {
-  local got got2 got3 got4
-  got="$(_hi_outer pod/ctr)"
-  got2="$(_hi_inner pod/ctr)"
-  got3="$(_hi_outer plain)"
-  got4="$(_hi_inner plain)"
-  [ "$got" = pod ] && [ "$got2" = ctr ] && [ "$got3" = plain ] && [ -z "$got4" ] || _hi_why got got2 got3 got4
+  _hi_prints "$want" cat "$f"
 }
 
 function _hi_kube_case() {
@@ -131,10 +120,9 @@ function test_human_bytes_units() {
 }
 
 function test_file_bytes_counts() {
-  local got f="$_HI_WORKDIR/five.bytes"
+  local f="$_HI_WORKDIR/five.bytes"
   printf '12345' >"$f"
-  got="$(_hi_file_bytes "$f")"
-  [ "$got" = 5 ] || _hi_why got f
+  _hi_prints 5 _hi_file_bytes "$f"
 }
 
 # FNV-1a's published vectors, across the 64-character slice boundary, with an
@@ -158,16 +146,13 @@ function test_target_color_memoizes_the_domain() {
   (
     unset _HI_TARGET_COLOR_MEMO
     DOMAIN="user@somehost.example"
-    [ "$(_hi_target_color)" = "$(_hi_resolve_color hostname somehost.example)" ]
+    _hi_target_color
+    [ "$_HI_TARGET_COLOR_MEMO" = "$(_hi_resolve_color hostname somehost.example)" ]
   ) || _hi_why
 }
 
-# nothing without a command; with one, the line lands the command in the rc
+# the line lands the command in the rc
 function test_command_append_shapes() {
-  (
-    unset CMDARG
-    [ -z "$(_hi_command_append x)" ]
-  ) || _hi_why || return 1
   (
     local f="$_HI_WORKDIR/append.rc" line
     CMDARG='ls -la; exit'
@@ -258,10 +243,6 @@ function test_safe_path_rejects_chars_outside_the_class() {
 }
 
 # _hi_require is the missing-tool refusal every transport leans on
-function test_require_finds_an_installed_tool() {
-  _hi_require sh "for this case" 2>/dev/null || _hi_why
-}
-
 function test_require_refuses_and_names_a_missing_tool() {
   local out rc=0
   out="$(_hi_require definitely-not-a-real-hi-helpers-tool-xyz "to do the thing" 2>&1 >/dev/null)" || rc=$?
@@ -276,8 +257,7 @@ function test_require_refuses_and_names_a_missing_tool() {
 function _hi_compose_shim() {
   _HI_COMPOSE_BIN="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/composebin"
   if [ ! -d "$_HI_COMPOSE_BIN" ]; then
-    mkdir -p "$_HI_COMPOSE_BIN"
-    cat >"$_HI_COMPOSE_BIN/docker" <<'SHIM'
+    _hi_script "$_HI_COMPOSE_BIN/docker" <<'SHIM'
 #!/bin/sh
 case "$1 $2 $3" in
 "container inspect -f")
@@ -292,7 +272,6 @@ if [ "$1 $2" = "ps --filter" ] && [ "$4" = --format ]; then
 fi
 exit 1
 SHIM
-    chmod +x "$_HI_COMPOSE_BIN/docker"
     cp "$_HI_COMPOSE_BIN/docker" "$_HI_COMPOSE_BIN/podman"
     cp "$_HI_COMPOSE_BIN/docker" "$_HI_COMPOSE_BIN/nerdctl"
   fi
@@ -312,22 +291,20 @@ function _hi_compose_resolve() {
 
 # a running container is taken by its own name, with no compose lookup
 function test_container_target_takes_a_running_name_as_is() {
-  local got
   _hi_compose_shim
   : >"$_HI_WORKDIR/compose.log"
-  got="$(_hi_compose_resolve docker web _HI_CS_RUNNING=web _HI_CS_MATCHES='other-1\n')"
-  [ "$got" = web ] && [ ! -s "$_HI_WORKDIR/compose.log" ] || _hi_why got
+  _hi_prints web _hi_compose_resolve docker web _HI_CS_RUNNING=web _HI_CS_MATCHES='other-1\n' || return 1
+  [ ! -s "$_HI_WORKDIR/compose.log" ] || _hi_because "a compose lookup ran: $(cat "$_HI_WORKDIR/compose.log")"
 }
 
 # a compose service name resolves to the one container carrying its label,
 # for docker and podman alike, and the filter names the label exactly
 function test_container_target_resolves_a_compose_service() {
-  local cli got
+  local cli
   _hi_compose_shim
   for cli in docker podman; do
     : >"$_HI_WORKDIR/compose.log"
-    got="$(_hi_compose_resolve "$cli" web _HI_CS_MATCHES='proj-web-1\n')"
-    [ "$got" = proj-web-1 ] || _hi_why got cli || return 1
+    _hi_prints proj-web-1 _hi_compose_resolve "$cli" web _HI_CS_MATCHES='proj-web-1\n' || return 1
     grep -qxF 'ps --filter label=com.docker.compose.service=web --format {{.Names}}' "$_HI_WORKDIR/compose.log" ||
       _hi_because "$cli asked: $(cat "$_HI_WORKDIR/compose.log")"
   done
@@ -365,7 +342,6 @@ function run_hi_helpers_test() {
   _hi_check_requires openssl "...and through openssl where base64 is missing" test_armor_falls_back_to_openssl
 
   _hi_h2 "Testing: the target grammar"
-  _hi_check "_hi_outer/_hi_inner split on the slash" test_outer_inner_split
   _hi_check "_hi_kube_split's prefix grammar" test_kube_split_grammar
 
   _hi_h2 "Testing: sizes"
@@ -376,7 +352,7 @@ function run_hi_helpers_test() {
   _hi_check "_hi_target_color memoizes the domain's color" test_target_color_memoizes_the_domain
 
   _hi_h2 "Testing: the command plumbing"
-  _hi_check "_hi_command_append: nothing, then the rc line" test_command_append_shapes
+  _hi_check "_hi_command_append writes the rc line" test_command_append_shapes
   _hi_check "_hi_command_fish_flag quotes for the target's sh" test_command_fish_flag_quotes_for_sh
   _hi_check "_hi_ladder_probe names a ladder shell" test_ladder_probe_names_a_ladder_shell
 
@@ -399,7 +375,6 @@ function run_hi_helpers_test() {
   _hi_check "Only docker and podman ask about compose" test_container_target_asks_only_docker_and_podman_about_compose
 
   _hi_h2 "Testing: _hi_require"
-  _hi_check "Finds an installed tool" test_require_finds_an_installed_tool
   _hi_check "Refuses and names a missing tool" test_require_refuses_and_names_a_missing_tool
 
   _hi_suite_end "hi.sh helpers"

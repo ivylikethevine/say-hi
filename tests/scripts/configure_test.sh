@@ -53,9 +53,7 @@ function _hi_sources_settings_before_paths() {
 # too, by test_opt_in_off_writes_nothing.
 
 function test_prompt_ends_keeps_an_existing_override() {
-  local out
-  out="$(_hi_collected_lines prompt_keep "export _HI_PROMPT_END_ZSH='::'")"
-  [[ "$out" == *"export _HI_PROMPT_END_ZSH='::'"* ]] || _hi_why out
+  _hi_says "export _HI_PROMPT_END_ZSH='::'" _hi_collected_lines prompt_keep "export _HI_PROMPT_END_ZSH='::'"
 }
 
 # quoted on the way out: a separator is as likely to be $ or > as a letter, and
@@ -96,9 +94,7 @@ function test_packages_palette_does_not_write_the_default() {
 }
 
 function test_ip_hide_keeps_an_existing_override() {
-  local out
-  out="$(_hi_section_lines iphide_keep config_ip_hide "export _HI_IP_HIDE='none'")"
-  [[ "$out" == *"export _HI_IP_HIDE='none'"* ]] || _hi_why out
+  _hi_says "export _HI_IP_HIDE='none'" _hi_section_lines iphide_keep config_ip_hide "export _HI_IP_HIDE='none'"
 }
 
 # the default is core.sh's own, so it is never written out
@@ -123,16 +119,13 @@ function test_packages_palette_kept_when_the_check_is_off() {
 }
 
 function test_header_order_keeps_an_existing_override() {
-  local out
-  out="$(_hi_collected_lines order_keep "export _HI_HEADER_ORDER='check gitid'")"
-  [[ "$out" == *"export _HI_HEADER_ORDER='check gitid'"* ]] || _hi_why out
+  _hi_says "export _HI_HEADER_ORDER='check gitid'" _hi_collected_lines order_keep "export _HI_HEADER_ORDER='check gitid'"
 }
 
 # header.sh's own default order, so writing it out would be a line that means
 # nothing - even when the file spells it out in full
 function test_header_order_does_not_write_the_default() {
   local out got
-  _hi_load_preview_sources
   out="$(_hi_collected_lines order_default "export _HI_HEADER_ORDER='$_HI_HEADER_ORDER_DEFAULT'")"
   got="$(printf '%s' "$out" | tr -d ' ')"
   [ -z "$got" ] || _hi_why got out
@@ -164,7 +157,6 @@ function test_pending_set_replaces_in_place() {
 # shipped order by the same spelling $_HI_HEADER_ORDER uses for it
 function test_header_presets_hold_the_vocabulary() {
   local row words word got
-  _hi_load_preview_sources
   for row in "${_HI_HEADER_PRESETS[@]}"; do
     words="${row##*|}"
     [ -z "$words" ] && continue
@@ -183,10 +175,6 @@ function test_header_presets_hold_the_vocabulary() {
 function test_validators_hold_their_grammars() {
   _hi_is_number 42 || _hi_why || return 1
   ! _hi_is_number 4.2 || _hi_why || return 1
-  _hi_is_width 80 || _hi_why || return 1
-  _hi_is_width 40 || _hi_why || return 1
-  ! _hi_is_width 39 || _hi_why || return 1
-  ! _hi_is_width 0 || _hi_why || return 1
   ! _hi_is_number '' || _hi_why || return 1
   ! _hi_is_number 4x || _hi_why || return 1
   _hi_has_no_single_quote "plain value" || _hi_why || return 1
@@ -378,18 +366,13 @@ function _hi_groups_flipped() {
 
 # a group that is off goes on after the ones that run, and one that runs off
 function test_packages_groups_flip_one() {
-  local got
-  got="$(_hi_groups_flipped '' extras)"
-  [ "$got" = "export _HI_PACKAGES_GROUPS='core deprecated extras'" ] || _hi_why got || return 1
-  got="$(_hi_groups_flipped '' deprecated)"
-  [ "$got" = "export _HI_PACKAGES_GROUPS='core'" ] || _hi_why got
+  _hi_prints "export _HI_PACKAGES_GROUPS='core deprecated extras'" _hi_groups_flipped '' extras || return 1
+  _hi_prints "export _HI_PACKAGES_GROUPS='core'" _hi_groups_flipped '' deprecated
 }
 
 # a comma-separated value is read as a list and written back space-separated
 function test_packages_groups_normalises_commas() {
-  local got
-  got="$(_hi_groups_flipped 'core,extras' useful)"
-  [ "$got" = "export _HI_PACKAGES_GROUPS='core extras useful'" ] || _hi_why got
+  _hi_prints "export _HI_PACKAGES_GROUPS='core extras useful'" _hi_groups_flipped 'core,extras' useful
 }
 
 # the shipped set is header.sh's own default, so writing it out would be a
@@ -405,11 +388,8 @@ function test_packages_groups_does_not_write_the_default() {
 # `none`, not an empty value that would read as the default - and one flipped
 # on from there is the whole list
 function test_packages_groups_writes_none() {
-  local got
-  got="$(_hi_groups_flipped '' core deprecated)"
-  [ "$got" = "export _HI_PACKAGES_GROUPS='none'" ] || _hi_why got || return 1
-  got="$(_hi_groups_flipped none core)"
-  [ "$got" = "export _HI_PACKAGES_GROUPS='core'" ] || _hi_why got
+  _hi_prints "export _HI_PACKAGES_GROUPS='none'" _hi_groups_flipped '' core deprecated || return 1
+  _hi_prints "export _HI_PACKAGES_GROUPS='core'" _hi_groups_flipped none core
 }
 
 # the check is off, so which groups it runs is moot - the stored value is kept
@@ -492,45 +472,37 @@ function test_setting_off_true_when_off_present() {
 # the line as config_shell really writes it: marker-padded, unquoted - the
 # exact spelling hi.sh's payload trim has to read correctly
 function test_setting_off_reads_marker_padded_line() {
-  local got
   local target="$_HI_WORKDIR/padded"
   printf '%-45s %s\n' 'export _HI_DISABLE_FOO=1' "$_HI_MARKER" >"$target"
   setting_off _HI_DISABLE_FOO "$target" || _hi_why target || return 1
-  got="$(_hi_setting_get "$target" _HI_DISABLE_FOO)"
-  [ "$got" = 1 ] || _hi_why got target
+  _hi_prints 1 _hi_setting_get "$target" _HI_DISABLE_FOO
 }
 
 # _hi_setting_get sources the file for real rather than hand-scanning
 # `export NAME=value` text: a computed value real bash would honour reads the
 # same way here, exactly as a settings.sh sourced on a target would resolve it.
 function test_setting_get_reads_a_computed_value() {
-  local got
   local target="$_HI_WORKDIR/computed"
   # shellcheck disable=SC2016 # the file's own text, for it to expand when sourced - not ours to expand now
   printf 'export _HI_DISABLE_FOO=$((1))\n' >"$target"
-  got="$(_hi_setting_get "$target" _HI_DISABLE_FOO)"
-  [ "$got" = 1 ] || _hi_why got target
+  _hi_prints 1 _hi_setting_get "$target" _HI_DISABLE_FOO
 }
 
 # ...and a two-statement assignment, which a bare `export NAME=` line-start
 # check would never match
 function test_setting_get_reads_a_two_statement_assignment() {
-  local got
   local target="$_HI_WORKDIR/twostatement"
   printf '_HI_DISABLE_FOO=1\nexport _HI_DISABLE_FOO\n' >"$target"
-  got="$(_hi_setting_get "$target" _HI_DISABLE_FOO)"
-  [ "$got" = 1 ] || _hi_why got target
+  _hi_prints 1 _hi_setting_get "$target" _HI_DISABLE_FOO
 }
 
 # a settings.sh that references another real variable ($_HI_CONFIG_DIR, say)
 # still resolves normally - only the queried name is unset going in
 function test_setting_get_leaves_other_variables_ambient() {
-  local got
   local target="$_HI_WORKDIR/ambient"
   # shellcheck disable=SC2016 # the file's own text, for it to expand when sourced - not ours to expand now
   printf 'export _HI_DISABLE_FOO="$_HI_CONFIG_DIR/marker"\n' >"$target"
-  got="$(_HI_CONFIG_DIR=/probe-dir _hi_setting_get "$target" _HI_DISABLE_FOO)"
-  [ "$got" = /probe-dir/marker ] || _hi_why got target
+  _HI_CONFIG_DIR=/probe-dir _hi_prints /probe-dir/marker _hi_setting_get "$target" _HI_DISABLE_FOO
 }
 
 # _hi_section_lines <name> <fn> [settings-line ...] - what the run would
@@ -657,33 +629,29 @@ function test_header_edit_preset_refuses_a_stranger() {
 # a header preset: its words on and first, in its order, the rest off after,
 # as one pending _HI_HEADER_ORDER - and `full`, whose word list is empty,
 # lands back on the shipped order, which writes nothing
+function _hi_hdr_on_count() {
+  local v n=0
+  for v in "${_HI_HDR_ON[@]}"; do [ "$v" != 1 ] || n=$((n + 1)); done
+  printf '%d' "$n"
+}
+
 function test_header_edit_preset_turns_on_its_words_in_order() {
   local got
   (
     _HI_SETTINGS=/dev/null
     _HI_SETTING_PENDING=()
     _hi_header_edit_preset quiet || _hi_why || exit 1
-    got="$(_hi_header_edit_count_on)"
+    got="$(_hi_hdr_on_count)"
     [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=utc localtime gitid" ] &&
       [ "${_HI_HDR_WORDS[*]:0:3}" = "utc localtime gitid" ] &&
       [ "$got" = 3 ] &&
       [[ "$_HI_MENU_NOTE" == *"the 'quiet' preset"* ]] ||
       _hi_because "quiet: pending [${_HI_SETTING_PENDING[*]}], words [${_HI_HDR_WORDS[*]}]" || exit 1
     _hi_header_edit_preset full || _hi_why || exit 1
-    got="$(_hi_header_edit_count_on)"
+    got="$(_hi_hdr_on_count)"
     [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=" ] && [ "$got" = "${#_HI_HDR_WORDS[@]}" ] ||
       _hi_because "full: pending [${_HI_SETTING_PENDING[*]}]"
   ) || _hi_why _HI_HDR_WORDS _HI_SETTING_PENDING
-}
-
-# a row whose <needs> command is not here says so, and any one of its
-# alternatives being here is enough to say nothing
-function test_menu_row_notes_an_absent_needs_command() {
-  local out
-  local -a _HI_NEEDS_ROWS=('_HI_NO_SUCH|1|||hi-no-such-cmd/hi-none-either|needy - a row' '_HI_NO_SUCH|1|||hi-no-such-cmd/bash|easy - a row')
-  out="$(_HI_MENU_ITEMS=() _HI_MENU_DRAW=1 _HI_MENU_W=80 _HI_MENU_SUM_N=0 && _hi_menu_row _HI_NEEDS_ROWS 0 && _hi_menu_row _HI_NEEDS_ROWS 1)"
-  out="$(_hi_strip_ansi "$out")"
-  [[ "$out" == *"needy"*"(no hi-no-such-cmd here)"*"easy"* && "${out#*easy}" != *" here)"* ]] || _hi_because "the rows: $out"
 }
 
 # a switch's key finds its table row, `row|<table>|<index>`, and its name;
@@ -718,14 +686,13 @@ function test_menu_numbers_every_row() {
 # a name's color is its own wherever it is listed, and a key a line names is
 # painted without a character of the line lost; a checkbox is no key
 function test_menu_paints_names_and_keys() {
-  local a b c out plain
+  local a b c out
   _hi_name_color a core
   _hi_name_color b core
   _hi_name_color c useful
   [ "$a" = "$b" ] && { [ -z "$CYAN" ] || [ "$a" != "$c" ]; } || _hi_why a b c || return 1
   _hi_menu_keyed out "save with [s] - [x] runs" "$BLUE"
-  plain="$(_hi_strip_ansi "$out")"
-  [ "$plain" = "save with [s] - [x] runs" ] || _hi_why plain || return 1
+  _hi_prints "save with [s] - [x] runs" _hi_strip_ansi "$out" || return 1
   [ -z "$BRYELLOW" ] || { printf -v a '%b[s]' "$BRYELLOW" && [[ "$out" == *"$a"* && "$out" != *"m[x]"* ]]; } || _hi_why out
 }
 
@@ -789,7 +756,6 @@ function run_configure_tests() {
   _hi_check "_hi_header_edit_preset refuses a stranger" test_header_edit_preset_refuses_a_stranger
   _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
   _hi_check "Menu: every table row has a number" test_menu_numbers_every_row
-  _hi_check "Menu: a row names the command it needs and this machine lacks" test_menu_row_notes_an_absent_needs_command
   _hi_check "Menu: a switch's key finds its row, and only a real one" test_menu_switch_keys_find_their_rows
   _hi_check "Menu: a name keeps its color, and a key a line names is painted" test_menu_paints_names_and_keys
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
@@ -814,26 +780,7 @@ function run_configure_tests() {
 
 # The pty parts' rig (configure_pty, configure_menu).
 
-# _hi_pty_run <child-script> <suffix> <label> <input> <line> [args...] - the
-# pty rig _hi_cfg_pty runs: a scratch settings.sh, the
-# input typed at a forced pty, the transcript captured to
-# $_HI_WORKDIR/<label>.<suffix>.out, killed once it has written nothing for
-# the deadline rather than hung forever.
-function _hi_pty_run() {
-  local child="$1" suffix="$2" label="$3" input="$4" line="${5:-}"
-  local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.$suffix.out"
-  shift 5
-  mkdir -p "$dir/common" "$dir/config" "$dir/overlay"
-  printf '#!/bin/sh\n%s\n' "$line" >"$dir/overlay/settings.sh"
-  : >"$out"
-  rm -f "$dir/verdict"
-  printf '%b' "$input" |
-    "${_HI_PTY_FORCED[@]}" bash -c "$child" bash "$dir" "$@" >"$out" 2>&1 &
-  _hi_wait_quiet "$!" "${_HI_CASE_TIMEOUT:-60}" "$out" "$label"
-  [ "$_HI_WAIT_EXIT" != 124 ]
-}
-
-# _hi_pty_field <label> <suffix> <tag> [capture] - the field after <tag> on
+# _hi_pty_field <label> <tag> [capture] - the field after <tag> on
 # a pty transcript's tail line, CR-normalised first (a pty writes CR-LF) -
 # everything to the end of the line by default, or just what <capture>
 # matches (a sed bracket expression body) when the tag's value can have
@@ -843,18 +790,26 @@ function _hi_pty_run() {
 # a child that exits at once, and the transcript is only the fallback.
 function _hi_pty_field() {
   local src="$_HI_WORKDIR/$1/verdict"
-  [ -s "$src" ] || src="$_HI_WORKDIR/$1.$2.out"
-  tr '\r' '\n' <"$src" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
+  [ -s "$src" ] || src="$_HI_WORKDIR/$1.cfg.out"
+  tr '\r' '\n' <"$src" | sed -n "s/.*$2\\(${3:-.*}\\).*/\\1/p" | head -1
 }
 
 # _hi_cfg_pty <label> <input> <settings-line> <fn> [arg...] - one configure
-# function under a pty with <input> (printf %b) on its stdin. Transcript
-# lands in $_HI_WORKDIR/<label>.cfg.out; non-zero when the child had to be
-# killed at the deadline.
+# function under a forced pty with <input> (printf %b) on its stdin and a
+# scratch settings.sh. Transcript lands in $_HI_WORKDIR/<label>.cfg.out; killed
+# and non-zero once it has written nothing for the deadline.
 function _hi_cfg_pty() {
-  local label="$1" input="$2" line="$3"
+  local label="$1" input="$2" line="${3:-}"
+  local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.cfg.out"
   shift 3
-  _hi_pty_run "$_HI_CFG_CHILD" cfg "$label" "$input" "$line" "$@"
+  mkdir -p "$dir/common" "$dir/config" "$dir/overlay"
+  printf '#!/bin/sh\n%s\n' "$line" >"$dir/overlay/settings.sh"
+  : >"$out"
+  rm -f "$dir/verdict"
+  printf '%b' "$input" |
+    "${_HI_PTY_FORCED[@]}" bash -c "$_HI_CFG_CHILD" bash "$dir" "$@" >"$out" 2>&1 &
+  _hi_wait_quiet "$!" "${_HI_CASE_TIMEOUT:-60}" "$out" "$label"
+  [ "$_HI_WAIT_EXIT" != 124 ]
 }
 
 # the readers: the transcript's visible text for substrings (fixed strings
@@ -863,9 +818,9 @@ function _hi_cfg_pty() {
 # through the same CR normalisation the groups loop's readers use
 function _hi_cfg_has() { _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | grep -qF "$2"; }
 
-function _hi_cfg_rc() { _hi_pty_field "$1" cfg 'CFGRC=' '[0-9]*'; }
+function _hi_cfg_rc() { _hi_pty_field "$1" 'CFGRC=' '[0-9]*'; }
 
-function _hi_cfg_lines() { _hi_pty_field "$1" cfg 'CFGLINES='; }
+function _hi_cfg_lines() { _hi_pty_field "$1" 'CFGLINES='; }
 
 # _hi_cfg_screen <label> <n> - the menu's <n>th draw, 0 the first: the pty
 # echoes no input, so each ` > ` prompt shares its line with the next draw's

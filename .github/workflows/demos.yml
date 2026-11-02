@@ -310,7 +310,7 @@ jobs:
   refresh-pages:
     name: redeploy the site for this release
     needs: [collect, attach]
-    if: ${{ !cancelled() && github.ref_type == 'tag' }}
+    if: ${{ !cancelled() && github.ref_type == 'tag' && !contains(github.ref_name, '-') }}
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
@@ -322,7 +322,7 @@ jobs:
         with:
           egress-policy: block
           # attach's hosts, less the upload one: the checkout, and the API
-          # for the release lookup and the dispatch
+          # for the dispatch
           allowed-endpoints: >
             github.com:443
             api.github.com:443
@@ -335,12 +335,4 @@ jobs:
       - name: Ask pages.yml for the release's deploy
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          pre="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease 2>/dev/null || echo false)"
-          if [ "$pre" = true ]; then
-            echo "$TAG is a prerelease - the site serves the latest release, unchanged"
-            exit 0
-          fi
-          .github/scripts/gh_dispatch.sh pages.yml main
+        run: .github/scripts/gh_dispatch.sh pages.yml main

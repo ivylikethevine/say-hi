@@ -17,20 +17,16 @@ _HI_CONFIGURE_PART=pty
 source "${BASH_SOURCE[0]%/*}/configure_test.sh"
 
 function test_ask_value_takes_a_typed_number() {
-  local got
   _hi_cfg_pty width_typed '120\n' '' config_max_width || _hi_why || return 1
-  got="$(_hi_cfg_lines width_typed)"
-  [ "$got" = "export _HI_MAX_WIDTH=120" ] || _hi_why got
+  _hi_prints "export _HI_MAX_WIDTH=120" _hi_cfg_lines width_typed
 }
 
 # a rejected answer says why and keeps the current value rather than dropping
 # it - the message names the value kept, so both halves are one substring
 function test_ask_value_rejects_junk_and_keeps_current() {
-  local got
   _hi_cfg_pty width_junk 'abc\n' 'export _HI_MAX_WIDTH=100' config_max_width || _hi_why || return 1
   _hi_cfg_has width_junk "a number, 40 or more, leaving it at 100" || _hi_why || return 1
-  got="$(_hi_cfg_lines width_junk)"
-  [ "$got" = "export _HI_MAX_WIDTH=100" ] || _hi_why got
+  _hi_prints "export _HI_MAX_WIDTH=100" _hi_cfg_lines width_junk
 }
 
 # typing the shipped default is how an override is cleared interactively
@@ -281,13 +277,12 @@ function test_menu_main_page_is_a_table_of_its_pages() {
 # rows, and a preview of what they change or none - and b comes back to the
 # main page
 function test_menu_keys_open_their_pages() {
-  local titles end core hdr utc bat
+  local end core hdr utc bat
   end="$(_hi_item 'end|bash')" && core="$(_hi_item 'group|core')" &&
     hdr="$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')" &&
     utc="$(_hi_item 'word|0')" && bat="$(_hi_item 'plugin|bat')" || _hi_why end core hdr || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_pages "$_HI_MENU_EVERY_PAGE" '' run_configure "" || _hi_why || return 1
-  titles="$(_hi_cfg_titles hub_pages)"
-  [ "$titles" = "$_HI_MENU_EVERY_TITLE" ] || _hi_because "titles: [$titles]" || return 1
+  _hi_prints "$_HI_MENU_EVERY_TITLE" _hi_cfg_titles hub_pages || return 1
   _hi_cfg_screen_has hub_pages 1 " [b]ack  [s]ave" &&
     _hi_cfg_screen_has hub_pages 1 " $hdr) [x] header" &&
     _hi_cfg_screen_has hub_pages 1 "Connected" &&

@@ -9,6 +9,15 @@ Partly done: 44 has all but `_hi_ctl_case`; 45 has 11 cases on `_hi_refused`, th
 packaging sites assert a nonzero exit and stay; 46 has the helper only; 71 has
 `ci.yml:777`, `coverage.yml:471` and the docs plugin; 70 has `setup-shells` only.
 
+A later whole-tree pass, uncommitted until its closing loop runs, moved these on:
+`_hi_ctl_case` (9 of 15 cases), more `_hi_refused` and `_hi_script` sites, 53, 58,
+60's keep helpers, 61's `ok` flags, 64's `_hi_lint_cmd` and one `awk`, 65's shell
+paths, and 71's `windows-client.yml` half. Sites of an unusual shape were left
+alone, so the unticked items stay open. Still open from that pass: the rest of
+`_hi_prints` and `_hi_var_is` beyond their simple pairs, `_hi_arrives` past the
+ten single-line sites, `_hi_tool_versions_tree`, the parser table's tightening,
+`_hi_staged_999` for the version case, and `_hi_shared_out` for the header rows.
+
 Also decided against: 57 (twin counters fold into `bad`, and a wrong tally in a
 lint gate is the worst place to find out), 70's `session_verdict.sh` (Windows-only
 paths, verifiable only on a CI round trip).

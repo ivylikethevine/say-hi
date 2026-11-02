@@ -84,8 +84,10 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   failing arm, or `_hi_why <variable>...` where the assertion says it all -
   that prints the statement, read off the suite's file, and each variable's
   value (`_hi_why -N` adds the N lines above, for a bare `return 1`). Both
-  run only once the assertion has failed. Every failing arm of a case ends
-  in one of the two, and the lint group's `drift` suite reads each `test_*`
+  run only once the assertion has failed. A case whose claim is one command's
+  output, words, out-var or refusal says so with `_hi_prints`, `_hi_says`,
+  `_hi_var_is` or `_hi_refused`, which report for it. Every failing arm of a
+  case ends in one of these, and the lint group's `drift` suite reads each `test_*`
   function for one that does not: a `return 1` with nothing printed in or
   just above it, or a bare assertion as the last statement. It fails an
   assertion that compares a command substitution too (`[ "$(cmd)" = want ]`):
@@ -340,7 +342,7 @@ In CI each tool is sharded (`--shard i/n`, which `_hi_cov_select_suites` passes
 to `test_runner.sh` with `_HI_SHARD_BY` naming the tracer: the suites dealt by
 that tracer's table, `$_HI_TEST_COSTS_KCOV` or `$_HI_TEST_COSTS_BASHCOV`, the
 seconds CI took tracing each, costliest first to the lightest slice, so the
-slices take about as long; `scratch/coverage_costs.sh` re-reads them off a
+slices take about as long; `scratch/shard_costs.sh --coverage` re-reads them off a
 coverage run) and merged by a gather job: `kcov --merge`
 over the shards' `parts/` directories, and a plain JSON hash union of bashcov's
 `--command-name`-keyed `.resultset.json` files, safe because shards partition
@@ -487,9 +489,9 @@ gzip error; a rerun is the answer unless it recurs. The same runners have
 handed a capture nothing from a `hi` run that exited 0, and a process
 substitution nothing from a list that was there a call earlier. The output probe above
 says whether the host is dropping output at that moment and from which
-writer; `plugins_test.sh` runs `hi` into a file and names a run that wrote
-nothing, which tells a silent run from a capture that lost its words.
-`_hi_run_said` (`tests/lib/report.sh`) does the same for the whole runs of
+writer. `_hi_run_said` (`tests/lib/report.sh`) runs a program into a file and
+names a run that wrote nothing, which tells a silent run from a capture that
+lost its words, for `plugins_test.sh`'s `hi` and the whole runs of
 `doctor.sh` and `install.sh`, the slowest cases there are: where a
 flake may pass, a run that wrote nothing is made once more and listed under
 _Flaky cases_. A run that said anything is never made twice.
@@ -523,7 +525,7 @@ naming a missing Dockerfile.
 ### What is pinned, and what deliberately is not
 
 **Upstream base images are digest-pinned, non-negotiably.** Every `FROM` in
-`tests/dockerfiles/` that names an upstream image (11 of 20: alpine, ubuntu,
+`tests/dockerfiles/` that names an upstream image (12 of 21: alpine, ubuntu,
 debian, fedora, bash, zshusers/zsh) carries a `@sha256:` — what makes a failed
 e2e run reproducible and a base-image move a deliberate, reviewable act.
 `tool-versions.yml` reports a moved tag weekly, which is how a base image

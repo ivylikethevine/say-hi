@@ -131,10 +131,7 @@ jobs:
           echo "code=$code" >>"$GITHUB_OUTPUT"
 
       - id: find
-        if: >-
-          github.event_name != 'pull_request' &&
-          github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.event == 'push'
+        if: github.event.workflow_run.event == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           TREE: ${{ github.event.workflow_run.head_commit.tree_id }}
@@ -167,7 +164,6 @@ jobs:
         if: always()
         env:
           EVENT: ${{ github.event_name }}
-          WR_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           WR_EVENT: ${{ github.event.workflow_run.event }}
           PR_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           FOUND_RUN: ${{ steps.find.outputs.run }}
@@ -176,8 +172,7 @@ jobs:
         run: |
           set -eu
           sweep=false sweep_kcov=false
-          if [ "$EVENT" = workflow_dispatch ] \
-            || { [ "$WR_CONCLUSION" = success ] && [ "$WR_EVENT" = push ]; }; then
+          if [ "$EVENT" = workflow_dispatch ] || [ "$WR_EVENT" = push ]; then
             sweep=true sweep_kcov=true
           elif [ "$EVENT" = pull_request ] && [ "$PR_SAME_REPO" = true ]; then
             sweep=true
@@ -440,15 +435,12 @@ jobs:
       # kcov is dynamically linked against these - shard-kcov's own
       # setup-shells call installs them for tracing, and the merge needs
       # them just as much: without this, `kcov --merge` only ever worked
-      # because the runner image happened to carry them already. Sourced
-      # directly (setup-backends/install.sh's own pattern) rather than
-      # through setup-shells, which would install zsh and fish for nothing.
-      - name: kcov's runtime libraries
-        run: |
-          set -euo pipefail
-          # shellcheck source=.github/actions/apt/lib.sh
-          source .github/actions/apt/lib.sh
-          _ci_apt_install libdw1 libelf1 libcurl4 zlib1g libstdc++6
+      # because the runner image happened to carry them already. setup-backends
+      # rather than setup-shells, which would install zsh and fish for nothing.
+      - uses: ./.github/actions/setup-backends
+        with:
+          backends: none
+          extra-packages: libdw1 libelf1 libcurl4 zlib1g libstdc++6
 
       - uses: ./.github/actions/setup-tools
         with:
@@ -693,12 +685,12 @@ jobs:
             pct_ok "$v" || v=""
             printf '%s' "$v"
           }
-          # row <label> <this PR> <main>
+          # row <label> <this PR> <main> [suffix] [change's format]
           row() {
             local now="not measured" was="not measured" change="-"
-            [ -z "$2" ] || now="$2%"
-            [ -z "$3" ] || was="$3%"
-            [ -z "$2" ] || [ -z "$3" ] || change="$(awk -v a="$2" -v b="$3" 'BEGIN { printf "%+.2f", a - b }')"
+            [ -z "$2" ] || now="$2${4-%}"
+            [ -z "$3" ] || was="$3${4-%}"
+            [ -z "$2" ] || [ -z "$3" ] || change="$(awk -v a="$2" -v b="$3" -v f="${5:-%+.2f}" 'BEGIN { printf f, a - b }')"
             printf '| %s | %s | %s | %s |\n' "$1" "$now" "$was" "$change"
           }
           # cases <totals file> - the passed count, a bare integer or nothing
@@ -707,12 +699,6 @@ jobs:
             [ -f "$1" ] && read -r v _ <"$1" || true
             case "$v" in '' | *[!0-9]*) v="" ;; esac
             printf '%s' "$v"
-          }
-          # count_row <label> <this PR> <main> - row's shape, for a count
-          count_row() {
-            local now="${2:-not measured}" was="${3:-not measured}" change="-"
-            [ -z "$2" ] || [ -z "$3" ] || change="$(printf '%+d' $(($2 - $3)))"
-            printf '| %s | %s | %s | %s |\n' "$1" "$now" "$was" "$change"
           }
           avg() { [ -n "$1" ] && [ -n "$2" ] && awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f", (a + b) / 2 }' || true; }
           # kcov sweeps main alone, so this PR's average is main's kcov
@@ -748,7 +734,7 @@ jobs:
             printf '| kcov | sweeps main only | %s | - |\n' "$k0s"
             row bashcov "$b" "$b0"
             row '**average**' "$a" "$(avg "$k0" "$b0")"
-            count_row 'cases passed (fast, ci)' "$(cases "$RUNNER_TEMP/pr/tests/totals")" "$(cases "$RUNNER_TEMP/main-tests/totals")"
+            row 'cases passed (fast, ci)' "$(cases "$RUNNER_TEMP/pr/tests/totals")" "$(cases "$RUNNER_TEMP/main-tests/totals")" "" '%+d'
             printf '\n%s\n' "$verdict"
             [ -z "$untested" ] || printf '%s\n' "$untested"
             printf '\nThe average is the figure to quote, and neither gates anything ([why two](%s)). ' \

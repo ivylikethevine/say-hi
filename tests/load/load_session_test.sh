@@ -117,13 +117,18 @@ function test_load_greets_the_chosen_shell() {
 # plugin list and not vim's absence keeps it unset. A whole PATH keeps this
 # box's editors out. _hi_load_viminit_on <glob> <PATH> [NAME=VALUE...].
 function _hi_load_viminit_on() {
-  local want="$1" path="$2" out
-  shift 2
-  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 "$@" "PATH=$path")" || _hi_why VIMINIT || return 1
+  _hi_load_probe "$1" 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' "${@:2}"
+}
+
+# _hi_load_probe <glob> <script> <PATH> [NAME=VALUE...] - load() with <script>
+# as its session, whose output has to match <glob>
+function _hi_load_probe() {
+  local want="$1" script="$2" path="$3" out
+  shift 3
+  out="$(_hi_load_run "$script" SHELL=/bin/bash _HI_DISABLE_HEADER=1 "$@" "PATH=$path")" || _hi_why script || return 1
   # shellcheck disable=SC2254 # <glob> is a pattern
   case "$out" in $want) return 0 ;; esac
-  _hi_because "$out"
+  _hi_because "wanted [$want] in: $out"
 }
 
 # $EDITOR/$VISUAL/$SUDO_EDITOR carry the alias's flags into git, crontab, and
@@ -141,12 +146,7 @@ function _hi_load_editor_is() {
 # (this box may carry a real vim or micro), so a case names the editor it
 # means, and no editor at all leaves the three unset, not exported empty.
 function _hi_load_editor_on() {
-  local want="$1" path="$2" out
-  shift 2
-  out="$(_hi_load_run 'printf "E=%s|V=%s|S=%s\n" "${EDITOR-unset}" "${VISUAL-unset}" "${SUDO_EDITOR-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 "$@" "PATH=$path")" || return 1
-  case "$out" in *"$want"*) return 0 ;; esac
-  _hi_because "wanted '$want' in: $out"
+  _hi_load_probe "*$1*" 'printf "E=%s|V=%s|S=%s\n" "${EDITOR-unset}" "${VISUAL-unset}" "${SUDO_EDITOR-unset}"; exit 0' "${@:2}"
 }
 
 function _hi_editorless_path() {
@@ -241,11 +241,7 @@ function test_session_rc_notes_the_directory_of_a_session_that_holds() {
   local got2
   local t="$_HI_WORKDIR/held/u.hi.eeeeee" dir out
   mkdir -p "$t/say-hi"
-  dir="$(
-    _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _hi_keep_tty=1
-    _hi_session_rc_setup || exit 1
-    printf '%s' "$_HI_SESSION_RC_DIR"
-  )" || _hi_why t _HI_SESSION_RC_DIR || return 1
+  dir="$(_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _hi_keep_tty=1 _hi_rc_dir_after_setup)" || _hi_why t _HI_SESSION_RC_DIR || return 1
   grep -q '^function _hi_held_cwd --on-variable PWD' "$dir/fish.config" || _hi_because "no hook in fish's rc" || return 1
   grep -q '_hi_held_cwd' "$dir/.zshrc" || _hi_because "no hook in zsh's rc" || return 1
   grep _hi_held_cwd "$dir/bashrc" >"$t/hook"
@@ -258,11 +254,7 @@ function test_session_rc_notes_the_directory_of_a_session_that_holds() {
   out="$("$BASH" -c 'source "$1"; builtin cd /; false; _hi_held_cwd; echo "after=$?"' _ "$t/hook")"
   got2="$(cat "$t/say-hi/hi.cwd")"
   [ "$out" = "after=1" ] && [ "$got2" = / ] || _hi_because "bash: $out, $(cat "$t/say-hi/hi.cwd" 2>&1)" || return 1
-  dir="$(
-    _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _hi_keep_tty=""
-    _hi_session_rc_setup || exit 1
-    printf '%s' "$_HI_SESSION_RC_DIR"
-  )" || _hi_why t _HI_SESSION_RC_DIR || return 1
+  dir="$(_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _hi_keep_tty="" _hi_rc_dir_after_setup)" || _hi_why t _HI_SESSION_RC_DIR || return 1
   ! grep -q _hi_held_cwd "$dir/bashrc" "$dir/fish.config" || _hi_because "a session that cannot hold got the hook"
 }
 
@@ -441,10 +433,8 @@ function test_keep_holds_only_where_a_drop_can_be_held() {
   [ "$got" = "0 900" ] || _hi_because "a typo: $got" || return 1
   got="$(_hi_keep_holds_on _HI_HOLD_TIMEOUT=0)"
   [ "$got" = "1 0" ] || _hi_because "0: $got" || return 1
-  got="$(_hi_keep_holds_on _HI_KEEP_MUX=tmux)"
-  [ "$got" = "1 0" ] || _hi_because "under its own multiplexer: $got" || return 1
-  got="$(_hi_keep_holds_on _HI_CLEANUP="$_HI_WORKDIR/elsewhere")"
-  [ "$got" = "1 0" ] || _hi_because "a tree that is not disposable: $got"
+  _hi_prints "1 0" _hi_keep_holds_on _HI_KEEP_MUX=tmux || return 1
+  _hi_prints "1 0" _hi_keep_holds_on _HI_CLEANUP="$_HI_WORKDIR/elsewhere"
 }
 
 # a tree whose client switched the kept session off came without keep.sh,
@@ -529,25 +519,21 @@ _hi_keep_stays; printf "RC=%s\n" "$?"' 2>&1 | grep -o -e 'RC=[0-9]*' -e 'own key
 # anything but y keeps the session: the client is detached and load() goes
 # round again. y closes it, and with nobody attached nobody is asked.
 function test_keep_stays_asks_before_the_owner_pane_closes() {
-  local got want=$'RC=0\ndetach-client -s =hi-box'
+  local got
+  local want=$'RC=0\ndetach-client -s =hi-box'
   got="$(_hi_keep_stays_answer n 1)"
   [ "$got" = "$want" ] || _hi_because "n: $got" || return 1
   got="$(_hi_keep_stays_answer '' 1)"
   [ "$got" = "$want" ] || _hi_because "Enter: $got" || return 1
-  got="$(_hi_keep_stays_answer y 1)"
-  [ "$got" = "RC=1" ] || _hi_because "y: $got" || return 1
-  got="$(_hi_keep_stays_answer n 0)"
-  [ "$got" = "RC=1" ] || _hi_because "unattended: $got"
+  _hi_prints "RC=1" _hi_keep_stays_answer y 1 || return 1
+  _hi_prints "RC=1" _hi_keep_stays_answer n 0
 }
 
 # zellij has no command that detaches a client: an `n` keeps the session and
 # the client both, and names the key
 function test_keep_stays_names_zellij_s_detach_key() {
-  local got
-  got="$(_hi_keep_stays_answer n 1 zellij)"
-  [ "$got" = $'own key detaches\nRC=0' ] || _hi_because "n: $got" || return 1
-  got="$(_hi_keep_stays_answer y 1 zellij)"
-  [ "$got" = "RC=1" ] || _hi_because "y: $got"
+  _hi_prints $'own key detaches\nRC=0' _hi_keep_stays_answer n 1 zellij || return 1
+  _hi_prints "RC=1" _hi_keep_stays_answer y 1 zellij
 }
 
 # what `hi --keep` typed in a session reads: a NAME=value a line, only the
@@ -578,16 +564,14 @@ function _hi_shared_tree() {
 # session's name, for the hi --end that ends it; an ordinary session's tree
 # carries no claim
 function test_keep_claim_names_the_pane_and_the_shell_it_was_kept_from() {
-  local t got
+  local t
   t="$(_hi_shared_tree claim)"
   (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX="" _HI_KEEP_OUTER="" _hi_keep_claim)
   [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "an ordinary session claimed its tree" || return 1
   (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER="" _HI_KEEP_NAME=hi-box _hi_keep_claim)
-  got="$(cat "$t/say-hi/hi.kept")"
-  [ "$got" = "$$ - hi-box" ] || _hi_because "a keeping connect's pane: $got" || return 1
+  _hi_prints "$$ - hi-box" cat "$t/say-hi/hi.kept" || return 1
   (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER=4242 _HI_KEEP_NAME=hi-box _hi_keep_claim)
-  got="$(cat "$t/say-hi/hi.kept")"
-  [ "$got" = "$$ 4242 hi-box" ] || _hi_because "a pane kept from inside: $got"
+  _hi_prints "$$ 4242 hi-box" cat "$t/say-hi/hi.kept"
 }
 
 # a session kept from inside another shares its tree, and the last of the two
@@ -697,12 +681,10 @@ function test_keep_stays_is_no_outside_a_kept_session() {
 # does not know is nobody
 function test_keep_attached_reads_screen_s_list() {
   local bin="$_HI_WORKDIR/keepscreen" flag="$_HI_WORKDIR/sattached" v got
-  mkdir -p "$bin"
-  cat >"$bin/screen" <<'SHIM'
+  _hi_script "$bin/screen" <<'SHIM'
 #!/bin/sh
 printf 'There is a screen on:\n\t9.hi-box\t(%s)\n' "$(cat "$_HI_TEST_ATTACHED")"
 SHIM
-  chmod +x "$bin/screen"
   for v in Attached:0 Detached:1; do
     printf '%s\n' "${v%%:*}" >"$flag"
     got=0

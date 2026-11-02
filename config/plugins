@@ -64,14 +64,14 @@
 # vim starts on your vimrc
 [editors.vim]
 wire = "env:_HI_VIMRC;flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u"
-home = "~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc"
+home = "~/.vimrc : ~/.vim/vimrc : $XDG_CONFIG_HOME/vim/vimrc , ~/.config/vim/vimrc"
 dialect = "vim"
 files = "vim/vimrc"
 
 # nvim starts on your init.lua or init.vim
 [editors.nvim]
 wire = "env:_HI_NVIMRC;flag:nvim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u"
-home = "$_HI_XDG_CONFIG/nvim/"
+home = "$XDG_CONFIG_HOME/nvim/ , ~/.config/nvim/"
 dialect = "lua"
 files = "nvim/init.vim nvim/init.lua"
 
@@ -81,14 +81,14 @@ dialect = "vim"
 # nano starts on your nanorc
 [editors.nano]
 wire = "env:_HI_NANORC;flag:nano --rcfile"
-home = "~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc"
+home = "~/.nanorc : $XDG_CONFIG_HOME/nano/nanorc , ~/.config/nano/nanorc"
 dialect = "nano"
 files = "nano/nanorc"
 
 # emacs -nw starts on your init.el
 [editors.emacs]
 wire = "flag:emacs -nw -q -l"
-home = "~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el"
+home = "~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $XDG_CONFIG_HOME/emacs/init.el , ~/.config/emacs/init.el"
 dialect = "elisp"
 files = "emacs/init.el"
 
@@ -96,7 +96,7 @@ files = "emacs/init.el"
 [editors.hx]
 tool = "hx helix"
 wire = "flag:hx -c;flag:helix -c"
-home = "$_HI_XDG_CONFIG/helix/"
+home = "$XDG_CONFIG_HOME/helix/ , ~/.config/helix/"
 files = "helix/config.toml helix/languages.toml"
 
 [editors.hx."helix/languages.toml"]
@@ -270,7 +270,7 @@ files = "inputrc"
 # tmux starts on your tmux.conf
 [mux.tmux]
 wire = "flag:tmux -f"
-home = "~/.tmux.conf : $_HI_XDG_CONFIG/tmux/tmux.conf"
+home = "~/.tmux.conf : $XDG_CONFIG_HOME/tmux/tmux.conf , ~/.config/tmux/tmux.conf"
 dialect = "tmux"
 files = "tmux/tmux.conf"
 

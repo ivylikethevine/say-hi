@@ -82,12 +82,6 @@ jobs:
             api.github.com:443
             results-receiver.actions.githubusercontent.com:443
 
-      - name: The rehearsal was approved
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          ACTOR: ${{ github.triggering_actor }}
-        run: echo "rehearsal approved for $ACTOR"
-
       # vMAJOR.MINOR.PATCH with an optional -prerelease: the version build
       # derives from the tag has to be one nfpm, bump.sh, and the manifests
       # all read the same way
@@ -250,6 +244,11 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     environment: ${{ github.event_name == 'push' && 'release' || '' }}
+    # seven minutes for each of the ci and lint runs below, well inside the
+    # job's thirty with the build after, so a hang ends with the runner naming
+    # what was running rather than with no log
+    env:
+      _HI_RUN_DEADLINE: "420"
     # the provenance attestation below needs these two; contents stays read
     permissions:
       contents: read
@@ -372,12 +371,7 @@ jobs:
       # after the bump, so the packaging drift guards - the ci group - run
       # against the manifests this release ships. Not the fast group: the gate
       # above already required CI green on this commit, fast included.
-      # _HI_RUN_DEADLINE, here and on the lint run: seven minutes each, well
-      # inside the job's thirty with the build after, so a hang ends with the
-      # runner naming what was running rather than with no log
       - name: Run the ci suites against the bumped manifests
-        env:
-          _HI_RUN_DEADLINE: "420"
         run: "${{ github.workspace }}/tests/test_runner.sh --group ci"
 
       # markdownlint-cli2 and prettier, as ci.yml's lint job installs them -
@@ -392,8 +386,6 @@ jobs:
         run: npm ci --prefix .github --ignore-scripts --no-audit --no-fund
 
       - name: Run the lint group
-        env:
-          _HI_RUN_DEADLINE: "420"
         run: "${{ github.workspace }}/tests/test_runner.sh --group lint --require-run"
 
       - uses: ./.github/actions/setup-tools
@@ -533,10 +525,6 @@ jobs:
             dist/manifests/*
             dist/ARTIFACTS
             dist/say-hi.spdx.json
-          # kept though dist/manifests/ no longer holds a dotfile: the
-          # action drops hidden files by default, and a path list that
-          # grows one again should not fail two jobs later, in publish
-          include-hidden-files: true
           if-no-files-found: error
 
   # The only job that publishes. It runs unattended: the gate is the tag
@@ -731,11 +719,13 @@ jobs:
           pubkey="$(sed -n "s/^minisign -Vm SHA256SUMS -P '\([^']*\)'.*/\1/p" \
             docs/PACKAGING.md | head -n1)"
           [ -n "$pubkey" ] ||
-            { echo "no minisign public key in docs/PACKAGING.md - did that section move?" >&2; exit 1; }
+            echo "::warning title=Release body::no minisign public key in docs/PACKAGING.md - this release's checklist points there instead"
           # advertise the signature check only when a signature shipped: the
           # signing step above no-ops without MINISIGN_SECRET_KEY
-          if [ -f dist/SHA256SUMS.minisig ]; then
+          if [ -f dist/SHA256SUMS.minisig ] && [ -n "$pubkey" ]; then
             sigline="minisign -Vm SHA256SUMS -P '$pubkey'"
+          elif [ -f dist/SHA256SUMS.minisig ]; then
+            sigline="# SHA256SUMS.minisig is attached - the public key is in docs/PACKAGING.md"
           else
             sigline="# SHA256SUMS is unsigned for this release - no minisign check"
           fi
@@ -966,9 +956,9 @@ jobs:
   # The Homebrew tap, as part of the release: a PR against
   # <owner>/homebrew-tap carrying the formula the `brew` job just installed,
   # tested, and audited, opened only when that job passed. A PR rather than a
-  # push, so the tap's own merge stays the human step - there is no
-  # `environment:` gate here, since `publish` already ran in this
-  # run and `brew` is the technical gate. No-ops loudly without the
+  # push, so the tap's own CI checks it; auto-merge lands it once that passes,
+  # with no human step - there is no `environment:` gate here, since `publish`
+  # already ran in this run and `brew` is the technical gate. No-ops loudly without the
   # HOMEBREW_TAP_TOKEN repo secret (a fine-grained PAT scoped to the tap repo,
   # contents + pull requests write). The AUR stays in publish-external.yml:
   # its registration is closed, and its push has no PR to hide behind. The PR
@@ -1078,6 +1068,8 @@ jobs:
             "Installed, tested, and audited on a hosted mac by this run's \`brew\` job ($RUN_URL); the tap's CI checks it again on this PR.")"
           url="$(gh pr create --repo "$TAP_REPO" --head "$branch" \
             --title "say-hi $TAG" --body "$body")"
+          gh pr merge "$url" --auto --squash --delete-branch ||
+            echo "::warning title=Homebrew tap::auto-merge was refused - $url is open; does the tap allow auto-merge?"
           echo "link=- Homebrew: $install ([tap PR]($url))" >>"$GITHUB_OUTPUT"
 
       - name: Link it from the release

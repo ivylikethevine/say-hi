@@ -916,9 +916,7 @@ function _hi_header_word_cell() {
   # a function here. `check` is in that roster and has no getter - it is
   # full_check's own row - hence the declare -F.
   _hi_header_vocab _hi_hw_v
-  case " $_hi_hw_v " in
-  *" $1 "*) declare -F "_hi_cell_$1" >/dev/null && "_hi_cell_$1" "$2" ;;
-  esac
+  ! _hi_list_has "$_hi_hw_v" "$1" || ! declare -F "_hi_cell_$1" >/dev/null || "_hi_cell_$1" "$2"
   return 0
 }
 

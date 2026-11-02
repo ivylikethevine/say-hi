@@ -4,14 +4,6 @@
 # and tests/hi/prompt_test.sh pins the two together. Plain text, no color - the
 # one color is applied by each shell's own PS1 template, where that shell's
 # width accounting can see it.
-# strict while loading; the caller's options back at the end, as in core.sh
-_hi_env_o=$-
-[[ -o pipefail ]] && _hi_env_o+=p
-set -euo pipefail
-
-# The sources, in the order they render: outermost environment first, so a venv
-# inside a direnv inside mise reads "(mise|direnv:proj|myproj)".
-_HI_ENV_ORDER_DEFAULT="mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv"
 
 # _hi_mise_local's memo: the walk's answer only changes when $PWD does (or a
 # config file appears/disappears mid-directory - the same raw edge this file's
@@ -56,67 +48,49 @@ _hi_env_prompt() {
   # Every branch below is parameter expansion over a variable the tool
   # exported: no probe, no `command -v`, nothing that forks on a prompt draw.
   # mise is the one exception - see _hi_mise_local above.
-  local _hi_out="" _hi_src _hi_name
+  # Outermost environment first, so a venv inside a direnv inside mise reads
+  # "(mise|direnv:proj|myproj)".
+  local _hi_out="" _hi_name
   local _hi_defer="${_HI_ENV_DEFER:-0}"
-  # The order is a word list, walked a word at a time by expansion rather than
-  # by `for x in $list`: zsh does not word-split an unquoted expansion, and
-  # zsh.zsh sources this file too.
-  local _hi_rest="$_HI_ENV_ORDER_DEFAULT "
-  while [[ -n "$_hi_rest" ]]; do
-    _hi_src="${_hi_rest%% *}" _hi_rest="${_hi_rest#* }"
-    _hi_name=""
-    case "$_hi_src" in
-    mise) [[ -n "${MISE_SHELL:-}" ]] && _hi_mise_local && _hi_name="mise" ;;
-    asdf) [[ -n "${ASDF_DIR:-}" ]] && _hi_name="asdf" ;;
-    pyenv) [[ -n "${PYENV_VERSION:-}" ]] && _hi_name="py:$PYENV_VERSION" ;;
-    rbenv) [[ -n "${RBENV_VERSION:-}" ]] && _hi_name="rb:$RBENV_VERSION" ;;
-    nodenv) [[ -n "${NODENV_VERSION:-}" ]] && _hi_name="node:$NODENV_VERSION" ;;
-    nix)
-      # $name is stdenv's, set by nix-shell and by most `nix develop` shells
-      if [[ -n "${IN_NIX_SHELL:-}" ]]; then
-        _hi_name="nix"
-        [[ -n "${name:-}" ]] && _hi_name="nix:$name"
-      fi
-      ;;
-    guix) [[ -n "${GUIX_ENVIRONMENT:-}" ]] && _hi_name="guix" ;;
-    devbox) [[ -n "${DEVBOX_SHELL_ENABLED:-}" ]] && _hi_name="devbox" ;;
-    devenv) [[ -n "${DEVENV_ROOT:-}" ]] && _hi_name="devenv" ;;
-    direnv)
-      # direnv writes the loaded directory with a leading '-'
-      if [[ -n "${DIRENV_DIR:-}" ]]; then
-        _hi_name="${DIRENV_DIR#-}"
-        _hi_name="direnv:${_hi_name##*/}"
-      fi
-      ;;
-    conda)
-      # conda draws its own prefix from $CONDA_PROMPT_MODIFIER unless
-      # changeps1 is off, so a non-empty one means it is already on screen
-      if [[ -n "${CONDA_DEFAULT_ENV:-}" ]] &&
-        ! { [[ "$_hi_defer" == 1 ]] && [[ -n "${CONDA_PROMPT_MODIFIER:-}" ]]; }; then
-        _hi_name="$CONDA_DEFAULT_ENV"
-      fi
-      ;;
-    venv)
-      # VIRTUAL_ENV_PROMPT is PEP 405's name (venv, virtualenv, poetry, pipenv
-      # all set it); the basename is the fallback for an older activate
-      _hi_name="${VIRTUAL_ENV_PROMPT:-}"
-      [[ -z "$_hi_name" && -n "${VIRTUAL_ENV:-}" ]] && _hi_name="${VIRTUAL_ENV##*/}"
-      # ".venv" names every project the same; the directory holding it does not
-      case "$_hi_name" in
-      .venv | venv | .env | env)
-        _hi_name="${VIRTUAL_ENV:-}"
-        _hi_name="${_hi_name%/*}"
-        _hi_name="${_hi_name##*/}"
-        ;;
-      esac
-      # $_OLD_VIRTUAL_PS1 is set by activate itself: it ran in *this* shell, so
-      # its own prefix is on screen wherever the shell keeps a PS1 hi does not
-      # rebuild. GLOSSARY: HI.54
-      [[ "$_hi_defer" == 1 && -n "${_OLD_VIRTUAL_PS1+x}" ]] && _hi_name=""
-      ;;
-    esac
-    [[ -n "$_hi_name" ]] && _hi_out="${_hi_out:+$_hi_out|}$_hi_name"
-  done
+  [[ -n "${MISE_SHELL:-}" ]] && _hi_mise_local && _hi_out+="|mise"   # env: mise
+  [[ -n "${ASDF_DIR:-}" ]] && _hi_out+="|asdf"                       # env: asdf
+  [[ -n "${PYENV_VERSION:-}" ]] && _hi_out+="|py:$PYENV_VERSION"     # env: pyenv
+  [[ -n "${RBENV_VERSION:-}" ]] && _hi_out+="|rb:$RBENV_VERSION"     # env: rbenv
+  [[ -n "${NODENV_VERSION:-}" ]] && _hi_out+="|node:$NODENV_VERSION" # env: nodenv
+  # $name is stdenv's, set by nix-shell and by most `nix develop` shells
+  [[ -n "${IN_NIX_SHELL:-}" ]] && _hi_out+="|nix${name:+:$name}" # env: nix
+  [[ -n "${GUIX_ENVIRONMENT:-}" ]] && _hi_out+="|guix"           # env: guix
+  [[ -n "${DEVBOX_SHELL_ENABLED:-}" ]] && _hi_out+="|devbox"     # env: devbox
+  [[ -n "${DEVENV_ROOT:-}" ]] && _hi_out+="|devenv"              # env: devenv
+  # direnv writes the loaded directory with a leading '-'
+  if [[ -n "${DIRENV_DIR:-}" ]]; then # env: direnv
+    _hi_name="${DIRENV_DIR#-}"
+    _hi_out+="|direnv:${_hi_name##*/}"
+  fi
+  # conda draws its own prefix from $CONDA_PROMPT_MODIFIER unless changeps1 is
+  # off, so a non-empty one means it is already on screen
+  if [[ -n "${CONDA_DEFAULT_ENV:-}" ]] && # env: conda
+    ! { [[ "$_hi_defer" == 1 ]] && [[ -n "${CONDA_PROMPT_MODIFIER:-}" ]]; }; then
+    _hi_out+="|$CONDA_DEFAULT_ENV"
+  fi
+  # VIRTUAL_ENV_PROMPT is PEP 405's name (venv, virtualenv, poetry, pipenv all
+  # set it); the basename is the fallback for an older activate
+  _hi_name="${VIRTUAL_ENV_PROMPT:-}" # env: venv
+  [[ -z "$_hi_name" && -n "${VIRTUAL_ENV:-}" ]] && _hi_name="${VIRTUAL_ENV##*/}"
+  # ".venv" names every project the same; the directory holding it does not
+  case "$_hi_name" in
+  .venv | venv | .env | env)
+    _hi_name="${VIRTUAL_ENV:-}"
+    _hi_name="${_hi_name%/*}"
+    _hi_name="${_hi_name##*/}"
+    ;;
+  esac
+  # $_OLD_VIRTUAL_PS1 is set by activate itself: it ran in *this* shell, so its
+  # own prefix is on screen wherever the shell keeps a PS1 hi does not rebuild.
+  # GLOSSARY: HI.54
+  [[ "$_hi_defer" == 1 && -n "${_OLD_VIRTUAL_PS1+x}" ]] && _hi_name=""
+  [[ -n "$_hi_name" ]] && _hi_out+="|$_hi_name"
+  _hi_out="${_hi_out#"|"}"
   [[ -n "$_hi_out" ]] || return
 
   # the cap and the glyph git_prompt.sh puts on a branch name, so a deep stack
@@ -125,5 +99,3 @@ _hi_env_prompt() {
 
   _hi_out "${1:-}" "($_hi_out) "
 }
-
-_hi_opts_restore "$_hi_env_o"

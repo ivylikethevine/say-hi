@@ -71,12 +71,11 @@ function test_parse_dashed_word_after_the_target_is_the_command() {
 # status - it never returns to _hi_parse_out, so this shims ssh to log its
 # argv and exit 3, and asserts both.
 function test_parse_dashdash_does_not_end_option_parsing() {
-  local got bin="$_HI_WORKDIR/dashdash.bin" log="$_HI_WORKDIR/dashdash.log" rc=0
+  local bin="$_HI_WORKDIR/dashdash.bin" log="$_HI_WORKDIR/dashdash.log" rc=0
   _hi_script "$bin/ssh" '#!/bin/sh' "printf '%s\n' \"\$*\" >\"$log\"" 'exit 3'
   (PATH="$bin:$PATH" _hi_parse -- -oddtarget >/dev/null 2>&1) || rc=$?
   [ "$rc" -eq 3 ] || _hi_why rc || return 1
-  got="$(cat "$log")"
-  [ "$got" = "-- -oddtarget" ] || _hi_why got log
+  _hi_prints "-- -oddtarget" cat "$log"
 }
 
 # ...and which flags are bare is common/flags' empty <argument> column plus
@@ -125,9 +124,8 @@ function test_is_ssh_host_ignores_a_wildcard_block() {
 }
 
 function test_select_arm_wildcard_host_does_not_shadow_a_container() {
-  local got DOMAIN=yes BACKEND=
-  got="$(_HI_SSH_CONFIG="$(_hi_wild_ssh_config)" PATH="$_HI_SHIM_PATH" _hi_select_arm)"
-  [ "$got" = docker ] || _hi_why got _HI_SHIM_PATH
+  local DOMAIN=yes BACKEND=
+  _HI_SSH_CONFIG="$(_hi_wild_ssh_config)" PATH="$_HI_SHIM_PATH" _hi_prints docker _hi_select_arm
 }
 
 # user@host is ssh's unasked, whatever a backend would answer; an `@` in a
@@ -209,9 +207,7 @@ function test_predicates_are_false_without_their_cli() {
 # $_HI_BACKENDS.
 
 function test_resolve_backend_picks_the_first_matching_row() {
-  local got
-  got="$(PATH="$_HI_SHIM_PATH" _hi_resolve_backend yes)"
-  [ "$got" = docker ] || _hi_why got _HI_SHIM_PATH
+  PATH="$_HI_SHIM_PATH" _hi_prints docker _hi_resolve_backend yes
 }
 
 # ...and the roster order is the thing being asserted, not "docker": prove it
@@ -393,19 +389,17 @@ function test_select_arm_backend_flag_wins_over_a_real_match() {
 }
 
 function test_select_arm_backend_flag_names_the_arm_with_no_probe() {
-  local got DOMAIN=no BACKEND=docker
+  local DOMAIN=no BACKEND=docker
   # PATH has nothing at all: a probe would find no CLI and print nothing, so
   # a printed "docker" here can only have come from $BACKEND
   local empty="$_HI_WORKDIR/empty"
   mkdir -p "$empty"
-  got="$(PATH="$empty" _hi_select_arm)"
-  [ "$got" = docker ] || _hi_why got empty
+  PATH="$empty" _hi_prints docker _hi_select_arm
 }
 
 function test_select_arm_falls_back_to_resolution_when_backend_unset() {
-  local got DOMAIN=yes BACKEND=
-  got="$(PATH="$_HI_SHIM_PATH" _hi_select_arm)"
-  [ "$got" = docker ] || _hi_why got _HI_SHIM_PATH
+  local DOMAIN=yes BACKEND=
+  PATH="$_HI_SHIM_PATH" _hi_prints docker _hi_select_arm
 }
 
 # a backend $_HI_BACKENDS_OFF names is not asked, so the name is ssh's: by
@@ -641,7 +635,6 @@ function run_hi_parse_tests() {
   _hi_h2 "Testing: _hi_parse (commands and errors)"
   _hi_check "Trailing words become a command" test_parse_turns_trailing_words_into_a_command
   _hi_check "A dashed word after the target is the command's" test_parse_dashed_word_after_the_target_is_the_command
-  _hi_check "A plain session has no command" _hi_prints $'myhost' _hi_parse_out myhost
   # a value-taking flag with nothing after it reports itself, not an unbound $2
   _hi_check "Refuses a flag missing its value, by name" _hi_refused "-o" _hi_parse_says -o
   _hi_check "...-p too" _hi_refused "" _hi_parse_says -p

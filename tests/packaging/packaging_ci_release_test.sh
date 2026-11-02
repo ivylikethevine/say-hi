@@ -122,7 +122,6 @@ function test_release_gate_verifies_the_signed_tag() {
     [[ "$gate" == *'=~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'* ]] || _hi_why gate || return 1
   # a shipped tree has no .github; a checkout must carry at least one key,
   # each scoped to git's signing namespace
-  [ -f "$signers" ] || return 0
   { grep -qE '^[^#[:space:]]+ namespaces="git" ssh-[a-z0-9-]+ [A-Za-z0-9+/=]+' "$signers" &&
     ! grep -vE '^(#|$)' "$signers" | grep -vqE '^[^#[:space:]]+ namespaces="git" '; } || _hi_why signers
 }
@@ -209,7 +208,7 @@ function test_prerelease_tags_reach_no_channel() {
   # the Pages refresh too: a prerelease publishes --latest=false, so pages.yml
   # would have nothing new to serve and the dispatch must be skipped
   job="$(_hi_wf_job "$_HI_DEMOS_WF" refresh-pages)"
-  if ! [[ "$job" == *'isPrerelease'* ]]; then
+  if ! [[ "$job" == *"!contains(github.ref_name, '-')"* ]]; then
     _hi_cecho " | demos.yml refreshes Pages on a prerelease tag" "$RED"
     bad=1
   fi
@@ -290,7 +289,6 @@ function test_release_note_check_requires_a_written_section() {
 # shellcheck disable=SC2016 # matching release-note.yml's literal source text
 function test_release_note_workflow_runs_the_check() {
   local wf="$_HI_ROOT/.github/workflows/release-note.yml"
-  [ -f "$wf" ] || return 0
   grep -qxF 'name: Release note' "$wf" &&
     grep -qxF '    name: release note (pr body)' "$wf" &&
     grep -qE '^    types: \[opened, edited, synchronize, reopened, ready_for_review\]$' "$wf" &&
@@ -306,8 +304,7 @@ function test_release_note_workflow_runs_the_check() {
 # the generated notes' order, a multi-line note joined, `none` dropped
 function test_release_notes_builds_the_list_from_the_prs() {
   local dir="$_HI_WORKDIR/relnotes" out
-  mkdir -p "$dir/bin"
-  cat >"$dir/bin/gh" <<'EOF'
+  _hi_script "$dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
 *pulls/12*) printf '## Release note\n\nhi keeps your prompt.\nOn targets too.\n' ;;
@@ -315,7 +312,6 @@ case "$*" in
 *) exit 1 ;;
 esac
 EOF
-  chmod +x "$dir/bin/gh"
   printf '## What Changed\n* header tweaks by @x in https://github.com/o/r/pull/13\n* prompt by @x in https://github.com/o/r/pull/12\n* again in https://github.com/o/r/pull/12\n' >"$dir/notes.md"
   out="$(PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/scripts/release_notes.sh" o/r "$dir/notes.md")"
   [ "$out" = $'## What changed\n\n- hi keeps your prompt. On targets too. (#12)' ] || _hi_why out
@@ -417,7 +413,6 @@ function test_publish_job_signs_the_sums() {
 # release.yml's offline verification leans on minisign being pinned *and*
 # drift-checked; the general manifest guards below cannot know that.
 function test_minisign_pin_is_drift_checked() {
-  [ -f "$_HI_TOOLS_TXT" ] || return 0 # a shipped tree has no .github
   grep -qE '^minisign\|[0-9][^|]*\|.*\|github:jedisct1/minisign\|[^|]*\|[0-9a-f]{64}$' "$_HI_TOOLS_TXT" || _hi_why _HI_TOOLS_TXT
 }
 
@@ -425,7 +420,6 @@ function test_minisign_pin_is_drift_checked() {
 # a non-empty version and url, and a sha256 in the format lib.sh reads - a
 # thin row reaches CI as a runtime failure nobody sees until the job runs
 function test_tool_manifest_rows_are_wellformed() {
-  [ -f "$_HI_TOOLS_TXT" ] || return 0
   local tool version kind url verify check sha256 rest bad=0
   local hex='[0-9a-f]{64}' plat='(linux|darwin)-(x86_64|aarch64)(:[^=,]+)?'
   while IFS='|' read -r tool version kind url verify check _ sha256 rest; do
@@ -465,7 +459,6 @@ function test_tool_manifest_rows_are_wellformed() {
 # workflows' `tools:` lines, so an unrelated future `tools:` input would be
 # checked too - which fails loudly rather than silently, the right way round.
 function test_every_setup_tool_call_names_a_manifest_row() {
-  [ -f "$_HI_TOOLS_TXT" ] || return 0
   local want bad=0
   while read -r want; do
     grep -q "^$want|" "$_HI_TOOLS_TXT" || {
@@ -478,7 +471,6 @@ function test_every_setup_tool_call_names_a_manifest_row() {
 
 # the release ships what mkpkg.sh says it ships, not a second glob list in YAML
 function test_release_workflow_reads_the_artifact_list() {
-  [ -f "$_HI_RELEASE_WF" ] || return 0
   grep -qF 'dist/ARTIFACTS' "$_HI_RELEASE_WF" || _hi_why _HI_RELEASE_WF
 }
 
@@ -487,19 +479,11 @@ function test_release_workflow_reads_the_artifact_list() {
 # than run, so this needs no nfpm - the reason that function is separate.
 function test_write_checksums_lists_the_artifacts() {
   local d="$_HI_WORKDIR/artifacts"
-  mkdir -p "$d"
-  printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
-  printf 'pkg' >"$d/say-hi-1.0.0.x86_64.rpm"
-  printf 'pkg' >"$d/say-hi-1.0.0.apk"
+  _hi_wc_packages "$d"
   # sourced in a subshell rather than at suite level: mkpkg.sh's
   # `[[ BASH_SOURCE == $0 ]] || return 0` guard is the seam, and the suite
   # already sources bump.sh at the top - two of them would collide
-  (
-    # shellcheck source=../../packaging/mkpkg.sh
-    source "$_HI_PKG_DIR/mkpkg.sh"
-    _HI_DIST="$d"
-    write_checksums >/dev/null 2>&1
-  ) || _hi_why d _HI_PKG_DIR || return 1
+  _hi_in_mkpkg "$d" write_checksums >/dev/null 2>&1 || _hi_why d _HI_PKG_DIR || return 1
   [ -f "$d/ARTIFACTS" ] || _hi_because "write_checksums wrote no ARTIFACTS" || return 1
   # every built file, plus SHA256SUMS, basenames only - and nothing else
   diff <(sort "$d/ARTIFACTS") \
@@ -518,12 +502,7 @@ function test_write_checksums_reports_a_missing_artifact_type() {
   mkdir -p "$d"
   printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
   printf 'pkg' >"$d/say-hi-1.0.0.apk"
-  out="$(
-    # shellcheck source=../../packaging/mkpkg.sh
-    source "$_HI_PKG_DIR/mkpkg.sh"
-    _HI_DIST="$d"
-    write_checksums 2>&1
-  )" || rc=$?
+  out="$(_hi_in_mkpkg "$d" write_checksums 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] || _hi_why rc || return 1
   case "$out" in *"nfpm exited 0 but built no .rpm"*) return 0 ;; esac
   return 1
@@ -540,12 +519,7 @@ function test_write_checksums_refuses_an_empty_package() {
   printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
   : >"$d/say-hi-1.0.0.x86_64.rpm"
   printf 'pkg' >"$d/say-hi-1.0.0.apk"
-  out="$(
-    # shellcheck source=../../packaging/mkpkg.sh
-    source "$_HI_PKG_DIR/mkpkg.sh"
-    _HI_DIST="$d"
-    write_checksums 2>&1
-  )" || rc=$?
+  out="$(_hi_in_mkpkg "$d" write_checksums 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] || _hi_why rc || return 1
   # and it stopped before summing: an empty package must never reach SHA256SUMS
   [ ! -f "$d/SHA256SUMS" ] || _hi_why d || return 1
@@ -561,17 +535,9 @@ function test_write_checksums_refuses_an_empty_package() {
 function test_write_checksums_ships_the_source_tarball() {
   local d="$_HI_WORKDIR/artifacts-src"
   mkdir -p "$d/elsewhere"
-  printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
-  printf 'pkg' >"$d/say-hi-1.0.0.x86_64.rpm"
-  printf 'pkg' >"$d/say-hi-1.0.0.apk"
+  _hi_wc_packages "$d"
   printf 'tarball\n' >"$d/elsewhere/say-hi-1.0.0.tar.gz"
-  (
-    # shellcheck source=../../packaging/mkpkg.sh
-    source "$_HI_PKG_DIR/mkpkg.sh"
-    _HI_DIST="$d"
-    _HI_SRC_TARBALL="$d/elsewhere/say-hi-1.0.0.tar.gz"
-    write_checksums >/dev/null 2>&1
-  ) || _hi_why d _HI_PKG_DIR || return 1
+  _hi_in_mkpkg "$d" _hi_wc_tarball "$d/elsewhere/say-hi-1.0.0.tar.gz" >/dev/null 2>&1 || _hi_why d _HI_PKG_DIR || return 1
   # copied in beside the packages, listed, and summed
   [ -f "$d/say-hi-1.0.0.tar.gz" ] || _hi_because "the source tarball was not copied into the outdir" || return 1
   diff <(sort "$d/ARTIFACTS") \
@@ -586,18 +552,9 @@ function test_write_checksums_ships_the_source_tarball() {
 # instead of cp's "are the same file" failure.
 function test_write_checksums_takes_a_tarball_already_in_the_outdir() {
   local d="$_HI_WORKDIR/artifacts-src-inplace"
-  mkdir -p "$d"
-  printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
-  printf 'pkg' >"$d/say-hi-1.0.0.x86_64.rpm"
-  printf 'pkg' >"$d/say-hi-1.0.0.apk"
+  _hi_wc_packages "$d"
   printf 'tarball\n' >"$d/say-hi-1.0.0.tar.gz"
-  (
-    # shellcheck source=../../packaging/mkpkg.sh
-    source "$_HI_PKG_DIR/mkpkg.sh"
-    _HI_DIST="$d"
-    _HI_SRC_TARBALL="$d/say-hi-1.0.0.tar.gz"
-    write_checksums >/dev/null 2>&1
-  ) || _hi_why d _HI_PKG_DIR || return 1
+  _hi_in_mkpkg "$d" _hi_wc_tarball "$d/say-hi-1.0.0.tar.gz" >/dev/null 2>&1 || _hi_why d _HI_PKG_DIR || return 1
   grep -q 'say-hi-1.0.0.tar.gz' "$d/ARTIFACTS" || _hi_why d
 }
 
@@ -606,17 +563,8 @@ function test_write_checksums_takes_a_tarball_already_in_the_outdir() {
 # attestation on three artifacts instead of four.
 function test_write_checksums_refuses_a_missing_source_tarball() {
   local d="$_HI_WORKDIR/artifacts-src-absent" out rc=0
-  mkdir -p "$d"
-  printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
-  printf 'pkg' >"$d/say-hi-1.0.0.x86_64.rpm"
-  printf 'pkg' >"$d/say-hi-1.0.0.apk"
-  out="$(
-    # shellcheck source=../../packaging/mkpkg.sh
-    source "$_HI_PKG_DIR/mkpkg.sh"
-    _HI_DIST="$d"
-    _HI_SRC_TARBALL="$d/absent.tar.gz"
-    write_checksums 2>&1
-  )" || rc=$?
+  _hi_wc_packages "$d"
+  out="$(_hi_in_mkpkg "$d" _hi_wc_tarball "$d/absent.tar.gz" 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] || _hi_why rc || return 1
   [ ! -f "$d/SHA256SUMS" ] || _hi_why d || return 1
   case "$out" in *"no such source tarball: $d/absent.tar.gz"*) return 0 ;; esac
@@ -661,7 +609,7 @@ function _hi_changelog_run() {
   if [ ! -d "$dir/bin" ]; then
     mkdir -p "$dir/bin"
     sed '/^## /,$d' "$_HI_ROOT/docs/CHANGELOG.md" >"$dir/CHANGELOG.md"
-    cat >"$dir/bin/gh" <<'EOF'
+    _hi_script "$dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
 *generate-notes*) printf '* a by @x in https://github.com/o/r/pull/12\n* b by @x in https://github.com/o/r/pull/13\n' ;;
@@ -672,7 +620,6 @@ case "$*" in
 *) exit 1 ;;
 esac
 EOF
-    chmod +x "$dir/bin/gh"
   fi
   PATH="$dir/bin:$PATH" HI_CHANGELOG="$dir/CHANGELOG.md" bash "$_HI_ROOT/.github/scripts/changelog.sh" "$@"
 }

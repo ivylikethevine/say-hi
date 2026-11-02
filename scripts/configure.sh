@@ -124,15 +124,12 @@ function ask_setting_value() {
   local _hi_asv_cur="" _hi_asv_n _hi_asv_c _hi_asv_h _hi_asv_d="${1}_DEFAULT"
   _hi_asv_d="${3-${!_hi_asv_d:-}}"
   setting_value "$1" "$_HI_SETTINGS" _hi_asv_cur
-  while IFS='|' read -r _hi_asv_n _HI_ASV_CHECK _hi_asv_h; do
+  while IFS='|' read -r _hi_asv_n _hi_asv_c _hi_asv_h; do
     [ "$_hi_asv_n" != "$1" ] || break
   done < <(_hi_setting_rules)
-  [ "$_hi_asv_n" = "$1" ] || _HI_ASV_CHECK=- _hi_asv_h=""
-  _hi_pending_set "$1" "$(ask_value "$2" "$_hi_asv_cur" "$_hi_asv_d" _hi_asv_valid "$_hi_asv_h")"
+  [ "$_hi_asv_n" = "$1" ] || _hi_asv_c=- _hi_asv_h=""
+  _hi_pending_set "$1" "$(ask_value "$2" "$_hi_asv_cur" "$_hi_asv_d" "_hi_setting_check $_hi_asv_c" "$_hi_asv_h")"
 }
-
-# the validator ask_setting_value hands ask_value: its row's <check>
-function _hi_asv_valid() { _hi_setting_check "$_HI_ASV_CHECK" "$1"; }
 
 # _hi_shell_var <outvar> <shell> - the uppercase half of a $_HI_PROMPT_END_<SHELL>
 # name. _HI_RC_TABLE carries the shell lowercase and the setting is spelled
@@ -141,8 +138,8 @@ function _hi_shell_var() {
   printf -v "$1" '%s' "$(printf '%s' "$2" | tr '[:lower:]' '[:upper:]')"
 }
 
-# ask_value <question> <current> <default> <validator-fn> <invalid-msg> -
-# one free-text prompt, printed value on stdout: entering nothing keeps
+# ask_value <question> <current> <default> <validator> <invalid-msg> - one
+# free-text prompt, the validator a command line the answer is added to: printed value on stdout: entering nothing keeps
 # <current> (or the default when there is no override yet), a rejected answer
 # says why and keeps it too, and an answer equal to <default> comes back
 # empty - the caller records nothing rather than restating a shipped default.
@@ -157,7 +154,8 @@ function ask_value() {
     _hi_paint shown "$BRPURPLE" "[$value]"
     read -r -p " $question $shown " reply || reply=""
     if [ -n "$reply" ]; then
-      if "$validate" "$reply"; then
+      # shellcheck disable=SC2086 # a command line, split on purpose
+      if $validate "$reply"; then
         value="$reply"
       else
         _hi_cecho " $invalid_msg, leaving it at $value" "$YELLOW" >&2
@@ -212,20 +210,11 @@ function _hi_menu_reject() {
   _hi_menu_say "$3" "$YELLOW"
 }
 
-# The value validators are scripts/lib.sh's (_hi_is_width and the rest):
-# doctor judges a hand-written settings.sh by the same rules the menu takes
+# The value validators are scripts/lib.sh's: doctor judges a hand-written settings.sh by the same rules the menu takes
 # an answer by. Only the two that need the menu's own state live here.
 
 function _hi_is_truecolor_choice() {
   case "$1" in auto | on | off) ;; *) return 1 ;; esac
-}
-
-# _hi_prompt_fits <program> <shell> - does that prompt program draw that shell
-function _hi_prompt_fits() {
-  local _hi_pf_r
-  _hi_prompt_row "$1" _hi_pf_r || return 1
-  _hi_pf_r="${_hi_pf_r#*|}"
-  _hi_list_has "${_hi_pf_r%%|*}" "$2"
 }
 
 # the live previews the questions draw
@@ -315,13 +304,12 @@ function _hi_ask_item() {
 declare -a _HI_SETTING_LINES=()
 
 # The yes/no settings as tables, one row per setting, in the order they are
-# listed and written: <var>|<off-value>|<on-value>|<preview-fn>|<needs>|
+# listed and written: <var>|<off-value>|<on-value>|<preview-fn>|
 # <label>. <on-value> is empty for a default-on toggle (off writes the
 # off-value, on writes nothing) and set for an opt-in (on writes it, off
 # writes nothing) - setting_on has the rule. <preview-fn> is boxed under the
 # menu after the row flips, for what the menu's own preview does not show.
-# <needs> names a command the setting is moot without (`a/b` for either of
-# two): the menu says so beside it. <label> is the menu's name for it, and its
+# <label> is the menu's name for it, and its
 # part before " - " is what the flip reports. banner is the header's one row
 # with a hide switch of its own: it is not part of $_HI_HEADER_ORDER's
 # reorderable list (it always leads). The prompt's switch, off altogether, is
@@ -333,20 +321,13 @@ declare -a _HI_SETTING_LINES=()
 # items, so adding a setting is one row there.
 _HI_FEATURE_PROMPTS=() _HI_HEADER_PROMPTS=() _HI_PROMPT_PROMPTS=() _HI_ADVANCED_PROMPTS=()
 function _hi_settings_load() {
-  local line sec name item col i
+  local line sec name off on preview label item us=$'\x1f'
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in '' | '#'*) continue ;; esac
-    # <section> | <name> | <default> | <off> | <on> | <preview> | <needs> | <label> | ...
-    sec="${line%% | *}" line="${line#* | }"
-    name="${line%% | *}" line="${line#* | }"
-    line="${line#* | }"
-    item="$name"
-    for i in 1 2 3 4 5; do
-      col="${line%% | *}" line="${line#* | }"
-      [ "$col" != - ] || col=""
-      item="$item|$col"
-    done
-    [ -n "$col" ] || continue
+    # <section> | <name> | <default> | <off> | <on> | <preview> | <label> | ...
+    IFS="$us" read -r sec name _ off on preview label _ <<<"${line// | /$us}"
+    [ "$label" != - ] || continue
+    item="$name|${off#-}|${on#-}|${preview#-}|$label"
     case "$sec" in
     feature) _HI_FEATURE_PROMPTS+=("$item") ;;
     header) _HI_HEADER_PROMPTS+=("$item") ;;
@@ -458,20 +439,12 @@ function apply_preset() {
     return 1
   }
   values="${row##*|}"
-  while IFS= read -r var; do
-    value=""
-    # shellcheck disable=SC2086 # the split is the point: one var=value a word
-    for pair in $values; do
-      [ "${pair%%=*}" = "$var" ] && value="${pair#*=}"
-    done
-    _hi_pending_set "$var" "$value"
-  done < <(_hi_preset_vocab)
-  vocab=" $(_hi_preset_vocab | tr '\n' ' ')"
-  # shellcheck disable=SC2086
+  vocab="$(_hi_preset_vocab | tr '\n' ' ')"
+  for var in $vocab; do _hi_pending_set "$var" ""; done
+  # shellcheck disable=SC2086 # the split is the point: one var=value a word
   for pair in $values; do
-    ! _hi_list_has "$vocab" "${pair%%=*}" || continue
     _hi_pending_set "${pair%%=*}" "${pair#*=}"
-    extra="$extra${extra:+, }${pair%%=*}"
+    _hi_list_has "$vocab" "${pair%%=*}" || extra="$extra${extra:+, }${pair%%=*}"
   done
   _hi_cecho " starting from the '$1' preset" "$GREEN"
   [ -z "$extra" ] || _hi_cecho " it also sets $extra, which no other preset changes back" "$BLUE"

@@ -95,13 +95,12 @@ function test_update_on_dev_pulls() {
 }
 
 function test_update_on_dev_dry_run_moves_nothing() {
-  local home before out got
+  local home before out
   home="$(_hi_update_dev_fixture upd-dev-dry)" || _hi_why || return 1
   before="$(git -C "$home/say-hi" rev-parse HEAD)"
   out="$(_hi_update_run "$home" --update --dry-run)" || _hi_why home || return 1
   [[ "$out" == *"would pull 2 commit(s) into dev"* ]] || _hi_why out || return 1
-  got="$(git -C "$home/say-hi" rev-parse HEAD)"
-  [ "$got" = "$before" ] || _hi_why got home before
+  _hi_prints "$before" git -C "$home/say-hi" rev-parse HEAD
 }
 
 function test_update_on_dev_up_to_date_says_so() {
@@ -114,7 +113,6 @@ function test_update_on_dev_up_to_date_says_so() {
 
 # a dev with commits of its own is left for a human: no merge, no reset
 function test_update_on_dev_refuses_a_diverged_branch() {
-  local got
   local home before out rc=0
   home="$(_hi_update_dev_fixture upd-dev-div)" || _hi_why || return 1
   git -C "$home/say-hi" -c user.name=hi -c user.email=hi@example.invalid -c commit.gpgsign=false \
@@ -122,14 +120,12 @@ function test_update_on_dev_refuses_a_diverged_branch() {
   before="$(git -C "$home/say-hi" rev-parse HEAD)"
   out="$(_hi_update_run "$home" --update 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] && [[ "$out" == *"has diverged from its upstream (1 ahead, 2 behind)"* ]] || _hi_why rc out || return 1
-  got="$(git -C "$home/say-hi" rev-parse HEAD)"
-  [ "$got" = "$before" ] || _hi_why got home before
+  _hi_prints "$before" git -C "$home/say-hi" rev-parse HEAD
 }
 
 # a dev that tracks nothing has nowhere to pull from: refused, with the
 # command that gives it an upstream, and nothing moves
 function test_update_on_dev_refuses_a_branch_with_no_upstream() {
-  local got
   local home before out rc=0
   home="$(_hi_update_dev_fixture upd-dev-bare)" || _hi_why || return 1
   git -C "$home/say-hi" branch -q --unset-upstream dev >/dev/null 2>&1 || _hi_why home || return 1
@@ -137,8 +133,7 @@ function test_update_on_dev_refuses_a_branch_with_no_upstream() {
   out="$(_hi_update_run "$home" --update 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] && [[ "$out" == *"dev in $home/say-hi has no upstream"*"--set-upstream-to=origin/dev dev"* ]] ||
     _hi_because "rc $rc: $out" || return 1
-  got="$(git -C "$home/say-hi" rev-parse HEAD)"
-  [ "$got" = "$before" ] || _hi_why got home before
+  _hi_prints "$before" git -C "$home/say-hi" rev-parse HEAD
 }
 
 # a tag named on dev is still a tag checkout
@@ -323,22 +318,26 @@ function test_update_refuses_a_key_not_in_the_keyring() {
 
 # a tag whose signed content was altered after signing refuses even under
 # _HI_UPDATE_UNSIGNED=1. The tag object is rewritten with a changed message
-# under the same signature, then the ref moved onto it - what a tampered
+# under the same signature, then the ref moved onto it, here and on origin so
+# the fetch inside --update does not put the good one back - what a tampered
 # mirror looks like.
-function test_update_refuses_a_bad_signature() {
-  local got
-  local gh home out rc=0 obj
-  gh="$(_hi_update_gpg_home bad)" || _hi_why || return 1
-  home="$(_hi_update_signed_fixture upd-bad "$gh")" || _hi_why gh || return 1
+function _hi_update_refuses_tampered() {
+  local home="$1" out rc=0 obj got
   obj="$(git -C "$home/say-hi" fetch -q --tags && git -C "$home/say-hi" cat-file tag v0.0.3 | sed 's/^three$/tampered/' | git -C "$home/say-hi" hash-object -t tag -w --stdin)" || _hi_why home || return 1
   git -C "$home/say-hi" update-ref refs/tags/v0.0.3 "$obj" || _hi_why home obj || return 1
-  # and on origin, so the fetch inside --update does not put the good one back
   git -C "$home/say-hi" push -q -f origin "refs/tags/v0.0.3:refs/tags/v0.0.3" 2>/dev/null || _hi_why home || return 1
-  out="$(GNUPGHOME="$gh" _hi_update_run "$home" --update v0.0.3)" || rc=$?
+  out="$(_hi_update_run "$home" --update v0.0.3)" || rc=$?
   [ "$rc" -eq 1 ] || _hi_why rc || return 1
   [[ "$out" == *"does not verify"* ]] || _hi_why out || return 1
   got="$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)"
   [ "$got" = v0.0.1 ] || _hi_why got home
+}
+
+function test_update_refuses_a_bad_signature() {
+  local gh home
+  gh="$(_hi_update_gpg_home bad)" || _hi_why || return 1
+  home="$(_hi_update_signed_fixture upd-bad "$gh")" || _hi_why gh || return 1
+  GNUPGHOME="$gh" _hi_update_refuses_tampered "$home" || _hi_why home
 }
 
 # _hi_update_ssh_fixture <name> <signer-key> <listed-key> - the fixture plus a
@@ -388,17 +387,9 @@ function test_update_refuses_an_ssh_key_not_listed() {
 # tampered after ssh-signing, as test_update_refuses_a_bad_signature does it,
 # and refused under _HI_UPDATE_UNSIGNED=1 just the same
 function test_update_refuses_a_bad_ssh_signature() {
-  local got
-  local home out rc=0 obj
+  local home
   home="$(_hi_update_ssh_fixture upd-ssh-bad sshkey sshkey)" || _hi_why || return 1
-  obj="$(git -C "$home/say-hi" fetch -q --tags && git -C "$home/say-hi" cat-file tag v0.0.3 | sed 's/^three$/tampered/' | git -C "$home/say-hi" hash-object -t tag -w --stdin)" || _hi_why home || return 1
-  git -C "$home/say-hi" update-ref refs/tags/v0.0.3 "$obj" || _hi_why home obj || return 1
-  git -C "$home/say-hi" push -q -f origin "refs/tags/v0.0.3:refs/tags/v0.0.3" 2>/dev/null || _hi_why home || return 1
-  out="$(_hi_update_run "$home" --update v0.0.3)" || rc=$?
-  [ "$rc" -eq 1 ] || _hi_why rc || return 1
-  [[ "$out" == *"does not verify"* ]] || _hi_why out || return 1
-  got="$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)"
-  [ "$got" = v0.0.1 ] || _hi_why got home
+  _hi_update_refuses_tampered "$home" || _hi_why home
 }
 
 # bare: the newest tag by version, which the fetch brings in - and that
@@ -452,14 +443,12 @@ function test_update_on_the_tag_already_says_so() {
 }
 
 function test_update_refuses_a_dirty_tree() {
-  local home out before got
+  local home before
   home="$(_hi_update_fixture upd-dirty)" || _hi_why || return 1
   printf '# hacked\n' >>"$home/say-hi/hi.sh"
   before="$(git -C "$home/say-hi" rev-parse HEAD)"
-  out="$(_hi_update_run "$home" --update v0.0.2)" && return 1
-  [[ "$out" == *"uncommitted changes"* ]] || _hi_why out || return 1
-  got="$(git -C "$home/say-hi" rev-parse HEAD)"
-  [ "$got" = "$before" ] || _hi_why got home before || return 1
+  _hi_refused "uncommitted changes" _hi_update_run "$home" --update v0.0.2 || _hi_why || return 1
+  _hi_prints "$before" git -C "$home/say-hi" rev-parse HEAD || return 1
   tail -n 1 "$home/say-hi/hi.sh" | grep -q '^# hacked$' || _hi_why home
 }
 
@@ -469,19 +458,17 @@ function test_update_refuses_an_unknown_tag() {
   home="$(_hi_update_fixture upd-nope)" || _hi_why || return 1
   out="$(_hi_update_run "$home" --update nope)" && return 1
   [[ "$out" == *"no release tag named nope"* ]] || _hi_why out || return 1
-  out="$(_hi_update_run "$home" --update main)" && return 1
-  [[ "$out" == *"no release tag named main"* ]] || _hi_why out
+  _hi_refused "no release tag named main" _hi_update_run "$home" --update main || _hi_why
 }
 
 # no git-pull options, and no second word: both are errors before
 # anything moves
 function test_update_takes_one_tag_at_most() {
-  local home out got
+  local home got out
   home="$(_hi_update_fixture upd-opts)" || _hi_why || return 1
-  out="$(_hi_update_run "$home" --update v0.0.2 --ff-only)" && return 1
+  out="$(_hi_update_run "$home" --update v0.0.2 v0.0.1)" && return 1
   [[ "$out" == *"one release tag at most"* ]] || _hi_why out || return 1
-  out="$(_hi_update_run "$home" --update --ff-only)" && return 1
-  [[ "$out" == *"unknown option --ff-only"* ]] || _hi_why out || return 1
+  _hi_refused "unknown option --ff-only" _hi_update_run "$home" --update --ff-only || _hi_why || return 1
   got="$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)"
   [ "$got" = v0.0.1 ] || _hi_why got home
 }
@@ -500,12 +487,11 @@ function test_update_stops_when_the_fetch_fails() {
 
 # a clone with commits and no v* tag anywhere has no release to move to
 function test_bare_update_needs_a_release_tag() {
-  local home out
+  local home
   home="$(_hi_update_fixture upd-untagged)" || _hi_why || return 1
   git -C "$home/say-hi" tag -d v0.0.1 >/dev/null || _hi_why home || return 1
   git -C "$home/origin.git" tag -d v0.0.1 v0.0.2 >/dev/null || _hi_why home || return 1
-  out="$(_hi_update_run "$home" --update)" && return 1
-  [[ "$out" == *"no release tags in $home/say-hi"* ]] || _hi_why out home
+  _hi_refused "no release tags in $home/say-hi" _hi_update_run "$home" --update || _hi_why
 }
 
 # --help is hi's to answer, and it answers ahead of the .git check, so a

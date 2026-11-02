@@ -90,6 +90,30 @@ function _hi_prints() {
   [ "$got" = "$want" ] || _hi_because "from: $* - wanted [$want], got [$got]"
 }
 
+# _hi_says <phrase> <cmd...> - ...that its output holds <phrase>
+function _hi_says() {
+  local phrase="$1" out
+  shift
+  out="$("$@" 2>&1)" || :
+  [[ "$out" == *"$phrase"* ]] || _hi_because "from: $* - wanted [$phrase] in [$out]"
+}
+
+# _hi_var_is <want> <fn> [arg...] - ...that <fn>, as `<fn> <outvar> [arg...]`,
+# leaves <want> in its out-var, with no fork
+function _hi_var_is() {
+  local _hi_vi=""
+  "$2" _hi_vi "${@:3}" || :
+  [ "$_hi_vi" = "$1" ] || _hi_because "from: ${*:2} - wanted [$1], got [$_hi_vi]"
+}
+
+# _hi_case_failed <label> <why> [transcript] - a target case's red heading, its
+# transcript, and the reason named for the runner's recap
+function _hi_case_failed() {
+  _hi_h3 " | [$1] -- FAILED: $2" "$RED"
+  [ -z "${3:-}" ] || _hi_show_transcript "the session's transcript" "$3"
+  _hi_note_failure "[$1] $2"
+}
+
 # _hi_refused <phrase> <cmd...> - a case whose claim is a refusal: exit 1, with
 # <phrase> in what it said
 function _hi_refused() {
@@ -270,26 +294,17 @@ function _hi_traced() {
 # ...the slow failure's: the same rerun as a job of its own, on this shell's
 # stdin, its trace in a file under the suite's work directory. Always false.
 function _hi_trace_rerun_slow() {
-  local took="$1" limit rc=0 pid t0=$SECONDS ended="" file="${_HI_WORKDIR:-${TMPDIR:-/tmp}}/hi.rerun.$$"
+  local took="$1" limit t0=$SECONDS file="${_HI_WORKDIR:-${TMPDIR:-/tmp}}/hi.rerun.$$"
   shift
   limit=$((took + 30))
   _hi_traced "$@" <&0 >"$file" 2>&1 &
-  pid=$!
-  while kill -0 "$pid" 2>/dev/null; do
-    if ((SECONDS - t0 >= limit)); then
-      kill "$pid" 2>/dev/null
-      ended=1
-      break
-    fi
-    sleep 1
-  done
-  wait "$pid" 2>/dev/null || rc=$?
-  if [ -n "$ended" ]; then
+  _hi_wait_pid "$!" "$limit"
+  if [ "$_HI_WAIT_EXIT" = 124 ]; then
     _HI_RERUN_OUT="      traced rerun, ended at ${limit}s (the failure took ${took}s) - where it stood, its last lines:"
-  elif [ "$rc" = 0 ]; then
+  elif [ "$_HI_WAIT_EXIT" = 0 ]; then
     _HI_RERUN_OUT="      traced rerun passed in $((SECONDS - t0))s where the failure took ${took}s - a slow failure is a failure, never a flake; the pass's last lines:"
   else
-    _HI_RERUN_OUT="      traced rerun (exit $rc, the failure took ${took}s), its last lines:"
+    _HI_RERUN_OUT="      traced rerun (exit $_HI_WAIT_EXIT, the failure took ${took}s), its last lines:"
   fi
   _HI_RERUN_OUT="$_HI_RERUN_OUT"$'\n'"$(tail -n 40 "$file" 2>/dev/null | sed 's/^/      /')"
   rm -f "$file"
@@ -533,18 +548,14 @@ function _hi_dump_log() {
 # dump reads as text and does not redraw the terminal it lands on. Says so
 # where there is none: an empty transcript is a finding too.
 function _hi_show_transcript() {
-  local esc=$'\e' bel=$'\a' n="${3:-60}"
+  local n="${3:-60}" tail
   if [ ! -s "$2" ]; then
     printf '      %s: nothing was written (%s)\n' "$1" "$2"
     return 0
   fi
   printf '      %s, its last %s lines:\n' "$1" "$n"
-  tail -n "$n" "$2" | tr -d '\r' | sed \
-    -e "s/${esc}\[[0-9;?<=>]*[ -/]*[@-~]//g" \
-    -e "s/${esc}\][^${bel}${esc}]*${bel}//g" \
-    -e "s/${esc}[()][0-9A-Za-z]//g" \
-    -e "s/${esc}[=>78cM]//g" \
-    -e 's/^/        /' || true
+  tail="$(tail -n "$n" "$2" | tr -d '\r')"
+  _hi_strip_ansi "$tail" | sed 's/^/        /' || true
 }
 
 # _hi_show_target <container> - what a target holds when a case about its

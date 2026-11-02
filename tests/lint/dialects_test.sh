@@ -56,20 +56,15 @@ _HI_NATIVE_LINT=(
 # Syntax-check the files above, returning how many failed. Adds its files to
 # $_HI_LINT_TOTAL so the suite's reported tally covers everything it checked.
 function lint_native() {
-  local entry file shell flag out bad=0
+  local entry file shell flag bad=0
   for entry in "${_HI_NATIVE_LINT[@]}"; do
     IFS=: read -r file shell flag <<<"$entry"
     if ! command -v "$shell" >/dev/null 2>&1; then
       _hi_skip "$file" "no $shell to check it with"
       continue
     fi
-    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-    if out="$("$shell" "$flag" "$_HI_ROOT/$file" 2>&1)"; then
-      _hi_align " | $file ($shell $flag)" "OK" "$GREEN"
-    else
-      _hi_lint_fail " | $file ($shell $flag)" "$file ($shell $flag)" "$out"
-      bad=$((bad + 1))
-    fi
+    _hi_lint_cmd " | $file ($shell $flag)" " | $file ($shell $flag)" "$file ($shell $flag)" \
+      "$shell" "$flag" "$_HI_ROOT/$file" || bad=$((bad + 1))
   done
   return "$bad"
 }

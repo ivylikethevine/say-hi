@@ -23,8 +23,7 @@ mode="add"
   mode="remove"
   shift
 }
-me="${_HI_ARGV0:-hi --$mode-color}"
-_HI_ME="$me"
+_HI_ME="${_HI_ARGV0:-hi --$mode-color}"
 _HI_DRY_RUN="" args=()
 # the colors file's [type] sections: common/flags' --add-color words
 types=""
@@ -32,8 +31,8 @@ while IFS='|' read -r _hi_w _; do
   case "$_hi_w" in --add-color=?*) types="$types${types:+ }${_hi_w#*=}" ;; esac
 done <"$_HI_ROOT/common/flags"
 unset _hi_w
-usage="$me <type> <name> <color> [rrggbb] [--dry-run]"
-[ "$mode" = add ] || usage="$me <type> <name> [--dry-run]"
+usage="$_HI_ME <type> <name> <color> [rrggbb] [--dry-run]"
+[ "$mode" = add ] || usage="$_HI_ME <type> <name> [--dry-run]"
 
 function _hi_set_color_help() {
   if [ "$mode" = remove ]; then
@@ -70,9 +69,9 @@ EOF
 _hi_args _hi_set_color_help "$usage" "$@"
 
 if [ "$mode" = add ]; then
-  [ "${#args[@]}" -eq 3 ] || [ "${#args[@]}" -eq 4 ] || _hi_die "needs a type, a name, and a color ($me --help)"
+  [ "${#args[@]}" -eq 3 ] || [ "${#args[@]}" -eq 4 ] || _hi_die "needs a type, a name, and a color ($_HI_ME --help)"
 else
-  [ "${#args[@]}" -eq 2 ] || _hi_die "needs a type and a name ($me --help)"
+  [ "${#args[@]}" -eq 2 ] || _hi_die "needs a type and a name ($_HI_ME --help)"
 fi
 type="${args[0]}" name="${args[1]}" color="${args[2]:-}" hex="${args[3]:-}"
 _hi_list_has "$types" "$type" || _hi_die "not a type: $type (one of $types)"

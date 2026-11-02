@@ -174,11 +174,8 @@ function test_du_size_answers_for_a_real_path() {
 
 # the shipped verdicts win; the local binaries are only the fallback
 function test_local_identity_prefers_the_shipped_verdict() {
-  local got
-  got="$(_HI_LOCAL_USER=shipped-user _hi_local_username)"
-  [ "$got" = shipped-user ] || _hi_why got || return 1
-  got="$(_HI_LOCAL_HOSTNAME=shipped-host _hi_local_hostname)"
-  [ "$got" = shipped-host ] || _hi_why got || return 1
+  _HI_LOCAL_USER=shipped-user _hi_prints shipped-user _hi_local_username || return 1
+  _HI_LOCAL_HOSTNAME=shipped-host _hi_prints shipped-host _hi_local_hostname || return 1
   (
     unset _HI_LOCAL_USER _HI_LOCAL_HOSTNAME
     [ "$(_hi_local_username)" = "$(_hi_whoami)" ] &&
@@ -358,11 +355,9 @@ function test_run_hooks_runs_once_and_a_quiet_hook_silently() {
 }
 
 function test_colors_lookup_verdicts() {
-  local got
   local colors="$_HI_WORKDIR/colors.lookup"
   printf '[username]\nalice = "red"\n[hostname]\nbox = "blue"\n' >"$colors"
-  got="$(_HI_COLORS="$colors" _hi_colors_lookup hostname box)"
-  [ "$got" = blue ] || _hi_why got colors || return 1
+  _HI_COLORS="$colors" _hi_prints blue _hi_colors_lookup hostname box || return 1
   ! _HI_COLORS="$colors" _hi_colors_lookup hostname nobox || _hi_why colors || return 1
   ! _HI_COLORS="$_HI_WORKDIR/colors.absent" _hi_colors_lookup hostname box || _hi_why
 }
@@ -428,11 +423,9 @@ function test_git_version_names_commits_past_the_tag() {
   [ "$got" = v1.2.3 ] || _hi_why got dir || return 1
   "${g[@]}" commit -q --allow-empty -m b && "${g[@]}" tag snapshot-abc1234 &&
     "${g[@]}" commit -q --allow-empty -m c || _hi_why g || return 1
-  got="$(_hi_git_version "$dir")"
-  [ "$got" = v1.2.3+2 ] || _hi_why got dir || return 1
+  _hi_prints v1.2.3+2 _hi_git_version "$dir" || return 1
   : >"$dir/f" && "${g[@]}" add f || _hi_why dir g || return 1
-  got="$(_hi_git_version "$dir")"
-  [ "$got" = v1.2.3+2-dirty ] || _hi_why got dir
+  _hi_prints v1.2.3+2-dirty _hi_git_version "$dir"
 }
 
 function test_release_or_describe_empty_without_either() {

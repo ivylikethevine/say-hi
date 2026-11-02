@@ -23,9 +23,6 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 _HI_SHELLS="zsh sh bash fish"
-# "<shell>=<path>" through test_lib.sh's _hi_kv_get/_hi_kv_set rather than an
-# associative array, which is bash 4 (macOS ships 3.2)
-_HI_SHELL_BIN=""
 
 function _hi_expect_winner() {
   local candidates="$1" installed="$2" c i
@@ -241,7 +238,8 @@ function _hi_write_overlay() {
 function _hi_run_overlay_case() {
   local shell="$1" cfgdir="$_HI_WORKDIR/overlaycfg_$2" line="" posix fish want shell_bin script out
   local -a envs=()
-  shell_bin="$(_hi_kv_get _HI_SHELL_BIN "$shell")"
+  local bin_var="_HI_BIN_$shell"
+  shell_bin="${!bin_var}"
   case "$2" in
   present)
     line='alias overlay_probe="echo probe"' want=OVERLAY-OK
@@ -383,7 +381,8 @@ function _hi_scenario() {
   # resolved against the real (unrestricted) PATH by the caller's one-time
   # probe, since $fakepath below is deliberately too narrow to contain the
   # shell binary itself; only installed shells ever reach here
-  shell_bin="$(_hi_kv_get _HI_SHELL_BIN "$shell")"
+  local bin_var="_HI_BIN_$shell"
+  shell_bin="${!bin_var}"
   # $_HI_ROOT is what aliases.sh resolves its overlay-source tail through, and
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
   env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
@@ -561,7 +560,7 @@ function run_alias_fallthrough_test() {
   _HI_INSTALLED_SHELLS=""
   for shell in $_HI_SHELLS; do
     if shell_path="$(command -v "$shell" 2>/dev/null)"; then
-      _hi_kv_set _HI_SHELL_BIN "$shell" "$shell_path"
+      printf -v "_HI_BIN_$shell" '%s' "$shell_path"
       _HI_INSTALLED_SHELLS="$_HI_INSTALLED_SHELLS $shell"
     else
       missing="$missing $shell"
@@ -571,10 +570,9 @@ function run_alias_fallthrough_test() {
 
   _hi_suite_begin
   # the vim and bat/eza ladders moved to tests/scripts/configure_test.sh,
-  # which already sources configure.sh to call _hi_editors_preview and
-  # _hi_tool_alias_preview - both read their alias back from a real `source
-  # common/aliases.sh`, so nothing here can drift from it to pin - this
-  # suite only sources common/aliases.sh
+  # which already sources configure.sh to call _hi_tool_alias_preview - it
+  # reads its alias back from a real `source common/aliases.sh`, so nothing
+  # here can drift from it to pin - this suite only sources common/aliases.sh
   run_fallthrough_tests
   run_flag_tests
   run_tool_aliases_flag_tests

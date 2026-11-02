@@ -67,7 +67,7 @@ function _hi_doctor_shims() {
   # way the ssh shim below does, and everything else delegates to the
   # generated shim, so the resolution rows other cases assert keep working.
   mv "$dir/docker" "$dir/docker-probe"
-  cat >"$dir/docker" <<'EOF'
+  _hi_script "$dir/docker" <<'EOF'
 #!/bin/sh
 if [ "$1" = exec ]; then
   for a in "$@"; do
@@ -85,7 +85,6 @@ fi
 # on PATH here, so this resolves to the sibling and nothing else.
 exec docker-probe "$@"
 EOF
-  chmod +x "$dir/docker"
 
   # connect ok; -O teardown ok; the tool-inventory loop answers per
   # $HI_FAKE_TOOLS, matched on a string only that one script contains.
@@ -170,9 +169,7 @@ function _hi_nogzip_tar() {
 }
 
 function test_local_warns_without_gzip() {
-  local out
-  out="$(PATH="$(_hi_nogzip_tar 0):$(_hi_nogzip_path)" doctor_local)"
-  [[ "$out" == *" tar present, no gzip (your tar compresses on its own - a padded payload, not a broken one)"* ]] || _hi_why out
+  PATH="$(_hi_nogzip_tar 0):$(_hi_nogzip_path)" _hi_says " tar present, no gzip (your tar compresses on its own - a padded payload, not a broken one)" doctor_local
 }
 
 # ...and a tar that shells out to gzip for -z has nothing to fall back on, so
@@ -185,9 +182,7 @@ function test_local_flags_a_gzip_that_nothing_can_replace() {
 }
 
 function test_backend_missing_reports_not_installed() {
-  local out
-  out="$(PATH="$(_hi_doctor_path)" _hi_doc_rows doctor_backend docker docker ps -q)"
-  [[ "$out" == *"not installed"* ]] || _hi_why out
+  PATH="$(_hi_doctor_path)" _hi_says "not installed" _hi_doc_rows doctor_backend docker docker ps -q
 }
 
 function test_backend_answering_reports_timing() {
@@ -197,9 +192,7 @@ function test_backend_answering_reports_timing() {
 }
 
 function test_backend_dead_reports_not_answering() {
-  local out
-  out="$(PATH="$_HI_DOC_PATH" _hi_doc_rows doctor_backend podman podman ps -q)"
-  [[ "$out" == *"not answering"* ]] || _hi_why out
+  PATH="$_HI_DOC_PATH" _hi_says "not answering" _hi_doc_rows doctor_backend podman podman ps -q
 }
 
 # the ssh row counts literal Host names through targets.sh: two here, and a
@@ -336,9 +329,7 @@ function test_a_long_row_wraps_to_the_terminal() {
 }
 
 function test_missing_tools_lists_only_the_absent() {
-  local out
-  out="$(PATH="$(_hi_fake_path doctools sh present-tool)" _hi_missing_tools present-tool absent-tool-9x other-absent-8y)"
-  [ "$out" = "absent-tool-9x other-absent-8y" ] || _hi_why out
+  PATH="$(_hi_fake_path doctools sh present-tool)" _hi_prints "absent-tool-9x other-absent-8y" _hi_missing_tools present-tool absent-tool-9x other-absent-8y
 }
 
 function test_ladder_first_picks_in_ladder_order() {

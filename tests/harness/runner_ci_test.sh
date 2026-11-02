@@ -310,7 +310,7 @@ function test_cost_tables_name_the_suites_they_deal() {
       case "$keys" in *" $n "*) ;; *) bad="$bad $var:$n(missing)" ;; esac
     done
   done
-  [ -z "$bad" ] || _hi_because "cost tables out of step with the suite table:$bad - refresh them (scratch/coverage_costs.sh, scratch/shard_costs.sh)"
+  [ -z "$bad" ] || _hi_because "cost tables out of step with the suite table:$bad - refresh them (scratch/shard_costs.sh)"
 }
 
 # coverage.yml's two sweeps take their slices dealt by their own tracer's
@@ -383,10 +383,9 @@ function run_runner_ci_tests() {
   _hi_check "Lists a group and name per suite" test_shipped_table_lists_a_group_and_name_per_suite
   _hi_check "--list-paths adds a readable path" test_list_paths_adds_a_readable_path_per_suite
   _hi_check "--list-paths agrees with --list" test_list_paths_matches_list
-  # A contract with every sharded job: the slices CI runs under Git Bash,
-  # inside WSL, and on ci.yml's e2e runners are exactly their group.
+  # A contract with every sharded job: the slices CI runs under Git Bash and
+  # on ci.yml's e2e runners are exactly their group.
   _hi_check "The Windows client's shards cover the fast group" _hi_shards_cover_group windows-client.yml - fast
-  _hi_check "The WSL job's shards cover the fast group" _hi_shards_cover_group windows-e2e.yml wsl-suites fast
   _hi_check "The OpenBSD job's shards cover the fast group" _hi_shards_cover_group openbsd-e2e.yml - fast
   _hi_check "Each cost table names the suites it deals" test_cost_tables_name_the_suites_they_deal
   _hi_check "ci.yml's e2e shards cover the e2e group" _hi_shards_cover_group ci.yml e2e e2e

@@ -56,24 +56,17 @@ export _HI_HOME
 source "$_HI_ROOT/common/core.sh"
 # the kept session, a file of its own (GLOSSARY: HI.65). A session whose
 # client switched it off was sent none, and these stand in.
-_HI_KEEP_GONE=""
 if [ -r "$_HI_ROOT/common/keep.sh" ]; then
   # shellcheck source=./common/keep.sh
   source "$_HI_ROOT/common/keep.sh"
 else
-  _HI_KEEP_GONE=1
+  function _hi_keep_off() { :; }
   function _hi_keep_probes() { return 1; }
   function _hi_keep_starts() { return 1; }
   function _hi_keep_middle() { :; }
   function _hi_keep_alive() { :; }
   function _hi_keep_connect() { _say_hi "${2:-}" "$1"; }
 fi
-
-# Is the kept session switched off: $_HI_DISABLE_KEEP, or a tree that came
-# without common/keep.sh, which is what the switch sends. GLOSSARY: HI.65
-function _hi_keep_off() {
-  [ "${_HI_DISABLE_KEEP:-0}" = 1 ] || [ -n "$_HI_KEEP_GONE" ]
-}
 
 # --keep and --end with the kept session switched off: refused, the switch named
 function _hi_keep_refuse() {
@@ -190,7 +183,7 @@ function _hi_shquote_long() {
 # per line; _hi_env_each renders it.
 function _hi_session_env() {
   # the memos primed here and read, not $( ) - see _hi's own priming
-  _hi_target_color >/dev/null
+  _hi_target_color
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
   printf '_HI_TARGET_COLOR\t%s\n' "$_HI_TARGET_COLOR_MEMO"
@@ -310,11 +303,10 @@ function _hi_tag_settings() {
   _HI_TAG_SETTINGS="$_hi_ts_out" _HI_SETTINGS="$_hi_ts_out"
 }
 
-# memoized: three callers, $DOMAIN is fixed for the run
+# into $_HI_TARGET_COLOR_MEMO: three callers, $DOMAIN is fixed for the run
 function _hi_target_color() {
   [ "${_HI_TARGET_COLOR_MEMO+x}" = x ] ||
     _hi_resolve_color hostname "${DOMAIN##*@}" '' _HI_TARGET_COLOR_MEMO
-  printf '%s\n' "$_HI_TARGET_COLOR_MEMO"
 }
 
 # _hi_prompt_list [outvar] - the prompt programs a target is handed:
@@ -374,13 +366,6 @@ function _hi_tar_gz() {
   local -a st=("${PIPESTATUS[@]}")
   [ "${st[0]}" = 0 ] || return "${st[0]}"
   return "${st[1]}"
-}
-
-# _hi_require_packer - tar, and gzip unless this tar compresses on its own:
-# _hi_can_gzip first, so such a tar is not asked for a gzip it never runs
-function _hi_require_packer() {
-  _hi_require tar "to pack the payload" &&
-    { _hi_can_gzip || _hi_require gzip "to pack the payload - this tar runs it for -z"; }
 }
 
 # _hi_hash <value> [outvar] - 32-bit FNV-1a of <value>, in decimal: a cache or
@@ -477,18 +462,6 @@ function _hi_compose_container() {
   # exactly one line
   case "$matches" in '' | *$'\n'*) return 1 ;; esac
   printf '%s\n' "$matches"
-}
-
-# _hi_outer / _hi_inner <target> [outvar] - the where and the what of
-# `pod/container` and `alloc/task`; docker and podman names are taken whole.
-# GLOSSARY: HI.43. [outvar] because the bodies are pure parameter expansion,
-# so a $( ) would fork for a value the shell already has (GLOSSARY: HI.05).
-function _hi_outer() { _hi_out "${2:-}" "${1%%/*}"; }
-function _hi_inner() {
-  case "$1" in
-  */*) _hi_out "${2:-}" "${1#*/}" ;;
-  *) _hi_out "${2:-}" "" ;;
-  esac
 }
 
 function _hi_is_nomad_alloc() {
@@ -760,7 +733,6 @@ function _hi_fallback_rc() {
 # on the target. For sh and zsh, which read their rc to the end; fish takes the
 # flag below.
 function _hi_command_append() {
-  [ -n "${CMDARG:-}" ] || return 0
   printf '%s\n' "$CMDARG" | _hi_armored_line '>>' "$1"
 }
 
@@ -794,7 +766,7 @@ function _hi_fallback_prompt() {
   # die there (GLOSSARY: HI.05)
   _hi_user_escape user_esc
   _hi_prompt_end BASH pe
-  _hi_target_color >/dev/null
+  _hi_target_color
   _hi_color_escape_var ce "$_HI_TARGET_COLOR_MEMO"
   printf -v ce '%b' "$ce" # the _var form leaves `\e` literal
   printf -v nc '%b' "$NC"
@@ -1211,12 +1183,11 @@ function _hi_overlap_start() {
   fi
   # the writer wakes on `go`, held open across its check so no word written
   # after it looked is lost, and every second asks whether hi is still there
-  local self=$$
   (
     exec >"$ov_dir/in"
     {
       while [ ! -f "$ov_dir/ready" ]; do
-        kill -0 "$self" 2>/dev/null || exit 0
+        kill -0 $$ 2>/dev/null || exit 0
         read -r -t 1 _ || :
       done
     } <>"$ov_dir/go"
@@ -1269,12 +1240,11 @@ STUB
 # stdin alone for a forced command's program, or an end of file for a stub
 # that has to end. Woken as _hi_overlap_start's writer is. Fills ov_relay.
 function _hi_overlap_relay() {
-  local self=$$
   (
     exec >"$ov_dir/sin"
     {
       while [ ! -e "$ov_dir/v.go" ] && [ ! -e "$ov_dir/v.raw" ] && [ ! -e "$ov_dir/v.no" ]; do
-        kill -0 "$self" 2>/dev/null || exit 0
+        kill -0 $$ 2>/dev/null || exit 0
         read -r -t 1 _ || :
       done
     } <>"$ov_dir/sv"
@@ -1383,10 +1353,11 @@ function _hi_connect_overlap() {
 # its ControlMaster. Its own function because scripts/doctor.sh has to ask
 # exactly as a session would. Each runs a script by _hi_on_target.
 function _hi_transport_cmds() {
-  # the where/what halves (GLOSSARY: HI.43); $inner is empty for a plain target
-  local outer inner
-  _hi_outer "$DOMAIN" outer
-  _hi_inner "$DOMAIN" inner
+  # the where and the what of `pod/container` and `alloc/task` (GLOSSARY:
+  # HI.43); $inner is empty for a plain target, and docker and podman names are
+  # taken whole
+  local outer="${DOMAIN%%/*}" inner=""
+  case "$DOMAIN" in */*) inner="${DOMAIN#*/}" ;; esac
   local -a pick=() tflag=()
   # A tty only when there is one to hand over: unlike ssh -t, `docker exec -it`
   # on a pipe refuses outright rather than degrading. The `-i`/`-it` split is
@@ -1480,7 +1451,10 @@ function _say_hi() {
   # `tree="$(_hi_payload_tar | base64)"` takes the armor's status, so a
   # refusal further in is swallowed and the target gets an empty archive.
   _hi_require "${_HI_ARMOR%% *}" "(or base64) to reach a target" || return 1
-  _hi_require_packer || return 1
+  _hi_require tar "to pack the payload" || return 1
+  # _hi_can_gzip first, so a tar that compresses on its own is not asked for a
+  # gzip it never runs
+  _hi_can_gzip || _hi_require gzip "to pack the payload - this tar runs it for -z" || return 1
 
   # multiplex the boot and the session over one ssh connection; `shared`
   # tries to reuse one already authenticated for this target. A retry
@@ -1496,7 +1470,7 @@ function _say_hi() {
   # builders (_hi), the latter the longest of a connect's client work
   local ov_dir="" ov_d="" ov_boot="" ov_relay=""
   ! _hi_overlap_ok || _hi_overlap_start || :
-  _hi_target_color >/dev/null && _hi_prompt_list >/dev/null
+  _hi_target_color && _hi_prompt_list >/dev/null
 
   # local-only, so resolved once here and reused by the real stream
   _hi_read_lines overlay < <(_hi_overlay_files)
@@ -1566,11 +1540,7 @@ function _say_hi() {
     _hi_on_target attach "$(_hi_attach_cmd "$boot_tmp")" || ec=$?
   elif [ -n "$why" ]; then
     _hi_cecho " $why - handing over the host's own session" "$YELLOW" >&2
-    if [ "$arm" = ssh ]; then
-      _say_hi_plain ${ctl_opts[@]+"${ctl_opts[@]}"} || ec=$?
-    else
-      _say_hi_container_plain "$arm" || ec=$?
-    fi
+    _say_hi_plain "$arm" ${ctl_opts[@]+"${ctl_opts[@]}"} || ec=$?
   elif [ "$arm" = ssh ]; then
     "${attach[@]}" powershell -NoLogo -NoExit -Command \
       "Write-Host 'hi from PowerShell - no bash or sh on this host, say-hi colors/aliases are unavailable' -ForegroundColor Yellow" || ec=$?
@@ -1609,8 +1579,16 @@ function _hi_container_fallback_shell() {
 # --plain over ssh: no bootstrap, no boot probe, no payload - just ssh
 # handing over the target's own login shell. Needs nothing beyond sshd and a
 # shell. Also where _say_hi lands when the target refused its bootstrap, which
-# is when the ControlMaster options arrive in "$@".
+# is when the ControlMaster options arrive in "$@". <arm>, when it is not ssh,
+# goes to _say_hi_container_plain.
+# _say_hi_plain [arm] [ssh option...]
 function _say_hi_plain() {
+  local arm="${1:-ssh}"
+  [ $# -eq 0 ] || shift
+  [ "$arm" = ssh ] || {
+    _say_hi_container_plain "$arm"
+    return
+  }
   local -a tflag=()
   [ -t 0 ] && tflag=(-t)
   ssh ${tflag[@]+"${tflag[@]}"} "$@" "${SSHARGS[@]}" "$DOMAIN" ${RAWCMD:+"$RAWCMD"}
@@ -1677,21 +1655,16 @@ function _hi_help_or_version() {
   exit 0
 }
 
-# _hi_is_ssh_value_opt <word> - an ssh option that takes a separate value
-function _hi_is_ssh_value_opt() {
-  case "$1" in
-  -B | -b | -c | -D | -E | -e | -F | -I | -i | -J | -L | -l | -m | -O | -o | -P | -p | -Q | -R | -S | -W | -w) return 0 ;;
-  *) return 1 ;;
-  esac
-}
-
 # _hi_ssh_opt <word> [next...] - one ssh option sorted from the words after
 # it, into $_HI_SSH_OPT: the option, and the next word where it takes a value,
 # which is never read as the target; 2 when it took that word, for the caller
 # to shift past too. _hi_parse and doctor.sh's argv loop sort with it.
 function _hi_ssh_opt() {
   _HI_SSH_OPT=("$1")
-  _hi_is_ssh_value_opt "$1" || return 0
+  case "$1" in
+  -B | -b | -c | -D | -E | -e | -F | -I | -i | -J | -L | -l | -m | -O | -o | -P | -p | -Q | -R | -S | -W | -w) ;;
+  *) return 0 ;;
+  esac
   [ "$#" -ge 2 ] || _hi_die "$1 needs a value"
   _HI_SSH_OPT+=("$2")
   return 2
@@ -1909,11 +1882,7 @@ function _hi() {
     _hi_cecho "hi: _HI_KEEP=1 does nothing while _HI_DISABLE_KEEP=1 switches the kept session off" "$YELLOW" >&2
   fi
   if [ "${PLAIN:-0}" = 1 ]; then
-    if [ -n "$arm" ]; then
-      _say_hi_container_plain "$arm"
-    else
-      _say_hi_plain
-    fi
+    _say_hi_plain "$arm"
   else
     _hi_keep_connect "$tmp" "$arm"
   fi

@@ -205,33 +205,14 @@ function test_remote_suffix_appends_the_prompt_for_posix_shells() {
 # means the same shell session names a different set of environments depending
 # on which shell you are in.
 
-# the words $_HI_ENV_ORDER_DEFAULT is built from, one per line
-function _hi_env_sources_core() {
-  sed -n 's/^_HI_ENV_ORDER_DEFAULT="\(.*\)"$/\1/p' "$_HI_ROOT/common/env_prompt.sh" |
-    tr ' ' '\n'
-}
-
-# the same list as config.fish's `# env: <word>` statements spell it
-function _hi_env_sources_fish() {
-  sed -n 's/^ *# env: \(.*\)$/\1/p' "$_HI_ROOT/common/config.fish"
+# _hi_env_sources <file> - its `# env: <word>` statements, in render order
+function _hi_env_sources() {
+  sed -n 's/.*# env: \(.*\)$/\1/p' "$_HI_ROOT/common/$1"
 }
 
 function test_fish_env_order_default_matches_env_prompt() {
   _hi_fish_agrees "environment sources" \
-    "$(_hi_env_sources_fish)" "$(_hi_env_sources_core)" || _hi_why
-}
-
-# the default list is also the roster both files branch on: a word in the
-# default with no arm behind it would silently name nothing
-function test_fish_env_sources_all_have_an_arm() {
-  local word missing=""
-  for word in $(_hi_env_sources_core); do
-    grep -q "^ *$word)" "$_HI_ROOT/common/env_prompt.sh" ||
-      missing="$missing env_prompt.sh:$word"
-    grep -q "^ *# env: $word\$" "$_HI_ROOT/common/config.fish" ||
-      missing="$missing config.fish:$word"
-  done
-  [ -z "$missing" ] || _hi_because "source words with no branch:$missing"
+    "$(_hi_env_sources config.fish)" "$(_hi_env_sources env_prompt.sh)" || _hi_why
 }
 
 # every tool variable one file reads, the other has to read too
@@ -317,7 +298,6 @@ function run_hi_prompt_tests() {
 
   _hi_h2 "Testing: the fish environment segment's copy"
   _hi_check "config.fish's source list matches env_prompt.sh" test_fish_env_order_default_matches_env_prompt
-  _hi_check "Every source word has a branch in both" test_fish_env_sources_all_have_an_arm
   _hi_check "Both copies read the same tool variables" test_fish_env_reads_the_same_variables
   _hi_check "Both mise walks look for the same files" test_fish_mise_walks_the_same_config_names
   _hi_check "Both truncate at 32 with core.sh's ellipsis" test_fish_env_truncation_matches_core

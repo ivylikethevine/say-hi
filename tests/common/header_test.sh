@@ -122,9 +122,7 @@ function test_hi_visible_width_strips_a_color_midway() {
 # shipped it - a three-byte glyph measured as three would wrap a line the
 # terminal had room for. GLOSSARY: HI.12
 function test_hi_visible_width_counts_columns_not_bytes() {
-  local n
-  _hi_visible_width n "abc●●●"
-  [ "$n" = 6 ] || _hi_why n
+  _hi_var_is 6 _hi_visible_width "abc●●●"
 }
 
 # ...and the byte-counting branch itself, forced on, so the case exercises it
@@ -157,27 +155,27 @@ function test_header_row_width_ignores_color_escape_bytes() {
 # _hi_draw_width's own contract: captured output (this whole suite runs
 # inside command substitution, never a tty) stays at $_HI_MAX_WIDTH exactly,
 # so every width test above is unaffected by whatever terminal runs it
-function test_hi_draw_width_defaults_to_max_width_when_captured() {
+function _hi_draw_width_out() {
   local n
-  n="$(_HI_MAX_WIDTH=42 bash -c 'source "$_HI_HEADER"; _hi_draw_width n; printf %s "$n"')"
-  [ "$n" = 42 ] || _hi_why n
+  _hi_draw_width n
+  printf '%s' "$n"
+}
+
+function test_hi_draw_width_defaults_to_max_width_when_captured() {
+  _HI_MAX_WIDTH=42 _HI_TERM_COLS="" _hi_prints 42 _hi_draw_width_out
 }
 
 # $_HI_TERM_COLS is a deliberate override - it wins whether or not stdout is
 # a tty, which is what lets a suite pin a narrow width the same way it
 # already pins $_HI_MAX_WIDTH
 function test_hi_draw_width_honors_an_explicit_override() {
-  local n
-  n="$(_HI_MAX_WIDTH=80 _HI_TERM_COLS=30 bash -c 'source "$_HI_HEADER"; _hi_draw_width n; printf %s "$n"')"
-  [ "$n" = 30 ] || _hi_why n
+  _HI_MAX_WIDTH=80 _HI_TERM_COLS=30 _hi_prints 30 _hi_draw_width_out
 }
 
 # the terminal only ever narrows the draw width, never widens it past
 # $_HI_MAX_WIDTH
 function test_hi_draw_width_never_widens_past_max_width() {
-  local n
-  n="$(_HI_MAX_WIDTH=40 _HI_TERM_COLS=200 bash -c 'source "$_HI_HEADER"; _hi_draw_width n; printf %s "$n"')"
-  [ "$n" = 40 ] || _hi_why n
+  _HI_MAX_WIDTH=40 _HI_TERM_COLS=200 _hi_prints 40 _hi_draw_width_out
 }
 
 # header_row wraps at the narrower of the two - the point of the whole
@@ -377,27 +375,15 @@ function test_ghz_rounds_the_carry_into_the_whole_digit() {
   local out
   _hi_ghz out 2950
   [ "$out" = 3.0 ] || _hi_why out || return 1
-  _hi_ghz out 2949
-  [ "$out" = 2.9 ] || _hi_why out || return 1
-  _hi_ghz out 2100
-  [ "$out" = 2.1 ] || _hi_why out
+  _hi_var_is 2.9 _hi_ghz 2949 || return 1
+  _hi_var_is 2.1 _hi_ghz 2100
 }
 
 # _hi_load_pct's own contract: load divided by cores, rounded to a whole
 # percent, empty rather than a garbled or divide-by-zero cell whenever either
 # input can't back that math up
 function test_hi_load_pct_divides_load_by_cores() {
-  local out
-  _hi_load_pct out 2.00 4
-  [ "$out" = 50 ] || _hi_why out
-}
-
-# _hi_load_pct_out <load> <cores> - _hi_load_pct's out-variable on stdout, so
-# its answers can be pinned as _hi_check_eq roster lines
-function _hi_load_pct_out() {
-  local out=""
-  _hi_load_pct out "$@"
-  printf '%s' "$out"
+  _hi_var_is 50 _hi_load_pct 2.00 4
 }
 
 # _hi_cell_uptime: at most two units, largest first, or "?" where no probe
@@ -658,19 +644,6 @@ function _hi_header_begin() {
   _hi_suite_begin
 }
 
-# the Linux probes' out-variables on stdout, for _hi_check_eq roster lines
-function _hi_linux_ram_out() {
-  local got
-  _hi_linux_ram got "$1"
-  printf '%s' "$got"
-}
-
-function _hi_linux_base_mhz_out() {
-  local got
-  _hi_linux_base_mhz got "$1" "$2"
-  printf '%s' "$got"
-}
-
 # _hi_linux_probe_fixtures - the files the Linux probes read, staged once: a
 # /proc/meminfo with and without MemAvailable (a pre-3.14 kernel has none,
 # and still has a total to print), a /proc/cpuinfo whose model name carries
@@ -679,17 +652,15 @@ function _hi_linux_base_mhz_out() {
 # Prints the directory.
 function _hi_linux_probe_fixtures() {
   local d="$_HI_WORKDIR/linux-probes"
-  if [ ! -d "$d" ]; then
-    mkdir -p "$d/freq-base" "$d/freq-amd" "$d/freq-zero"
-    printf 'MemTotal:       16384000 kB\nMemFree:         1000000 kB\nMemAvailable:    8192000 kB\n' >"$d/meminfo"
-    printf 'MemTotal:       16384000 kB\nMemFree:         1000000 kB\n' >"$d/meminfo-old"
-    printf 'processor\t: 0\nmodel name\t: Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz\nmodel name\t: other @ 9.99GHz\n' >"$d/cpuinfo-intel"
-    printf 'model name\t: Some CPU @ 3GHz\n' >"$d/cpuinfo-whole"
-    printf 'model name\t: AMD Ryzen 9 5900X 12-Core Processor\n' >"$d/cpuinfo-amd"
-    printf '3700000\n' >"$d/freq-base/base_frequency"
-    printf '2800000\n' >"$d/freq-amd/amd_pstate_lowest_nonlinear_freq"
-    printf '0\n' >"$d/freq-zero/base_frequency"
-  fi
+  mkdir -p "$d/freq-base" "$d/freq-amd" "$d/freq-zero"
+  printf 'MemTotal:       16384000 kB\nMemFree:         1000000 kB\nMemAvailable:    8192000 kB\n' >"$d/meminfo"
+  printf 'MemTotal:       16384000 kB\nMemFree:         1000000 kB\n' >"$d/meminfo-old"
+  printf 'processor\t: 0\nmodel name\t: Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz\nmodel name\t: other @ 9.99GHz\n' >"$d/cpuinfo-intel"
+  printf 'model name\t: Some CPU @ 3GHz\n' >"$d/cpuinfo-whole"
+  printf 'model name\t: AMD Ryzen 9 5900X 12-Core Processor\n' >"$d/cpuinfo-amd"
+  printf '3700000\n' >"$d/freq-base/base_frequency"
+  printf '2800000\n' >"$d/freq-amd/amd_pstate_lowest_nonlinear_freq"
+  printf '0\n' >"$d/freq-zero/base_frequency"
   printf '%s' "$d"
 }
 
@@ -779,24 +750,24 @@ function run_header_tests() {
   # the Linux probes, off fixture files rather than this box's own /proc
   local fx
   fx="$(_hi_linux_probe_fixtures)"
-  _hi_check_eq "_hi_linux_ram is used/total, kB to GiB" 8/16G _hi_linux_ram_out "$fx/meminfo"
-  _hi_check_eq "...the total alone without MemAvailable" 16G _hi_linux_ram_out "$fx/meminfo-old"
-  _hi_check_eq "...empty without the file" "" _hi_linux_ram_out "$fx/none"
-  _hi_check_eq "_hi_linux_base_mhz reads the first model name's clock" 2800 _hi_linux_base_mhz_out "$fx/cpuinfo-intel" "$fx/none"
-  _hi_check_eq "...a whole-GHz clock too" 3000 _hi_linux_base_mhz_out "$fx/cpuinfo-whole" "$fx/none"
-  _hi_check_eq "...ahead of cpufreq" 2800 _hi_linux_base_mhz_out "$fx/cpuinfo-intel" "$fx/freq-base"
-  _hi_check_eq "...falls to cpufreq's base_frequency" 3700 _hi_linux_base_mhz_out "$fx/cpuinfo-amd" "$fx/freq-base"
-  _hi_check_eq "...then to amd-pstate's floor" 2800 _hi_linux_base_mhz_out "$fx/cpuinfo-amd" "$fx/freq-amd"
-  _hi_check_eq "...and a 0 there reads as none" "" _hi_linux_base_mhz_out "$fx/cpuinfo-amd" "$fx/freq-zero"
-  _hi_check_eq "...empty with neither file" "" _hi_linux_base_mhz_out "$fx/none" "$fx/none"
+  _hi_check "_hi_linux_ram is used/total, kB to GiB" _hi_var_is 8/16G _hi_linux_ram "$fx/meminfo"
+  _hi_check "...the total alone without MemAvailable" _hi_var_is 16G _hi_linux_ram "$fx/meminfo-old"
+  _hi_check "...empty without the file" _hi_var_is "" _hi_linux_ram "$fx/none"
+  _hi_check "_hi_linux_base_mhz reads the first model name's clock" _hi_var_is 2800 _hi_linux_base_mhz "$fx/cpuinfo-intel" "$fx/none"
+  _hi_check "...a whole-GHz clock too" _hi_var_is 3000 _hi_linux_base_mhz "$fx/cpuinfo-whole" "$fx/none"
+  _hi_check "...ahead of cpufreq" _hi_var_is 2800 _hi_linux_base_mhz "$fx/cpuinfo-intel" "$fx/freq-base"
+  _hi_check "...falls to cpufreq's base_frequency" _hi_var_is 3700 _hi_linux_base_mhz "$fx/cpuinfo-amd" "$fx/freq-base"
+  _hi_check "...then to amd-pstate's floor" _hi_var_is 2800 _hi_linux_base_mhz "$fx/cpuinfo-amd" "$fx/freq-amd"
+  _hi_check "...and a 0 there reads as none" _hi_var_is "" _hi_linux_base_mhz "$fx/cpuinfo-amd" "$fx/freq-zero"
+  _hi_check "...empty with neither file" _hi_var_is "" _hi_linux_base_mhz "$fx/none" "$fx/none"
   _hi_check "_hi_load_pct divides load by cores" test_hi_load_pct_divides_load_by_cores
-  _hi_check_eq "...rounds to a whole percent" 33 _hi_load_pct_out 1.00 3
-  _hi_check_eq "...empty without a load figure" "" _hi_load_pct_out "" 4
-  _hi_check_eq "...empty without a core count" "" _hi_load_pct_out 2.00 ""
+  _hi_check "...rounds to a whole percent" _hi_var_is 33 _hi_load_pct 1.00 3
+  _hi_check "...empty without a load figure" _hi_var_is "" _hi_load_pct "" 4
+  _hi_check "...empty without a core count" _hi_var_is "" _hi_load_pct 2.00 ""
   # "?" is the Windows fallback's own unresolved sentinel - never divided
   # into, just passed straight through to the cell as "Cores: ?"
-  _hi_check_eq "...empty when cores isn't numeric" "" _hi_load_pct_out 2.00 "?"
-  _hi_check_eq "...empty when cores is zero" "" _hi_load_pct_out 2.00 0
+  _hi_check "...empty when cores isn't numeric" _hi_var_is "" _hi_load_pct 2.00 "?"
+  _hi_check "...empty when cores is zero" _hi_var_is "" _hi_load_pct 2.00 0
   _hi_check "System_info's RAM cell is used/total" test_system_info_ram_cell_is_used_over_total
   _hi_check "System_info's load figure rides the Cores cell" test_system_info_load_rides_the_cores_cell
   _hi_check "...and the GHz cell does not carry it" test_system_info_cpu_cell_has_no_parenthetical

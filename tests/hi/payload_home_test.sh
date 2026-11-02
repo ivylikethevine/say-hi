@@ -476,7 +476,8 @@ function test_kak_colors_ride_beside_the_kakrc() {
 # /etc/inputrc names a file no target has, so it is dropped unless allowed
 # shellcheck disable=SC2016 # readline's $include, not an expansion
 function test_inputrc_rides_like_the_tool_configs() {
-  local got h="$_HI_WORKDIR/rl-home" dir d
+  local got
+  local h="$_HI_WORKDIR/rl-home" dir d
   mkdir -p "$h"
   printf '$include /etc/inputrc\n# a comment\n$include ~/.inputrc.local\nset editing-mode vi\n# hi-allow\n$include ~/.inputrc.kept\n' >"$h/.inputrc"
   printf 'set bell-style none\n' >"$h/named"
@@ -487,12 +488,10 @@ function test_inputrc_rides_like_the_tool_configs() {
 set editing-mode vi
 $include ~/.inputrc.kept' ] || _hi_because "inputrc arrived as: [$got]" || return 1
   d="$(_hi_tool_home_unpacked "$dir" HOME="$h" INPUTRC="$h/named")" || _hi_why dir h || return 1
-  got="$(cat "$d/inputrc")"
-  [ "$got" = 'set bell-style none' ] || _hi_why got d || return 1
+  _hi_prints 'set bell-style none' cat "$d/inputrc" || return 1
   dir="$(_hi_overlay_fixture rl-copy inputrc)"
   d="$(_hi_tool_home_unpacked "$dir" HOME="$h")" || _hi_why dir h || return 1
-  got="$(cat "$d/inputrc")"
-  [ "$got" = x ] || _hi_why got d
+  _hi_prints x cat "$d/inputrc"
 }
 
 function run_hi_payload_home_tests() {

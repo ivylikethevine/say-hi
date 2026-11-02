@@ -56,12 +56,11 @@ _HI_PTY_SPAWN='import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))'
 # Whether python3 can actually build one, which is a different question from
 # whether python3 exists: `pty` and `tty` are Unix-only modules, so on Windows
 # `command -v python3` succeeds and the import does not - and a case gated on
-# the binary runs and fails where it should have stood down. Probed once at
-# source time, one interpreter start per suite and only where there is an
-# interpreter to start, so every consumer below asks the capability instead.
-_HI_PTY_OK=0
-command -v python3 >/dev/null 2>&1 &&
-  python3 -c 'import pty, tty' >/dev/null 2>&1 && _HI_PTY_OK=1
+# the binary runs and fails where it should have stood down. Probed once by the
+# runner, which its suites inherit, so every consumer below asks the capability
+# instead; a suite run alone probes for itself.
+: "${_HI_PTY_OK:=$(python3 -c 'import pty, tty' >/dev/null 2>&1 && echo 1 || echo 0)}"
+export _HI_PTY_OK
 
 # Sets the global array _HI_PTY_WRAP to a python3-based pty-spawn prefix
 # whenever it's needed, empty otherwise. $1 is the fd to check for tty-ness,

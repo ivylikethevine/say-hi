@@ -49,13 +49,11 @@ function test_config_says_the_ssh_tags_ride() {
   local dir="$_HI_WORKDIR/overlay" out got
   mkdir -p "$dir/rt"
   printf '# Tags: prod\nHost web\n' >"$dir/ssh_config"
-  out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
-    _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _hi_doc_at "$dir" doctor_config)"
   got="$(_hi_doc_path "$dir/ssh_config")"
   [[ "$out" == *"the # Tags: and Tag lines of $got ride along"* ]] || _hi_because "tagged: $out" || return 1
   printf 'Host web\n' >"$dir/ssh_config"
-  out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
-    _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _hi_doc_at "$dir" doctor_config)"
   [[ "$out" != *"# Tags:"* ]] || _hi_because "untagged: $out"
 }
 
@@ -151,11 +149,7 @@ function test_config_scans_a_home_tmux_config() {
   local dir="$_HI_WORKDIR/muxcfg" out
   mkdir "$dir"
   printf 'set -g mouse on\nsource-file ~/.tmux/theme.conf\n' >"$dir/.tmux.conf"
-  out="$(
-    _HI_CONFIG_DIR="$dir/overlay"
-    _HI_SETTINGS="$dir/overlay/settings.sh"
-    HOME="$dir" doctor_config
-  )"
+  out="$(HOME="$dir" _hi_doc_at "$dir/overlay" doctor_config)"
   [[ "$out" == *"tmux/tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]] || _hi_why out
 }
 
@@ -180,10 +174,7 @@ function test_files_table_walks_every_tier() {
   [[ "$out" == *"vim/vimrc (vim)"*"used ~/.vimrc"* && "$out" != *absent* ]] &&
     [[ "$out" == *"tmux/tmux.conf (tmux)"*"used ~/overlay/tmux/tmux.conf; passed over ~/.tmux.conf"* ]] &&
     [[ "$out" == *"emacs/init.el (emacs)"*"passed over ~/.emacs - not sent: its tool is not installed here"* ]] &&
-    [[ "$out" == *"none anywhere"*screenrc* ]] || {
-    printf '%s\n' "$out"
-    _hi_why -3 out || return 1
-  }
+    [[ "$out" == *"none anywhere"*screenrc* ]] || _hi_because "the rows above are not all in: $out"
 }
 
 # a site colors is used where the overlay has none and passed over where it
@@ -232,10 +223,7 @@ function test_files_table_names_why_a_found_file_is_not_sent() {
   [[ "$out" == *"zellij/layouts/ (zellij)"*"present ~/.config/zellij/layouts/ - 1 file(s) ride"* ]] &&
     [[ "$out" == *"zellij/themes/ (zellij)"*"present ~/.config/zellij/themes/ - no file rides"* ]] &&
     [[ "$out" == *"starship.toml (starship)"*"not sent: its prompt program is not one a target is handed"* ]] &&
-    [[ "$out" == *"vim/vimrc (vim)"*"used ~/.vimrc"* ]] || {
-    printf '%s\n' "$out"
-    _hi_why -3 out || return 1
-  }
+    [[ "$out" == *"vim/vimrc (vim)"*"used ~/.vimrc"* ]] || _hi_because "the rows above are not all in: $out"
 }
 
 # An overlay copy of a tree-default member replaces the tree's file
@@ -251,17 +239,14 @@ function test_files_table_hides_the_tree_default_behind_a_copy() {
   )"
   out="$(_hi_strip_ansi "$out")"
   [[ "$out" == *"used ~/overlay/colors"* && "$out" != *"the tree's config/colors"* ]] &&
-    [[ "$out" == *"used the tree's config/packages"* ]] || {
-    printf '%s\n' "$out"
-    _hi_why -3 out || return 1
-  }
+    [[ "$out" == *"used the tree's config/packages"* ]] || _hi_because "the rows above are not all in: $out"
 }
 
 # The boxed report stays short: no header row, plain rows that say the same
 # thing folded into one (`not installed | podman finch`), and $HOME as ~ -
 # while --json keeps a row per check and whole paths.
 function test_the_box_folds_and_shortens() {
-  local out
+  local out got
   out="$(
     HOME=/h
     _HI_ROWS_LABEL=(podman finch docker vim/vimrc)
@@ -271,11 +256,9 @@ function test_the_box_folds_and_shortens() {
     _hi_rows_box
   )"
   out="$(_hi_strip_ansi "$out")"
-  [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 5 ] &&
-    [[ "$out" == *"not installed"*"podman finch"* && "$out" == *"~/.vimrc"* && "$out" != *"/h/.vimrc"* ]] || {
-    printf '%s\n' "$out"
-    _hi_why -3 out || return 1
-  }
+  got="$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+  [ "$got" = 5 ] &&
+    [[ "$out" == *"not installed"*"podman finch"* && "$out" == *"~/.vimrc"* && "$out" != *"/h/.vimrc"* ]] || _hi_because "wanted 5 lines, got $got, holding the folded row and ~/.vimrc: $out"
 }
 
 # an overlay copy of the tree's own file, byte for byte: not an override
@@ -306,11 +289,7 @@ function test_config_names_a_marked_file_that_is_not_there() {
   mkdir -p "$dir/overlay/tmux"
   : >"$dir/there.txt"
   printf '%s\n' '# hi-carry' 'bind a run "cat ~/there.txt"' '# hi-carry' 'bind b run "cat ~/gone.txt"' >"$dir/overlay/tmux/tmux.conf"
-  out="$(
-    _HI_CONFIG_DIR="$dir/overlay"
-    _HI_SETTINGS="$dir/overlay/settings.sh"
-    HOME="$dir" doctor_config
-  )"
+  out="$(HOME="$dir" _hi_doc_at "$dir/overlay" doctor_config)"
   [[ "$out" == *"tmux/tmux.conf:4"*"under hi-carry"*"gone.txt is no file here - nothing rides for it"* && "$out" != *"tmux/tmux.conf:2"* ]] ||
     _hi_because "doctor said: $out"
 }
