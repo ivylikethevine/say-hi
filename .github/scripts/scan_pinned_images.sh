@@ -132,7 +132,7 @@ echo
 _ci_indexed="$_CI_WORK/pins.indexed"
 nl -ba -w1 -s'|' "$_ci_pins" >"$_ci_indexed"
 
-# _ci_verdict <hit> <win> <unscanned> - a worker's last act: its verdict in
+# _ci_verdict <hit> <unscanned> - a worker's last act: its verdict in
 # $wd (_ci_scan_one's), the end of its log group, and its exit
 function _ci_verdict() {
   echo "$*" >"$wd/verdict"
@@ -145,8 +145,9 @@ function _ci_verdict() {
 # (a subshell's variables die with it), and its console narration is
 # buffered into w<idx>/log so parallel ::group:: blocks do not interleave.
 #
-# w<idx>/verdict holds "<hit> <win> <unscanned>" flags; a worker that dies
-# before writing one is counted as unscanned by the parent.
+# w<idx>/verdict holds "<hit> <unscanned>" flags, and w<idx>/actionable.md a repin
+# that helps; a worker that dies before writing a verdict is counted as unscanned
+# by the parent.
 function _ci_scan_one() {
   local idx="$1" image="$2" tag="$3" pinned="$4"
   local ref="$image:$tag"
@@ -163,7 +164,7 @@ function _ci_scan_one() {
     if ! _ci_trivy "$image@$pinned" "$wd/a.json"; then
       echo "  could not scan the pinned digest"
       printf -- '- `%s` - the pinned digest could not be scanned; see the job log.\n' "$ref" >"$wd/stale.md"
-      _ci_verdict 0 0 1
+      _ci_verdict 0 1
     fi
     # trivy declines some distros it can identify, and that report has a
     # null .Results rather than an empty list. Zero findings and zero data
@@ -172,7 +173,7 @@ function _ci_scan_one() {
       echo "  not scanned: trivy has no vulnerability data for this image"
       printf -- '- `%s` - trivy has no vulnerability data for this OS, so its zero means "not scanned", not "clean".\n' \
         "$ref" >"$wd/stale.md"
-      _ci_verdict 0 0 1
+      _ci_verdict 0 1
     fi
 
     _ci_ids "$wd/a.json" >"$wd/a.ids"
@@ -181,7 +182,7 @@ function _ci_scan_one() {
     # 2. the quiet path, and the usual one
     if [ "$a_n" -eq 0 ]; then
       echo "  clean: no fixable $_CI_SEVERITIES findings in the pinned digest"
-      _ci_verdict 0 0 0
+      _ci_verdict 0 0
     fi
     echo "  pinned digest has $a_n fixable finding(s)"
 
@@ -191,7 +192,7 @@ function _ci_scan_one() {
       echo "  could not scan the current tag - reporting the pin as-is"
       printf -- '- `%s` - %d fixable finding(s); the current tag could not be scanned\n' \
         "$ref" "$a_n" >"$wd/stale.md"
-      _ci_verdict 1 0 0
+      _ci_verdict 1 0
     fi
     _ci_ids "$wd/b.json" >"$wd/b.ids"
     b_n="$(_ci_lines "$wd/b.ids")"
@@ -202,7 +203,7 @@ function _ci_scan_one() {
       echo "  the tag still resolves to the pinned digest - no rebuild to take"
       printf -- '- `%s` - %d fixable finding(s), and the tag still resolves to the pinned digest. Nothing to repin to yet.\n' \
         "$ref" "$a_n" >"$wd/stale.md"
-      _ci_verdict 1 0 0
+      _ci_verdict 1 0
     fi
 
     # 5. rebuilt, but no better - a repin would be churn
@@ -210,7 +211,7 @@ function _ci_scan_one() {
       echo "  the tag has been rebuilt but still has $b_n finding(s) - no gain"
       printf -- '- `%s` - %d fixable finding(s); the current tag has %d, so a repin would not reduce the count.\n' \
         "$ref" "$a_n" "$b_n" >"$wd/stale.md"
-      _ci_verdict 1 0 0
+      _ci_verdict 1 0
     fi
 
     # 6. the one case worth acting on
@@ -227,7 +228,7 @@ function _ci_scan_one() {
       grep -lF "@$pinned" "${_ci_files_list[@]}" 2>/dev/null | sed 's|^|- `|;s|$|`|' || true
       printf -- '\n'
     } >"$wd/actionable.md"
-    _ci_verdict 1 1 0
+    _ci_verdict 1 0
   } >"$wd/log" 2>&1
 }
 
@@ -268,7 +269,6 @@ _ci_stale="$_CI_WORK/stale.md"
 : >"$_ci_stale"
 
 _ci_hits=0
-_ci_wins=0
 _ci_unscanned=0
 # replayed in pin order, not finish order
 # shellcheck disable=SC2016 # markdown code spans
@@ -279,13 +279,12 @@ while IFS='|' read -r idx image tag pinned; do
   [ -f "$wd/log" ] && cat "$wd/log"
 
   if [ -f "$wd/verdict" ]; then
-    read -r hit win unscanned <"$wd/verdict"
+    read -r hit unscanned <"$wd/verdict"
   else
-    hit=0 win=0 unscanned=1
+    hit=0 unscanned=1
     printf -- '- `%s:%s` - the scan did not finish; see the job log.\n' "$image" "$tag" >>"$_ci_stale"
   fi
   _ci_hits=$((_ci_hits + hit))
-  _ci_wins=$((_ci_wins + win))
   _ci_unscanned=$((_ci_unscanned + unscanned))
   [ -f "$wd/actionable.md" ] && cat "$wd/actionable.md" >>"$_ci_actionable"
   [ -f "$wd/stale.md" ] && cat "$wd/stale.md" >>"$_ci_stale"
@@ -294,7 +293,7 @@ done <"$_ci_indexed"
 # One report file for both consumers, so summary and issue body never differ.
 # shellcheck disable=SC2016 # markdown code spans
 {
-  if [ "$_ci_wins" -gt 0 ]; then
+  if [ -s "$_ci_actionable" ]; then
     echo "### A pinned base image can be repinned to close real vulnerabilities"
     echo
     echo "trivy scanned each pinned digest and the image its tag points at now."
@@ -336,6 +335,6 @@ done <"$_ci_indexed"
 echo
 echo "report: $_CI_REPORT"
 
-[ "$_ci_wins" -gt 0 ] && exit 2
+[ -s "$_ci_actionable" ] && exit 2
 [ "$_ci_hits" -gt 0 ] && exit 1
 exit 0

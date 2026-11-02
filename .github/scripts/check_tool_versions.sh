@@ -125,15 +125,17 @@ function _ci_row() {
   printf '%s\n' "${line%"${line##*[![:space:]]}"}"
 }
 
-# _ci_host <check> - sets $host to the one <check> is served from
+# _ci_host <check> - sets $host to the one <check> is served from; fails on an
+# unknown kind or an empty project
 function _ci_host() {
   case "$1" in
-  github:*) host=api.github.com ;;
-  gitlab:*/*) host="${1#gitlab:}" host="${host%%/*}" ;;
-  gitlab:*) host=gitlab.com ;;
-  npm:*) host=registry.npmjs.org ;;
-  pypi:*) host=pypi.org ;;
-  crates:*) host=crates.io ;;
+  github:?*) host=api.github.com ;;
+  gitlab:?*/*) host="${1#gitlab:}" host="${host%%/*}" ;;
+  gitlab:?*) host=gitlab.com ;;
+  npm:?*) host=registry.npmjs.org ;;
+  pypi:?*) host=pypi.org ;;
+  crates:?*) host=crates.io ;;
+  *) return 1 ;;
   esac
 }
 
@@ -167,48 +169,38 @@ function _ci_fetch_versions() {
   local kind="${1%%:*}" project="${1#*:}" host
   case "$kind" in
   github)
-    _ci_gh_curl -sSf "https://api.github.com/repos/$project/releases?per_page=30" 2>/dev/null |
-      jq -c '[ .[] | select(.draft or .prerelease | not) | {tag: .tag_name, t: .published_at} ]' 2>/dev/null
+    _ci_gh_curl -sf "https://api.github.com/repos/$project/releases?per_page=30" |
+      jq -c '[ .[] | select(.draft or .prerelease | not) | {tag: .tag_name, t: .published_at} ]'
     ;;
   gitlab)
     # gitlab:[host/]group%2Fname - the project path is url-encoded, so the
     # first `/` (if any) can only end the host
     _ci_host "$1"
     project="${project#"$host"/}"
-    curl -sSf "https://$host/api/v4/projects/$project/repository/tags?per_page=100" 2>/dev/null |
-      jq -c '[ .[] | {tag: .name, t: (.created_at // .commit.committed_date // .commit.created_at)} ]' 2>/dev/null
+    curl -sf "https://$host/api/v4/projects/$project/repository/tags?per_page=100" |
+      jq -c '[ .[] | {tag: .name, t: (.created_at // .commit.committed_date // .commit.created_at)} ]'
     ;;
   npm)
     # the full packument, for its per-version `time`; a scoped name's `/`
     # is encoded
-    curl -sSf "https://registry.npmjs.org/${project//\//%2F}" 2>/dev/null |
-      jq -c '. as $d | [ $d.time | to_entries[] | select($d.versions[.key]) | {tag: .key, t: .value} ]' 2>/dev/null
+    curl -sf "https://registry.npmjs.org/${project//\//%2F}" |
+      jq -c '. as $d | [ $d.time | to_entries[] | select($d.versions[.key]) | {tag: .key, t: .value} ]'
     ;;
   pypi)
     # a release is dated by its first file; one with no file left, or every
     # file yanked, is not a release
-    curl -sSf "https://pypi.org/pypi/$project/json" 2>/dev/null |
+    curl -sf "https://pypi.org/pypi/$project/json" |
       jq -c '[ .releases | to_entries[] | select(.value | length > 0 and (all(.[]; .yanked) | not))
-               | {tag: .key, t: .value[0].upload_time_iso_8601} ]' 2>/dev/null
+               | {tag: .key, t: .value[0].upload_time_iso_8601} ]'
     ;;
   crates)
     # crates.io asks for a User-Agent naming the caller and a request a second
     sleep 1
-    curl -sSf -A "check_tool_versions.sh (${GITHUB_REPOSITORY:-a checkout})" \
-      "https://crates.io/api/v1/crates/$project/versions" 2>/dev/null |
-      jq -c '[ .versions[] | select(.yanked | not) | {tag: .num, t: .created_at} ]' 2>/dev/null
+    curl -sf -A "check_tool_versions.sh (${GITHUB_REPOSITORY:-a checkout})" \
+      "https://crates.io/api/v1/crates/$project/versions" |
+      jq -c '[ .versions[] | select(.yanked | not) | {tag: .num, t: .created_at} ]'
     ;;
-  esac
-}
-
-# _ci_tag_commit <owner/repo> <tag> - the commit <tag> names, or nothing
-# shellcheck disable=SC2329 # reached through _ci_action_pin, called by name
-function _ci_tag_commit() {
-  local sha
-  sha="$(_ci_gh_curl -sSf -H "Accept: application/vnd.github.sha" \
-    "https://api.github.com/repos/$1/commits/$2" 2>/dev/null)" || sha=""
-  case "$sha" in "" | *[!0-9a-f]*) return 0 ;; esac
-  printf '%s' "$sha"
+  esac 2>/dev/null
 }
 
 # _ci_latest <check> <tag-prefix> [within] [pinned] - prints
@@ -260,28 +252,24 @@ function _ci_at_least() {
   [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | tail -n1)" = "$1" ]
 }
 
-# _ci_report_pin <label> <pinned> <check> <tag-prefix> <where> [held]
-# [within] [partial] [tail-fn] - one row; <where> names the place to bump it,
-# for the annotation. <within> is _ci_latest's. A non-empty <partial> reads
-# <pinned> as a requirement a longer version meets (0.30 takes 0.30.2). A fix
-# row ends with the output of `<tail-fn> <label> <due>`, when given: the value
-# to pin.
+# _ci_report_pin <label> <pinned> <check> <tag-prefix> <where> - one row; <where>
+# names the place to bump it, for the annotation. A caller sets the rest on the
+# call, each optional: `held`, a release known broken; `within`, _ci_latest's; a
+# non-empty `partial` reads <pinned> as a requirement a longer version meets (0.30
+# takes 0.30.2); `tail_fn`, whose `<tail_fn> <label> <due>` output a fix row ends
+# with, the value to pin; `fix_kind`, `fix_file` and `fix_regex`, for CI_FIX_LIST.
 function _ci_report_pin() {
-  local label="$1" pinned="$2" check="$3" prefix="$4" where="$5" held="${6-}" within="${7-}" partial="${8-}" tail_fn="${9-}"
+  local label="$1" pinned="$2" check="$3" prefix="$4" where="$5"
   local due due_age newest pin_age host tail=""
   if [ "$check" = "-" ]; then
     _ci_row "$label" "" "$pinned" "" "" "" "not drift-checked - see $where"
     return 0
   fi
-  case "$check" in
-  github:?* | gitlab:?* | npm:?* | pypi:?* | crates:?*) ;;
-  *)
+  _ci_host "$check" || {
     _ci_error "$label" "$pinned" "unknown check kind: $check" "unknown check kind '$check' - fix $where"
     return 0
-    ;;
-  esac
-  IFS='|' read -r due due_age newest pin_age <<<"$(_ci_latest "$check" "$prefix" "$within" "$pinned")"
-  _ci_host "$check"
+  }
+  IFS='|' read -r due due_age newest pin_age <<<"$(_ci_latest "$check" "$prefix" "${within-}" "$pinned")"
   # no answer is a rate limit or an outage, not a stale pin - unless the
   # whole host went unread, which the end of the run counts
   if [ -z "$due" ] && [ -z "$newest" ]; then
@@ -291,15 +279,15 @@ function _ci_report_pin() {
   fi
   hosts+="$host|1"$'\n'
   # an empty `due` means every release is still cooling down: not drift
-  if [ -z "$due" ] || _ci_at_least "$pinned" "$due" || { [ -n "$partial" ] && [[ "$due" == "$pinned".* ]]; }; then
+  if [ -z "$due" ] || _ci_at_least "$pinned" "$due" || { [ -n "${partial-}" ] && [[ "$due" == "$pinned".* ]]; }; then
     _ci_row "$label" "" "$pinned" "$pin_age"
-  elif [ -n "$held" ] && [ "$due" = "$held" ]; then
+  elif [ -n "${held-}" ] && [ "$due" = "$held" ]; then
     _ci_row "$label" "" "$pinned" "$pin_age" "$due" "$due_age" "held: $due is known broken - see $where"
   else
-    [ -z "$tail_fn" ] || tail="$("$tail_fn" "$label" "$due")"
+    [ -z "${tail_fn-}" ] || tail="$("$tail_fn" "$label" "$due")"
     _ci_row "$label" fix "$pinned" "$pin_age" "$due" "$due_age" "$tail"
     [ -z "${CI_FIX_LIST:-}" ] || printf '%s|%s|%s|%s|%s|%s|%s\n' \
-      "$fix_kind" "$label" "$pinned" "$due" "$tail" "${fix_file-}" "${fix_regex-}" >>"$CI_FIX_LIST"
+      "${fix_kind-}" "$label" "$pinned" "$due" "$tail" "${fix_file-}" "${fix_regex-}" >>"$CI_FIX_LIST"
     _ci_problem "$label behind" "pinned $pinned, $due released ${due_age:-?} day(s) ago - bump it in $where"
   fi
 }
@@ -309,8 +297,10 @@ function _ci_report_pin() {
 # shellcheck disable=SC2329 # _ci_report_pin calls it by name
 function _ci_action_pin() {
   local sha
-  sha="$(_ci_tag_commit "$1" "v$2")"
-  [ -z "$sha" ] || printf '@%s # v%s' "$sha" "$2"
+  sha="$(_ci_gh_curl -sf -H "Accept: application/vnd.github.sha" \
+    "https://api.github.com/repos/$1/commits/v$2" 2>/dev/null)" || sha=""
+  case "$sha" in "" | *[!0-9a-f]*) return 0 ;; esac
+  printf '@%s # v%s' "$sha" "$2"
 }
 
 # _ci_extract <sed-regex> <file-globs> - the distinct captures across every
@@ -411,7 +401,6 @@ fi
 
 if declare -F _ci_tool_rows >/dev/null; then
   _ci_section "tools.txt (.github/actions/setup-tool)"
-  fix_kind=tool
   # process substitution, not a pipe: a piped `while` runs in a subshell and
   # would lose $bad
   while IFS='|' read -r tool pinned kind url _ check prefix sha256 extra; do
@@ -422,13 +411,13 @@ if declare -F _ci_tool_rows >/dev/null; then
         "tools.txt row is malformed (8 columns, sha256 as a hex or platform list)"
       continue
     fi
-    _ci_report_pin "$tool" "$pinned" "$check" "$prefix" "${_CI_TOOLS_TXT#"$PWD/"} (pin and sha256)"
+    fix_kind=tool _ci_report_pin "$tool" "$pinned" "$check" "$prefix" "${_CI_TOOLS_TXT#"$PWD/"} (pin and sha256)"
   done < <(_ci_tool_rows)
 fi
 
 if [ -n "$CI_WORKFLOW_ROSTER" ]; then
   _ci_section "Inline pins (CI_WORKFLOW_ROSTER)"
-  while IFS='|' read -r tool glob regex check prefix held; do
+  while IFS='|' read -r tool glob regex check prefix row_held; do
     [ -n "$tool" ] || continue
     # a row that stops matching is an error, not a skip: a roster that
     # quietly covers nothing is worse than none
@@ -442,15 +431,14 @@ if [ -n "$CI_WORKFLOW_ROSTER" ]; then
       _ci_error "$tool" - "pins disagree: $found" "$glob pins more than one version: $found"
       ;;
     *)
-      fix_kind=inline fix_file="$glob" fix_regex="$regex"
-      _ci_report_pin "$tool" "$found" "$check" "$prefix" "$glob" "$held"
+      fix_kind=inline fix_file="$glob" fix_regex="$regex" held="$row_held" \
+        _ci_report_pin "$tool" "$found" "$check" "$prefix" "$glob"
       ;;
     esac
   done <<<"$CI_WORKFLOW_ROSTER"
 fi
 
 _ci_section "GitHub Actions (uses: SHAs)"
-fix_kind=action fix_file="" fix_regex=""
 # Every `uses: <path>@<40-hex> # <comment>` under the CI_ACTION_DIRS
 # directories and in a root action.yml, folded to owner/repo
 # (github/codeql-action/init and /analyze are one repo to track) and
@@ -458,7 +446,8 @@ fix_kind=action fix_file="" fix_regex=""
 # alias with nothing to compare, and is skipped.
 while IFS='|' read -r repo comment pin; do
   [ -n "$repo" ] || continue
-  _ci_report_pin "$repo" "${comment#v}" "github:$repo" "" "every use of $repo (SHA and comment, pinned ${pin:0:12})" "" "" "" _ci_action_pin
+  fix_kind=action tail_fn=_ci_action_pin \
+    _ci_report_pin "$repo" "${comment#v}" "github:$repo" "" "every use of $repo (SHA and comment, pinned ${pin:0:12})"
 done < <(
   # shellcheck disable=SC2086 # the directories are words on purpose
   grep -rhoE 'uses:[[:space:]]*[^[:space:]@]+@[0-9a-f]{40}[[:space:]]*#[[:space:]]*[^[:space:]]+' $CI_ACTION_DIRS action.yml action.yaml 2>/dev/null |
@@ -505,7 +494,7 @@ if [ -n "$CI_IMAGE_GLOBS" ]; then
       _ci_row "$ref" fix "$short" "" "${current:7:12}..." "$age" "$ref@$current"
       _ci_problem "$ref behind" "$ref now resolves to $current - repin it (scan_pinned_images.sh says whether that fixes anything)"
     fi
-  done < <(_ci_files "$CI_IMAGE_GLOBS" | _ci_image_pins)
+  done < <(_ci_files "$CI_IMAGE_GLOBS" | _ci_image_refs | _ci_refs_pinned)
 fi
 
 if [ -n "$CI_MANIFESTS" ]; then
@@ -519,8 +508,8 @@ if [ -n "$CI_MANIFESTS" ]; then
       continue
     fi
     case "$kind" in
-    cargo | terraform) partial=1 ;;
-    *) partial="" ;;
+    cargo | terraform) row_partial=1 ;;
+    *) row_partial="" ;;
     esac
     while IFS='|' read -r name pinned check; do
       case "$kind" in
@@ -540,17 +529,17 @@ if [ -n "$CI_MANIFESTS" ]; then
         continue
         ;;
       esac
-      within=""
+      row_within=""
       for hold in $holds; do
         [ "${hold%@*}" = "$name" ] || continue
         case "${hold##*@}" in
-        major) within="${pinned%%.*}." ;;
-        minor) within="$(printf '%s' "$pinned" | cut -d. -f1-2)." ;;
+        major) row_within="${pinned%%.*}." ;;
+        minor) row_within="$(printf '%s' "$pinned" | cut -d. -f1-2)." ;;
         *) _ci_problem "$name" "CI_MANIFESTS holds $hold, which is neither @major nor @minor" ;;
         esac
       done
-      fix_kind="$kind" fix_file="$file"
-      _ci_report_pin "$name" "$pinned" "$check" "" "$where" "" "$within" "$partial"
+      fix_kind="$kind" fix_file="$file" within="$row_within" partial="$row_partial" \
+        _ci_report_pin "$name" "$pinned" "$check" "" "$where"
     done <<<"$pins"
   done <<<"$CI_MANIFESTS"
 fi

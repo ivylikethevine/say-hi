@@ -32,9 +32,8 @@ inputs:
     description: comment left on the issue when it's closed; a "[Latest run](...)" link is appended
     required: true
   resolved-when:
-    description: completes the body footer "Closed automatically once <resolved-when>." on a non-resolved upsert; empty skips the footer
-    required: false
-    default: ""
+    description: completes the body footer "Closed automatically once <resolved-when>." on a non-resolved upsert
+    required: true
   preamble:
     description: markdown put first in the issue body
     required: false
@@ -47,10 +46,6 @@ inputs:
     description: path to a plain-text report, put last in the issue body in a code block; this or body-file is required unless resolved is 'true'
     required: false
     default: ""
-  write-summary-on-resolved:
-    description: "'true' if body-file should still be cat'd to $GITHUB_STEP_SUMMARY when resolved is 'true'"
-    required: false
-    default: "false"
   warning-title:
     description: optional ::warning title=... emitted after a non-resolved upsert
     required: false
@@ -77,7 +72,6 @@ runs:
         PREAMBLE: ${{ inputs.preamble }}
         BODY_FILE: ${{ inputs.body-file }}
         REPORT_FILE: ${{ inputs.report-file }}
-        WRITE_SUMMARY_ON_RESOLVED: ${{ inputs.write-summary-on-resolved }}
         WARNING_TITLE: ${{ inputs.warning-title }}
         WARNING_BODY: ${{ inputs.warning-body }}
       run: |
@@ -104,9 +98,6 @@ runs:
         open="$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number // empty')"
 
         if [ "$RESOLVED" = true ]; then
-          if [ "$WRITE_SUMMARY_ON_RESOLVED" = true ] && [ -n "$BODY_FILE" ] && [ -f "$BODY_FILE" ]; then
-            cat "$BODY_FILE" >>"$GITHUB_STEP_SUMMARY"
-          fi
           if [ -n "$open" ]; then
             gh issue close "$open" --comment "$CLOSE_COMMENT [Latest run]($run_url)."
           fi
@@ -121,11 +112,9 @@ runs:
           [ -z "$BODY_FILE" ] || cat "$BODY_FILE"
           [ -z "$REPORT_FILE" ] || _ci_fenced "$REPORT_FILE"
         } >"$body"
-        if [ -n "$RESOLVED_WHEN" ]; then
-          # shellcheck disable=SC2016 # the backticks are a markdown code span
-          printf '\nFound by [`%s`](%s). Closed automatically once %s.\n' \
-            "$LABEL" "$run_url" "$RESOLVED_WHEN" >>"$body"
-        fi
+        # shellcheck disable=SC2016 # the backticks are a markdown code span
+        printf '\nFound by [`%s`](%s). Closed automatically once %s.\n' \
+          "$LABEL" "$run_url" "$RESOLVED_WHEN" >>"$body"
 
         # --body-file, not --body: markdown with blank lines and backticks
         # survives a file, not a YAML-indented shell string

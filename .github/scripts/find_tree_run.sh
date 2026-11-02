@@ -22,7 +22,8 @@ for id in $(api "actions/artifacts?name=$marker&per_page=20" \
   [ -n "$(api "actions/runs/$id" "select((.path | startswith(\".github/workflows/$workflow\"))
     and .event == \"pull_request\" and .conclusion == \"success\"
     and .head_repository.full_name == \"$GITHUB_REPOSITORY\") | .id")" ] || continue
-  have="$(api "actions/runs/$id/artifacts?per_page=100" '.artifacts[] | select(.expired | not) | .name')"
+  # the marker alone needs no lookup: the listing above found it
+  [ $# -eq 0 ] || have="$(api "actions/runs/$id/artifacts?per_page=100" '.artifacts[] | select(.expired | not) | .name')"
   for a in "$@"; do
     # a here-string: `printf | grep -q` under pipefail fails on the writer's
     # SIGPIPE once grep leaves at its match

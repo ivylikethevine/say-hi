@@ -66,7 +66,7 @@ function _ci_files() {
   fi | sort -u
 }
 
-# the files _ci_image_pins reads when the caller names none
+# the files the image scans read when the caller names none
 _CI_IMAGE_GLOBS='Dockerfile */Dockerfile **/*.Dockerfile **/compose*.y*ml docker-compose*.y*ml'
 
 # _ci_image_refs - `file|image|tag|digest` per tagged image reference in the
@@ -90,9 +90,16 @@ function _ci_refs_pinned() {
   awk -F'|' '$4 != "" { print $2 "|" $3 "|" $4 }' | sort -u
 }
 
-# _ci_image_pins - the same, for the files named on stdin
-function _ci_image_pins() {
-  _ci_image_refs | _ci_refs_pinned
+# _ci_npm_audit_reported <report> - the GHSA ids an `npm audit --json` report
+# holds, sorted and unique: each is the last segment of the url npm reports it
+# under
+function _ci_npm_audit_reported() {
+  jq -r '[.vulnerabilities[]?.via[] | objects | .url | sub(".*/"; "")] | unique[]' "$1"
+}
+
+# _ci_npm_audit_accepted <osv-scanner.toml> - the GHSA ids the file accepts
+function _ci_npm_audit_accepted() {
+  sed -n 's/^id = "\(GHSA[-0-9a-z]*\)"$/\1/p' "$1" | sort -u
 }
 
 # One trivy image scan as JSON, for the release gate and both scheduled scans.

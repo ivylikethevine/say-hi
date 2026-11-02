@@ -120,10 +120,17 @@ function _ci_fetch() {
   }
 }
 
-# _ci_unpack_source - unpacks the fetched source tarball and sets $_ci_src to
-# the one top-level directory it holds; run in this shell, not a $(...), so
-# `set -e` covers the unpack
+# _ci_find_bin <dir> [find option...] - each executable named after the tool
+function _ci_find_bin() {
+  find "$1" "${@:2}" -type f -name "$CI_TOOL" -perm -u+x
+}
+
+# _ci_unpack_source [pkg...] - fetches the source tarball, installs the apt
+# build deps, unpacks it and sets $_ci_src to the one top-level directory it
+# holds; run in this shell, not a $(...), so `set -e` covers the unpack
 function _ci_unpack_source() {
+  _ci_fetch "$_ci_tmp/archive"
+  _ci_build_deps "$@"
   mkdir "$_ci_tmp/src"
   tar -xzf "$_ci_tmp/archive" -C "$_ci_tmp/src"
   _ci_src="$(find "$_ci_tmp/src" -mindepth 1 -maxdepth 1 -type d | head -1)"
@@ -168,7 +175,7 @@ tar.gz | tar.xz | zip)
   else
     tar -xf "$_ci_tmp/archive" -C "$_ci_tmp/x"
   fi
-  _ci_bin="$(find "$_ci_tmp/x" -type f -name "$CI_TOOL" -perm -u+x)"
+  _ci_bin="$(_ci_find_bin "$_ci_tmp/x")"
   # several matches are one build per arch side by side (x86_64/ and
   # aarch64/): keep this machine's; the check below refuses anything still
   # ambiguous rather than take whichever find walked first
@@ -181,25 +188,21 @@ tar.gz | tar.xz | zip)
 cmake)
   # a source build, for a tool that ships no binary. Only the built binary is
   # installed and cached, so the caller keeps the tool's runtime libs around.
-  _ci_fetch "$_ci_tmp/archive"
   # shellcheck disable=SC2086 # the dep list is words on purpose
-  _ci_build_deps build-essential cmake $_ci_deps
-  _ci_unpack_source
+  _ci_unpack_source build-essential cmake $_ci_deps
   cmake -S "$_ci_src" -B "$_ci_tmp/build" -DCMAKE_BUILD_TYPE=Release
   cmake --build "$_ci_tmp/build" --parallel "$(_ci_nproc)"
   # searched under build/ only: the source tree has its own files named
   # after the tool, and the one wanted is the one just linked
-  _ci_bin="$(find "$_ci_tmp/build" -type f -name "$CI_TOOL" -perm -u+x | head -1)"
+  _ci_bin="$(_ci_find_bin "$_ci_tmp/build" | head -1)"
   ;;
 make)
   # ./configure && make, for a tool that publishes a source tarball only.
   # build-essential is already on the hosted ubuntu image.
-  _ci_fetch "$_ci_tmp/archive"
   # shellcheck disable=SC2086 # the dep list is words on purpose
-  _ci_build_deps $_ci_deps
-  _ci_unpack_source
+  _ci_unpack_source $_ci_deps
   (cd "$_ci_src" && ./configure && make -j"$(_ci_nproc)")
-  _ci_bin="$(find "$_ci_src" -maxdepth 1 -type f -name "$CI_TOOL" -perm -u+x | head -1)"
+  _ci_bin="$(_ci_find_bin "$_ci_src" -maxdepth 1 | head -1)"
   ;;
 *)
   echo "setup-tool: unknown kind '$_ci_kind' for $CI_TOOL" >&2
