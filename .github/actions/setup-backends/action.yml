@@ -42,11 +42,11 @@ runs:
         path: ${{ runner.temp }}/apt-archives
         key: setup-backends-${{ runner.os }}-${{ runner.arch }}-${{ steps.week.outputs.week }}-${{ inputs.backends }}-${{ inputs.extra-packages }}
 
-    # skipped outright when neither is requested (the kind-only shard): the
+    # skipped outright when nothing is requested (the kind-only shard): the
     # HashiCorp repo add and apt update are the slow part. The shell lives in
     # ./install.sh, where the lint gate's shellcheck and shfmt sweep it.
-    - name: Install podman and/or nomad
-      if: contains(inputs.backends, 'podman') || contains(inputs.backends, 'nomad')
+    - name: Install podman, nomad and the extra packages
+      if: contains(inputs.backends, 'podman') || contains(inputs.backends, 'nomad') || inputs.extra-packages != ''
       shell: bash
       env:
         HI_BACKENDS: ${{ inputs.backends }}

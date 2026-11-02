@@ -62,10 +62,6 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # its shipped copy).
   : "${_HI_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/say-hi}"
   export _HI_CONFIG_DIR
-  # ...and the base it came from, which a home column of pack.sh's table
-  # starts at. config.fish mirrors both lines.
-  : "${_HI_XDG_CONFIG:=${XDG_CONFIG_HOME:-$HOME/.config}}"
-  export _HI_XDG_CONFIG
   # The site tier (GLOSSARY: HI.61): /etc/say-hi, else the first say-hi/
   # under $XDG_CONFIG_DIRS. Read on a client alone - a target gets what rode
   # - and an already-set value wins, as the overlay's does. The walk is
@@ -369,21 +365,19 @@ function _hi_editor_cmd() {
 # load.sh exported, flags and all, where it named the same editor; another
 # editor stands. Those two values are what they were ahead of aliases.sh.
 function _hi_editors_keep() {
-  local _hi_ec _hi_ek_a
   [ "${_HI_REMOTE_SESSION:-}" = 1 ] || return 0
-  if [ -n "$1" ] && [ -n "${EDITOR:-}" ]; then
-    _hi_editor_cmd "$1"
-    _hi_ek_a="$_hi_ec"
-    _hi_editor_cmd "$EDITOR"
-    [ "$_hi_ek_a" != "$_hi_ec" ] || export EDITOR="$1"
-  fi
-  if [ -n "$2" ] && [ -n "${VISUAL:-}" ]; then
-    _hi_editor_cmd "$2"
-    _hi_ek_a="$_hi_ec"
-    _hi_editor_cmd "$VISUAL"
-    [ "$_hi_ek_a" != "$_hi_ec" ] || export VISUAL="$2"
-  fi
-  return 0
+  ! _hi_same_editor "$1" "${EDITOR:-}" || export EDITOR="$1"
+  ! _hi_same_editor "$2" "${VISUAL:-}" || export VISUAL="$2"
+}
+
+# _hi_same_editor <value> <value> - are both set, and the one editor
+function _hi_same_editor() {
+  local _hi_ec _hi_se_a
+  [ -n "$1" ] && [ -n "$2" ] || return 1
+  _hi_editor_cmd "$1"
+  _hi_se_a="$_hi_ec"
+  _hi_editor_cmd "$2"
+  [ "$_hi_se_a" = "$_hi_ec" ]
 }
 
 # _hi_load_extensions - source each extensions/ member once the aliases are built
@@ -419,7 +413,7 @@ function _hi_ramp_ok() {
   case "$_hi_ro_s" in '' | *[!a-z\ ]*) return 1 ;; esac
   while [ -n "$_hi_ro_s" ]; do
     _hi_ro_w="${_hi_ro_s%% *}"
-    case " ${_HI_COLOR_NAMES[*]} " in *" $_hi_ro_w "*) ;; *) return 1 ;; esac
+    _hi_list_has "${_HI_COLOR_NAMES[*]}" "$_hi_ro_w" || return 1
     _hi_ro_c=$((_hi_ro_c + 1))
     case "$_hi_ro_s" in *' '*) _hi_ro_s="${_hi_ro_s#* }" ;; *) _hi_ro_s="" ;; esac
   done
@@ -687,9 +681,9 @@ function _hi_human_duration() {
 function _hi_runtime_dir() {
   # prefixed locals (GLOSSARY: HI.04): a plain `dir` would shadow the caller's
   # outvar and the assignment would never leave this function
-  local _hi_rtd_dir="${XDG_RUNTIME_DIR:-}" _hi_rtd_uid
+  local _hi_rtd_dir="${XDG_RUNTIME_DIR:-}"
   # Memoized one deep and keyed on what it reads: a connect asks up to five
-  # times, and without $XDG_RUNTIME_DIR each miss costs the id/ls branch below.
+  # times, and without $XDG_RUNTIME_DIR each miss costs the stats below.
   # Keyed rather than a bare memo because cache_test.sh asks against several
   # $TMPDIRs in one process. Only a *found* directory is remembered - the one
   # it wanted can appear between two calls, and caching "no" would hold a
@@ -700,18 +694,11 @@ function _hi_runtime_dir() {
     return 0
   fi
   if [ -z "$_hi_rtd_dir" ] || [ ! -d "$_hi_rtd_dir" ]; then
-    # $EUID is bash's own, no fork; targets.sh keeps `id -u`, being POSIX
-    _hi_rtd_uid="${EUID:-$(exec id -u 2>/dev/null)}"
-    [ -n "$_hi_rtd_uid" ] || _hi_rtd_uid=unknown
-    _hi_rtd_dir="${TMPDIR:-/tmp}/hi-$_hi_rtd_uid"
+    # $EUID and -O are bash's and zsh's own, no fork; targets.sh keeps
+    # `id -u` and `ls -ldn`, being POSIX
+    _hi_rtd_dir="${TMPDIR:-/tmp}/hi-$EUID"
     [ -d "$_hi_rtd_dir" ] || mkdir -m 700 "$_hi_rtd_dir" 2>/dev/null
-    # `find -user` takes a user *name*, which a host with no passwd entry
-    # cannot supply; SC2012's hazard is parsing file *names* out of ls, and
-    # this reads a fixed column off a path it built itself. `-n` gives the
-    # owner as a number, so one comparison answers for either host.
-    # shellcheck disable=SC2012
-    if [ ! -d "$_hi_rtd_dir" ] || [ -L "$_hi_rtd_dir" ] ||
-      [ "$(ls -ldn "$_hi_rtd_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')" != "$_hi_rtd_uid" ]; then
+    if [ ! -d "$_hi_rtd_dir" ] || [ -L "$_hi_rtd_dir" ] || [ ! -O "$_hi_rtd_dir" ]; then
       printf -v "$1" '%s' ''
       return 0
     fi
@@ -955,21 +942,15 @@ function _hi_on_exit() {
   fi
 }
 
-# What each shell's prompt ends with unless overridden, <SHELL>:<end>. The
-# sh fallback hi.sh bakes on the client takes BASH's. config.fish keeps its
-# own copy; tests/hi/prompt_test.sh pins it here.
-_HI_PROMPT_END_DEFAULTS=('BASH:\$' 'ZSH:%(!.#.>)' 'FISH:|')
-
-# _hi_prompt_end_default <SHELL> [outvar] - the shipped default; empty on
-# stdout, and [outvar] untouched, if not listed
+# _hi_prompt_end_default <SHELL> [outvar] - what that shell's prompt ends with
+# unless overridden. The sh fallback hi.sh bakes on the client takes BASH's.
+# config.fish keeps its own copy; tests/hi/prompt_test.sh pins it here.
 function _hi_prompt_end_default() {
-  local _hi_ped_row
-  for _hi_ped_row in "${_HI_PROMPT_END_DEFAULTS[@]}"; do
-    [ "${_hi_ped_row%%:*}" = "$1" ] && {
-      _hi_out "${2:-}" "${_hi_ped_row#*:}"
-      return 0
-    }
-  done
+  case "$1" in
+  BASH) _hi_out "${2:-}" '\$' ;;
+  ZSH) _hi_out "${2:-}" '%(!.#.>)' ;;
+  FISH) _hi_out "${2:-}" '|' ;;
+  esac
 }
 
 # _hi_prompt_end <SHELL> [outvar] - the per-shell setting, else the default;
@@ -1137,7 +1118,7 @@ function _hi_prompt_tool() {
     [ "$_hi_ptt" != hi ] || return 1
     _hi_prompt_row "$_hi_ptt" _hi_ptr || continue
     _hi_pts="${_hi_ptr#*|}"
-    case " ${_hi_pts%%|*} " in *" $1 "*) ;; *) continue ;; esac
+    _hi_list_has "${_hi_pts%%|*}" "$1" || continue
     _hi_pts="${_hi_pts#*|}"
     case "${_hi_pts%%|*}" in
     bin) command -v "$_hi_ptt" >/dev/null 2>&1 ;;
@@ -1246,8 +1227,7 @@ function _hi_target_symbol() {
 # (_hi_color_base): set_color knows no orange.
 function _hi_prompt_colors() {
   local _hi_pc_n _hi_pc_h _hi_pc_b
-  _hi_user_color >/dev/null # prime both memos; read the variables, not $( )
-  _hi_host_color >/dev/null
+  _hi_prime_identity # read the variables, not $( )
   for _hi_pc_n in "$_HI_USER_COLOR" "$_HI_HOST_COLOR"; do
     _hi_color_hex _hi_pc_h "$_hi_pc_n"
     _hi_color_base _hi_pc_b "$_hi_pc_n"

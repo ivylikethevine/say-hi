@@ -24,9 +24,8 @@ source "$_HI_LAUNCHER"
 # is responsible for - the argv0 the usage line will name, and the arguments
 # in order, the row's <first arg> column included.
 function _hi_ds_stub() {
-  local s="$_HI_WORKDIR/stub.sh"
-  _hi_script "$s" '#!/bin/sh' 'printf "argv0=%s\n" "${_HI_ARGV0:-unset}"' 'printf "args=%s\n" "$*"'
-  printf '%s' "$s"
+  _HI_DS_STUB="$_HI_SUITE_WORKDIR/stub.sh"
+  _hi_script "$_HI_DS_STUB" '#!/bin/sh' 'printf "argv0=%s\n" "${_HI_ARGV0:-unset}"' 'printf "args=%s\n" "$*"'
 }
 
 # _hi_ds_dispatch <flag> [args...] - one dispatch in a subshell, each script
@@ -34,8 +33,7 @@ function _hi_ds_stub() {
 # $_HI_DS_RC. A row with no script var returns 1 having run nothing, which is
 # the difference this reads.
 function _hi_ds_dispatch() {
-  local stub
-  stub="$(_hi_ds_stub)"
+  local stub="$_HI_DS_STUB"
   _HI_DS_OUT="$_HI_WORKDIR/dispatch.out"
   _HI_DS_RC=0
   (
@@ -124,14 +122,13 @@ sh -c 'echo hi'" ] || _hi_why out
 # the whole script is one sh word after the target unquotes it - the contract
 # _hi_shquote exists for, checked by running it rather than by reading it
 function test_on_target_script_survives_ssh_as_one_word() {
-  local got out last
+  local out last
   local -a SSHARGS=() ctl_opts=()
   out="$(_hi_ds_on_ssh cp "printf '%s' \"it's a word\"")"
   last="${out##*$'\n'}"
   # the target runs that whole last argument through its own sh; the script
   # has to come back out of the quoting byte-identical
-  got="$(sh -c "$last")"
-  [ "$got" = "it's a word" ] || _hi_why got last
+  _hi_prints "it's a word" sh -c "$last"
 }
 
 function test_on_target_needs_no_ssh_options_at_all() {
@@ -260,6 +257,7 @@ function run_dispatch_tests() {
   _hi_h1 "Testing hi.sh's handoff layer"
   _hi_workdir hidispatch
   _hi_suite_begin
+  _hi_ds_stub
 
   _hi_h2 "Testing: _hi_dispatch_subcommand / _hi_run_script"
   _hi_check "Hands a flag to its script" _hi_prints $'argv0=hi --doctor\nargs=--json' _hi_ds_out --doctor --json

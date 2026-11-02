@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 # Shared bash/zsh git prompt segment, styled to match fish's fish_vcs_prompt
 # (config.fish's __fish_git_prompt_* settings). Needs the palette sourced.
-# strict while loading; the caller's options back at the end, as in core.sh
-_hi_git_o=$-
-[[ -o pipefail ]] && _hi_git_o+=p
-set -euo pipefail
 
 # _hi_git_prompt [outvar] - with outvar the segment lands there instead of
 # stdout, saving bash.sh's per-prompt fork. GLOSSARY: HI.05
@@ -134,5 +130,3 @@ _hi_git_prompt() {
   printf -v out '%b' "$out|${flags})"
   _hi_out "${1:-}" "$out"
 }
-
-_hi_opts_restore "$_hi_git_o"

@@ -12,35 +12,13 @@ inputs:
 runs:
   using: composite
   steps:
-    # cached the way setup-backends' downloaded .debs are, and for the same
-    # reason: roughly a dozen jobs a push (test, lint, bench, every coverage
-    # shard) each pay their own apt-get update + install otherwise
-    - name: This week, for the cache key
-      if: runner.os == 'Linux'
-      id: week
-      shell: bash
-      run: printf 'week=%s\n' "$(date -u +%G-%V)" >>"$GITHUB_OUTPUT"
-
-    - name: Cache zsh/fish's downloaded .debs
-      if: runner.os == 'Linux'
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: ${{ runner.temp }}/apt-archives
-        key: setup-shells-${{ runner.os }}-${{ runner.arch }}-${{ steps.week.outputs.week }}-${{ inputs.extra-packages }}
-
-    # ../apt/lib.sh drops the images' Chrome/Microsoft repositories and
-    # retries the update - see its header for why. $HI_APT_CACHE replaces
-    # apt's own /var/cache/apt/archives (root-owned; actions/cache restores
-    # as the unprivileged runner user) the same way setup-backends/install.sh
-    # does, cache ownership handed back for the same reason its comment gives.
+    # setup-backends' cached install: roughly a dozen jobs a push (test, lint,
+    # bench, every coverage shard) each pay their own apt-get otherwise
     - if: runner.os == 'Linux'
-      shell: bash
-      env:
-        # none, not empty: the installer reads empty as its default of both
-        HI_BACKENDS: none
-        HI_EXTRA_PACKAGES: zsh fish ${{ inputs.extra-packages }}
-        HI_APT_CACHE: ${{ runner.temp }}/apt-archives
-      run: '"$GITHUB_ACTION_PATH/../setup-backends/install.sh"'
+      uses: ./.github/actions/setup-backends
+      with:
+        backends: none
+        extra-packages: zsh fish ${{ inputs.extra-packages }}
 
     # macOS ships zsh; fish comes from brew, without brew updating itself first
     - if: runner.os == 'macOS'

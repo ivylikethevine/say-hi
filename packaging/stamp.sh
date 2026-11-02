@@ -41,11 +41,7 @@ while [ $# -gt 0 ]; do
   --root | --root=*) _hi_flag_word_or_die _HI_ROOT_DIR "--root requires a value" "$@" || shift ;;
   --launcher | --launcher=*) _hi_flag_word_or_die _HI_LAUNCHER_FILE "--launcher requires a value" "$@" || shift ;;
   --man | --man=*) _hi_flag_word_or_die _HI_MAN_FILE "--man requires a value" "$@" || shift ;;
-  *)
-    echo "stamp.sh: unknown argument: $1" >&2
-    echo "$_HI_USAGE" >&2
-    exit 1
-    ;;
+  *) _hi_bad_arg "$1" ;;
   esac
   shift
 done

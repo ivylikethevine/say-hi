@@ -225,15 +225,21 @@ AWK
 # _hi_include_lint - every finding in the overlay members that would actually
 # ship, one row each (see _hi_lint_awk); a member with no dialect has none, and
 # an include the packer carries (_hi_include_carry) is no finding. A line
-# under `hi-carry` is a row only for what of it cannot ride.
+# under `hi-carry` is a row only for what of it cannot ride. With <kind>, the
+# rows of that kind alone, from the members with nothing to carry.
 function _hi_include_lint() {
-  local f src prog row m n k t
+  local f src prog row m n k t only="${1:-}"
   local -a _hi_dirs=() _hi_carried=() _hi_marked=() _hi_unmarked=()
   prog="$(_hi_lint_awk)"
   while IFS= read -r f; do
     if ! _hi_member_dialect "$f" row || ! _hi_overlay_src "$f" src; then continue; fi
+    [ -z "$only" ] || case "$row" in *' | [] | '*) ;; *) continue ;; esac
     _hi_tool_dirs "$f" "$src"
     while IFS='|' read -r m n k t; do
+      if [ -n "$only" ]; then
+        [ "$k" != "$only" ] || printf '%s|%s|%s|%s\n' "$m" "$n" "$k" "$t"
+        continue
+      fi
       [ "$k" = include ] && ((${#_hi_dirs[@]})) && _hi_include_carry row "$t" "${f%%/*}" && continue
       # neovim's require of a module that rides (_hi_require_carry)
       [ "$k:${f%%/*}" = include:nvim ] && _hi_require_carry "$t" nvim && continue
@@ -253,16 +259,7 @@ function _hi_include_lint() {
 
 # _hi_allowed_lines - the private lines that ride under a `hi-allow`, a
 # `<member>|<line>|allowed|<text>` row each, for `hi --plugins` to name
-function _hi_allowed_lines() {
-  local f src prog row
-  prog="$(_hi_lint_awk)"
-  while IFS= read -r f; do
-    if ! _hi_member_dialect "$f" row || ! _hi_overlay_src "$f" src; then continue; fi
-    case "$row" in *' | [] | '*) ;; *) continue ;; esac
-    _hi_dialect="$row" awk -v mode=report -v name="$f" "$prog" "$src" | awk -F'|' '$3 == "allowed"'
-  done < <(_hi_overlay_files)
-  return 0
-}
+function _hi_allowed_lines() { _hi_include_lint allowed; }
 
 # _hi_tool_dirs <member> <source> - the directories an include in <member> is
 # carried from, into the caller's $_hi_dirs: the source's own directory (not

@@ -33,9 +33,6 @@ function _hi_edit_run() {
   return "$rc"
 }
 
-# _hi_edit_cfg <name> - a fresh overlay directory's path; nothing is made
-function _hi_edit_cfg() { printf '%s' "$_HI_WORKDIR/$1-cfg"; }
-
 # _hi_edit_opened <config> - what the recorder was handed, one argument a line
 function _hi_edit_opened() { cat "$1.opened" 2>/dev/null; }
 
@@ -48,7 +45,7 @@ function _hi_edit_recorder() {
 # the overlay directory itself with no file named, made where there is none
 function test_edit_opens_the_overlay_directory() {
   local cfg out got
-  cfg="$(_hi_edit_cfg dir)"
+  cfg="$_HI_WORKDIR/dir-cfg"
   out="$(EDITOR=rec _hi_edit_run "$cfg")" || _hi_why cfg out || return 1
   got="$(_hi_edit_opened "$cfg")"
   [ "$got" = "rec
@@ -60,7 +57,7 @@ $cfg" ] && [ -d "$cfg" ] || _hi_why got cfg out
 # there is opened as it is
 function test_edit_makes_a_plugins_file_from_the_key_reference() {
   local cfg out got want
-  cfg="$(_hi_edit_cfg plugins)"
+  cfg="$_HI_WORKDIR/plugins-cfg"
   out="$(EDITOR=rec _hi_edit_run "$cfg" plugins)" || _hi_why cfg out || return 1
   [[ "$out" == *"made $cfg/plugins"* ]] || _hi_because "said: $out" || return 1
   got="$(_hi_edit_opened "$cfg")"
@@ -80,7 +77,7 @@ files = "x"' ] || _hi_why out got
 # --add-package make them; settings.sh as --configure starts one
 function test_edit_makes_hi_s_other_files_as_their_commands_do() {
   local cfg out n got want
-  cfg="$(_hi_edit_cfg own)"
+  cfg="$_HI_WORKDIR/own-cfg"
   n="$(sed -n 's/^_HI_SETTINGS_SHAPE=//p' "$_HI_ROOT/scripts/lib.sh")"
   out="$(EDITOR=rec _hi_edit_run "$cfg" colors)" || _hi_why cfg out || return 1
   cmp -s "$cfg/colors" "$_HI_ROOT/config/colors" || _hi_why cfg out || return 1
@@ -96,7 +93,7 @@ function test_edit_makes_hi_s_other_files_as_their_commands_do() {
 # left without saving must not ride empty in place of home's
 function test_edit_makes_a_members_directory_and_not_the_file() {
   local cfg out got
-  cfg="$(_hi_edit_cfg member)"
+  cfg="$_HI_WORKDIR/member-cfg"
   out="$(EDITOR=rec _hi_edit_run "$cfg" vim/vimrc)" || _hi_why cfg out || return 1
   got="$(_hi_edit_opened "$cfg")"
   [ "$got" = "rec
@@ -108,7 +105,7 @@ $cfg/vim/vimrc" ] && [ -d "$cfg/vim" ] && [ ! -e "$cfg/vim/vimrc" ] && [[ "$out"
 # names nothing installed is passed over
 function test_edit_picks_the_editor_in_order() {
   local cfg out got
-  cfg="$(_hi_edit_cfg editor)"
+  cfg="$_HI_WORKDIR/editor-cfg"
   out="$(VISUAL="vis --wait" EDITOR=rec _hi_edit_run "$cfg")" || _hi_why cfg out || return 1
   got="$(_hi_edit_opened "$cfg")"
   [ "$got" = "vis
@@ -135,7 +132,7 @@ $cfg" ] || _hi_because "the list's first: $got"
 # and makes nothing
 function test_edit_names_what_to_set_with_no_editor() {
   local cfg out box rc=0 _HI_EDIT_BIN="$_HI_WORKDIR/no-editors"
-  cfg="$(_hi_edit_cfg none)"
+  cfg="$_HI_WORKDIR/none-cfg"
   mkdir -p "$_HI_EDIT_BIN"
   box="$(_hi_real_path edit-tools bash env mkdir cat sed awk dirname basename uname tr grep head cut sort id ls rm mktemp wc)"
   out="$(PATH="$box" _hi_edit_run "$cfg")" || rc=$?
@@ -147,7 +144,7 @@ function test_edit_names_what_to_set_with_no_editor() {
 # a name ending in a slash are refused, with nothing made
 function test_edit_refuses_what_it_cannot_open() {
   local cfg out word rc
-  cfg="$(_hi_edit_cfg refuse)"
+  cfg="$_HI_WORKDIR/refuse-cfg"
   for word in ../x /etc/x './x' 'a/../x' 'x/'; do
     rc=0
     out="$(EDITOR=rec _hi_edit_run "$cfg" "$word")" || rc=$?

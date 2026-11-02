@@ -52,9 +52,7 @@ function _hi_forced_session_is_the_hosts() {
     _hi_align " | [$label] -- the host's own session, not hi's command" "OK" "$GREEN"
     return 0
   fi
-  _hi_h3 " | [$label] -- FAILED: hi's command ran on a forced-command host" "$RED"
-  _hi_show_transcript "the session's transcript" "$file"
-  _hi_note_failure "[$label] forced command not detected"
+  _hi_case_failed "$label" "hi's command ran on a forced-command host" "$file"
   return 1
 }
 
@@ -170,7 +168,7 @@ function run_ssh_tests() {
     # the same tree away from ~/say-hi - what `--prefix` or a dotfiles install leaves
     _hi_bg debian-nested _hi_build_image debian-nested "hi-sshtest-debian-nested-$$" \
       "the non-default install path case" --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      -f "$(_hi_dockerfile installed-nested)" "$_HI_ROOT"
+      --build-arg DIR=opt/nested/say-hi --build-arg INSTALL=1 -f "$(_hi_dockerfile installed)" "$_HI_ROOT"
     wait
     _hi_bg_ok debian-installed _HI_INSTALLED_OK
     _hi_bg_ok debian-nested _HI_NESTED_OK

@@ -495,12 +495,11 @@ _HI_CONV_OLD="$_HI_ROOT/tests/scripts/convert_settings"
 # without an error and with no name:N row left, every group on
 function test_shipped_old_packages_convert_and_parse() {
   local old="$_HI_CONV_OLD/packages" new="$_HI_WORKDIR/shipped.packages"
-  local err="$_HI_WORKDIR/shipped.packages.err" out shape=""
+  local err="$_HI_WORKDIR/shipped.packages.err" out
   grep -q '^[^#]*:[0-9]' "$old" || _hi_why old || return 1
   _hi_convert_packages <"$old" | _hi_toml_packages >"$new"
   ! grep -q '^[^#]*:[0-9]' "$new" || _hi_why new || return 1
-  _hi_data_shape shape "$new" "$_HI_FLAT_PACKAGES"
-  [ "$shape" = toml ] || _hi_why shape || return 1
+  _hi_var_is toml _hi_data_shape "$new" "$_HI_FLAT_PACKAGES" || return 1
   out="$(_HI_PACKAGES="$new" _HI_PACKAGES_GROUPS="core useful extras trivia base platform" full_check 2>"$err")"
   [ ! -s "$err" ] && [ -n "$out" ] || _hi_why err out
 }
@@ -509,12 +508,10 @@ function test_shipped_old_packages_convert_and_parse() {
 # many, every first name a key, and each marked row under its kind's table
 function test_shipped_sections_packages_convert_whole() {
   local old="$_HI_CONV_OLD/packages.sections" new="$_HI_WORKDIR/shipped.packages.toml"
-  local line group="" mark="" name="" alts="" got want shape=""
-  _hi_data_shape shape "$old" "$_HI_FLAT_PACKAGES"
-  [ "$shape" = sections ] || _hi_why shape || return 1
+  local line group="" mark="" name="" alts="" got want
+  _hi_var_is sections _hi_data_shape "$old" "$_HI_FLAT_PACKAGES" || return 1
   _hi_toml_packages <"$old" >"$new"
-  _hi_data_shape shape "$new" "$_HI_FLAT_PACKAGES"
-  [ "$shape" = toml ] || _hi_why shape || return 1
+  _hi_var_is toml _hi_data_shape "$new" "$_HI_FLAT_PACKAGES" || return 1
   # both as "<group> <marker><name>,<alternatives>" lines, sorted
   want="$(awk '/#/ || /^$/ { next } /^\[/ { g = substr($0, 2, length($0) - 2); next } { print g, $0 }' "$old" | sort)"
   got="$(

@@ -142,11 +142,7 @@ from that staging root with nfpm.
 EOF
     exit 0
     ;;
-  *)
-    echo "mkpkg.sh: unrecognized argument: $1" >&2
-    echo "$_HI_USAGE" >&2
-    exit 1
-    ;;
+  *) _hi_bad_arg "$1" ;;
   esac
   shift
 done

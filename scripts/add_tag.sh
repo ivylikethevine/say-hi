@@ -28,15 +28,14 @@ mode=add
   mode=remove
   shift
 }
-me="${_HI_ARGV0:-hi --$mode-tag}"
-_HI_ME="$me"
+_HI_ME="${_HI_ARGV0:-hi --$mode-tag}"
 _HI_DRY_RUN="" args=()
 
 # shellcheck disable=SC2329 # _hi_args runs it
 function _hi_add_tag_help() {
   if [ "$mode" = remove ]; then
     cat <<EOF
-Usage: $me <host> [--dry-run]
+Usage: $_HI_ME <host> [--dry-run]
 
 Takes the "# Tags:" line above <host>'s Host (or Match host) line out of
 $_HI_SSH_CONFIG, or the file it Includes the host from. A host in a file of a
@@ -47,13 +46,13 @@ EOF
     return 0
   fi
   cat <<EOF
-Usage: $me <host> <tag> [--dry-run]
+Usage: $_HI_ME <host> <tag> [--dry-run]
 
 Writes "# Tags: <tag>" directly above <host>'s Host (or Match host) line in
 $_HI_SSH_CONFIG, or in the file it Includes the host from, so a hosttag or
 usertag row in your colors file colors it (docs/COLORS.md). A tag already
 there is replaced. <host> is matched as written in the config, so a pattern
-tags its whole block: $me '*.prod' prod. A host in a file of a config.d
+tags its whole block: $_HI_ME '*.prod' prod. A host in a file of a config.d
 directory carries that file's name as its tag until a line says otherwise.
 
   -n, --dry-run    say what would be written, and write nothing
@@ -62,12 +61,12 @@ directory carries that file's name as its tag until a line says otherwise.
 EOF
 }
 
-_hi_args _hi_add_tag_help "$me --help" "$@"
+_hi_args _hi_add_tag_help "$_HI_ME --help" "$@"
 
 if [ "$mode" = remove ]; then
-  [ "${#args[@]}" -eq 1 ] || _hi_die "needs a host ($me --help)"
+  [ "${#args[@]}" -eq 1 ] || _hi_die "needs a host ($_HI_ME --help)"
 else
-  [ "${#args[@]}" -eq 2 ] || _hi_die "needs a host and a tag ($me --help)"
+  [ "${#args[@]}" -eq 2 ] || _hi_die "needs a host and a tag ($_HI_ME --help)"
 fi
 host="${args[0]}" tag="${args[1]:-}"
 # one word the walk reads whole: it stops the leftmost tag at a comma or space
@@ -121,7 +120,7 @@ if [ -z "$file" ]; then
   # set -f: the words are ssh's patterns, never this directory's files
   pattern="$(set -f && _hi_wild_block)" || true
   [ -z "$pattern" ] ||
-    _hi_die "$host has no Host line of its own - only 'Host $pattern' covers it; tag that instead: $me '$pattern'${tag:+ $tag}"
+    _hi_die "$host has no Host line of its own - only 'Host $pattern' covers it; tag that instead: $_HI_ME '$pattern'${tag:+ $tag}"
   _hi_die "no Host $host in $_HI_SSH_CONFIG or the files it Includes"
 fi
 

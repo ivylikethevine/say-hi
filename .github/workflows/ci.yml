@@ -454,10 +454,14 @@ jobs:
           _HI_RUNNER_WIDTH: "6"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
 
+      # _HI_HOME is belt and braces (hi.sh derives its tree, GLOSSARY: HI.33),
+      # kept because a wrong tree here is invisible - the first run of this
+      # sourced one under /Users/runner that was never there.
       - name: Enable Remote Login and authorize a throwaway key
         if: env.HI_LOOPBACK == 'true'
         run: |
           set -euo pipefail
+          printf '_HI_HOME=%s\n' "$(cd .. && pwd)" >>"$GITHUB_ENV"
           ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
           cat "$HOME/.ssh/loop.pub" >>"$HOME/.ssh/authorized_keys"
           chmod 700 "$HOME/.ssh" && chmod 600 "$HOME/.ssh/authorized_keys"
@@ -485,15 +489,10 @@ jobs:
           /bin/bash --version | head -1 | grep -q 'version 3\.2'
 
       # the pty trick the e2e suites use: `ssh -t` needs a tty on our side.
-      # _HI_HOME is belt and braces (hi.sh derives its tree, GLOSSARY: HI.33),
-      # kept because a wrong tree here is invisible - the first run of this
-      # sourced one under /Users/runner that was never there.
       - name: Say hi to ourselves (one command, only its output back)
         if: env.HI_LOOPBACK == 'true'
         run: |
           set -euo pipefail
-          _HI_HOME="$(cd .. && pwd)"
-          export _HI_HOME
           rc=0
           out="$(python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
             /bin/bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
@@ -524,8 +523,6 @@ jobs:
         if: env.HI_LOOPBACK == 'true'
         run: |
           set -euo pipefail
-          _HI_HOME="$(cd .. && pwd)"
-          export _HI_HOME
           rc=0
           python3 - /bin/bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
@@ -589,8 +586,6 @@ jobs:
         if: env.HI_LOOPBACK == 'true'
         run: |
           set -euo pipefail
-          _HI_HOME="$(cd .. && pwd)"
-          export _HI_HOME
           rc=0
           /bin/bash ./hi.sh --doctor --json loop >"$RUNNER_TEMP/doctor.json" || rc=$?
           python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); print(json.dumps(d, indent=1))' "$RUNNER_TEMP/doctor.json"

@@ -58,24 +58,20 @@ source "$_HI_HOME/say-hi/scripts/rc.sh"'
 _HI_RC_ALL='rc_shell_present() { return 0; }'
 
 function test_config_shell_fresh_write() {
-  local got
   local home="$_HI_WORKDIR/fresh"
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' '' 'source b' || _hi_why home || return 1
   grep -qF 'export A=1' "$home/.bashrc" || _hi_why home || return 1
   grep -qF 'source b' "$home/.bashrc" || _hi_why home || return 1
   # two lines tagged; the empty argument contributed nothing
-  got="$(grep -cF "$_HI_MARKER" "$home/.bashrc")"
-  [ "$got" = 2 ] || _hi_why got home _HI_MARKER
+  _hi_prints 2 grep -cF "$_HI_MARKER" "$home/.bashrc"
 }
 
 function test_config_shell_is_idempotent() {
-  local got
   local home="$_HI_WORKDIR/idem" before
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
   before="$(cat "$home/.bashrc")"
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
-  got="$(cat "$home/.bashrc")"
-  [ "$got" = "$before" ] || _hi_why got home before
+  _hi_prints "$before" cat "$home/.bashrc"
 }
 
 function test_config_shell_repairs_stale_lines() {
@@ -98,16 +94,13 @@ function test_config_shell_preserves_foreign_lines() {
 # the backup is one-time and pre-hi: taken on the first write to a non-empty
 # file, never overwritten by later rewrites
 function test_config_shell_one_time_backup() {
-  local got
   local home="$_HI_WORKDIR/backup"
   mkdir -p "$home"
   printf 'echo original\n' >"$home/.bashrc"
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
-  got="$(cat "$home/.bashrc.hi-orig")"
-  [ "$got" = "echo original" ] || _hi_why got home || return 1
+  _hi_prints "echo original" cat "$home/.bashrc.hi-orig" || return 1
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export B=2' || _hi_why home || return 1
-  got="$(cat "$home/.bashrc.hi-orig")"
-  [ "$got" = "echo original" ] || _hi_why got home
+  _hi_prints "echo original" cat "$home/.bashrc.hi-orig"
 }
 
 function test_config_shell_no_backup_of_an_empty_file() {
@@ -130,15 +123,13 @@ function test_config_shell_appends_at_the_end() {
 }
 
 function test_config_shell_preserves_the_mode() {
-  local got
   local home="$_HI_WORKDIR/mode" before
   mkdir -p "$home"
   printf 'content\n' >"$home/.bashrc"
   chmod 640 "$home/.bashrc"
   before="$(_hi_mode_string "$home/.bashrc")"
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
-  got="$(_hi_mode_string "$home/.bashrc")"
-  [ "$got" = "$before" ] || _hi_why got home before
+  _hi_prints "$before" _hi_mode_string "$home/.bashrc"
 }
 
 # a dotfile manager's hardlinked ~/.bashrc must not be severed by a mv
@@ -472,14 +463,12 @@ function test_install_rc_lines_follows_a_zshenv_zdotdir() {
 # from ~, $HOME, or $XDG_CONFIG_HOME expands, and a value that would run or
 # expand anything else reads as unset. Each row: <line>|<the rc, under $HOME>
 function test_zshrc_here_reads_a_zshenv_by_grammar() {
-  local home="$_HI_WORKDIR/zgrammar" line want got
+  local home="$_HI_WORKDIR/zgrammar" line want
   mkdir -p "$home"
-  got="$(_hi_rc_out "$home" -- _hi_zshrc_here)"
-  [ "$got" = "$home/.zshrc" ] || _hi_because "with no .zshenv: [$got], not [$home/.zshrc]" || return 1
+  _hi_prints "$home/.zshrc" _hi_rc_out "$home" -- _hi_zshrc_here || return 1
   while IFS='|' read -r line want; do
     printf 'ZDOTDIR=/first\n%s\n' "$line" >"$home/.zshenv"
-    got="$(_hi_rc_out "$home" -- _hi_zshrc_here)"
-    [ "$got" = "$home/$want" ] || _hi_because "for the line [$line]: [$got], not [$home/$want]" || return 1
+    _hi_prints "$home/$want" _hi_rc_out "$home" -- _hi_zshrc_here || return 1
   done <<'ROWS'
 ZDOTDIR=~/z|z/.zshrc
   export ZDOTDIR="$HOME/z" # moved|z/.zshrc
@@ -554,13 +543,11 @@ function test_strip_prunes_the_backups() {
 }
 
 function test_darwin_bash_profile_that_reads_bashrc_is_left_alone() {
-  local got
   local home="$_HI_WORKDIR/darwin-has"
   mkdir -p "$home"
   printf 'source ~/.bashrc\n' >"$home/.bash_profile"
   _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
-  got="$(cat "$home/.bash_profile")"
-  [ "$got" = 'source ~/.bashrc' ] || _hi_why got home
+  _hi_prints 'source ~/.bashrc' cat "$home/.bash_profile"
 }
 
 # one that does not gets the .bashrc line under its own content - and only

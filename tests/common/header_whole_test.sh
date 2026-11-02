@@ -104,9 +104,7 @@ function test_marks_swap_to_ascii_with_the_set() {
 }
 
 function test_banner_disabled_produces_no_output() {
-  local out
-  out="$(_HI_DISABLE_BANNER=1 banner TestBanner)"
-  [ -z "$out" ] || _hi_why out
+  _HI_DISABLE_BANNER=1 _hi_prints "" banner TestBanner
 }
 
 # guards the default: the toggle is opt-out, so an unset var must still print
@@ -239,9 +237,7 @@ function test_hi_header_banner_off_keeps_detail_lines() {
 }
 
 function test_hi_header_disabled_produces_no_output() {
-  local out
-  out="$(_HI_DISABLE_HEADER=1 hi_header Connected)"
-  [ -z "$out" ] || _hi_why out
+  _HI_DISABLE_HEADER=1 _hi_prints "" hi_header Connected
 }
 
 # On a failure, what it rendered instead - the bare glob cannot tell an empty
@@ -465,9 +461,7 @@ function test_hi_header_order_packs_across_former_group_boundaries() {
 # _hi_cell_hue: the leading escape's hue digit (1 red .. 6 cyan), ignoring
 # the bold bit, empty with no leading escape.
 function test_hi_cell_hue_reads_the_leading_escape() {
-  local h
-  _hi_cell_hue h "${CYAN}x"
-  [ "$h" = 6 ] || _hi_why h
+  _hi_var_is 6 _hi_cell_hue "${CYAN}x"
 }
 
 # shellcheck disable=SC2153 # $BRCYAN is core.sh's palette variable; `brcyan`
@@ -504,15 +498,13 @@ function test_hi_cell_hue_reads_a_truecolor_escape() {
 # test_header_hues_never_repeat_under_a_scheme <$_HI_COLOR_SCHEME> - a word list,
 # or a name no scheme has, which takes the fallback
 function test_header_hues_never_repeat_under_a_scheme() {
-  local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # the scheme lives and dies in this subshell
     export _HI_COLOR_SCHEME="$1" _HI_TRUECOLOR=1
     _hi_assign_palette
     _hi_packages_palette
     test_header_hues_never_repeat_in_the_default_order
-  ) && ok=1
-  [ "$ok" = 1 ] || _hi_why ok
+  ) || _hi_because "the hues repeat under scheme [$1]"
 }
 
 function test_hi_cell_hue_ignores_a_non_leading_escape() {
@@ -573,7 +565,7 @@ function _hi_lead_escape() {
 # (common/header.sh's _hi_cell_clock), so a byte-exact compare fails on a second tick
 # between the two passes below rather than on an actual substitution.
 function test_header_default_order_needs_no_alternate() {
-  local words w raw want got i=0
+  local words w raw want i=0
   local -a _HI_PENDING_CELLS=()
   local _HI_PREV_HUE=""
   words="${_HI_HEADER_ORDER_DEFAULT% check}"
@@ -583,8 +575,7 @@ function test_header_default_order_needs_no_alternate() {
     _hi_header_word_cell "$w" raw
     [ -n "$raw" ] || continue
     _hi_lead_escape want "$raw"
-    _hi_lead_escape got "${_HI_PENDING_CELLS[$i]}"
-    [ "$got" = "$want" ] || _hi_why got want || return 1
+    _hi_var_is "$want" _hi_lead_escape "${_HI_PENDING_CELLS[$i]}" || return 1
     i=$((i + 1))
   done
 }

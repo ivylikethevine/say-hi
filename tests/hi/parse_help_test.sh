@@ -26,8 +26,7 @@ function _hi_plain_container_shim() {
     printf '%s' "$dir"
     return 0
   }
-  mkdir -p "$dir"
-  cat >"$dir/docker" <<'EOF'
+  _hi_script "$dir/docker" <<'EOF'
 #!/bin/sh
 for a in "$@"; do
   case "$a" in
@@ -51,7 +50,6 @@ case "$1" in -i | -it) shift ;; esac
 shift
 printf 'ATTACHED:%s\n' "$*"
 EOF
-  chmod +x "$dir/docker"
   printf '%s' "$dir"
 }
 
@@ -537,8 +535,6 @@ function test_use_words_match_the_backend_roster() {
 function test_local_subcommands_forward_extra_arguments() {
   local home out
   home="$(_hi_subcmd_stubs)"
-  out="$(_hi_subcmd_run "$home" --doctor myhost)" || _hi_why home || return 1
-  [ "$out" = "STUB doctor myhost" ] || _hi_why out || return 1
   out="$(_hi_subcmd_run "$home" --preview colors --help)" || _hi_why home || return 1
   [ "$out" = "STUB preview colors --help" ] || _hi_why out || return 1
   out="$(_hi_subcmd_run "$home" --preview header --help)" || _hi_why home || return 1
@@ -581,11 +577,7 @@ function _hi_dispatch_probe() {
       return "$status"
     }
     function _say_hi_plain() {
-      printf 'say_hi_plain\n' >>"$marker"
-      return "$status"
-    }
-    function _say_hi_container_plain() {
-      printf 'say_hi_container_plain:%s\n' "$1" >>"$marker"
+      printf 'say_hi_plain%s\n' "${1:+:$1}" >>"$marker"
       return "$status"
     }
     function _hi_report_failure() {
@@ -608,33 +600,14 @@ function test_hi_dispatch_plain_setting_is_a_default() {
   [[ "$out" != *say_hi_plain* ]] || _hi_why out
 }
 
-function test_hi_dispatch_plain0_no_arm_calls_say_hi() {
+# _hi_dispatch_calls <want> <plain> <arm> - what _hi lands on, line 2 of the
+# probe; a container takes the same _say_hi, through the same kept-session
+# wrapper
+function _hi_dispatch_calls() {
   local out got
-  out="$(_hi_dispatch_probe 0 "" 0)"
+  out="$(_hi_dispatch_probe "$2" "$3" 0)"
   got="$(printf '%s\n' "$out" | sed -n 2p)"
-  [[ "$got" == say_hi:ssh ]] || _hi_why got out
-}
-
-# a container takes the same _say_hi, through the same kept-session wrapper
-function test_hi_dispatch_plain0_with_arm_calls_say_hi_with_the_arm() {
-  local out got
-  out="$(_hi_dispatch_probe 0 docker 0)"
-  got="$(printf '%s\n' "$out" | sed -n 2p)"
-  [[ "$got" == "say_hi:docker" ]] || _hi_why got out
-}
-
-function test_hi_dispatch_plain1_no_arm_calls_say_hi_plain() {
-  local out got
-  out="$(_hi_dispatch_probe 1 "" 0)"
-  got="$(printf '%s\n' "$out" | sed -n 2p)"
-  [[ "$got" == say_hi_plain ]] || _hi_why got out
-}
-
-function test_hi_dispatch_plain1_with_arm_calls_say_hi_container_plain() {
-  local out got
-  out="$(_hi_dispatch_probe 1 docker 0)"
-  got="$(printf '%s\n' "$out" | sed -n 2p)"
-  [[ "$got" == "say_hi_container_plain:docker" ]] || _hi_why got out
+  [ "$got" = "$1" ] || _hi_because "plain [$2], arm [$3]: wanted [$1] - $out"
 }
 
 function test_hi_exit_code_is_the_arms() {
@@ -665,11 +638,11 @@ function run_hi_parse_help_tests() {
   _hi_check "ssh: no command means no trailing word" test_plain_ssh_with_no_command_passes_none
 
   _hi_h2 "Testing: _hi (the dispatch)"
-  _hi_check "PLAIN=0, no arm -> _say_hi" test_hi_dispatch_plain0_no_arm_calls_say_hi
-  _hi_check "PLAIN=0, an arm -> _say_hi with it" test_hi_dispatch_plain0_with_arm_calls_say_hi_with_the_arm
-  _hi_check "PLAIN=1, no arm -> _say_hi_plain" test_hi_dispatch_plain1_no_arm_calls_say_hi_plain
+  _hi_check "PLAIN=0, no arm -> _say_hi" _hi_dispatch_calls say_hi:ssh 0 ""
+  _hi_check "PLAIN=0, an arm -> _say_hi with it" _hi_dispatch_calls say_hi:docker 0 docker
+  _hi_check "PLAIN=1, no arm -> _say_hi_plain" _hi_dispatch_calls say_hi_plain 1 ""
   _hi_check "_HI_PLAIN=1 is the default, --no-plain past it" test_hi_dispatch_plain_setting_is_a_default
-  _hi_check "PLAIN=1, an arm -> _say_hi_container_plain" test_hi_dispatch_plain1_with_arm_calls_say_hi_container_plain
+  _hi_check "PLAIN=1, an arm -> _say_hi_container_plain" _hi_dispatch_calls say_hi_plain:docker 1 docker
   _hi_check "Exits with the arm's own status" test_hi_exit_code_is_the_arms
   _hi_check "Reports failure only on non-zero, with arm+tmp" test_hi_reports_failure_only_on_nonzero_with_arm_and_tmp
 

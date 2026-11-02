@@ -309,7 +309,8 @@ function test_rc_prompt() {
 # sourced again draws again, so an upgraded tree's prompt code is the one
 # running (GLOSSARY: HI.60)
 function test_rc_prompt_redraws_on_a_re_source() {
-  local shell="$1" script out
+  local out
+  local shell="$1" script
   case "$shell" in
   bash) script='source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "$PROMPT_COMMAND" >/dev/null; unset -f __hi_ps1; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; declare -F __hi_ps1' ;;
   zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; unfunction __hi_git_precmd; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "${+functions[__hi_git_precmd]}"' ;;
@@ -538,9 +539,7 @@ function _hi_rc_reentry() {
 
 # test_sh_rc_reentry_returns <shell> <rc>
 function test_sh_rc_reentry_returns() {
-  local got
-  got="$(_hi_rc_reentry "$1" "$2" 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')"
-  [ "$got" = done:root ] || _hi_why got _hi_rc_loading
+  _hi_prints done:root _hi_rc_reentry "$1" "$2" 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"'
 }
 
 function test_fish_rc_reentry_returns() {
@@ -558,7 +557,6 @@ function test_fish_rc_reentry_returns() {
 # tree grows a path between the two sources, which is exactly what an upgrade
 # looks like from inside such a shell.
 function test_sh_rc_re_source_after_an_upgrade() {
-  local got
   local shell="$1" rc="$2" base="$_HI_WORKDIR/upgrade-$1"
   mkdir -p "$base/say-hi" "$base/cfg"
   cp -R "$_HI_ROOT/common" "$_HI_ROOT/config" "$base/say-hi/"
@@ -571,8 +569,7 @@ function test_sh_rc_re_source_after_an_upgrade() {
       printf '%s' \"\${_HI_ADDED_LATER-unset}\"" \
     </dev/null >"$base.out" 2>/dev/null) &
   _hi_wait_pid $! 20
-  got="$(cat "$base.out")"
-  [ "$got" = "unset|$base/say-hi/added" ] || _hi_why got base
+  _hi_prints "unset|$base/say-hi/added" cat "$base.out"
 }
 
 function test_fish_flag_completion_does_not_also_sweep_targets() {
@@ -654,6 +651,14 @@ _HI_OVERLAY_ROWS=(
   "aliases|a target's micro reads the overlay's micro/|micro/settings.json|micro|micro -backup false -savehistory false -config-dir @cfg@/micro"
 )
 
+# _hi_prompt_draws <shell> <label> <glob> <pre> [env...] - test_prompt_program_draws,
+# registered for that shell
+function _hi_prompt_draws() {
+  local shell="$1" label="$2"
+  shift 2
+  _hi_check_requires "$shell" "$label" test_prompt_program_draws "$shell" "$@"
+}
+
 function run_rc_prompt_tests() {
   _hi_rc_begin
 
@@ -688,82 +693,49 @@ function run_rc_prompt_tests() {
   _hi_check_requires fish "[fish] ...and with no config, none at all" test_home_session_aliases_only_his_configs fish none
 
   _hi_h2 "Testing: prompt programs without init (powerline-go, the frameworks)"
-  _hi_check "[bash] powerline-go draws each prompt with the status and options" \
-    test_prompt_program_draws bash 'PLGO -shell bash -error * -jobs 0 -mode flat|*' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
-  _hi_check "[bash] oh-my-bash, loaded by hi, draws the home theme on a target" \
-    test_prompt_program_draws bash 'OMB|*' : _HI_PROMPT_TOOL=oh-my-bash _HI_REMOTE_SESSION=1
+  _hi_prompt_draws bash "[bash] powerline-go draws each prompt with the status and options" 'PLGO -shell bash -error * -jobs 0 -mode flat|*' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
+  _hi_prompt_draws bash "[bash] oh-my-bash, loaded by hi, draws the home theme on a target" 'OMB|*' : _HI_PROMPT_TOOL=oh-my-bash _HI_REMOTE_SESSION=1
   _hi_check "[bash] ...putting back an alias whose value holds a quote" test_oh_my_bash_keeps_an_alias_with_a_quote
   _hi_check "[bash] ...and puts back the aliases set before it" test_oh_my_bash_puts_the_aliases_back
-  _hi_check "[bash] ...at home, with no theme to draw, hi's prompt stays" \
-    test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=oh-my-bash
-  _hi_check "[bash] ...loaded by the rc, its prompt stays at home" \
-    test_prompt_program_draws bash 'RC-OMB|*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL=oh-my-bash
+  _hi_prompt_draws bash "[bash] ...at home, with no theme to draw, hi's prompt stays" '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=oh-my-bash
+  _hi_prompt_draws bash "[bash] ...loaded by the rc, its prompt stays at home" 'RC-OMB|*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL=oh-my-bash
   _hi_check "[bash] ...a target sent no loader for it keeps hi's prompt" \
     test_prompt_framework_without_its_loader_is_passed_over bash oh-my-bash '*\\u@\\h:\\w*'
-  _hi_check "[bash] bash-it, loaded by hi, draws the home theme on a target" \
-    test_prompt_program_draws bash 'BASHIT|*' : _HI_PROMPT_TOOL=bash-it _HI_REMOTE_SESSION=1
-  _hi_check "[bash] ...at home, with no theme to draw, hi's prompt stays" \
-    test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=bash-it
+  _hi_prompt_draws bash "[bash] bash-it, loaded by hi, draws the home theme on a target" 'BASHIT|*' : _HI_PROMPT_TOOL=bash-it _HI_REMOTE_SESSION=1
+  _hi_prompt_draws bash "[bash] ...at home, with no theme to draw, hi's prompt stays" '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=bash-it
   _hi_check "[bash] ...loaded by the rc, its precmd hands over to the home theme" test_bash_it_from_the_rc_hands_over_its_precmd
-  _hi_check "[bash] a list's first program that fits the shell wins" \
-    test_prompt_program_draws bash 'OMB|*' : _HI_PROMPT_TOOL="tide powerlevel10k oh-my-bash" _HI_REMOTE_SESSION=1
-  _hi_check "[bash] a name hi does not know keeps hi's prompt" \
-    test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=powerline
-  _hi_check_requires zsh "[zsh] powerline-go draws each prompt with the status and options" \
-    test_prompt_program_draws zsh 'PLGO -shell zsh -error * -jobs 0 -mode flat|*' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
-  _hi_check_requires zsh "[zsh] powerlevel10k, loaded by hi, takes the home config on a target" \
-    test_prompt_program_draws zsh 'P10K+CFG|*' : _HI_PROMPT_TOOL=powerlevel10k _HI_REMOTE_SESSION=1
-  _hi_check_requires zsh "[zsh] ...loaded by the rc, the home config goes over the target's" \
-    test_prompt_program_draws zsh 'RC+CFG|*' 'p10k() { :; }; PROMPT=RC' _HI_PROMPT_TOOL=powerlevel10k _HI_REMOTE_SESSION=1
-  _hi_check_requires zsh "[zsh] oh-my-zsh's libraries, loaded by hi, draw the home theme" \
-    test_prompt_program_draws zsh 'OMZ-G|*' : _HI_PROMPT_TOOL=oh-my-zsh _HI_REMOTE_SESSION=1
-  _hi_check_requires zsh "[zsh] ...at home, with no theme to draw, hi's prompt stays" \
-    test_prompt_program_draws zsh '*%n@%m*' : _HI_PROMPT_TOOL=oh-my-zsh
+  _hi_prompt_draws bash "[bash] a list's first program that fits the shell wins" 'OMB|*' : _HI_PROMPT_TOOL="tide powerlevel10k oh-my-bash" _HI_REMOTE_SESSION=1
+  _hi_prompt_draws bash "[bash] a name hi does not know keeps hi's prompt" '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=powerline
+  _hi_prompt_draws zsh "[zsh] powerline-go draws each prompt with the status and options" 'PLGO -shell zsh -error * -jobs 0 -mode flat|*' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
+  _hi_prompt_draws zsh "[zsh] powerlevel10k, loaded by hi, takes the home config on a target" 'P10K+CFG|*' : _HI_PROMPT_TOOL=powerlevel10k _HI_REMOTE_SESSION=1
+  _hi_prompt_draws zsh "[zsh] ...loaded by the rc, the home config goes over the target's" 'RC+CFG|*' 'p10k() { :; }; PROMPT=RC' _HI_PROMPT_TOOL=powerlevel10k _HI_REMOTE_SESSION=1
+  _hi_prompt_draws zsh "[zsh] oh-my-zsh's libraries, loaded by hi, draw the home theme" 'OMZ-G|*' : _HI_PROMPT_TOOL=oh-my-zsh _HI_REMOTE_SESSION=1
+  _hi_prompt_draws zsh "[zsh] ...at home, with no theme to draw, hi's prompt stays" '*%n@%m*' : _HI_PROMPT_TOOL=oh-my-zsh
   _hi_check_requires zsh "[zsh] ...a target sent no loader for it keeps hi's prompt" \
     test_prompt_framework_without_its_loader_is_passed_over zsh oh-my-zsh '*%n@%m*'
-  _hi_check_requires fish "[fish] powerline-go draws each prompt with the status and options" \
-    test_prompt_program_draws fish 'PLGO -shell bare -error 0 -jobs 0 -mode flat' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
-  _hi_check_requires fish "[fish] tide draws with the home variables, exported, on a target" \
-    test_prompt_program_draws fish 'TIDE:❯:2:0:3' : _HI_PROMPT_TOOL=tide _HI_REMOTE_SESSION=1 LANG=C.UTF-8
-  _hi_check_requires fish "[fish] ...and with its own at home" \
-    test_prompt_program_draws fish 'TIDE::0:0:0' : _HI_PROMPT_TOOL=tide LANG=C.UTF-8
-  _hi_check "[bash] unset, a framework found here keeps its prompt" \
-    test_prompt_program_draws bash 'RC-OMB|*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL=
-  _hi_check "[bash] ...but a target looks at nothing of its own" \
-    test_prompt_program_draws bash '*\\u@\\h:\\w*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
-  _hi_check_requires zsh "[zsh] hi named takes the prompt back from a loaded framework, precmd and all" \
-    test_prompt_program_draws zsh '*%n@%m*' 'p10k() { :; }; _p9k_precmd() { PROMPT=RC; }; precmd_functions+=(_p9k_precmd); PROMPT=RC' _HI_PROMPT_TOOL=hi
-  _hi_check_requires zsh "[zsh] ...unset, the rc's own program keeps its precmd" \
-    test_prompt_program_draws zsh '*RC|*' 'starship_precmd() { PROMPT=RC; }; precmd_functions+=(starship_precmd)' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
-  _hi_check_requires zsh "[zsh] hi named takes the prompt back from starship's >=1.3.0 zsh hook name" \
-    test_prompt_program_draws zsh '*%n@%m*' 'prompt_starship_precmd() { PROMPT=RC; }; precmd_functions+=(prompt_starship_precmd)' _HI_PROMPT_TOOL=hi
-  _hi_check_requires zsh "[zsh] ...unset, starship's current-name precmd keeps drawing" \
-    test_prompt_program_draws zsh '*RC|*' 'prompt_starship_precmd() { PROMPT=RC; }; precmd_functions+=(prompt_starship_precmd)' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
-  _hi_check_requires zsh "[zsh] at home, powerlevel10k installed but not loaded stays off" \
-    test_prompt_program_draws zsh '*%n@%m*' : _HI_PROMPT_TOOL=powerlevel10k
-  _hi_check "[bash] hi named takes the prompt back from the rc's starship hook" \
-    test_prompt_program_draws bash '*\\u@\\h:\\w*' 'starship_precmd() { PS1=STAR; }; PROMPT_COMMAND=starship_precmd' _HI_PROMPT_TOOL=hi
-  _hi_check "[bash] ...unset, the rc's own program keeps its hook" \
-    test_prompt_program_draws bash '*STAR|*' 'starship_precmd() { PS1=STAR; }; PROMPT_COMMAND=starship_precmd' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
-  _hi_check "[bash] hi named clears bash-it's precmd_functions array, not just PROMPT_COMMAND" \
-    test_prompt_program_draws bash '*\\u@\\h:\\w*' 'prompt_command() { PS1=RC; }; precmd_functions=(prompt_command); __hi_test_dispatch() { local f; for f in "${precmd_functions[@]}"; do "$f"; done; }; PROMPT_COMMAND=__hi_test_dispatch' _HI_PROMPT_TOOL=hi
-  _hi_check "[bash] ...unset, bash-it's array-held hook keeps drawing" \
-    test_prompt_program_draws bash '*RC|*' 'prompt_command() { PS1=RC; }; precmd_functions=(prompt_command); __hi_test_dispatch() { local f; for f in "${precmd_functions[@]}"; do "$f"; done; }; PROMPT_COMMAND=__hi_test_dispatch' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
+  _hi_prompt_draws fish "[fish] powerline-go draws each prompt with the status and options" 'PLGO -shell bare -error 0 -jobs 0 -mode flat' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
+  _hi_prompt_draws fish "[fish] tide draws with the home variables, exported, on a target" 'TIDE:❯:2:0:3' : _HI_PROMPT_TOOL=tide _HI_REMOTE_SESSION=1 LANG=C.UTF-8
+  _hi_prompt_draws fish "[fish] ...and with its own at home" 'TIDE::0:0:0' : _HI_PROMPT_TOOL=tide LANG=C.UTF-8
+  _hi_prompt_draws bash "[bash] unset, a framework found here keeps its prompt" 'RC-OMB|*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL=
+  _hi_prompt_draws bash "[bash] ...but a target looks at nothing of its own" '*\\u@\\h:\\w*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
+  _hi_prompt_draws zsh "[zsh] hi named takes the prompt back from a loaded framework, precmd and all" '*%n@%m*' 'p10k() { :; }; _p9k_precmd() { PROMPT=RC; }; precmd_functions+=(_p9k_precmd); PROMPT=RC' _HI_PROMPT_TOOL=hi
+  _hi_prompt_draws zsh "[zsh] ...unset, the rc's own program keeps its precmd" '*RC|*' 'starship_precmd() { PROMPT=RC; }; precmd_functions+=(starship_precmd)' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
+  _hi_prompt_draws zsh "[zsh] hi named takes the prompt back from starship's >=1.3.0 zsh hook name" '*%n@%m*' 'prompt_starship_precmd() { PROMPT=RC; }; precmd_functions+=(prompt_starship_precmd)' _HI_PROMPT_TOOL=hi
+  _hi_prompt_draws zsh "[zsh] ...unset, starship's current-name precmd keeps drawing" '*RC|*' 'prompt_starship_precmd() { PROMPT=RC; }; precmd_functions+=(prompt_starship_precmd)' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
+  _hi_prompt_draws zsh "[zsh] at home, powerlevel10k installed but not loaded stays off" '*%n@%m*' : _HI_PROMPT_TOOL=powerlevel10k
+  _hi_prompt_draws bash "[bash] hi named takes the prompt back from the rc's starship hook" '*\\u@\\h:\\w*' 'starship_precmd() { PS1=STAR; }; PROMPT_COMMAND=starship_precmd' _HI_PROMPT_TOOL=hi
+  _hi_prompt_draws bash "[bash] ...unset, the rc's own program keeps its hook" '*STAR|*' 'starship_precmd() { PS1=STAR; }; PROMPT_COMMAND=starship_precmd' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
+  _hi_prompt_draws bash "[bash] hi named clears bash-it's precmd_functions array, not just PROMPT_COMMAND" '*\\u@\\h:\\w*' 'prompt_command() { PS1=RC; }; precmd_functions=(prompt_command); __hi_test_dispatch() { local f; for f in "${precmd_functions[@]}"; do "$f"; done; }; PROMPT_COMMAND=__hi_test_dispatch' _HI_PROMPT_TOOL=hi
+  _hi_prompt_draws bash "[bash] ...unset, bash-it's array-held hook keeps drawing" '*RC|*' 'prompt_command() { PS1=RC; }; precmd_functions=(prompt_command); __hi_test_dispatch() { local f; for f in "${precmd_functions[@]}"; do "$f"; done; }; PROMPT_COMMAND=__hi_test_dispatch' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
   _hi_check "[bash] hi named clears the known hooks of a PROMPT_COMMAND array, and keeps the rest" \
     test_hi_named_clears_the_hooks_of_a_prompt_command_array
-  _hi_check_requires fish "[fish] unset, tide found here draws" \
-    test_prompt_program_draws fish 'TIDE::0:0:0' : _HI_PROMPT_TOOL= LANG=C.UTF-8
-  _hi_check_requires fish "[fish] a program that does not fit fish keeps hi's prompt" \
-    test_prompt_program_draws fish '*@*' : _HI_PROMPT_TOOL="oh-my-bash powerlevel10k" XDG_CONFIG_HOME="$_HI_WORKDIR/noprompt"
+  _hi_prompt_draws fish "[fish] unset, tide found here draws" 'TIDE::0:0:0' : _HI_PROMPT_TOOL= LANG=C.UTF-8
+  _hi_prompt_draws fish "[fish] a program that does not fit fish keeps hi's prompt" '*@*' : _HI_PROMPT_TOOL="oh-my-bash powerlevel10k" XDG_CONFIG_HOME="$_HI_WORKDIR/noprompt"
   # one setting, a program per shell: bash:starship is bash's alone
-  _hi_check "[bash] bash:starship hi draws starship in bash, at home" \
-    test_prompt_program_draws bash 'PROMPT-STUB|*' : _HI_PROMPT_TOOL="bash:starship hi" PATH="$(_hi_prompt_stub_dir starship):$PATH"
-  _hi_check "[bash] ...and on a target" \
-    test_prompt_program_draws bash 'PROMPT-STUB|*' : _HI_PROMPT_TOOL="bash:starship hi" _HI_REMOTE_SESSION=1 PATH="$(_hi_prompt_stub_dir starship):$PATH"
-  _hi_check_requires zsh "[zsh] ...and hi's prompt in zsh" \
-    test_prompt_program_draws zsh '*%n@%m*' : _HI_PROMPT_TOOL="bash:starship hi" _HI_REMOTE_SESSION=1 PATH="$(_hi_prompt_stub_dir starship):$PATH"
-  _hi_check_requires fish "[fish] ...and in fish" \
-    test_prompt_program_draws fish '*@*' : _HI_PROMPT_TOOL="bash:starship hi" _HI_REMOTE_SESSION=1 PATH="$(_hi_prompt_stub_dir starship):$PATH" XDG_CONFIG_HOME="$_HI_WORKDIR/noprompt"
+  _hi_prompt_draws bash "[bash] bash:starship hi draws starship in bash, at home" 'PROMPT-STUB|*' : _HI_PROMPT_TOOL="bash:starship hi" PATH="$(_hi_prompt_stub_dir starship):$PATH"
+  _hi_prompt_draws bash "[bash] ...and on a target" 'PROMPT-STUB|*' : _HI_PROMPT_TOOL="bash:starship hi" _HI_REMOTE_SESSION=1 PATH="$(_hi_prompt_stub_dir starship):$PATH"
+  _hi_prompt_draws zsh "[zsh] ...and hi's prompt in zsh" '*%n@%m*' : _HI_PROMPT_TOOL="bash:starship hi" _HI_REMOTE_SESSION=1 PATH="$(_hi_prompt_stub_dir starship):$PATH"
+  _hi_prompt_draws fish "[fish] ...and in fish" '*@*' : _HI_PROMPT_TOOL="bash:starship hi" _HI_REMOTE_SESSION=1 PATH="$(_hi_prompt_stub_dir starship):$PATH" XDG_CONFIG_HOME="$_HI_WORKDIR/noprompt"
   _hi_check "[bash] liquidprompt's prompt stays, unless hi is named" \
     test_foreign_prompt_stays_unless_hi_named bash '_LP_VERSION=(2 3 0)'
   _hi_check "[bash] ...and bash-git-prompt's" \

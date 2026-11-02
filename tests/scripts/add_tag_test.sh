@@ -91,7 +91,7 @@ function test_add_tag_tags_a_pattern() {
 }
 
 function test_add_tag_refuses_an_unknown_host_and_a_bad_tag() {
-  local home before got
+  local home before
   home="$(_hi_addtag_fixture addtag-refuse)"
   before="$(cat "$home/.ssh/config")"
   ! _hi_addtag_run "$home" nothere lab >/dev/null || _hi_why home || return 1
@@ -100,8 +100,7 @@ function test_add_tag_refuses_an_unknown_host_and_a_bad_tag() {
   ! _hi_addtag_run "$home" web2 kube >/dev/null || _hi_why home || return 1
   ! _hi_addtag_run "$home" web2 docker >/dev/null || _hi_why home || return 1
   ! _hi_addtag_run "$home" web2 >/dev/null || _hi_why home || return 1
-  got="$(cat "$home/.ssh/config")"
-  [ "$got" = "$before" ] || _hi_why got home before
+  _hi_prints "$before" cat "$home/.ssh/config"
 }
 
 function test_add_tag_help_is_its_own() {
@@ -143,11 +142,10 @@ function test_add_tag_dry_run_writes_nothing() {
 
 # the file keeps its mode through the rewrite (ssh refuses a loose config)
 function test_add_tag_keeps_the_config_mode() {
-  local home got
+  local home
   home="$(_hi_addtag_fixture addtag-mode)"
   _hi_addtag_run "$home" web2 lab >/dev/null || _hi_why home || return 1
-  got="$(_hi_mode_string "$home/.ssh/config")"
-  [ "$got" = -rw------- ] || _hi_why got home
+  _hi_prints -rw------- _hi_mode_string "$home/.ssh/config"
 }
 
 # The round trip the command exists for: tagged, then drawn by

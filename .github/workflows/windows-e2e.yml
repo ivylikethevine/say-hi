@@ -162,21 +162,15 @@ jobs:
   # /mnt/d it ran past its kill. On ext4 it runs at Linux speed, side by side
   # at the core count, in one job: one at a time it left three of the four
   # cores idle (the runner's machine-use table), and a wedge names its suite
-  # and case through the runner's deadline. A one-entry matrix, so a second
-  # shard is one row and runner_ci_test.sh's partition check reads it as is.
+  # and case through the runner's deadline.
   wsl-suites:
-    name: fast suites (WSL, shard ${{ matrix.shard }})
+    name: fast suites (WSL)
     runs-on: windows-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1/1]
-    # WSLENV is the allowlist of names Windows shares into a wsl-bash step;
-    # HI_SHARD has to be on it or the step's own env: never reaches the
-    # distribution, and USERPROFILE is for the session steps below
+    # WSLENV is the list of names Windows shares into a wsl-bash step;
+    # USERPROFILE is for the session steps below
     env:
-      WSLENV: GITHUB_WORKSPACE:HI_SHARD:USERPROFILE
+      WSLENV: GITHUB_WORKSPACE:USERPROFILE
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
@@ -210,14 +204,11 @@ jobs:
           wsl-version: 2
           additional-packages: bash zsh fish git python3 openssh-server
 
-      # runner_test.sh checks the matrix's slices partition the fast group.
       # $HOME/hi-tree rather than $HOME/say-hi on purpose: $HOME is on hi's
       # install-probe candidate list, and a tree there would be the one a
       # session into this distribution found.
       - name: The fast suites, from a copy on ext4
         shell: wsl-bash {0}
-        env:
-          HI_SHARD: ${{ matrix.shard }}
         run: |
           set -eu
           ws="$(wslpath -u "$GITHUB_WORKSPACE")"
@@ -255,7 +246,7 @@ jobs:
           # leave room in the job's fifteen minutes for a hung setup-wsl and
           # its retry above; the suites take two at the core count.
           _HI_RUN_DEADLINE=420 setsid -w timeout -k 30 480 bash ./tests/test_runner.sh --host-report \
-            --group fast --shard "$HI_SHARD" </dev/null
+            --group fast </dev/null
 
       # The rest of this job: the package layout on this same
       # distribution, then said hi to from Git Bash - the target side of the

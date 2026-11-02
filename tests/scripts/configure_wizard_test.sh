@@ -222,7 +222,6 @@ function test_settings_diff_says_no_changes() {
 # outside it (width, separators, the advanced section) is touched.
 
 function test_apply_preset_seeds_every_answer() {
-  local got
   local target="$_HI_WORKDIR/preset_seed"
   printf 'export _HI_DISABLE_PROMPT=1\nexport _HI_MAX_WIDTH=120\n' >"$target"
   _HI_SETTING_PENDING=()
@@ -230,8 +229,7 @@ function test_apply_preset_seeds_every_answer() {
   # named by the preset: off; not named: back to on, even though the file
   # says off; outside the vocabulary: still the file's
   { setting_off _HI_DISABLE_HEADER "$target" && ! setting_off _HI_DISABLE_PROMPT "$target"; } || _hi_why target || return 1
-  got="$(setting_value _HI_MAX_WIDTH "$target")"
-  [ "$got" = 120 ] || _hi_why got target
+  _hi_prints 120 setting_value _HI_MAX_WIDTH "$target"
 }
 
 function test_apply_preset_rejects_a_stranger() {
@@ -405,7 +403,6 @@ function test_config_hi_skips_chmod_when_already_executable() {
 
 # a writable bindir needs no sudo at all - root installs, userland prefixes
 function test_config_hi_links_plainly_when_bindir_is_writable() {
-  local got
   local dir="$_HI_WORKDIR/writablebin"
   mkdir -p "$dir/bin"
   printf '#!/bin/bash\n' >"$dir/hi.sh"
@@ -419,8 +416,7 @@ function test_config_hi_links_plainly_when_bindir_is_writable() {
     _HI_LINK="$dir/bin/hi"
     config_hi
   ) >/dev/null
-  got="$(readlink "$dir/bin/hi")"
-  [ "$got" = "$dir/hi.sh" ] || _hi_why got dir
+  _hi_prints "$dir/hi.sh" readlink "$dir/bin/hi"
 }
 
 # config_hi's own lockout degradation (both the refused-sudo and the
@@ -437,7 +433,6 @@ function test_config_hi_links_plainly_when_bindir_is_writable() {
 
 function test_prompt_preview_shows_this_user_and_host() {
   local got got2
-  _hi_load_preview_sources
   local out
   out="$(_hi_strip_ansi "$(_hi_prompt_preview)")"
   got="$(_hi_whoami)"
@@ -449,7 +444,6 @@ function test_prompt_preview_shows_this_user_and_host() {
 # always live): with the colored prompt off, it says so and skips drawing one
 # rather than rendering a prompt the run will not actually use.
 function test_prompt_sample_preview_says_off_when_disabled() {
-  _hi_load_preview_sources
   local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-off.settings.sh"
   printf 'export _HI_DISABLE_PROMPT=1\n' >"$_HI_SETTINGS"
   local out
@@ -461,7 +455,6 @@ function test_prompt_sample_preview_says_off_when_disabled() {
 # user@host, ending in bash's shipped end character
 function test_prompt_sample_preview_draws_the_prompt_when_on() {
   local got got2
-  _hi_load_preview_sources
   local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-on.settings.sh"
   : >"$_HI_SETTINGS"
   local out
@@ -474,7 +467,6 @@ function test_prompt_sample_preview_draws_the_prompt_when_on() {
 # the sample paints with the settings file's scheme, not the running shell's,
 # and leaves this shell's scheme and palette as they were
 function test_prompt_sample_preview_paints_with_the_settings_scheme() {
-  _hi_load_preview_sources
   local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-scheme.settings.sh" scheme="" i out before="$RED"
   for ((i = 0; i < 24; i++)); do scheme="$scheme${scheme:+ }abcdef"; done
   printf 'export _HI_COLOR_SCHEME="%s"\n' "$scheme" >"$_HI_SETTINGS"
@@ -488,7 +480,6 @@ function test_prompt_sample_preview_paints_with_the_settings_scheme() {
 
 # a menu under 60 columns has room for the cwd's last part, not its path
 function test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu() {
-  _hi_load_preview_sources
   local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-narrow.settings.sh" out
   : >"$_HI_SETTINGS"
   mkdir -p "$_HI_WORKDIR/deep/er/leafdir"
@@ -500,44 +491,18 @@ function test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu() {
   [[ "$out" == *"er/leafdir"* ]] || _hi_because "wide: [$out]"
 }
 
-# the preview lists an editor for every config that would ride, whether or
-# not this machine has the editor: the alias is a target's.
-function test_editors_preview_names_every_override() {
-  local out got
-  out="$(_hi_editors_preview)"
-  [[ "$out" == *"nano  -> nano --rcfile $_HI_CONFIG_DIR/nano/nanorc"* ]] || _hi_because "nano: $out" || return 1
-  [[ "$out" == *"emacs -> emacs -nw -q -l $_HI_CONFIG_DIR/emacs/init.el"* ]] || _hi_because "emacs: $out" || return 1
-  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" vim -i NONE -u $_HI_CONFIG_DIR/vim/vimrc"* ]] || _hi_because "vim: $out" || return 1
-  # each name carries the rc of the binary behind it: nvim reads init.lua,
-  # its state kept in the session tree, and leaves `vim` to vim
-  [[ "$out" == *"nvim  -> env XDG_STATE_HOME="*" nvim -u $_HI_CONFIG_DIR/nvim/init.lua"* ]] || _hi_because "nvim: $out" || return 1
-  ! grep -q '^vim  *-> .* nvim -u ' <<<"$out" || _hi_because "vim as nvim: $out" || return 1
-  [[ "$out" == *"hx    -> hx -c $_HI_CONFIG_DIR/helix/config.toml"* && "$out" == *"helix -> helix -c $_HI_CONFIG_DIR/helix/config.toml"* ]] || _hi_because "helix: $out" || return 1
-  # micro's three files share one line
-  [[ "$out" == *"micro -> micro -backup false -savehistory false -config-dir $_HI_CONFIG_DIR/micro"* ]] || _hi_because "micro: $out" || return 1
-  got="$(grep -c '^micro ' <<<"$out")"
-  [ "$got" = 1 ] || _hi_because "micro, more than once: $out"
-}
-
-# the preview has no second spelling to drift out of step: its line for
-# <tool> is the alias a target's shell holds once it has read the wiring.sh
-# a client packs for the same configs, the last of two where a name has two.
-# <tool> <member> <binary>: the alias, the config behind it, and the command
-# a target has to have for the line to land.
-function test_editor_preview_matches_its_alias() {
-  local tool="$1" member="$2" bin="$3" from_alias from_preview path dir="$_HI_WORKDIR/preview-$1"
+# the alias a target's shell holds once it has read the wiring.sh a client packs
+# for <member>, with <binary> installed there: each name carries the rc of the
+# binary behind it. <want> is a glob over `alias <tool>`'s output.
+function test_editor_alias_carries_its_config() {
+  local tool="$1" member="$2" bin="$3" want="$4" got path dir="$_HI_WORKDIR/wiring-$1"
   mkdir -p "$dir"
   _hi_wiring_for "$member" >"$dir/wiring.sh" || _hi_why member dir || return 1
-  path="$(_hi_fake_path "preview-bin-$bin" "$bin"):$PATH"
+  path="$(_hi_fake_path "wiring-bin-$bin" "$bin"):$PATH"
   # shellcheck disable=SC2016 # the child bash expands its own script
-  from_alias="$(PATH="$path" bash -c '. "$1" && alias "$2"' _ "$dir/wiring.sh" "$tool" 2>/dev/null)"
-  [ -n "$from_alias" ] || _hi_because "no $tool alias to compare" || return 1
-  from_alias="${from_alias#alias "$tool"=\'}"
-  from_alias="${from_alias%\'}"
-  # the preview names the session tree as a target will, by its variable
-  from_preview="$(_hi_editors_preview | sed -n "s/^$tool *-> //p" | tail -n 1)"
-  from_preview="${from_preview//\$_HI_HOME/$_HI_HOME}"
-  [ "$from_alias" = "$from_preview" ] || _hi_because "alias: [$from_alias]"$'\n'"preview: [$from_preview]"
+  got="$(PATH="$path" bash -c '. "$1" && alias "$2"' _ "$dir/wiring.sh" "$tool" 2>/dev/null)"
+  # shellcheck disable=SC2053 # want is a glob
+  [[ "$got" == $want ]] || _hi_because "$tool: wanted [$want], got [$got]"
 }
 
 function test_bat_preview_names_the_bat_it_found() {
@@ -573,24 +538,18 @@ _HI_CFG_ENV_ROSTER="MISE_SHELL ASDF_DIR PYENV_VERSION RBENV_VERSION NODENV_VERSI
   CONDA_DEFAULT_ENV VIRTUAL_ENV VIRTUAL_ENV_PROMPT"
 
 function test_env_status_preview_draws_the_live_segment() {
-  local got
-  _hi_load_preview_sources
   local out
   # shellcheck disable=SC2086 # the roster is a word list on purpose
   out="$(unset $_HI_CFG_ENV_ROSTER && export VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1 &&
     _hi_env_status_preview)"
-  got="$(_hi_strip_ansi "$out")"
-  [ "$got" = "(myproj) " ] || _hi_because "preview: $out"
+  _hi_prints "(myproj) " _hi_strip_ansi "$out"
 }
 
 function test_env_status_preview_samples_with_nothing_active() {
-  local got
-  _hi_load_preview_sources
   local out
   # shellcheck disable=SC2086 # the roster is a word list on purpose
   out="$(unset $_HI_CFG_ENV_ROSTER && _hi_env_status_preview)"
-  got="$(_hi_strip_ansi "$out")"
-  [ "$got" = "(mise|direnv:proj|myproj) " ] || _hi_because "preview: $out"
+  _hi_prints "(mise|direnv:proj|myproj) " _hi_strip_ansi "$out"
 }
 
 # the preview names what draws the prompt without the setting - hi.sh's
@@ -639,7 +598,6 @@ function _hi_check_preview_at() {
 # the preview is the check at the groups this run holds
 function test_check_preview_renders_the_groups_that_run() {
   local got
-  _hi_load_preview_sources
   got="$(_hi_check_preview_at "export _HI_PACKAGES_GROUPS='mine'")"
   [[ "$got" == *" sh "* ]] || _hi_why got
 }
@@ -649,7 +607,6 @@ function test_check_preview_renders_the_groups_that_run() {
 # rather than handing show_preview a blank to drop
 function test_check_preview_says_when_nothing_shows() {
   local got
-  _hi_load_preview_sources
   got="$(_hi_check_preview_at "export _HI_PACKAGES_GROUPS='none'")"
   [[ "$got" == *"these groups show nothing here"* ]] || _hi_why got || return 1
   got="$(_hi_check_preview_at '')"
@@ -870,11 +827,13 @@ function run_configure_wizard_tests() {
   _hi_check "...and draws the prompt when it is on" test_prompt_sample_preview_draws_the_prompt_when_on
   _hi_check "...painted with the settings file's scheme" test_prompt_sample_preview_paints_with_the_settings_scheme
   _hi_check "...its cwd cut to the last part in a narrow menu" test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu
-  _hi_check "Editors preview names every override" test_editors_preview_names_every_override
-  _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim vim/vimrc vim
-  _hi_check "...and the nvim preview matches its own" test_editor_preview_matches_its_alias nvim nvim/init.lua nvim
-  _hi_check "...and the hx preview matches its own" test_editor_preview_matches_its_alias hx helix/config.toml hx
-  _hi_check "...and so does helix's, under that name alone" test_editor_preview_matches_its_alias helix helix/config.toml helix
+  _hi_check "vim's alias carries its vimrc" test_editor_alias_carries_its_config vim vim/vimrc vim '* vim -i NONE -u */vim/vimrc*'
+  _hi_check "...nvim's its init.lua" test_editor_alias_carries_its_config nvim nvim/init.lua nvim '* nvim -u */nvim/init.lua*'
+  _hi_check "...hx's its config.toml" test_editor_alias_carries_its_config hx helix/config.toml hx '*hx -c */helix/config.toml*'
+  _hi_check "...helix's too, under that name" test_editor_alias_carries_its_config helix helix/config.toml helix '*helix -c */helix/config.toml*'
+  _hi_check "...nano's its nanorc" test_editor_alias_carries_its_config nano nano/nanorc nano '*nano --rcfile */nano/nanorc*'
+  _hi_check "...emacs's its init.el" test_editor_alias_carries_its_config emacs emacs/init.el emacs '*emacs -nw -q -l */emacs/init.el*'
+  _hi_check "...micro's its directory" test_editor_alias_carries_its_config micro micro/settings.json micro '*micro -backup false -savehistory false -config-dir */micro*'
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "the prompt preview names the programs installed here" test_prompt_tool_preview_names_what_is_installed

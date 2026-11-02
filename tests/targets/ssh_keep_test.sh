@@ -182,25 +182,24 @@ function _hi_keep_left() { docker exec "$_HI_KEEPTEST_C" test -e "/tmp/$1"; }
 function _hi_keep_fail() {
   local file="${3:-${out:-}}" why="$2"
   _hi_keep_feeding || why="$why: the typing stopped, waiting on: $(cat "$_HI_KEEPTEST_STUCK")"
-  _hi_h3 " | [$1] -- FAILED: $why" "$RED"
-  [ -z "$file" ] || _hi_show_transcript "the session's transcript" "$file"
+  _hi_case_failed "$1" "$why" "$file"
   _hi_show_target "${_HI_KEEPTEST_C:-}"
-  _hi_note_failure "[$1] $why"
   return 1
 }
 
-# _hi_keep_typed <transcript> <feeder> <launcher...> - a session on a pty of
-# its own, backgrounded, with <feeder>'s stdout typed into it; its pid lands
+# _hi_keep_typed <transcript> <feeder> [hi flag...] - a session on a pty of
+# its own, launched here with those flags, backgrounded, with <feeder>'s stdout typed into it; its pid lands
 # in $_HI_KEEPTEST_PID. The pty outlives the feeder, so a case can leave a
 # session up and attached. TERM is pinned: a runner's may be unset or dumb,
 # and a multiplexer refuses a terminal that cannot clear.
 function _hi_keep_typed() {
   local out="$1" feeder="$2"
   shift 2
+  _hi_ssh_launch "$_HI_SSH_PORT" "$@"
   : >"$out"
   # the feeder only polls the transcript the session is writing
   # shellcheck disable=SC2094
-  "$feeder" "$out" | env TERM=xterm-256color "${_HI_PTY_FORCED[@]}" "$@" >"$out" 2>&1 &
+  "$feeder" "$out" | env TERM=xterm-256color "${_HI_PTY_FORCED[@]}" "${_HI_SSH_LAUNCH_BARE[@]}" >"$out" 2>&1 &
   _HI_KEEPTEST_PID=$!
 }
 
@@ -447,10 +446,28 @@ function _hi_keep_ended() {
   _HI_KEEPTEST_PID=""
 }
 
+# _hi_keep_reattach <label> <transcript> <what a miss means> - the next session
+# connect, no --keep, back in the kept shell
+function _hi_keep_reattach() {
+  _hi_keep_typed "$2" _hi_keep_feed_back
+  _hi_keep_ended "$1" "$2" 240 "the reattached session never closed" || return 1
+  _hi_keep_back "$1" "$2" owner "$3" "reattaching unpacked a tree of its own"
+}
+
+# _hi_keep_next_alone <label> <transcript> - the next connect after a session
+# ended: alone on the target, and leaving nothing
+function _hi_keep_next_alone() {
+  local trees
+  _hi_keep_typed "$2" _hi_keep_feed_count
+  _hi_keep_ended "$1" "$2" 240 "the next connect never ended" || return 1
+  trees="$(cat "$2.trees" 2>/dev/null)"
+  [ "$trees" = 1 ] || _hi_keep_fail "$1" "$trees trees under the next connect, not its own alone" "$2" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_gone || _hi_keep_fail "$1" "the next connect left a tree" "$2"
+}
+
 function _hi_keep_drop() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
-  _hi_ssh_launch "$_HI_SSH_PORT" --keep
-  _hi_keep_typed "$out" _hi_keep_feed_mark "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_mark --keep
   _hi_keep_up "$label" "$out" || return 1
 
   # client and mux master both, or sshd keeps the link (_hi_freeze_session)
@@ -465,17 +482,12 @@ function _hi_keep_drop() {
   _HI_KEEPTEST_PID=""
 
   # no --keep: any session connect reattaches
-  _hi_ssh_launch "$_HI_SSH_PORT"
-  _hi_keep_typed "$out.back" _hi_keep_feed_back "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_keep_ended "$label" "$out.back" 240 "the reattached session never closed" || return 1
-  _hi_keep_back "$label" "$out.back" owner "the next connect was not back in the kept shell" \
-    "reattaching unpacked a tree of its own"
+  _hi_keep_reattach "$label" "$out.back" "the next connect was not back in the kept shell"
 }
 
 function _hi_keep_end() {
   local label="$1" out="$_HI_WORKDIR/$1.out" said rc=0
-  _hi_ssh_launch "$_HI_SSH_PORT" --keep
-  _hi_keep_typed "$out" _hi_keep_feed_leave "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_leave --keep
   _hi_keep_ended "$label" "$out" 240 "exit and n never detached" || return 1
   grep -q 'detached, the session on .* is kept' "$out" ||
     _hi_keep_fail "$label" "detaching did not say the session is kept" "$out" || return 1
@@ -502,8 +514,7 @@ function _hi_keep_timeout() {
   local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config"
   mkdir -p "$_HI_CONFIG_DIR"
   printf 'export _HI_KEEP_TIMEOUT=%s\n' "$_HI_KEEPTEST_LIMIT" >"$_HI_CONFIG_DIR/settings.sh"
-  _hi_ssh_launch "$_HI_SSH_PORT" --keep
-  _hi_keep_typed "$out" _hi_keep_feed_hold "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_hold --keep
   _hi_keep_up "$label" "$out" || return 1
 
   # twice the timeout with a client attached, and the watcher has polled
@@ -521,8 +532,7 @@ function _hi_keep_closes() {
   local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config"
   mkdir -p "$_HI_CONFIG_DIR/tmux"
   printf 'set -g detach-on-destroy off\n' >"$_HI_CONFIG_DIR/tmux/tmux.conf"
-  _hi_ssh_launch "$_HI_SSH_PORT" --keep
-  _hi_keep_typed "$out" _hi_keep_feed_close "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_close --keep
   _hi_keep_up "$label" "$out" || return 1
   got="$(docker exec -u hitest "$_HI_KEEPTEST_C" tmux show-options -gv detach-on-destroy 2>&1)" || true
   [ "$got" = off ] || _hi_keep_fail "$label" "the config did not ride: detach-on-destroy is [$got]" "$out" || return 1
@@ -535,8 +545,7 @@ function _hi_keep_closes() {
 
 function _hi_keep_inside() {
   local label="$1" out="$_HI_WORKDIR/$1.out" typed="${_HI_KEEPTEST_TYPED:-hi --keep}"
-  _hi_ssh_launch "$_HI_SSH_PORT"
-  _hi_keep_typed "$out" _hi_keep_feed_inside "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_inside
   _hi_keep_ended "$label" "$out" 240 "the session $typed was typed in never ended" || return 1
   _hi_keep_left keep.up || _hi_keep_fail "$label" "the kept session's shell never took a line" "$out" || return 1
   [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.outer 2>/dev/null)" = outer ] ||
@@ -546,11 +555,7 @@ function _hi_keep_inside() {
   _hi_keep_is detached || _hi_keep_fail "$label" "the kept session went with the one it was typed in" "$out" || return 1
   _hi_keep_count_is trees 1 || _hi_keep_fail "$label" "$(_hi_keep_count trees) session trees, not the one the two share" || return 1
 
-  _hi_ssh_launch "$_HI_SSH_PORT"
-  _hi_keep_typed "$out.back" _hi_keep_feed_back "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_keep_ended "$label" "$out.back" 240 "the reattached session never closed" || return 1
-  _hi_keep_back "$label" "$out.back" owner "the next connect was not in the kept shell" \
-    "reattaching unpacked a tree of its own"
+  _hi_keep_reattach "$label" "$out.back" "the next connect was not in the kept shell"
 }
 
 # the multiplexer's own name typed bare where `hi --keep` was: the same
@@ -562,8 +567,7 @@ function _hi_keep_bare() {
 
 function _hi_keep_pane() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
-  _hi_ssh_launch "$_HI_SSH_PORT" --keep
-  _hi_keep_typed "$out" _hi_keep_feed_pane "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_pane --keep
   _hi_keep_up "$label" "$out" || return 1
   _hi_keep_new_pane >/dev/null 2>&1 || _hi_keep_fail "$label" "$_HI_KEEPTEST_MUX would not open a pane" "$out" || return 1
   _hi_poll_bool 40 0.5 _hi_keep_count_is shells 2 ||
@@ -578,8 +582,7 @@ function _hi_keep_pane() {
 
 function _hi_keep_dead() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
-  _hi_ssh_launch "$_HI_SSH_PORT" --keep
-  _hi_keep_typed "$out" _hi_keep_feed_leave "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_leave --keep
   _hi_keep_ended "$label" "$out" 240 "exit and n never detached" || return 1
   _hi_keep_is detached || _hi_keep_fail "$label" "exit and n closed the session" "$out" || return 1
 
@@ -592,13 +595,7 @@ function _hi_keep_dead() {
     _hi_keep_fail "$label" "the session outlived its processes" || return 1
   _hi_keep_count_is trees 1 || _hi_keep_fail "$label" "$(_hi_keep_count trees) trees after the kill, not the one it leaves" || return 1
 
-  _hi_ssh_launch "$_HI_SSH_PORT"
-  _hi_keep_typed "$out.next" _hi_keep_feed_count "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_keep_ended "$label" "$out.next" 240 "the next connect never ended" || return 1
-  [ "$(cat "$out.next.trees" 2>/dev/null)" = 1 ] ||
-    _hi_keep_fail "$label" "$(cat "$out.next.trees" 2>/dev/null) trees under the next connect, not its own alone" "$out.next" || return 1
-  _hi_poll_bool 40 0.5 _hi_keep_gone ||
-    _hi_keep_fail "$label" "the next connect left a tree" "$out.next"
+  _hi_keep_next_alone "$label" "$out.next"
 }
 
 # the link cut from the target's end: sshd's process for the connection is
@@ -615,8 +612,7 @@ function _hi_keep_cut_link() {
 
 function _hi_keep_retry() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
-  _hi_ssh_launch "$_HI_SSH_PORT" --keep
-  _hi_keep_typed "$out" _hi_keep_feed_retry "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_retry --keep
   _hi_keep_up "$label" "$out" || return 1
 
   _hi_keep_cut_link || _hi_keep_fail "$label" "no connection to cut" "$out" || return 1
@@ -628,8 +624,7 @@ function _hi_keep_retry() {
 
 function _hi_keep_lost() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
-  _hi_ssh_launch "$_HI_SSH_PORT" --keep
-  _hi_keep_typed "$out" _hi_keep_feed_lost "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_lost --keep
   _hi_keep_up "$label" "$out" || return 1
 
   # sshd's process for the connection is the account's too
@@ -651,8 +646,7 @@ function _hi_keep_lost() {
 # is a shell on it, where the first one stood
 function _hi_keep_held() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
-  _hi_ssh_launch "$_HI_SSH_PORT" --keep
-  _hi_keep_typed "$out" _hi_keep_feed_resume "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_resume --keep
   _hi_keep_up "$label" "$out" || return 1
 
   _hi_keep_cut_link || _hi_keep_fail "$label" "no connection to cut" "$out" || return 1
@@ -672,8 +666,7 @@ function _hi_keep_expired() {
   local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config" _HI_KEEP_RETRY=0
   mkdir -p "$_HI_CONFIG_DIR"
   printf 'export _HI_HOLD_TIMEOUT=%s\nexport _HI_WATCH_STEP=%s\n' "$_HI_KEEPTEST_LIMIT" "$_HI_KEEPTEST_STEP" >"$_HI_CONFIG_DIR/settings.sh"
-  _hi_ssh_launch "$_HI_SSH_PORT" --keep
-  _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_stand --keep
   _hi_keep_came_up "$label" "$out" || return 1
 
   _hi_keep_cut_link || _hi_keep_fail "$label" "no connection to cut" "$out" || return 1
@@ -712,8 +705,7 @@ function _hi_keep_killed() {
   local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config" _HI_KEEP_RETRY=0
   mkdir -p "$_HI_CONFIG_DIR"
   printf 'export _HI_WATCH_STEP=%s\n' "$_HI_KEEPTEST_STEP" >"$_HI_CONFIG_DIR/settings.sh"
-  _hi_ssh_launch "$_HI_SSH_PORT"
-  _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_stand
   _hi_keep_up "$label" "$out" || return 1
 
   _hi_keep_kill_session ||
@@ -728,8 +720,7 @@ function _hi_keep_killed() {
 function _hi_keep_orphan() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
   local -x _HI_KEEP_RETRY=0
-  _hi_ssh_launch "$_HI_SSH_PORT"
-  _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_typed "$out" _hi_keep_feed_stand
   _hi_keep_came_up "$label" "$out" || return 1
 
   docker exec "$_HI_KEEPTEST_C" sh -c 'test -s /tmp/*.hi.*/say-hi/hi.pid' ||
@@ -738,13 +729,7 @@ function _hi_keep_orphan() {
   _hi_keep_ended "$label" "$out" 120 "the killed session's connect never ended" || return 1
   _hi_keep_count_is trees 1 || _hi_keep_fail "$label" "$(_hi_keep_count trees) trees after the kill, not the one it leaves" || return 1
 
-  _hi_ssh_launch "$_HI_SSH_PORT"
-  _hi_keep_typed "$out.next" _hi_keep_feed_count "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_keep_ended "$label" "$out.next" 240 "the next connect never ended" || return 1
-  [ "$(cat "$out.next.trees" 2>/dev/null)" = 1 ] ||
-    _hi_keep_fail "$label" "$(cat "$out.next.trees" 2>/dev/null) trees under the next connect, not its own alone" "$out.next" || return 1
-  _hi_poll_bool 40 0.5 _hi_keep_gone ||
-    _hi_keep_fail "$label" "the next connect left a tree" "$out.next"
+  _hi_keep_next_alone "$label" "$out.next"
 }
 
 # <scenario>:<what a pass showed>

@@ -285,16 +285,6 @@ function _hi_prompt_here() {
   _HI_PROMPT_LIST_MEMO="$_hi_pl_out"
 }
 
-# _hi_rc_value <NAME> <outvar> <file...> - what the last NAME= line of
-# <file...> sets, its quotes dropped; 1 when none does, or it sets nothing
-function _hi_rc_value() {
-  local _hi_rv=""
-  _hi_rc_last_match "^[[:space:]]*(export[[:space:]]+)?$1=(\"[^\"]*\"|'[^']*'|[^[:space:]#]*)" _hi_rv "${@:3}" || return 1
-  _hi_rv="${_hi_rv#[\"\']}"
-  _hi_rv="${_hi_rv%[\"\']}"
-  [ -n "$_hi_rv" ] && printf -v "$2" '%s' "$_hi_rv"
-}
-
 # _hi_rc_theme <NAME> <rc> [outvar] - $NAME when exported, else what <rc>
 # sets it to: a framework's theme.
 function _hi_rc_theme() {
@@ -311,9 +301,7 @@ function _hi_posh_rc_config() {
   _hi_zshrc_here _hi_pc_z
   _hi_rc_last_match "^[^#]*oh-my-posh[^#]*[[:space:]]init[[:space:]][^#]*(--config[=[:space:]]|-c[[:space:]])[[:space:]]*[\"']?([^\"'[:space:])]+)" \
     _hi_pc_v "$HOME/.bashrc" "$_hi_pc_z" "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"
-  _hi_pc_v="${_hi_pc_v/#\~/$HOME}"
-  _hi_pc_v="${_hi_pc_v/#\$HOME/$HOME}"
-  _hi_pc_v="${_hi_pc_v/#\$\{HOME\}/$HOME}"
+  _hi_carry_path "$_hi_pc_v" _hi_pc_v
   [ -n "$_hi_pc_v" ] && _hi_out "${1:-}" "$_hi_pc_v"
 }
 

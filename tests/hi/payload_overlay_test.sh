@@ -111,10 +111,9 @@ function test_overlay_is_empty_without_one() {
 }
 
 function test_overlay_is_seen_when_present() {
-  local dir got
+  local dir
   dir="$(_hi_overlay_fixture some colors)"
-  got="$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)"
-  [ "$got" = colors ] || _hi_why got dir
+  _HI_CONFIG_DIR="$dir" _hi_prints colors _hi_overlay_files
 }
 
 # members land at the archive's top level under their plain names, since it is
@@ -670,7 +669,7 @@ function test_the_harness_clears_every_home_variable() {
     while [[ $home =~ [$]([A-Za-z_][A-Za-z0-9_]*) ]]; do
       name="${BASH_REMATCH[1]}"
       home="${home#*"$name"}"
-      case "$name" in XDG_CONFIG_HOME | _HI_XDG_CONFIG | GIT_CONFIG_GLOBAL) continue ;; esac
+      case "$name" in XDG_CONFIG_HOME | GIT_CONFIG_GLOBAL) continue ;; esac
       [ -z "${!name:-}" ] || left="$left $name"
     done
   done

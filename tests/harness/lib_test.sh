@@ -515,7 +515,7 @@ function test_pty_wrap_auto_leaves_a_real_tty_alone() {
 
 function test_pty_wrap_actually_allocates_a_pty() {
   _hi_pty_wrap 0 force "no python3" >/dev/null
-  [ "${#_HI_PTY_WRAP[@]}" -gt 0 ] || return 0
+  [ "${#_HI_PTY_WRAP[@]}" -gt 0 ] || _hi_because "no wrapper, on a host capable of a pty" || return 1
   # `test -t 0` inside the wrapper is the whole point: it must see a terminal.
   #
   # </dev/null is not decoration: pty.spawn copies *our* stdin into the pty

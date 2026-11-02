@@ -144,7 +144,7 @@ fi
 # What each suite costs, in seconds, one table a way of dealing shards:
 # --shard deals the suites by one when $_HI_SHARD_BY names it, and a suite
 # not named costs 5. kcov and bashcov are a coverage sweep's, the time CI
-# took tracing each (scratch/coverage_costs.sh reads them off a coverage
+# took tracing each (scratch/shard_costs.sh --coverage reads them off a coverage
 # run), as tests/lib/coverage.sh asks; a suite a tracer skips costs it 0.
 # gitbash is the Windows client's, the time each took under Git Bash on
 # arm64, and e2e and backends ci.yml's shards of those groups
@@ -211,29 +211,16 @@ _HI_TEST_COSTS_BACKENDS="
   kube:98 nerdctl:28 podman:25 nomad:14
 "
 
-# _hi_test_cost <name> - its entry in $_HI_SHARD_BY's table in $_hi_cost, 5
+# _hi_test_cost <name> - its entry in the table in $_hi_costs, in $_hi_cost, 5
 # for none. Out here, not in the substitution that deals by it: bash 3.2
 # cannot parse a case there.
 function _hi_test_cost() {
-  local costs="$_HI_TEST_COSTS_KCOV"
-  case "$_HI_SHARD_BY" in
-  bashcov) costs="$_HI_TEST_COSTS_BASHCOV" ;;
-  gitbash) costs="$_HI_TEST_COSTS_GITBASH" ;;
-  e2e) costs="$_HI_TEST_COSTS_E2E" ;;
-  backends) costs="$_HI_TEST_COSTS_BACKENDS" ;;
-  esac
-  costs=" ${costs//$'\n'/ } " _hi_cost=5
-  case "$costs" in *" $1:"*)
-    _hi_cost="${costs#* "$1":}"
+  _hi_cost=5
+  case "$_hi_costs" in *" $1:"*)
+    _hi_cost="${_hi_costs#* "$1":}"
     _hi_cost="${_hi_cost%% *}"
     ;;
   esac
-}
-
-# _hi_shard_by_cost - does $_HI_SHARD_BY name a table above
-function _hi_shard_by_cost() {
-  case "${_HI_SHARD_BY:-}" in kcov | bashcov | gitbash | e2e | backends) return 0 ;; esac
-  return 1
 }
 
 # <group>:<name>:<path> -> $_hi_tg and $_hi_tn, the parts every consumer below
@@ -440,8 +427,16 @@ if [ -n "$_HI_SHARD" ]; then
     exit 1
   fi
   declare -a _hi_sharded=()
-  _hi_mine=" "
-  if _hi_shard_by_cost; then
+  _hi_mine=" " _hi_costs=""
+  # the table $_HI_SHARD_BY names, if any
+  case "${_HI_SHARD_BY:-}" in
+  kcov) _hi_costs=" ${_HI_TEST_COSTS_KCOV//$'\n'/ } " ;;
+  bashcov) _hi_costs=" ${_HI_TEST_COSTS_BASHCOV//$'\n'/ } " ;;
+  gitbash) _hi_costs=" ${_HI_TEST_COSTS_GITBASH//$'\n'/ } " ;;
+  e2e) _hi_costs=" ${_HI_TEST_COSTS_E2E//$'\n'/ } " ;;
+  backends) _hi_costs=" ${_HI_TEST_COSTS_BACKENDS//$'\n'/ } " ;;
+  esac
+  if [ -n "$_hi_costs" ]; then
     while read -r _hi_j _hi_k; do
       if [ "$_hi_j" -eq $((_hi_shard_i - 1)) ]; then _hi_mine="$_hi_mine$_hi_k "; fi
     done < <(
@@ -456,7 +451,7 @@ if [ -n "$_HI_SHARD" ]; then
   fi
   _hi_k=0
   for _hi_t in "${_HI_SELECTED[@]}"; do
-    if _hi_shard_by_cost; then
+    if [ -n "$_hi_costs" ]; then
       case "$_hi_mine" in *" $_hi_k "*) _hi_sharded+=("$_hi_t") ;; esac
     elif [ $((_hi_k % _hi_shard_n)) -eq $((_hi_shard_i - 1)) ]; then
       _hi_sharded+=("$_hi_t")
@@ -574,19 +569,14 @@ _HI_CASES_FAILED=0
 _HI_CASES_SKIPPED=0
 _HI_RUN_T0="$(_hi_now)"
 
-# _hi_status_line <name> <result> <color> - the one line collapsed mode leaves
-# behind per suite, in the same column as every per-case verdict inside a
-# suite: test_lib.sh's _hi_align is the shared rule, and this is just the
-# runner's prefix in front of it.
-function _hi_status_line() {
-  _hi_align " | $1" "$2" "$3"
-}
-
-# _hi_collect_suite <name> <code|MISSING> <seconds> <counts> <fails> <log> -
-# tally one finished suite into the summary rows and, in collapsed mode, print
-# its status line (and its transcript, when it did not pass).
+# _hi_collect_suite <name> <i> - tally finished suite <i>, from its files in
+# $_HI_RUN_DIR, into the summary rows and, in collapsed mode, print its status
+# line (and its transcript, when it did not pass). A suite that left no .rc
+# ended without a verdict.
 function _hi_collect_suite() {
-  local _hi_name="$1" _hi_code="$2" _hi_dur="$3s" _hi_counts="$4" _hi_fails="$5" _hi_log="$6"
+  local _hi_name="$1" _hi_code=1 _hi_dur=0 _hi_counts="$_HI_RUN_DIR/$2.counts" _hi_fails="$_HI_RUN_DIR/$2.fails" _hi_log="$_HI_RUN_DIR/$2.log"
+  [ ! -f "$_HI_RUN_DIR/$2.rc" ] || read -r _hi_code _hi_dur <"$_HI_RUN_DIR/$2.rc"
+  _hi_dur="${_hi_dur}s"
   local _hi_pass="-" _hi_fail="-" _hi_skipcnt="-" _hi_skip="" _hi_status _hi_cases _hi_rest _hi_bad _hi_line _hi_cases_note
 
   if [ "$_hi_code" = MISSING ]; then
@@ -688,9 +678,9 @@ function _hi_collect_suite() {
     [ "$_hi_pass" != - ] && _hi_cases_note="$_hi_pass passed, "
     [ "$_hi_skipcnt" != - ] && [ "$_hi_skipcnt" != 0 ] && _hi_cases_note="$_hi_cases_note$_hi_skipcnt skipped, "
     case "$_hi_status" in
-    PASS) _hi_status_line "$_hi_name" "PASS ($_hi_cases_note$_hi_dur)" "$GREEN" ;;
-    SKIPPED) _hi_status_line "$_hi_name" "SKIPPED ($_hi_skip)" "$YELLOW" ;;
-    *) _hi_status_line "$_hi_name" "$_hi_status ($_hi_cases_note$_hi_dur)" "$RED" ;;
+    PASS) _hi_align " | $_hi_name" "PASS ($_hi_cases_note$_hi_dur)" "$GREEN" ;;
+    SKIPPED) _hi_align " | $_hi_name" "SKIPPED ($_hi_skip)" "$YELLOW" ;;
+    *) _hi_align " | $_hi_name" "$_hi_status ($_hi_cases_note$_hi_dur)" "$RED" ;;
     esac
   fi
 }
@@ -823,14 +813,14 @@ function _hi_run_suite_watched() {
 # or else the live .progress for its cases, .progress alone for a running
 # one. Reads and globs only - forks are what Git Bash is slow at.
 function _hi_progress_line() {
-  local k="$1" t f s entry name cases=0 running="" bar dots file
+  local k="$1" t f s entry name cases=0 running="" bar dots file _hi_tg _hi_tn
   shift
   _hi_pg_done=0
   _hi_pg_failed=0
   for entry in "$@"; do
     k=$((k + 1))
-    name="${entry#*:}"
-    name="${name%%:*}"
+    _hi_test_fields "$entry"
+    name="$_hi_tn"
     if [ -f "$_HI_RUN_DIR/$k.rc" ]; then
       _hi_pg_done=$((_hi_pg_done + 1))
     elif [ -f "$_HI_RUN_DIR/$k.progress" ]; then
@@ -986,6 +976,17 @@ function _hi_usage_report() {
   return 0
 }
 
+# _hi_suite_timed <stall> - the watched run of suite $_hi_i: `.running`, which
+# the usage sampler counts, while it goes, then its verdict and seconds in `.rc`
+function _hi_suite_timed() {
+  local t0 code
+  : >"$_HI_RUN_DIR/$_hi_i.running"
+  t0="$(_hi_now)"
+  if _hi_run_suite_watched "$1"; then code=0; else code=$?; fi
+  printf '%s %s\n' "$code" "$(_hi_elapsed "$t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
+  rm -f "$_HI_RUN_DIR/$_hi_i.running"
+}
+
 # _hi_run_batch <width> <suite-entry...> - the scheduling loop plus its
 # parallel-run collection pass, over one homogeneous batch. $_hi_i is global
 # and never reset between calls, so the two batches' $_HI_RUN_DIR files never
@@ -993,7 +994,7 @@ function _hi_usage_report() {
 # names, so each batch's starts empty.
 function _hi_run_batch() {
   local width="$1" _hi_t _hi_tg _hi_tn _hi_name _hi_path _hi_counts _hi_fails _hi_log
-  local _hi_t0 _hi_code _hi_dur _hi_batch_i0=$_hi_i _HI_PAR_SLOTS="$1" _hi_pid _hi_ticker="" _hi_progress=""
+  local _hi_batch_i0=$_hi_i _HI_PAR_SLOTS="$1" _hi_pid _hi_ticker="" _hi_progress
   # the stall a suite is ended at: ten minutes side by side, where a suite
   # is plain processes, and never one by one or in the e2e phase
   # ($_hi_e2e_phase) unless asked, where a case may build an image - the run's
@@ -1023,7 +1024,7 @@ function _hi_run_batch() {
     if [ ! -f "$_hi_path" ]; then
       printf 'MISSING 0\n' >"$_HI_RUN_DIR/$_hi_i.rc"
       printf '%s' "$_hi_path" >"$_hi_log"
-      [ "$width" -gt 1 ] || _hi_collect_suite "$_hi_name" MISSING 0 "$_hi_counts" "$_hi_fails" "$_hi_log"
+      [ "$width" -gt 1 ] || _hi_collect_suite "$_hi_name" "$_hi_i"
       continue
     fi
 
@@ -1032,40 +1033,29 @@ function _hi_run_batch() {
     [ "$width" -le 1 ] || _hi_par_slot
     if [ "$_HI_RUN_DEADLINE" != 0 ] && ((SECONDS >= _HI_RUN_DEADLINE_AT)); then
       printf 'not started: the run had passed its %ss deadline\n' "$_HI_RUN_DEADLINE" | tee "$_hi_fails" | sed 's/^/ | /' >"$_hi_log"
-      if [ "$width" -gt 1 ]; then
-        printf '125 0\n' >"$_HI_RUN_DIR/$_hi_i.rc"
-      else
-        _hi_collect_suite "$_hi_name" 125 0 "$_hi_counts" "$_hi_fails" "$_hi_log"
-      fi
+      printf '125 0\n' >"$_HI_RUN_DIR/$_hi_i.rc"
+      [ "$width" -gt 1 ] || _hi_collect_suite "$_hi_name" "$_hi_i"
       continue
     fi
 
     if [ "$width" -gt 1 ]; then
       (
         # its presence is what the progress line reads as "running"
-        [ -z "$_hi_progress" ] || : >"$_hi_progress"
-        # ...and .running what the usage sampler counts
-        : >"$_HI_RUN_DIR/$_hi_i.running"
-        _hi_t0="$(_hi_now)"
-        if _hi_run_suite_watched "$_hi_stall" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
-        printf '%s %s\n' "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
-        rm -f "$_HI_RUN_DIR/$_hi_i.running"
+        : >"$_hi_progress"
+        _hi_suite_timed "$_hi_stall" >"$_hi_log" 2>&1
       ) &
       _HI_PAR_RUNNING+=("$!")
       continue
     fi
 
     _hi_h2 "Running $_hi_name"
-    _hi_t0="$(_hi_now)"
-    : >"$_HI_RUN_DIR/$_hi_i.running"
     if [ "$_HI_VERBOSE" = 1 ]; then
-      if _hi_run_suite_watched "$_hi_stall"; then _hi_code=0; else _hi_code=$?; fi
+      _hi_suite_timed "$_hi_stall"
     else
-      if _hi_run_suite_watched "$_hi_stall" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+      _hi_suite_timed "$_hi_stall" >"$_hi_log" 2>&1
     fi
-    rm -f "$_HI_RUN_DIR/$_hi_i.running"
     _hi_restore_tty
-    _hi_collect_suite "$_hi_name" "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" "$_hi_counts" "$_hi_fails" "$_hi_log"
+    _hi_collect_suite "$_hi_name" "$_hi_i"
   done
 
   # the parallel run's collection pass, in table order: wait out every suite
@@ -1083,11 +1073,9 @@ function _hi_run_batch() {
     _hi_i=$_hi_batch_i0
     for _hi_name in ${_hi_batch_names[@]+"${_hi_batch_names[@]}"}; do
       _hi_i=$((_hi_i + 1))
-      _hi_code=1 _hi_dur=0
-      [ -f "$_HI_RUN_DIR/$_hi_i.rc" ] && read -r _hi_code _hi_dur <"$_HI_RUN_DIR/$_hi_i.rc"
       _hi_h2 "Running $_hi_name"
       _hi_restore_tty
-      _hi_collect_suite "$_hi_name" "$_hi_code" "$_hi_dur" "$_HI_RUN_DIR/$_hi_i.counts" "$_HI_RUN_DIR/$_hi_i.fails" "$_HI_RUN_DIR/$_hi_i.log"
+      _hi_collect_suite "$_hi_name" "$_hi_i"
     done
   fi
 }

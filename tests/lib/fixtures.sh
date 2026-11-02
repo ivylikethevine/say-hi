@@ -24,9 +24,11 @@
 function _hi_strip_ansi() {
   local esc=$'\e' bel=$'\a'
   printf '%s' "$1" | sed \
-    -e "s/${esc}\[[0-9;]*m//g" \
+    -e "s/${esc}\[[0-9;?<=>]*[ -/]*[@-~]//g" \
     -e "s/${esc}\][^${bel}${esc}]*${bel}//g" \
-    -e "s/${esc}\][^${bel}${esc}]*${esc}\\\\//g"
+    -e "s/${esc}\][^${bel}${esc}]*${esc}\\\\//g" \
+    -e "s/${esc}[()][0-9A-Za-z]//g" \
+    -e "s/${esc}[=>78cM]//g"
 }
 
 # _hi_within_percent <got> <want> <pct> - is <got> within <pct>% of <want>?

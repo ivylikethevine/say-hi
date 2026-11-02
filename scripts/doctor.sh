@@ -113,7 +113,7 @@ source "$_HI_HEADER"
 
 # --json, --problems, the target, --use, and ssh options come in any order: `hi --doctor
 # host --json` and `hi --doctor -J bastion host` read naturally. An ssh
-# option that takes a value (hi.sh's _hi_is_ssh_value_opt) takes the next
+# option that takes a value (hi.sh's _hi_ssh_opt) takes the next
 # word with it into $_HI_DOC_SSHARGS; any other `-x` rides along alone. An
 # unknown `--word` is an error, not a target - a target never starts with a
 # dash - and so is a second target. hi.sh's _hi_ssh_opt sorts an ssh option

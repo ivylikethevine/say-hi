@@ -28,13 +28,12 @@ unset _hi_d
 # after core.sh, which ends with `set +euo pipefail`. GLOSSARY: HI.15
 set -euo pipefail
 
-me="${_HI_ARGV0:-hi --edit}"
-_HI_ME="$me"
+_HI_ME="${_HI_ARGV0:-hi --edit}"
 args=()
 
 function _hi_edit_help() {
   cat <<EOF
-Usage: $me [<file>]
+Usage: $_HI_ME [<file>]
 
 Opens your overlay, $_HI_CONFIG_DIR, in your editor: the whole directory,
 or one <file> of it by its path there (plugins, colors, packages,
@@ -53,12 +52,12 @@ while [ $# -gt 0 ]; do
     _hi_edit_help
     exit 0
     ;;
-  --*) _hi_die "unknown option $1 ($me --help)" ;;
+  --*) _hi_die "unknown option $1 ($_HI_ME --help)" ;;
   *) args+=("$1") ;;
   esac
   shift
 done
-[ "${#args[@]}" -le 1 ] || _hi_die "takes one file at most ($me --help)"
+[ "${#args[@]}" -le 1 ] || _hi_die "takes one file at most ($_HI_ME --help)"
 
 # the editor: the first of the three variables that names a command here
 # (a value may carry flags, so its first word is what is looked up), else

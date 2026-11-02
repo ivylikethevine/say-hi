@@ -61,8 +61,7 @@ function test_an_ssh_value_option_takes_its_word() {
   out="$("$_HI_DOCTOR" -p 2222 -J bastion one two 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time (one and two)"* ]] || _hi_why rc out || return 1
   rc=0
-  out="$("$_HI_DOCTOR" -4 one -A two 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time (one and two)"* ]] || _hi_why rc out
+  _hi_refused "one target at a time (one and two)" "$_HI_DOCTOR" -4 one -A two || _hi_why
 }
 
 # ...and one that ends the line with no value is refused, not read as a flag

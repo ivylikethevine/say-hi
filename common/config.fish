@@ -33,7 +33,6 @@ set -e _hi_toggle
 set -l _hi_cfg_base ~/.config
 set -q XDG_CONFIG_HOME; and set _hi_cfg_base $XDG_CONFIG_HOME
 set -q _HI_CONFIG_DIR; or set -gx _HI_CONFIG_DIR $_hi_cfg_base/say-hi
-set -q _HI_XDG_CONFIG; or set -gx _HI_XDG_CONFIG $_hi_cfg_base
 # the site tier (HI.61), as core.sh derives it: /etc/say-hi, else the first
 # say-hi/ under $XDG_CONFIG_DIRS; its settings.sh ahead of the user's, on a
 # client alone

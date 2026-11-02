@@ -66,11 +66,8 @@ function test_local_only_leaves_a_remote_session_alone() {
 # the opt-ins go the other way: local-only forces them to 0 at home, over a
 # settings.sh or an environment that turned them on, and leaves a target's be
 function test_local_only_turns_the_opt_ins_off_locally() {
-  local out
-  out="$(_HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _hi_gate 1 0 _HI_TOOL_ALIASES _HI_SUDO_ALIAS)"
-  [ "$out" = $'_HI_TOOL_ALIASES=0\n_HI_SUDO_ALIAS=0' ] || _hi_because "at home: ${out//$'\n'/ }" || return 1
-  out="$(_HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _hi_gate 1 1 _HI_TOOL_ALIASES _HI_SUDO_ALIAS)"
-  [ "$out" = $'_HI_TOOL_ALIASES=1\n_HI_SUDO_ALIAS=1' ] || _hi_because "on a target: ${out//$'\n'/ }"
+  _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _hi_prints $'_HI_TOOL_ALIASES=0\n_HI_SUDO_ALIAS=0' _hi_gate 1 0 _HI_TOOL_ALIASES _HI_SUDO_ALIAS || return 1
+  _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _hi_prints $'_HI_TOOL_ALIASES=1\n_HI_SUDO_ALIAS=1' _hi_gate 1 1 _HI_TOOL_ALIASES _HI_SUDO_ALIAS
 }
 
 function test_toggles_stay_on_without_local_only() {
@@ -228,7 +225,7 @@ function _hi_bare_home() {
 function _hi_resolved() {
   local home
   home="$(_hi_bare_home)"
-  HOME="$home" _HI_XDG_CONFIG="$home/.config" _HI_CONFIG_DIR="$2" bash -c \
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$2" bash -c \
     'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$1"
 }
 
@@ -239,30 +236,27 @@ function _hi_overlay_dir() {
 }
 
 function test_settings_resolve_to_the_overlay() {
-  local dir got
+  local dir
   dir="$(_hi_overlay_dir)"
   printf '#!/bin/sh\n' >"$dir/settings.sh"
-  got="$(_hi_resolved _HI_SETTINGS "$dir")"
-  [ "$got" = "$dir/settings.sh" ] || _hi_why got dir
+  _hi_prints "$dir/settings.sh" _hi_resolved _HI_SETTINGS "$dir"
 }
 
 function test_overlay_colors_win() {
-  local dir got
+  local dir
   dir="$(_hi_overlay_dir)"
   printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
-  got="$(_hi_resolved _HI_COLORS "$dir")"
-  [ "$got" = "$dir/colors" ] || _hi_why got dir
+  _hi_prints "$dir/colors" _hi_resolved _HI_COLORS "$dir"
 }
 
 # per file, not all-or-nothing: an overlay holding only colors must leave
 # packages tracking the tree, or `hi --update` would stop delivering new
 # defaults for everything the user never overrode
 function test_overlay_falls_back_per_file() {
-  local dir got
+  local dir
   dir="$(_hi_overlay_dir)"
   printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
-  got="$(_hi_resolved _HI_PACKAGES "$dir")"
-  [ "$got" = "$_HI_ROOT/config/packages" ] || _hi_why got dir
+  _hi_prints "$_HI_ROOT/config/packages" _hi_resolved _HI_PACKAGES "$dir"
 }
 
 function test_no_overlay_uses_the_tree() {
@@ -276,10 +270,8 @@ function test_no_overlay_uses_the_tree() {
 # ...but settings.sh still points into the overlay on a machine that has no
 # overlay yet, unguarded, because that is where install.sh has to write it
 function test_settings_point_at_the_overlay_before_it_exists() {
-  local got
   local dir="$_HI_WORKDIR/no-such-overlay"
-  got="$(_hi_resolved _HI_SETTINGS "$dir")"
-  [ "$got" = "$dir/settings.sh" ] || _hi_why got dir
+  _hi_prints "$dir/settings.sh" _hi_resolved _HI_SETTINGS "$dir"
 }
 
 # The two files with a path variable of their own and a tree default, which
@@ -310,13 +302,13 @@ function test_an_exported_path_does_not_survive() {
   for i in "${!_HI_OVERLAY_PATH_VARS[@]}"; do
     var="${_HI_OVERLAY_PATH_VARS[i]}"
     # shellcheck disable=SC2016 # ${!1} is the child bash's to expand, not ours
-    got="$(HOME="$(_hi_bare_home)" _HI_XDG_CONFIG="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$dir" env "$var=/anywhere/hi-$i" bash -c \
+    got="$(HOME="$(_hi_bare_home)" XDG_CONFIG_HOME="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$dir" env "$var=/anywhere/hi-$i" bash -c \
       'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")"
     [ "$got" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || _hi_because "$var kept an exported path over the overlay's copy: $got" || return 1
     want="$_HI_ROOT/config/${_HI_OVERLAY_PATH_FILES[i]}"
     [ -f "$want" ] || want=""
     # shellcheck disable=SC2016 # same again, against no overlay at all
-    got="$(HOME="$(_hi_bare_home)" _HI_XDG_CONFIG="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" env "$var=/anywhere/hi-$i" bash -c \
+    got="$(HOME="$(_hi_bare_home)" XDG_CONFIG_HOME="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" env "$var=/anywhere/hi-$i" bash -c \
       'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")"
     [ "$got" = "$want" ] || _hi_because "$var kept an exported path over the tree's copy: $got" || return 1
   done
@@ -325,23 +317,21 @@ function test_an_exported_path_does_not_survive() {
 # ...and the same through settings.sh: a line there is read before paths.sh
 # and re-derived over just the same
 function test_a_settings_path_does_not_survive() {
-  local dir got
+  local dir
   dir="$(_hi_full_overlay_dir)"
   printf 'export _HI_COLORS=/dotfiles/hi-colors\n' >"$dir/settings.sh"
-  got="$(_hi_resolved _HI_COLORS "$dir")"
-  [ "$got" = "$dir/colors" ] || _hi_why got dir
+  _hi_prints "$dir/colors" _hi_resolved _HI_COLORS "$dir"
 }
 
 # with nothing exported, the overlay's copy wins over the tree's, which is the
 # behaviour every install has
 function test_unset_still_prefers_the_overlay() {
-  local dir i var got
+  local dir i var
   dir="$(_hi_full_overlay_dir)"
   rm -f "$dir/settings.sh"
   for i in "${!_HI_OVERLAY_PATH_VARS[@]}"; do
     var="${_HI_OVERLAY_PATH_VARS[i]}"
-    got="$(_hi_resolved "$var" "$dir")"
-    [ "$got" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || _hi_because "$var did not resolve to the overlay: $got" || return 1
+    _hi_prints "$dir/${_HI_OVERLAY_PATH_FILES[i]}" _hi_resolved "$var" "$dir" || return 1
   done
 }
 
@@ -404,7 +394,7 @@ function test_overlay_guards_match_the_roster() {
 function test_paths_follow_the_overlay_table() {
   local home="$_HI_WORKDIR/table-home"
   mkdir -p "$home"
-  env -u MICRO_CONFIG_HOME -u ZELLIJ_CONFIG_DIR -u SCREENRC -u _HI_XDG_CONFIG HOME="$home" \
+  env -u MICRO_CONFIG_HOME -u ZELLIJ_CONFIG_DIR -u SCREENRC HOME="$home" \
     XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/overlay" _HI_SITE_DIR="$home/site" bash -c '
     set -- && source "$_HI_LAUNCHER" || exit 1
     set +eu

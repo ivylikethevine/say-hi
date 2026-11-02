@@ -420,8 +420,6 @@ function _hi_color_escape() {
 # hand-written line by the same ones, so a value the menu would refuse is
 # named rather than silently falling back to the default.
 function _hi_is_number() { [[ "$1" =~ ^[0-9]+$ ]]; }
-# a header width: 40 columns is the narrowest the banner and rows draw in
-function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
 # $_HI_PACKAGES_GROUPS: `none`, or group names separated by spaces or commas
 function _hi_is_package_groups() {
   case "$1" in
@@ -482,12 +480,21 @@ function _hi_is_prompt_list() {
   local _hi_pl_w _hi_pl_r
   # shellcheck disable=SC2086 # the value is a space-separated word list
   for _hi_pl_w in $1; do
-    case "$_hi_pl_w" in bash:hi | zsh:hi | fish:hi | hi) continue ;; esac
-    _hi_prompt_row "${_hi_pl_w#*:}" _hi_pl_r || return 1
-    _hi_pl_r="${_hi_pl_r#*|}"
-    case "$_hi_pl_w" in *:*) _hi_list_has "${_hi_pl_r%%|*}" "${_hi_pl_w%%:*}" || return 1 ;; esac
+    case "$_hi_pl_w" in
+    bash:hi | zsh:hi | fish:hi | hi) ;;
+    *:*) _hi_prompt_fits "${_hi_pl_w#*:}" "${_hi_pl_w%%:*}" || return 1 ;;
+    *) _hi_prompt_row "$_hi_pl_w" _hi_pl_r || return 1 ;;
+    esac
   done
   return 0
+}
+
+# _hi_prompt_fits <program> <shell> - does that prompt program draw that shell
+function _hi_prompt_fits() {
+  local _hi_pf_r
+  _hi_prompt_row "$1" _hi_pf_r || return 1
+  _hi_pf_r="${_hi_pf_r#*|}"
+  _hi_list_has "${_hi_pf_r%%|*}" "$2"
 }
 
 # _hi_is_plugin_list <value> - is every word of it a plugin or a member
@@ -528,15 +535,12 @@ function _hi_setting_check() {
 # <name>|<check>|<hint>, the hint ending in the vocabulary its check reads
 # where it reads one
 function _hi_setting_rules() {
-  local _hi_sr_l _hi_sr_n _hi_sr_c _hi_sr_i
+  local _hi_sr_l _hi_sr_n _hi_sr_c _hi_sr_us=$'\x1f'
   while IFS= read -r _hi_sr_l || [ -n "$_hi_sr_l" ]; do
     case "$_hi_sr_l" in '' | '#'*) continue ;; esac
-    _hi_sr_l="${_hi_sr_l#* | }" _hi_sr_n="${_hi_sr_l%% | *}"
-    # past <name>, <default>, <off>, <on>, <preview>, <needs>, and <label>
-    for _hi_sr_i in 1 2 3 4 5 6 7; do _hi_sr_l="${_hi_sr_l#* | }"; done
-    _hi_sr_c="${_hi_sr_l%% | *}" _hi_sr_l="${_hi_sr_l#* | }"
+    # <section>, <name>, <default>, <off>, <on>, <preview>, <label>, <check>, <hint>
+    IFS="$_hi_sr_us" read -r _ _hi_sr_n _ _ _ _ _ _hi_sr_c _hi_sr_l _ <<<"${_hi_sr_l// | /$_hi_sr_us}"
     [ "$_hi_sr_c" != - ] || continue
-    _hi_sr_l="${_hi_sr_l%% | *}"
     case "$_hi_sr_c" in
     header) _hi_sr_l="$_hi_sr_l $_HI_HEADER_ORDER_DEFAULT" ;;
     prompts) _hi_sr_l="$_hi_sr_l $_HI_PROMPT_TOOLS" ;;

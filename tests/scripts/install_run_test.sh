@@ -51,6 +51,24 @@ function _hi_run_install_here() {
     bash "$_HI_INSTALL" "$@" </dev/null
 }
 
+# _hi_run_uninstall_in <home> - run_uninstall in a child at that home, its
+# link step a stand-in that says UNLINK_CALLED. The three rc paths are handed
+# over explicitly; install.sh parses its argv when sourced, hence the `set --`
+# and the path riding in the env
+function _hi_run_uninstall_in() {
+  local home="$1"
+  # shellcheck disable=SC2016 # single quotes on purpose: the child expands these
+  env HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/.config/say-hi" \
+    _HI_SETTINGS="$home/.config/say-hi/settings.sh" _HI_HOME_BASHRC="$home/.bashrc" \
+    _HI_HOME_ZSHRC="$home/.zshrc" _HI_HOME_FISH_CONFIG="$home/.config/fish/config.fish" \
+    _HI_UNINSTALL_SCRIPT="$_HI_INSTALL" bash -c '
+      set --
+      source "$_HI_UNINSTALL_SCRIPT"
+      function unlink_hi() { echo UNLINK_CALLED; }
+      run_uninstall 2>&1
+    '
+}
+
 # the four modes are one choice: `hi --configure` injects --configure,
 # so `hi --configure --uninstall` reached run_uninstall
 function test_two_modes_are_refused() { _hi_refused "pick one of --configure --uninstall" bash "$_HI_INSTALL" --configure --uninstall; }
@@ -180,16 +198,7 @@ function test_run_uninstall_fails_on_a_read_only_rc() {
   printf 'echo before\nsource hi %s\n' "$_HI_MARKER" >"$home/.bashrc"
   chmod 444 "$home/.bashrc"
   printf '#!/bin/sh\nexport _HI_DISABLE_HEADER=1\n' >"$home/.config/say-hi/settings.sh"
-  # shellcheck disable=SC2016 # single quotes on purpose: the child expands these
-  out="$(env HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/.config/say-hi" \
-    _HI_SETTINGS="$home/.config/say-hi/settings.sh" _HI_HOME_BASHRC="$home/.bashrc" \
-    _HI_HOME_ZSHRC="$home/.zshrc" _HI_HOME_FISH_CONFIG="$home/.config/fish/config.fish" \
-    _HI_UNINSTALL_SCRIPT="$_HI_INSTALL" bash -c '
-      set --
-      source "$_HI_UNINSTALL_SCRIPT"
-      function unlink_hi() { :; }
-      run_uninstall 2>&1
-    ')" || rc=$?
+  out="$(_hi_run_uninstall_in "$home")" || rc=$?
   chmod 644 "$home/.bashrc"
   { [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $home/.bashrc"* ]] &&
     [ ! -e "$home/.config/say-hi/settings.sh" ] && grep -qF "$_HI_MARKER" "$home/.bashrc"; } || _hi_why rc out home _HI_MARKER
@@ -234,8 +243,7 @@ function test_shell_flag_refuses_a_stranger() {
   out="$(bash "$_HI_INSTALL" --shell bash,tcsh 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--shell wants bash, zsh, fish, or all (got tcsh)"* ]] || _hi_why rc out || return 1
   rc=0
-  out="$(bash "$_HI_INSTALL" --shell 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--shell needs a list of bash, zsh, and fish, or all"* ]] || _hi_why rc out
+  _hi_refused "--shell needs a list of bash, zsh, and fish, or all" bash "$_HI_INSTALL" --shell || _hi_why
 }
 
 function test_purge_is_refused_outside_uninstall() { _hi_refused "--purge does not apply here" _hi_run_install un-purge-mode --install --purge; }
@@ -311,16 +319,7 @@ function test_run_uninstall_strips_rc_then_settings_then_the_link() {
   # the rc roster is exported by this shell already bound to the real $HOME,
   # so the three paths are handed over explicitly; install.sh parses its
   # argv when sourced, hence the `set --` and the path riding in the env
-  # shellcheck disable=SC2016 # single quotes on purpose: the child expands these
-  out="$(env HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/.config/say-hi" \
-    _HI_SETTINGS="$home/.config/say-hi/settings.sh" _HI_HOME_BASHRC="$home/.bashrc" \
-    _HI_HOME_ZSHRC="$home/.zshrc" _HI_HOME_FISH_CONFIG="$home/.config/fish/config.fish" \
-    _HI_UNINSTALL_SCRIPT="$_HI_INSTALL" bash -c '
-      set --
-      source "$_HI_UNINSTALL_SCRIPT"
-      function unlink_hi() { echo UNLINK_CALLED; }
-      run_uninstall 2>&1
-    ')" || _hi_why home _HI_INSTALL _HI_UNINSTALL_SCRIPT || return 1
+  out="$(_hi_run_uninstall_in "$home")" || _hi_why home _HI_INSTALL _HI_UNINSTALL_SCRIPT || return 1
   { [[ "$out" == *UNLINK_CALLED* ]] &&
     [ ! -e "$home/.config/say-hi/settings.sh" ] &&
     ! grep -qF "$_HI_MARKER" "$home/.bashrc" &&
@@ -335,15 +334,10 @@ function test_install_aborts_on_broken_configs_without_yes() {
   mkdir -p "$home"
   printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
   out="$(_hi_run_install_here gate-abort --link none 2>&1)" || rc=$?
-  if [ "$rc" -eq 1 ] && [[ "$out" == *"re-run with --yes"* ]] &&
-    ! grep -qF "$_HI_MARKER" "$home/.bashrc"; then
-    return 0
-  fi
   # the transcript, since a gate that asked instead of deciding (a stdin this
   # platform calls a terminal) reads identically from the status alone
-  _hi_cecho " | rc=$rc, and the non-interactive gate line is missing:" "$RED"
-  printf '%s\n' "$out" | sed 's/^/   | /' >&2
-  return 1
+  { [ "$rc" -eq 1 ] && [[ "$out" == *"re-run with --yes"* ]] && ! grep -qF "$_HI_MARKER" "$home/.bashrc"; } ||
+    _hi_because "rc=$rc, and the non-interactive gate line is missing: $out"
 }
 
 function test_install_with_yes_continues_over_broken_configs() {
@@ -564,8 +558,7 @@ function test_a_switch_outside_its_mode_is_refused() {
   out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_INSTALL" --uninstall --yes 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--yes does not apply here"* ]] || _hi_why rc out || return 1
   rc=0
-  out="$(_HI_ARGV0="hi --configure" bash "$_HI_INSTALL" --configure --link none 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--link does not apply here"* ]] || _hi_why rc out
+  _HI_ARGV0="hi --configure" _hi_refused "--link does not apply here" bash "$_HI_INSTALL" --configure --link none || _hi_why
 }
 
 # _hi_mode_help_is_its_own <mode> <usage-prefix> <body-phrase> - the mode's own
@@ -578,11 +571,7 @@ function _hi_mode_help_is_its_own() {
   local mode="$1" usage="$2" phrase="$3" out rc=0
   out="$(_HI_ARGV0="hi --$mode" bash "$_HI_INSTALL" "--$mode" --help)" || rc=$?
   [ "$rc" -eq 0 ] || _hi_because "hi --$mode --help exited $rc" || return 1
-  [[ "$out" == "$usage"* && "$out" == *"$phrase"* && "$out" != *"Wires up"* ]] || {
-    _hi_cecho " | hi --$mode --help was:" "$RED"
-    printf '%s\n' "$out" | sed 's/^/      /'
-    return 1
-  }
+  [[ "$out" == "$usage"* && "$out" == *"$phrase"* && "$out" != *"Wires up"* ]] || _hi_because "hi --$mode --help was: $out"
 }
 
 function test_uninstall_help_is_its_own() {

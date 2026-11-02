@@ -47,13 +47,6 @@ function _hi_keep_seconds() {
   printf -v "$2" '%s' "$_hi_kd_n"
 }
 
-# Is one of $_HI_MUXES installed here
-function _hi_mux_here() {
-  local m
-  for m in $_HI_MUXES; do ! command -v "$m" >/dev/null 2>&1 || return 0; done
-  return 1
-}
-
 # The session name for a target and the user connecting to it: every
 # character tmux's rules reject, or that reads badly in a status line,
 # becomes `-`, and the client's username ends it as a hash, since a session
@@ -70,9 +63,14 @@ function _hi_mux_name() {
   _hi_out "${2:-}" "hi-${1//[^[:alnum:]_-]/-}-$_hi_mn_h"
 }
 
+# Is the kept session switched off: $_HI_DISABLE_KEEP, or (hi.sh's stand-in) a
+# tree that came without this file, which is what the switch sends. GLOSSARY:
+# HI.65
+function _hi_keep_off() { [ "${_HI_DISABLE_KEEP:-0}" = 1 ]; }
+
 # Whether this connect looks on the target for a kept session to reattach:
 # every session, not a command, unless --no-keep asked for one beside it, and
-# none with the kept session switched off (hi.sh's _hi_keep_off).
+# none with the kept session switched off.
 function _hi_keep_probes() {
   [ -z "${CMDARG:-}" ] && [ "${KEEP:-}" != 0 ] && ! _hi_keep_off
 }
@@ -159,8 +157,8 @@ function _hi_keep_start() {
   local n argv="" drop="" note="${1:- |}"
   local -a vars=("${@:2}")
   if [ "${#vars[@]}" -eq 0 ]; then
-    while IFS=$'\t' read -r n _; do vars+=("$n"); done < <(_hi_session_env)
-    vars+=("${_HI_KEEP_PANE_VARS[@]}")
+    vars=("${_HI_SESSION_VARS[@]}" "${_HI_KEEP_PANE_VARS[@]}")
+    [ -z "${NO_COLOR:-}" ] || vars+=(NO_COLOR)
   fi
   for n in "${vars[@]}"; do
     argv="$argv $n=\"\$$n\""
@@ -280,17 +278,16 @@ function _hi_keep_end_script() {
   _hi_shquote tmpl "$_HI_WHOAMI_CACHE.hi.XXXXXX"
   _hi_keep_find
   cat <<REMOTE
+      _hi_d=\$(mktemp -d -t $tmpl) && rmdir "\$_hi_d" || _hi_d=
       _hi_kept || {
         _hi_e=3
-        _hi_d=\$(mktemp -d -t $tmpl) && rmdir "\$_hi_d" || exit 3
-        for _hi_s in "\${_hi_d%.hi.*}".hi.*/say-hi/hi.held; do
+        [ -z "\$_hi_d" ] || for _hi_s in "\${_hi_d%.hi.*}".hi.*/say-hi/hi.held; do
           [ -O "\$_hi_s" ] && read -r _hi_ko _hi_kp _hi_kh 2>/dev/null <"\$_hi_s" && [ "\$_hi_kh" = "\$_hi_kn" ] || continue
           : >"\${_hi_s%held}end" && _hi_e=0
         done
         exit \$_hi_e
       }
       _hi_live() { read -r _hi_ko _hi_kp 2>/dev/null <"\$1" && kill -0 "\$_hi_ko" 2>/dev/null; }
-      _hi_d=\$(mktemp -d -t $tmpl) && rmdir "\$_hi_d" || _hi_d=
       set --
       [ -z "\$_hi_d" ] || for _hi_s in "\${_hi_d%.hi.*}".hi.*/say-hi/hi.kept; do
         ! _hi_live "\$_hi_s" || set -- "\$@" "\$_hi_s"
@@ -341,13 +338,15 @@ function _hi_keep_end() {
 # session comes here too (common/mux.sh), naming itself in $_HI_KEEP_WITH,
 # and is the one started where the name is one of the three. GLOSSARY: HI.65
 function _hi_keep_here() {
-  local file="$_HI_ROOT/hi.keep" line with=""
+  local file="$_HI_ROOT/hi.keep" line with="" mux
   ! _hi_list_has "$_HI_MUXES" "${_HI_KEEP_WITH:--}" || with="$_HI_KEEP_WITH"
   local -a vars=()
   [ -r "$file" ] || _hi_die "--keep: nothing to keep here - it takes a session hi connected, into bash, started without --no-keep"
   [ -t 0 ] || _hi_die "--keep needs a terminal"
   [ -z "${TMUX:-}${ZELLIJ:-}${STY:-}" ] || _hi_die "--keep: already inside a multiplexer here, and hi does not nest one"
-  if ! _hi_mux_here; then
+  # shellcheck disable=SC2086 # a word list
+  _hi_path_lookup mux $_HI_MUXES
+  if [ -z "$mux" ]; then
     _hi_keep_hold_here "$file"
     return
   fi
@@ -617,7 +616,7 @@ function _hi_keep_watch() {
         ((idle < limit)) || break
       fi
     done
-    ! declare -F _hi_clean_tree >/dev/null || _hi_clean_tree
+    _hi_clean_tree
     _hi_keep_kill
   ) </dev/null >/dev/null 2>&1 &
   _hi_keep_watch_pid=$!

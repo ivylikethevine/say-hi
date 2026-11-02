@@ -32,7 +32,6 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 _HI_REPO=""
-_HI_REPO_VERSION=""
 # The release before this one, as far as an upgrade case is concerned: the
 # same tree built and signed a second time under a lower version, so a client
 # can install it first and then take the repository's as an upgrade. The
@@ -78,12 +77,6 @@ function _hi_repo_keys() {
 # the same note); the repository itself lands in the workdir.
 function _hi_repo_build() {
   _HI_REPO="$_HI_WORKDIR/repo"
-  # named, not derived from mkpkg.sh's own default_version(): that falls
-  # through a shallow, tagless checkout to the literal 0.0.0, which would
-  # sort below the hardcoded $_HI_PREV_VERSION fixture and turn every
-  # upgrade case into a downgrade. $_HI_CUR_VERSION is what every client's
-  # `hi --version` has to print back.
-  _HI_REPO_VERSION="$_HI_CUR_VERSION"
   # registered before the build (the ledger's rule): the exit trap removes
   # dist/ only when this suite is the one that created it
   [ -d "$_HI_ROOT/dist" ] || _hi_track_dir "$_HI_ROOT/dist"
@@ -153,8 +146,8 @@ function _hi_repo_client() {
   # the stamped version, then where it came from - a package's tree, since
   # that is what the client installed
   last="$(tail -n 1 "$log")"
-  [[ "$last" == "$_HI_REPO_VERSION (package at "* ]] || {
-    _hi_dump_log "$label: hi --version printed '$last', not '$_HI_REPO_VERSION (package at ...)':" "$log" "$RED"
+  [[ "$last" == "$_HI_CUR_VERSION (package at "* ]] || {
+    _hi_dump_log "$label: hi --version printed '$last', not '$_HI_CUR_VERSION (package at ...)':" "$log" "$RED"
     return 1
   }
 }
@@ -301,7 +294,7 @@ function run_repo_tests() {
   # removing, and `image rm -f` on a name that never existed is a no-op
   docker image rm -f "$_HI_APT_IMAGE" >/dev/null 2>&1 || true
   _hi_suite_end "" \
-    "every client installed say-hi $_HI_REPO_VERSION from the repository, signatures verified ($_HI_TOTAL cases)" \
+    "every client installed say-hi $_HI_CUR_VERSION from the repository, signatures verified ($_HI_TOTAL cases)" \
     "the package repository FAILED: $_HI_FAILED/$_HI_TOTAL cases"
 }
 

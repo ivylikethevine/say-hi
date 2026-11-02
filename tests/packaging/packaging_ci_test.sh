@@ -17,6 +17,11 @@ _HI_PACKAGING_PART=ci
 # shellcheck source=./packaging_test.sh
 source "${BASH_SOURCE[0]%/*}/packaging_test.sh"
 
+# Fake sums a fixture's tools.txt can name
+printf -v _HI_SUM_1 '%064d' 1
+printf -v _HI_SUM_2 '%064d' 2
+printf -v _HI_SUM_3 '%064d' 3
+
 # _hi_wf_job <file> <job> - one job's block from a workflow's jobs: map, in a
 # variable rather than a pipe (nothing here can EPIPE). Closes on the next job
 # key or the end of the map - unlike a hand-picked end pattern (`[a-z]*:$`, a
@@ -172,21 +177,18 @@ function test_no_private_key_is_committed() {
 # figure there has to be the committed key's own
 function test_packaging_doc_has_the_apk_key_hash() {
   local pub="$_HI_PKG_DIR/apk/say-hi.rsa.pub" sum
-  [ -f "$pub" ] || return 0
-  sum="$(sha256sum "$pub" 2>/dev/null || shasum -a 256 "$pub")"
-  grep -qF -- "${sum%% *}" "$_HI_ROOT/docs/PACKAGING.md" || _hi_why sum
+  sum="$(sha256_of "$pub")"
+  grep -qF -- "$sum" "$_HI_ROOT/docs/PACKAGING.md" || _hi_why sum
 }
 
 function test_packaging_doc_has_the_gpg_fingerprint() {
   local asc="$_HI_PKG_DIR/gpg/say-hi.asc" fpr
-  [ -f "$asc" ] || return 0
   fpr="$(gpg --homedir "$_HI_WORKDIR" --show-keys --with-fingerprint "$asc" 2>/dev/null | sed -n 's/^ *\([0-9A-F ]\{40,\}\)$/\1/p' | head -n 1)"
   { [ -n "$fpr" ] && grep -qF -- "$fpr" "$_HI_ROOT/docs/PACKAGING.md"; } || _hi_why fpr
 }
 
 function test_committed_gpg_key_is_public() {
   local asc="$_HI_PKG_DIR/gpg/say-hi.asc"
-  [ -f "$asc" ] || return 0 # not generated yet - docs/RELEASING.md's runbook
   grep -qF -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$asc" || _hi_why asc
 }
 
@@ -302,6 +304,36 @@ function test_srcinfo_depends_match_their_pkgbuild() {
 }
 
 # --- mkrepo.sh's offline half (the docker-free index builders) --------------
+
+# _hi_in_mkpkg <dist> <fn> [args...] - one mkpkg.sh function in a subshell,
+# through its HI.06 source guard, with the dist dir pointed at a fixture
+function _hi_in_mkpkg() {
+  local dist="$1"
+  shift
+  (
+    _hi_argv=("$@")
+    set -- # mkpkg.sh parses "$@" at source time; hand it none
+    # shellcheck source=../../packaging/mkpkg.sh
+    source "$_HI_PKG_DIR/mkpkg.sh"
+    _HI_DIST="$dist"
+    "${_hi_argv[@]}"
+  )
+}
+
+# _hi_wc_packages <dir> - the three packages write_checksums expects, in <dir>
+function _hi_wc_packages() {
+  mkdir -p "$1"
+  printf 'pkg' >"$1/say-hi_1.0.0_amd64.deb"
+  printf 'pkg' >"$1/say-hi-1.0.0.x86_64.rpm"
+  printf 'pkg' >"$1/say-hi-1.0.0.apk"
+}
+
+# _hi_wc_tarball <tarball> - inside _hi_in_mkpkg: write_checksums with that
+# source tarball, set here because mkpkg.sh resets it as it is sourced
+function _hi_wc_tarball() {
+  _HI_SRC_TARBALL="$1"
+  write_checksums
+}
 
 # _hi_in_mkrepo <dist> <out> <fn> [args...] - one mkrepo.sh function in a
 # subshell, through its HI.06 source guard, with the dist/out dirs pointed at

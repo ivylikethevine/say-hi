@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The settings wizard's live previews: what each question draws above itself
-# - the header, the prompt, the package check, the editors, the aliases -
-# rendered from the answers pending this run. Sourced by scripts/configure.sh;
-# not an entry point of its own.
+# - the header, the prompt, the package check, the aliases - rendered from the
+# answers pending this run. Sourced by scripts/configure.sh; not an entry point
+# of its own.
 
 # Run $@ and box what it writes to stdout - a live render using hi's own
 # functions, sized to its longest line rather than the terminal width, since
@@ -173,13 +173,10 @@ function _hi_check_preview() {
   local order="" groups="" out w=""
   setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" order
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
-  case " ${order:-$_HI_HEADER_ORDER_DEFAULT} " in
-  *" check "*) ;;
-  *)
+  _hi_list_has "${order:-$_HI_HEADER_ORDER_DEFAULT}" check || {
     _hi_cecho " the check item is off (the Header page) - these run when it is back on" "$YELLOW"
     return 0
-    ;;
-  esac
+  }
   # no wider than the menu's box can hold, as the header's preview is
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" w
   w="${w:-$_HI_MAX_WIDTH_DEFAULT}"
@@ -192,59 +189,16 @@ function _hi_check_preview() {
   fi
 }
 
-# what each editor's alias is on a target: the lines
-# pack.sh's _hi_overlay_wiring writes for the editor configs that would ride
-# (GLOSSARY: HI.62), read off that writer rather than restated here, each
-# naming the file it carries in place of the target's copy. A name two
-# lines alias (`hx`, with a languages.toml) is listed for each, in the
-# order a target reads them, so the last is the one it keeps, and a line
-# several members of one directory share (micro's) once. A subshell: nothing
-# this defines should survive past the preview.
-function _hi_editors_preview() {
-  (
-    # shellcheck source=/dev/null # hi.sh, which shellcheck would follow into its own `_hi "$@"`
-    source "$_HI_LAUNCHER" >/dev/null 2>&1
-    local row member src lines line body dir from seen=$'\n'
-    # under the list this run has settled on, not the file's
-    setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" _HI_PLUGINS_OFF
-    while IFS= read -r row; do
-      case "$row" in *'|editors|'*) ;; *) continue ;; esac
-      member="${row##*|}" src="" lines=""
-      _hi_overlay_src "$member" src || continue
-      _hi_overlay_wiring lines "$member"
-      while IFS= read -r line; do
-        while [ "${line#* alias }" != "$line" ]; do
-          line="${line#* alias }"
-          body="${line#*=\"}"
-          body="${body%%\"*}"
-          # the file it names, else the directory holding it; both cut
-          # ahead of the substitution, which bash 3.2 splits at a / inside
-          # a nested expansion
-          dir="${member%%/*}" from="${src%/*}"
-          body="${body//\$_HI_CONFIG_DIR\/$member/$src}"
-          body="${body//\$_HI_CONFIG_DIR\/$dir/$from}"
-          _hi_pad_to dir 5 "${line%%=*}"
-          body="$dir -> $body"
-          case "$seen" in *$'\n'"$body"$'\n'*) continue ;; esac
-          seen="$seen$body"$'\n'
-          printf '%s\n' "$body"
-        done
-      done <<<"$lines"
-    done < <(_hi_plugin_rows)
-  )
-}
-
 # what `cat` and `eza` resolve to with the rebinds on - read back from
-# common/aliases.sh itself (the same trick _hi_editors_preview uses above)
-# rather than restated here, so it cannot drift from what a real session
-# gets. The
-# resolution caches into _HI_*_BIN/_HI_*_OPTS on export, so those are cleared
-# first to force a fresh probe of $PATH rather than reusing another preview's.
+# common/aliases.sh itself rather than restated here, so it cannot drift from
+# what a real session gets. The resolution caches into _HI_*_BIN/_HI_*_OPTS on
+# export, so those are cleared first to force a fresh probe of $PATH rather
+# than reusing another preview's.
 function _hi_tool_alias_preview() {
   (
     _HI_TOOL_ALIASES=1
     _HI_CAT_BIN="" _HI_BAT_BIN="" _HI_LS_BIN=""
-    _HI_BAT_OPTS="" _HI_EXA_OPTS="" _HI_EZA_OPTS="" _HI_LS_OPTS=""
+    _HI_BAT_OPTS="" _HI_EZA_OPTS="" _HI_LS_OPTS=""
     # shellcheck disable=SC2031 # lives and dies in this subshell
     # shellcheck source=../common/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
@@ -291,9 +245,8 @@ function _hi_prompt_choice() {
 # what auto means here is hi.sh's own answer, sourced into a subshell
 # through its BASH_SOURCE hatch
 function _hi_prompt_tool_preview() {
-  local found off="" name item n=1 note
-  setting_value _HI_DISABLE_PROMPT "$_HI_SETTINGS" off
-  if [ "$off" = 1 ]; then
+  local found name item n=1 note
+  if setting_off _HI_DISABLE_PROMPT "$_HI_SETTINGS"; then
     printf "moot while the prompt is off (the item above): no program and no hi prompt draws\n"
     return 0
   fi

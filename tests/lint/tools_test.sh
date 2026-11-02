@@ -21,20 +21,16 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shfmt rewrites to `$( )`, and fish before 3.4 refuses a `$( )` anywhere in
 # a file it sources. dialects_test.sh's fish 3.3 floor is what holds it.
 function lint_shfmt() {
-  local out f
+  local f
   local -a files=()
   _hi_h2 "Checking formatting (shfmt -d, style from .editorconfig)"
   _hi_lint_has shfmt || return 0
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   for f in "${_HI_SH_FILES[@]}"; do
     case "$f" in *common/aliases.sh) ;; *) files+=("$f") ;; esac
   done
-  if out="$(shfmt -d "${files[@]}" 2>&1)"; then
-    _hi_align " | shfmt $(shfmt --version): every file already formatted" "OK" "$GREEN"
-  else
-    _hi_lint_fail " | shfmt: files need reformatting (fix with: shfmt -w on the paths below)" "shfmt formatting (shfmt -w the paths it names)" "$out"
-    return 1
-  fi
+  _hi_lint_cmd " | shfmt $(shfmt --version): every file already formatted" \
+    " | shfmt: files need reformatting (fix with: shfmt -w on the paths below)" \
+    "shfmt formatting (shfmt -w the paths it names)" shfmt -d "${files[@]}"
 }
 
 # Bashisms in the #!/bin/sh files slip past the main linter (they are valid
@@ -44,7 +40,7 @@ function lint_shfmt() {
 # files embed '#!/bin/sh' inside the shim scripts they generate). Skips yellow
 # when absent; CI installs a pinned copy via .github/actions/setup-tool.
 function lint_checkbashisms() {
-  local file rel out shebang bad=0
+  local file rel shebang bad=0
   _hi_h2 "Checking the #!/bin/sh files for bashisms (checkbashisms)"
   _hi_lint_has checkbashisms || return 0
   for file in "${_HI_SH_FILES[@]}"; do
@@ -53,13 +49,7 @@ function lint_checkbashisms() {
     IFS= read -r shebang <"$file" 2>/dev/null || shebang=""
     case "$shebang" in '#!/bin/sh'*) ;; *) continue ;; esac
     rel="${file#"$_HI_ROOT/"}"
-    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-    if out="$(checkbashisms "$file" 2>&1)"; then
-      _hi_align " | $rel" "OK" "$GREEN"
-    else
-      _hi_lint_fail " | $rel" "$rel (checkbashisms)" "$out"
-      bad=$((bad + 1))
-    fi
+    _hi_lint_cmd " | $rel" " | $rel" "$rel (checkbashisms)" checkbashisms "$file" || bad=$((bad + 1))
   done
   return "$bad"
 }
@@ -71,16 +61,9 @@ function lint_checkbashisms() {
 # somewhere (an unparseable .TH date, say), which is the whole point. Skips
 # yellow when mandoc is absent; CI pins one via tools.txt.
 function lint_manpage() {
-  local man="$_HI_ROOT/docs/hi.1" out
   _hi_h2 "Checking the man page (mandoc -T lint)"
   _hi_lint_has mandoc || return 0
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  if out="$(mandoc -T lint -W warning "$man" 2>&1)"; then
-    _hi_align " | docs/hi.1" "OK" "$GREEN"
-  else
-    _hi_lint_fail " | docs/hi.1" "docs/hi.1 (mandoc)" "$out"
-    return 1
-  fi
+  _hi_lint_cmd " | docs/hi.1" " | docs/hi.1" "docs/hi.1 (mandoc)" mandoc -T lint -W warning "$_HI_ROOT/docs/hi.1"
 }
 
 # The editors demo's vimrc (docs/tapes/editors/vimrc), parsed by the editor
@@ -109,9 +92,7 @@ function lint_vim_rc() {
     _hi_align " | docs/tapes/editors/vimrc (vim)" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | docs/tapes/editors/vimrc (vim)" "FAILED" "$RED"
-  sed 's/^/      /' "$err"
-  _hi_note_failure "docs/tapes/editors/vimrc (vim)"
+  _hi_lint_fail " | docs/tapes/editors/vimrc (vim)" "docs/tapes/editors/vimrc (vim)" "$(cat "$err")"
   return 1
 }
 
@@ -120,16 +101,11 @@ function lint_vim_rc() {
 # reads wrong goes there with a word on what it is, not into a wider ignore.
 # Skips yellow when typos is absent; CI pins one via tools.txt.
 function lint_typos() {
-  local out
   _hi_h2 "Checking spelling (typos, allowlist in .typos.toml)"
   _hi_lint_has typos || return 0
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  if out="$(cd "$_HI_ROOT" && typos --format brief --config .typos.toml . 2>&1)"; then
-    _hi_align " | typos $(typos --version | awk '{print $2}'): nothing misspelt" "OK" "$GREEN"
-  else
-    _hi_lint_fail " | typos: misspellings below (a term that is right goes in .typos.toml)" "spelling (typos)" "$out"
-    return 1
-  fi
+  _hi_lint_cmd " | typos $(typos --version | awk '{print $2}'): nothing misspelt" \
+    " | typos: misspellings below (a term that is right goes in .typos.toml)" \
+    "spelling (typos)" typos --format brief --config .typos.toml .
 }
 
 # Known advisories in every lockfile git keeps, as Scorecard's Vulnerabilities
@@ -182,7 +158,7 @@ function _hi_node_tool() {
 # .github` installs it.
 function _hi_lint_md_tool() {
   local tool="$1" heading="$2" ok="$3" failed="$4" note="$5"
-  local bin out
+  local bin
   shift 5
   _hi_h2 "$heading"
   bin="$(_hi_node_tool "$tool")" || {
@@ -193,13 +169,7 @@ function _hi_lint_md_tool() {
     _hi_skip "$tool" "no Markdown listed (not a git checkout?)"
     return 0
   fi
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  if out="$(cd "$_HI_ROOT" && "$bin" "$@" "${_HI_MD_FILES[@]}" 2>&1)"; then
-    _hi_align " | $tool: $ok" "OK" "$GREEN"
-  else
-    _hi_lint_fail " | $tool: $failed" "$note" "$out"
-    return 1
-  fi
+  _hi_lint_cmd " | $tool: $ok" " | $tool: $failed" "$note" "$bin" "$@" "${_HI_MD_FILES[@]}"
 }
 
 # markdownlint over the Markdown, rules from .markdownlint.yaml. Blocking: a
