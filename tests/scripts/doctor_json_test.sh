@@ -71,7 +71,7 @@ import json, sys
 d = json.load(sys.stdin)
 assert d["target"] == "run\"ning\\box", d["target"]
 assert any(r["section"] == "target" for r in d["rows"])
-'
+' || _hi_why a || return 1
   printf '%s' "$b" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)

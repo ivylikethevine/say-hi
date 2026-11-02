@@ -104,9 +104,7 @@ function test_marks_swap_to_ascii_with_the_set() {
 }
 
 function test_banner_disabled_produces_no_output() {
-  local out
-  out="$(_HI_DISABLE_BANNER=1 banner TestBanner)"
-  [ -z "$out" ] || _hi_why out
+  _HI_DISABLE_BANNER=1 _hi_prints "" banner TestBanner
 }
 
 # guards the default: the toggle is opt-out, so an unset var must still print
@@ -239,9 +237,7 @@ function test_hi_header_banner_off_keeps_detail_lines() {
 }
 
 function test_hi_header_disabled_produces_no_output() {
-  local out
-  out="$(_HI_DISABLE_HEADER=1 hi_header Connected)"
-  [ -z "$out" ] || _hi_why out
+  _HI_DISABLE_HEADER=1 _hi_prints "" hi_header Connected
 }
 
 # On a failure, what it rendered instead - the bare glob cannot tell an empty

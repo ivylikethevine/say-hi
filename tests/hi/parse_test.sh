@@ -271,17 +271,14 @@ function test_backend_roster_is_the_whole_family() {
 }
 
 function test_resolve_backend_prints_nothing_for_a_stranger() {
-  local got
-  got="$(PATH="$_HI_SHIM_PATH" _hi_resolve_backend no)"
-  [ -z "$got" ] || _hi_why got _HI_SHIM_PATH
+  PATH="$_HI_SHIM_PATH" _hi_prints "" _hi_resolve_backend no
 }
 
 # no CLI at all: every predicate is false, and _hi falls through to ssh
 function test_resolve_backend_prints_nothing_without_any_cli() {
-  local got empty="$_HI_WORKDIR/empty"
+  local empty="$_HI_WORKDIR/empty"
   mkdir -p "$empty"
-  got="$(PATH="$empty" _hi_resolve_backend yes)"
-  [ -z "$got" ] || _hi_why got empty
+  PATH="$empty" _hi_prints "" _hi_resolve_backend yes
 }
 
 # --use is the one way to force an arm: every roster name and ssh resolve
@@ -383,9 +380,8 @@ function test_parse_rawcmd_has_no_exit_suffix() {
 # _hi_select_arm is what _hi calls to choose $arm; testing it directly means
 # asserting the choice without a real connect
 function test_select_arm_backend_flag_wins_over_a_real_match() {
-  local got DOMAIN=yes BACKEND=ssh
-  got="$(PATH="$_HI_SHIM_PATH" _hi_select_arm)"
-  [ -z "$got" ] || _hi_why got _HI_SHIM_PATH
+  local DOMAIN=yes BACKEND=ssh
+  PATH="$_HI_SHIM_PATH" _hi_prints "" _hi_select_arm
 }
 
 function test_select_arm_backend_flag_names_the_arm_with_no_probe() {

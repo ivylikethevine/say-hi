@@ -205,12 +205,11 @@ set tabsize 4'
 # a config with nothing to resolve is silent - the scan is a report of danglers,
 # not an inventory of every include
 function test_the_scan_is_silent_on_a_clean_config() {
-  local dir="$_HI_WORKDIR/lint-clean" got
+  local dir="$_HI_WORKDIR/lint-clean"
   mkdir -p "$dir/vim" "$dir/emacs"
   printf 'set number\nruntime! plugin/sensible.vim\n' >"$dir/vim/vimrc"
   printf '(require (quote cl-lib))\n(setq tab-width 2)\n' >"$dir/emacs/init.el"
-  got="$(_HI_CONFIG_DIR="$dir" _hi_include_lint)"
-  [ -z "$got" ] || _hi_why got dir
+  _HI_CONFIG_DIR="$dir" _hi_prints "" _hi_include_lint
 }
 
 # the dialect comes from the member, not the path: doctor reads ~/.vimrc under
@@ -771,7 +770,7 @@ emacs/init.el|2' ] || _hi_because "reported: [$out]"
 # include goes out disabled and is reported; with no dialect the same file
 # rides as written
 function test_a_users_row_is_read_in_its_dialect() {
-  local dir bare out got
+  local dir bare out
   dir="$(_hi_lint_fixture user-dialect mine.rc '# about it
 . ~/.mine-extra
 set_it=1
@@ -783,8 +782,7 @@ set_it=1
   [ "$out" = 'mine.rc|2|include' ] || _hi_because "reported: [$out]" || return 1
   _HI_CONFIG_DIR="$dir" _hi_arrives mine.rc ':
 set_it=1' || return 1
-  got="$(_HI_CONFIG_DIR="$bare" _hi_include_lint)"
-  [ -z "$got" ] || _hi_because "reported with no dialect" || return 1
+  _HI_CONFIG_DIR="$bare" _hi_prints "" _hi_include_lint || return 1
   _HI_CONFIG_DIR="$bare" _hi_arrives mine.rc '# about it
 . ~/.mine-extra
 set_it=1'

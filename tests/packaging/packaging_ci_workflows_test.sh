@@ -150,7 +150,7 @@ function test_gh_asset_retries_through_the_raw_endpoint() {
   local dir="$_HI_WORKDIR/ghasset" out rc=0
   rm -rf "$dir"
   mkdir -p "$dir/bin"
-  cat >"$dir/bin/gh" <<'EOF'
+  _hi_script "$dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CI_GH_LOG"
 case "$*" in
@@ -165,7 +165,7 @@ case "$*" in
 esac
 EOF
   printf '#!/usr/bin/env bash\nexit 0\n' >"$dir/bin/sleep"
-  chmod +x "$dir/bin/gh" "$dir/bin/sleep"
+  chmod +x "$dir/bin/sleep"
   : >"$dir/pkg.rpm"
   out="$(
     # shellcheck source=../../.github/scripts/gh_asset.sh
@@ -189,7 +189,7 @@ function test_gh_asset_attaches_the_rest_and_names_the_missing() {
   local dir="$_HI_WORKDIR/ghasset-partial" out rc=0
   rm -rf "$dir"
   mkdir -p "$dir/bin"
-  cat >"$dir/bin/gh" <<'EOF'
+  _hi_script "$dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CI_GH_LOG"
 case "$*" in
@@ -200,7 +200,7 @@ case "$*" in
 esac
 EOF
   printf '#!/usr/bin/env bash\nexit 0\n' >"$dir/bin/sleep"
-  chmod +x "$dir/bin/gh" "$dir/bin/sleep"
+  chmod +x "$dir/bin/sleep"
   : >"$dir/a.deb"
   : >"$dir/bad.rpm"
   : >"$dir/c.apk"
@@ -294,21 +294,21 @@ function test_setup_tool_lib_reads_the_roster() {
 # `mk` where ./configure left its mark; cmake, which configures a build
 # directory and builds `cm` in it
 function _hi_tool_build_stubs() {
-  cat >"$1/bin/sudo" <<'EOF'
+  _hi_script "$1/bin/sudo" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$HI_TOOL_SRC/../sudo.log"
 case "$1" in mkdir | mv) chmod u+w "$HI_TOOL_SRC/../locked" && "$@" ;; esac
 EOF
   printf '#!/bin/sh\nexit 0\n' >"$1/bin/apt-get"
   printf '#!/bin/sh\n[ -f configured ] || exit 0\nprintf "#!/bin/sh\\necho built\\n" >mk && chmod +x mk\n' >"$1/bin/make"
-  cat >"$1/bin/cmake" <<'EOF'
+  _hi_script "$1/bin/cmake" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
 -S) [ -f "$2/CMakeLists.txt" ] && mkdir -p "$4" ;;
 --build) mkdir -p "$2/bin" && printf '#!/bin/sh\necho cmade\n' >"$2/bin/cm" && chmod +x "$2/bin/cm" ;;
 esac
 EOF
-  chmod +x "$1/bin/sudo" "$1/bin/apt-get" "$1/bin/make" "$1/bin/cmake"
+  chmod +x "$1/bin/apt-get" "$1/bin/make"
 }
 
 # the source kinds: the tarball is verified like any download, its build deps
@@ -513,7 +513,7 @@ function test_apt_update_retries_over_a_cleared_cache() {
   local got got2 got3
   local dir="$_HI_WORKDIR/aptlib" out rc=0
   mkdir -p "$dir/bin"
-  cat >"$dir/bin/sudo" <<'EOF'
+  _hi_script "$dir/bin/sudo" <<'EOF'
 #!/usr/bin/env bash
 dir="${3:-}"
 printf '%s\n' "$1 $2 ${dir%%/lists/*}" >>"$HI_APT_LOG"
@@ -521,7 +521,7 @@ printf '%s\n' "$1 $2 ${dir%%/lists/*}" >>"$HI_APT_LOG"
 EOF
   # shellcheck disable=SC2016 # the stub expands these, not this shell
   printf '#!/bin/sh\nprintf "sleep %%s\\n" "$1" >>"$HI_APT_LOG"\n' >"$dir/bin/sleep"
-  chmod +x "$dir/bin/sudo" "$dir/bin/sleep"
+  chmod +x "$dir/bin/sleep"
   out="$(HI_APT_LOG="$dir/once" HI_APT_FAILS=1 PATH="$dir/bin:$PATH" bash -c '
     source "$1/.github/actions/apt/lib.sh"
     _ci_apt_drop_vendor_lists && _ci_apt_update' _ "$_HI_ROOT" 2>&1)" || _hi_because "one failure was fatal: $out" || return 1

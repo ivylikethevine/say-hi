@@ -417,16 +417,20 @@ function test_lib_sha256_agrees_with_openssl() {
   _hi_in_pkglib sha256_lines "$f" "$f" | grep -cE "^[0-9a-f]{64} [ *]" | grep -qx 2 || _hi_why f
 }
 
-function test_lib_b2_matches_makepkg_expectation() {
-  local got
+function test_lib_b2_is_128_hex_chars() {
   local f="$_HI_WORKDIR/b2.probe" out
   printf 'hash me\n' >"$f"
   out="$(_hi_in_pkglib b2_of "$f")"
-  # BLAKE2b-512: 128 hex chars, and both impls agree where both exist
-  [ "${#out}" -eq 128 ] || _hi_why out || return 1
-  openssl dgst -blake2b512 </dev/null >/dev/null 2>&1 || return 0
+  [ "${#out}" -eq 128 ] || _hi_why out
+}
+
+# ...and agrees with openssl's, where this one has BLAKE2b-512
+function test_lib_b2_matches_makepkg_expectation() {
+  local got f="$_HI_WORKDIR/b2.probe" out
+  printf 'hash me\n' >"$f"
+  out="$(_hi_in_pkglib b2_of "$f")"
   got="$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')"
-  [ "$out" = "$got" ] || _hi_why got out f NF
+  [ -n "$got" ] && [ "$out" = "$got" ] || _hi_why got out f
 }
 
 function test_lib_pkgbuild_version_reads_and_refuses() {
@@ -716,7 +720,12 @@ function run_packaging_tests() {
 
   _hi_h2 "Testing: packaging/lib.sh's primitives"
   _hi_check_requires openssl "sha256 helpers agree with openssl" test_lib_sha256_agrees_with_openssl
-  _hi_check_requires openssl "b2_of is BLAKE2b-512, makepkg's b2sums" test_lib_b2_matches_makepkg_expectation
+  _hi_check_requires openssl "b2_of is BLAKE2b-512, makepkg's b2sums" test_lib_b2_is_128_hex_chars
+  if openssl dgst -blake2b512 </dev/null >/dev/null 2>&1; then
+    _hi_check "...the same sum as openssl's" test_lib_b2_matches_makepkg_expectation
+  else
+    _hi_skip "...the same sum as openssl's" "this openssl has no blake2b512"
+  fi
   _hi_check "pkgbuild_version reads pkgver= and refuses none" test_lib_pkgbuild_version_reads_and_refuses
   _hi_check_requires git "default_version falls through the template" test_lib_default_version_falls_through_the_template
   _hi_check "pkgbuild_url reads url= and refuses none" test_lib_pkgbuild_url_reads_and_refuses

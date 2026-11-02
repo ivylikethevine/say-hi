@@ -194,17 +194,17 @@ function _hi_linux_ip_shims() {
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     printf '#!/bin/sh\necho "Linux x86_64"\n' >"$dir/uname"
-    cat >"$dir/ip" <<'EOF'
+    _hi_script "$dir/ip" <<'EOF'
 #!/bin/sh
 [ "${_HI_FAKE_IP_SILENT:-0}" = 1 ] && exit 0
 printf '%s\n' '2: eth0    inet 10.0.0.5/24 brd 10.0.0.255 scope global eth0' \
   '3: eth1    inet 192.0.2.10/24 brd 192.0.2.255 scope global eth1'
 EOF
-    cat >"$dir/hostname" <<'EOF'
+    _hi_script "$dir/hostname" <<'EOF'
 #!/bin/sh
 [ "$1" = -I ] && printf '198.51.100.7 198.51.100.8 \n'
 EOF
-    chmod +x "$dir/uname" "$dir/ip" "$dir/hostname"
+    chmod +x "$dir/uname"
   fi
   printf '%s' "$dir"
 }

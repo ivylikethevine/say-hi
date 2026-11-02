@@ -53,7 +53,6 @@ function test_list_paths_matches_list() {
 function test_ci_runs_every_group_in_the_table() {
   local workflow="$_HI_ROOT/.github/workflows/ci.yml" group name missing=""
   local -a groups=()
-  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   while read -r group name; do
     _hi_list_has "${groups[*]}" "$group" || groups+=("$group")
   done < <(_hi_runner_list)
@@ -78,7 +77,6 @@ function test_ci_runs_every_group_in_the_table() {
 function test_coverage_merge_jobs_check_out_the_tree() {
   local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job block missing=""
   local seen=0 jobs
-  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
   while read -r job; do
     block="$(printf '%s\n' "$jobs" | sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
@@ -101,7 +99,6 @@ function test_coverage_merge_jobs_check_out_the_tree() {
 function test_coverage_drivers_shim_sh_to_bash() {
   local lib="$_HI_ROOT/tests/lib/coverage.sh" driver missing="" out trace="$_HI_WORKDIR/shimtrace"
   local -a drivers=("$_HI_ROOT/tests/coverage.sh" "$_HI_ROOT/tests/coverage_v2.sh")
-  [ -f "$lib" ] || return 0 # a shipped tree has no tests/
   # sh, once shimmed: bash in POSIX mode, which under kcov's PS4 method traces
   # to kcov's descriptor (bash-as-sh reads no $BASH_ENV, kcov's own route)
   # and under its DEBUG method leaves the child as it was. A tracer sweeping
@@ -232,7 +229,6 @@ function test_coverage_untested_lists_changed_lines_both_tools_missed() {
 function test_coverage_pr_runs_are_same_repo_only() {
   local workflow="$_HI_ROOT/.github/workflows/coverage.yml" gate job block bad=""
   local seen=0 jobs
-  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
   gate="$(printf '%s\n' "$jobs" | sed -n "/^  reuse:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
   # shellcheck disable=SC2016 # coverage.yml's literal source text
@@ -266,7 +262,6 @@ function _hi_shards_cover_group() {
   local workflow="$_HI_ROOT/.github/workflows/$1" job="$2" group="$3"
   local where="$1" block entry slices="" by got want
   [ "$job" = - ] || where="$1's $job"
-  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   if [ "$job" = - ]; then
     block="$(<"$workflow")"
   else
@@ -317,7 +312,6 @@ function test_cost_tables_name_the_suites_they_deal() {
 # costs (tests/lib/coverage.sh), and each matrix still partitions the table
 function test_coverage_shards_partition_by_cost() {
   local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job tool entry slices got want
-  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   want="$(_hi_runner_list | sort)"
   for job in shard-kcov shard-bashcov; do
     tool="${job#shard-}" slices=""

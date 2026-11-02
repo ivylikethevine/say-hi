@@ -234,8 +234,6 @@ function test_locale_probe_finds_a_utf8_locale_or_ascii() {
 # it has none
 function test_terminfo_line_puts_the_client_term_back() {
   local root="$_HI_WORKDIR/ti" line got found nottic
-  command -v infocmp >/dev/null 2>&1 && command -v tic >/dev/null 2>&1 && infocmp -x xterm-kitty >/dev/null 2>&1 ||
-    return 0
   mkdir -p "$root"
   TERM=xterm-kitty _hi_terminfo_line line
   [ -n "$line" ] || _hi_because "no line for an xterm-kitty client" || return 1
@@ -628,7 +626,11 @@ function run_hi_remote_tests() {
   _hi_check "The preamble exports it" test_remote_preamble_exports_the_version
   _hi_check "The preamble ships the glyph verdict" test_remote_preamble_ships_the_glyph_verdict
   _hi_check "...and finds a UTF-8 locale on the target, or says ASCII" test_locale_probe_finds_a_utf8_locale_or_ascii
-  _hi_check "A swapped TERM comes back with the client's terminfo, where tic is" test_terminfo_line_puts_the_client_term_back
+  if command -v infocmp >/dev/null 2>&1 && command -v tic >/dev/null 2>&1 && infocmp -x xterm-kitty >/dev/null 2>&1; then
+    _hi_check "A swapped TERM comes back with the client's terminfo, where tic is" test_terminfo_line_puts_the_client_term_back
+  else
+    _hi_skip "A swapped TERM comes back with the client's terminfo, where tic is" "no infocmp and tic, or no xterm-kitty entry"
+  fi
   _hi_check "The preamble ships the truecolor verdict" test_remote_preamble_ships_the_truecolor_verdict
   _hi_check "user@host exports the host's tag" test_session_env_tags_a_user_at_host_target
   _hi_check "\$EDITOR and \$VISUAL ride by name alone, and a UTF-8 locale by its" test_session_env_carries_the_editor_names

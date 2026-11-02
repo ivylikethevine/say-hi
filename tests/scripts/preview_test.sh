@@ -281,10 +281,8 @@ db-?' ] || _hi_why got colors
 # no colors file: no glob to answer with, no pins to list, and no error
 # under set -e
 function test_pattern_helpers_tolerate_a_missing_colors_file() {
-  local got
   ! _HI_COLORS="$_HI_WORKDIR/absent" _hi_pattern_for pat-1 || _hi_why || return 1
-  got="$(_HI_COLORS="$_HI_WORKDIR/absent" _hi_pattern_pins)"
-  [ -z "$got" ] || _hi_why got
+  _HI_COLORS="$_HI_WORKDIR/absent" _hi_prints "" _hi_pattern_pins
 }
 
 # _hi_group_index reads the caller's group_order through dynamic scoping,

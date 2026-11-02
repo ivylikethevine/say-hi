@@ -58,15 +58,11 @@ function _hi_mise_case() {
 }
 
 function test_no_environment_produces_no_output() {
-  local got
-  got="$(_hi_env_case)"
-  [ -z "$got" ] || _hi_why got
+  _hi_prints "" _hi_env_case
 }
 
 function test_disabled_flag_produces_no_output() {
-  local got
-  got="$(_hi_env_case VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1)"
-  [ -z "$got" ] || _hi_why got
+  _hi_prints "" _hi_env_case VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1
 }
 
 # The out-var form is what bash.sh's __hi_ps1() and zsh.zsh's precmd call: it must

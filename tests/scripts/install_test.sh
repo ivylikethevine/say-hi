@@ -184,7 +184,7 @@ function test_config_hi_no_link_skips_the_symlink() {
     _HI_LINK="$link"
     _HI_LINK_MODE=none
     config_hi
-  ) | grep -q "leaving $link alone"
+  ) | grep -q "leaving $link alone" || _hi_because "config_hi did not say it left $link alone" || return 1
   [ ! -e "$link" ] || _hi_why link
 }
 

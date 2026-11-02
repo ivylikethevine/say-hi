@@ -431,10 +431,7 @@ function test_ctl_open_shared_socket_name_stays_short() {
 # the key is a hash of the target *and* its ssh args, so a -p/-l/-o naming a
 # different connection to the same host cannot join the wrong socket
 function test_ctl_open_shared_key_splits_on_ssh_args() {
-  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared plain ported
-  local -a SSHARGS=() ctl_opts=()
-  local OSTYPE=linux-gnu
-  dir="$_HI_WORKDIR"
+  local plain ported
   _hi_ctl_vars
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   plain="$ctl_path"
@@ -659,9 +656,7 @@ function test_ctl_open_passes_nothing_when_disabled() {
 # perfectly good here, so `run`'s fresh socket still gets made; only the
 # sharing is given up. A file squats on hi's directory name.
 function test_ctl_open_shared_falls_back_without_a_runtime_dir() {
-  local DOMAIN=liona ctl_dir="" ctl_path="" ctl_shared=0 base="$_HI_WORKDIR/ctl.nodir"
-  local -a SSHARGS=() ctl_opts=()
-  local OSTYPE=linux-gnu
+  local base="$_HI_WORKDIR/ctl.nodir"
   mkdir -p "$base"
   : >"$base/hi-$EUID"
   XDG_RUNTIME_DIR="" TMPDIR="$base" _hi_ctl_open 60 shared
@@ -679,10 +674,7 @@ function test_ctl_open_shared_falls_back_without_a_runtime_dir() {
 # own terms - and that is hi's dependency to be free of, not the case's to
 # assert.
 function test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket() {
-  local DOMAIN=liona ctl_dir="" ctl_path="" ctl_shared=0 bin="$_HI_WORKDIR/ctl.nomktemp"
-  local base="$_HI_WORKDIR/ctl.nowhere"
-  local -a SSHARGS=() ctl_opts=()
-  local OSTYPE=linux-gnu
+  local bin="$_HI_WORKDIR/ctl.nomktemp" base="$_HI_WORKDIR/ctl.nowhere"
   printf 'not a directory\n' >"$base"
   _hi_script "$bin/mktemp" '#!/bin/sh' 'exit 1'
   XDG_RUNTIME_DIR="" TMPDIR="$base" PATH="$bin:$PATH" _hi_ctl_open 60 shared
@@ -695,9 +687,6 @@ function test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket() {
 # does not carry them, so a ControlPath there kills the connection rather than
 # degrading it. $OSTYPE is bash's own, set at build time, so a case can set it.
 function test_ctl_open_declines_to_multiplex_on_msys() {
-  local DOMAIN=liona dir ctl_dir="" ctl_path="" ctl_shared=0
-  local -a SSHARGS=() ctl_opts=()
-  dir="$_HI_WORKDIR"
   OSTYPE=msys XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
   [ "$ctl_shared" = 0 ] && [ -z "$ctl_dir" ] && [ -z "$ctl_path" ] &&
     [ "${#ctl_opts[@]}" -eq 0 ] || _hi_why ctl_shared ctl_dir ctl_path ctl_opts || return 1
@@ -725,7 +714,7 @@ function test_ctl_open_run_socket_dir_is_private() {
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run
   # shellcheck disable=SC2012 # as above: one path, one fixed column
   mode="$(ls -ld "$ctl_dir" | cut -c1-10)"
-  [ "$mode" = "drwx------" ] || _hi_why mode
+  [ "$mode" = "drwx------" ] && [ "$ctl_path" = "$ctl_dir/s" ] || _hi_why mode ctl_dir ctl_path
 }
 
 function test_ctl_open_appends_extra_ssh_options() {
@@ -755,8 +744,7 @@ function test_ctl_close_removes_a_run_socket_dir() {
 # nothing to close is not a failure: every caller runs it on the way out of
 # arms that never opened a socket
 function test_ctl_close_is_a_noop_with_nothing_open() {
-  local DOMAIN=liona ctl_dir="" ctl_path="" ctl_shared=0 fake
-  local -a SSHARGS=() ctl_opts=()
+  local fake
   fake="$(_hi_fake_path ctlssh ssh)"
   PATH="$fake:$PATH" _hi_ctl_close || _hi_why fake
 }
@@ -810,7 +798,7 @@ function run_cache_tests() {
   _hi_h2 "Testing: _hi_ctl_open / _hi_ctl_close"
   _hi_check "Shared uses the runtime dir" _hi_ctl_case test_ctl_open_shared_uses_the_runtime_dir
   _hi_check "Shared socket name stays short" _hi_ctl_case test_ctl_open_shared_socket_name_stays_short
-  _hi_check "Shared key splits on ssh args" test_ctl_open_shared_key_splits_on_ssh_args
+  _hi_check "Shared key splits on ssh args" _hi_ctl_case test_ctl_open_shared_key_splits_on_ssh_args
   _hi_check "Shared key splits on the target" test_ctl_open_shared_key_splits_on_the_target
   _hi_check "Shared falls back when persist is 0" _hi_ctl_case test_ctl_open_shared_falls_back_when_persist_is_zero
   _hi_check "_HI_DISABLE_CONTROLMASTER passes ssh nothing" _hi_ctl_case test_ctl_open_passes_nothing_when_disabled
@@ -826,15 +814,15 @@ function run_cache_tests() {
   _hi_check "The site's settings.sh rides joined under the user's" test_site_settings_ride_joined_under_the_user_s
   _hi_check "A site file with no tag's file leaves stdin alone" test_tag_settings_join_a_site_file_without_reading_stdin
   _hi_check "A site packages stands in for the tree's until the user copies one" test_site_packages_stand_in_until_the_user_copies
-  _hi_check "Shared falls back without a runtime dir" test_ctl_open_shared_falls_back_without_a_runtime_dir
-  _hi_check "Gives up quietly with nowhere to put a socket" test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket
-  _hi_check "No multiplexing on an MSYS client" test_ctl_open_declines_to_multiplex_on_msys
+  _hi_check "Shared falls back without a runtime dir" _hi_ctl_case test_ctl_open_shared_falls_back_without_a_runtime_dir
+  _hi_check "Gives up quietly with nowhere to put a socket" _hi_ctl_case test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket
+  _hi_check "No multiplexing on an MSYS client" _hi_ctl_case test_ctl_open_declines_to_multiplex_on_msys
   _hi_check "run never shares" _hi_ctl_case test_ctl_open_run_never_shares
-  _hi_check_capable mode_bits "run's socket dir is private" test_ctl_open_run_socket_dir_is_private
+  _hi_check_capable mode_bits "run's socket dir is private" _hi_ctl_case test_ctl_open_run_socket_dir_is_private
   _hi_check "Extra ssh options are appended" _hi_ctl_case test_ctl_open_appends_extra_ssh_options
   _hi_check "Close leaves a shared socket alone" _hi_ctl_case test_ctl_close_leaves_a_shared_socket_alone
   _hi_check "Close removes a run socket dir" _hi_ctl_case test_ctl_close_removes_a_run_socket_dir
-  _hi_check "Close is a no-op with nothing open" test_ctl_close_is_a_noop_with_nothing_open
+  _hi_check "Close is a no-op with nothing open" _hi_ctl_case test_ctl_close_is_a_noop_with_nothing_open
 
   _hi_suite_end "hi.sh caches and ControlMaster"
 }

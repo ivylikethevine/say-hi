@@ -230,9 +230,7 @@ FIXTURE
 }
 
 function test_safe_path_rejects_relative_paths() {
-  local got
-  got="$(_hi_safe_path tmp/relative A-Za-z0-9/._-)"
-  [ -z "$got" ] || _hi_why got
+  _hi_prints "" _hi_safe_path tmp/relative A-Za-z0-9/._-
 }
 
 function test_safe_path_rejects_chars_outside_the_class() {

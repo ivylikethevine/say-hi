@@ -355,12 +355,7 @@ function test_parsers_refuse_a_flag_with_no_value() {
     out="$("$_HI_PKG_DIR/$s" "$flag" 2>&1)" && {
       _hi_because "$s $flag with no value should have failed" || return 1
     }
-    case "$out" in
-    *"requires a value"*) : ;;
-    *)
-      _hi_because "$s: expected a 'requires a value' refusal, got [$out]" || return 1
-      ;;
-    esac
+    [[ "$out" == *"$flag requires a value"* ]] || _hi_because "$s: expected '$flag requires a value', got [$out]" || return 1
   done
 }
 
@@ -374,9 +369,9 @@ function test_package_sh_stage_only_needs_no_nfpm() {
 }
 
 function test_package_sh_version_flag_wins() {
-  local out
-  out="$("$_HI_PKG_DIR/mkpkg.sh" --version 7.7.7 --stage-only --outdir "$_HI_WORKDIR/pkgdist2" 2>&1)"
-  [[ "$out" == *"Packaging say-hi 7.7.7"* ]] || _hi_why out
+  local log="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/stage999.log"
+  _hi_staged_999 >/dev/null || :
+  grep -q 'Packaging say-hi 9\.9\.9' "$log" || _hi_because "no 9.9.9 in: $(cat "$log" 2>&1)"
 }
 
 function test_release_workflow_uploads_sha256sums() {
@@ -394,14 +389,11 @@ function test_mkpkg_help_names_its_flags() {
   [[ "$out" == *"--stage-only"*"--outdir <dir>"*"--source-tarball <file>"* ]] || _hi_why out
 }
 
-# a flag without its value and a flag nobody knows both stop before anything
-# is staged, naming the problem
-function test_mkpkg_refuses_a_bare_flag_and_a_stranger() {
-  local out
-  ! out="$("$_HI_PKG_DIR/mkpkg.sh" --outdir 2>&1)" || _hi_why out || return 1
-  [[ "$out" == *"--outdir requires a value"* ]] || _hi_why out || return 1
-  out="$("$_HI_PKG_DIR/mkpkg.sh" --bogus 2>&1)" && return 1
-  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkpkg.sh"* ]] || _hi_why out
+# a flag nobody knows stops before anything is staged, naming the problem
+function test_mkpkg_refuses_a_stranger() {
+  local out rc=0
+  out="$("$_HI_PKG_DIR/mkpkg.sh" --bogus 2>&1)" || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkpkg.sh"* ]] || _hi_why rc out
 }
 
 # no nfpm on the PATH: the refusal says where to get it, and nothing builds
@@ -596,8 +588,7 @@ function test_mkrepo_build_apk_with_a_key_derives_the_public_half() {
 function test_mkrepo_parses_flags_before_asking_for_docker() {
   local out
   ! out="$(PATH="$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" --outdir="$_HI_WORKDIR/x" --bogus 2>&1)" || _hi_why out || return 1
-  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkrepo.sh"* ]] || _hi_why out || return 1
-  _hi_refused "--dist requires a value" "$_HI_MKREPO" --dist || _hi_why
+  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkrepo.sh"* ]] || _hi_why out
 }
 
 # the main guard's two refusals: no docker at all, and a docker whose daemon
@@ -661,7 +652,7 @@ function run_packaging_ci_mkpkg_tests() {
   _hi_check "build_apk without a key serves the committed key" test_mkrepo_build_apk_without_a_key_serves_the_committed_key
   _hi_check_requires openssl "build_apk with a key derives the public half" test_mkrepo_build_apk_with_a_key_derives_the_public_half
   _hi_check "mkpkg.sh --help names its flags" test_mkpkg_help_names_its_flags
-  _hi_check "mkpkg.sh refuses a bare flag and a stranger" test_mkpkg_refuses_a_bare_flag_and_a_stranger
+  _hi_check "mkpkg.sh refuses a stranger" test_mkpkg_refuses_a_stranger
   _hi_check "run_nfpm without nfpm says how to get it" test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it
   _hi_check_capable symlink "mkpkg.sh without git history stamps now and warns" test_mkpkg_without_git_history_stamps_now_and_warns
   _hi_check_capable symlink "mkpkg.sh builds every packager and ships the tarball" test_mkpkg_builds_every_packager_and_ships_the_tarball

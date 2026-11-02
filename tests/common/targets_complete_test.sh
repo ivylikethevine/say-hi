@@ -61,9 +61,7 @@ function test_complete_drops_the_kind_column() {
 }
 
 function test_complete_is_empty_for_an_unmatched_prefix() {
-  local got
-  got="$(_hi_completions_for zzz-no-such-target)"
-  [ -z "$got" ] || _hi_why got
+  _hi_prints "" _hi_completions_for zzz-no-such-target
 }
 
 # The in-shell TTL cache: targets.sh's own file cache already makes a repeat

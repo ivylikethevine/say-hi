@@ -63,9 +63,7 @@ function test_sanitize_strips_control_chars_and_backslashes() {
 # per-call gates and the source-time palette blanking are asserted, the second
 # through a fresh bash: this shell sourced core.sh before the variable was set.
 function test_no_color_blanks_the_escape() {
-  local got
-  got="$(NO_COLOR=1 _hi_color_escape red)"
-  [ -z "$got" ] || _hi_why got
+  NO_COLOR=1 _hi_prints "" _hi_color_escape red
 }
 
 function test_no_color_beats_the_terminal() {
@@ -124,9 +122,7 @@ function test_scheme_is_inert_without_truecolor() {
 }
 
 function test_scheme_is_inert_under_no_color() {
-  local got
-  got="$(NO_COLOR=1 _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_escape red)"
-  [ -z "$got" ] || _hi_why got
+  NO_COLOR=1 _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_prints "" _hi_color_escape red
 }
 
 function test_unknown_scheme_falls_back_to_16_color() {
@@ -432,14 +428,13 @@ function test_pin_hex_accepts_a_leading_hash_and_either_case() {
 # the 16-color pair stays the third column's - which is all a terminal
 # without truecolor is given.
 function test_pin_hex_paints_the_escape_over_the_scheme() {
-  local got out
+  local out
   _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_escape_var out 'red#3ba55d'
   [ "$out" = '\e[0;31;38;2;59;165;93m' ] || _hi_why out || return 1
   _HI_COLOR_SCHEME="" _HI_TRUECOLOR=1 _hi_color_escape_var out 'brgreen#3ba55d'
   [ "$out" = '\e[1;32;38;2;59;165;93m' ] || _hi_why out || return 1
   _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=0 _hi_var_is '\e[0;31m' _hi_color_escape_var 'red#3ba55d' || return 1
-  got="$(NO_COLOR=1 _HI_TRUECOLOR=1 _hi_color_escape 'red#3ba55d')"
-  [ -z "$got" ] || _hi_why got || return 1
+  NO_COLOR=1 _HI_TRUECOLOR=1 _hi_prints "" _hi_color_escape 'red#3ba55d' || return 1
   # the name half still has to be one of the twenty-four: it is the escape's
   # 16-color half, so an unknown name resets exactly as it does without a hex
   _HI_TRUECOLOR=1 _hi_var_is "$NC" _hi_color_escape_var 'nosuch#3ba55d'

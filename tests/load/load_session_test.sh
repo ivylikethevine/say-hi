@@ -375,7 +375,7 @@ function _hi_keep_tmux() {
   if [ ! -d "$bin" ]; then
     _hi_script "$bin/tmux" '#!/bin/sh' 'printf '\''%s\n'\'' "$*" >>"$_HI_TEST_LOG"' \
       'case "$1" in display-message) cat "$_HI_TEST_ATTACHED" ;; esac'
-    cat >"$bin/zellij" <<'SHIM'
+    _hi_script "$bin/zellij" <<'SHIM'
 #!/bin/sh
 printf '%s\n' "$*" >>"$_HI_TEST_LOG"
 case "$*" in
@@ -390,7 +390,6 @@ case "$*" in
 esac
 SHIM
     _hi_script "$bin/screen" '#!/bin/sh' 'printf '\''screen %s\n'\'' "$*" >>"$_HI_TEST_LOG"'
-    chmod +x "$bin/zellij"
   fi
   printf '%s' "$bin"
 }

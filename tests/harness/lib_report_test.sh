@@ -687,6 +687,15 @@ function test_align_keeps_the_whole_verdict_together() {
   [[ "$out" == *"SKIPPED (no python3)" ]] || _hi_why out
 }
 
+# a subject that does not exist prints nothing and exits 127: no reporter takes
+# that for an empty answer
+function test_reporters_refuse_a_missing_subject() {
+  ! _hi_prints "" hi_no_such_subject 2>/dev/null || _hi_because "_hi_prints passed" || return 1
+  ! _hi_says "" hi_no_such_subject 2>/dev/null || _hi_because "_hi_says passed" || return 1
+  ! _hi_var_is "" hi_no_such_subject 2>/dev/null || _hi_because "_hi_var_is passed" || return 1
+  ! (_HI_FAILS_FILE="" _hi_expect_eq label "" hi_no_such_subject) >/dev/null 2>&1 || _hi_because "_hi_expect_eq passed"
+}
+
 function run_lib_report_tests() {
   _hi_workdir libreporttest
 
@@ -730,6 +739,7 @@ function run_lib_report_tests() {
   _hi_check "An assertion with no words names its statement and values" test_why_names_the_statement_and_its_values
   _hi_check "End reports its counts" test_suite_end_reports_its_counts
   _hi_check "Note_failure appends the label" test_note_failure_appends_the_label
+  _hi_check "No reporter takes a missing subject for an empty answer" test_reporters_refuse_a_missing_subject
   _hi_check "Note_failure is a no-op standalone" test_note_failure_is_a_noop_without_a_fails_file
 
   _hi_h2 "Testing: _hi_report_skip / _hi_skip"

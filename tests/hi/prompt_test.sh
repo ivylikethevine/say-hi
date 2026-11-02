@@ -146,9 +146,7 @@ function test_fallback_prompt_takes_the_bash_separator() {
 }
 
 function test_fallback_prompt_respects_the_toggle() {
-  local got
-  got="$(_HI_DISABLE_PROMPT=1 DOMAIN=hitest@myhost _hi_fallback_prompt)"
-  [ -z "$got" ] || _hi_why got
+  _HI_DISABLE_PROMPT=1 DOMAIN=hitest@myhost _hi_prints "" _hi_fallback_prompt
 }
 
 # the whole point: a real POSIX shell renders it without complaint

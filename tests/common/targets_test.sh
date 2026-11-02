@@ -45,7 +45,7 @@ function _hi_write_shims() {
   _HI_TWIN_PATH="$dir/twins:$PATH"
 
   # `nomad job status` (header row + one job), then `nomad job allocs` per job
-  cat >"$dir/nomad" <<'EOF'
+  _hi_script "$dir/nomad" <<'EOF'
 #!/bin/sh
 case "$1 $2" in
 "job status") printf 'ID    Type     Status\nweb   service  running\n' ;;
@@ -56,7 +56,7 @@ EOF
 
   # `get pods -A` rows are "<namespace> <pod> [containers...]"; `config view`
   # answers the current namespace, so pod-c should come back prefixed
-  cat >"$dir/kubectl" <<'EOF'
+  _hi_script "$dir/kubectl" <<'EOF'
 #!/bin/sh
 case "$1" in
 config) printf 'default' ;;
@@ -65,7 +65,6 @@ get) printf 'default pod-a\ndefault pod-b\nother pod-c\n' ;;
 esac
 EOF
 
-  chmod +x "$dir/nomad" "$dir/kubectl"
   _HI_SHIM_PATH="$dir:$PATH"
 }
 
@@ -108,7 +107,7 @@ function _hi_write_slow_shims() {
   _HI_PROBE_LOG="$_HI_WORKDIR/probe.log"
 
   for tool in docker podman; do
-    cat >"$dir/$tool" <<EOF
+    _hi_script "$dir/$tool" <<EOF
 #!/bin/sh
 [ "\$1" = ps ] || exit 1
 printf '$tool start\\n' >>"\$_HI_PROBE_LOG"
@@ -118,7 +117,7 @@ printf 'slow-$tool\\n'
 EOF
   done
 
-  cat >"$dir/kubectl" <<EOF
+  _hi_script "$dir/kubectl" <<EOF
 #!/bin/sh
 [ "\$1" = get ] || exit 1
 printf 'kube start\\n' >>"\$_HI_PROBE_LOG"
@@ -127,15 +126,12 @@ printf 'kube end\\n' >>"\$_HI_PROBE_LOG"
 printf 'default slow-pod\n'
 EOF
 
-  cat >"$dir/nomad" <<'EOF'
+  _hi_script "$dir/nomad" <<'EOF'
 #!/bin/sh
 [ "$1 $2" = "job status" ] || exit 1
 printf 'ID    Type     Status\n'
 EOF
 
-  for tool in docker podman kubectl nomad; do
-    chmod +x "$dir/$tool"
-  done
   # Its own toolbox rather than $_HI_TOOLBOX_PATH: `sleep` is one of the
   # commands these shims run, and the fan-out arm needs the four the in-turn
   # arm never touches - mkdir and chmod to make the scratch dir, cat and rm to
@@ -307,9 +303,8 @@ function test_docker_kind_lists_running_containers() {
 
 # ...unless $_HI_BACKENDS_OFF names it, which leaves the others listing
 function test_a_backend_switched_off_is_not_listed() {
-  local out got
-  got="$(_HI_BACKENDS_OFF=docker _hi_targets "$_HI_CONFIG" docker)"
-  [ -z "$got" ] || _hi_why got _HI_CONFIG || return 1
+  local out
+  _HI_BACKENDS_OFF=docker _hi_prints "" _hi_targets "$_HI_CONFIG" docker || return 1
   out="$(_HI_BACKENDS_OFF="nomad,docker" _hi_targets "$_HI_CONFIG" all)"
   ! printf '%s\n' "$out" | grep -q $'\tdocker$' && printf '%s\n' "$out" | grep -q $'\tssh$' || _hi_why out || return 1
   out="$(_HI_BACKENDS_OFF=all _hi_targets "$_HI_CONFIG" all)"

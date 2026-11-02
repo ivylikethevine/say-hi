@@ -334,15 +334,10 @@ function test_install_aborts_on_broken_configs_without_yes() {
   mkdir -p "$home"
   printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
   out="$(_hi_run_install_here gate-abort --link none 2>&1)" || rc=$?
-  if [ "$rc" -eq 1 ] && [[ "$out" == *"re-run with --yes"* ]] &&
-    ! grep -qF "$_HI_MARKER" "$home/.bashrc"; then
-    return 0
-  fi
   # the transcript, since a gate that asked instead of deciding (a stdin this
   # platform calls a terminal) reads identically from the status alone
-  _hi_cecho " | rc=$rc, and the non-interactive gate line is missing:" "$RED"
-  printf '%s\n' "$out" | sed 's/^/   | /' >&2
-  return 1
+  { [ "$rc" -eq 1 ] && [[ "$out" == *"re-run with --yes"* ]] && ! grep -qF "$_HI_MARKER" "$home/.bashrc"; } ||
+    _hi_because "rc=$rc, and the non-interactive gate line is missing: $out"
 }
 
 function test_install_with_yes_continues_over_broken_configs() {
@@ -576,11 +571,7 @@ function _hi_mode_help_is_its_own() {
   local mode="$1" usage="$2" phrase="$3" out rc=0
   out="$(_HI_ARGV0="hi --$mode" bash "$_HI_INSTALL" "--$mode" --help)" || rc=$?
   [ "$rc" -eq 0 ] || _hi_because "hi --$mode --help exited $rc" || return 1
-  [[ "$out" == "$usage"* && "$out" == *"$phrase"* && "$out" != *"Wires up"* ]] || {
-    _hi_cecho " | hi --$mode --help was:" "$RED"
-    printf '%s\n' "$out" | sed 's/^/      /'
-    return 1
-  }
+  [[ "$out" == "$usage"* && "$out" == *"$phrase"* && "$out" != *"Wires up"* ]] || _hi_because "hi --$mode --help was: $out"
 }
 
 function test_uninstall_help_is_its_own() {

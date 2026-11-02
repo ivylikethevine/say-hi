@@ -82,28 +82,31 @@ function _hi_because() {
   return 1
 }
 
-# _hi_prints <want> <cmd...> - a case whose whole claim is one command's output
+# _hi_prints <want> <cmd...> - a case whose whole claim is one command's output.
+# Its status is no part of the claim, but this one and its twins below refuse
+# 127: a subject that does not exist prints nothing, which an empty <want> and
+# a negative claim would otherwise read as a pass.
 function _hi_prints() {
-  local want="$1" got
+  local want="$1" got rc=0
   shift
-  got="$("$@")" || :
-  [ "$got" = "$want" ] || _hi_because "from: $* - wanted [$want], got [$got]"
+  got="$("$@")" || rc=$?
+  [ "$rc" != 127 ] && [ "$got" = "$want" ] || _hi_because "from: $* - exit $rc, wanted [$want], got [$got]"
 }
 
 # _hi_says <phrase> <cmd...> - ...that its output holds <phrase>
 function _hi_says() {
-  local phrase="$1" out
+  local phrase="$1" out rc=0
   shift
-  out="$("$@" 2>&1)" || :
-  [[ "$out" == *"$phrase"* ]] || _hi_because "from: $* - wanted [$phrase] in [$out]"
+  out="$("$@" 2>&1)" || rc=$?
+  [ "$rc" != 127 ] && [[ "$out" == *"$phrase"* ]] || _hi_because "from: $* - exit $rc, wanted [$phrase] in [$out]"
 }
 
 # _hi_var_is <want> <fn> [arg...] - ...that <fn>, as `<fn> <outvar> [arg...]`,
 # leaves <want> in its out-var, with no fork
 function _hi_var_is() {
-  local _hi_vi=""
-  "$2" _hi_vi "${@:3}" || :
-  [ "$_hi_vi" = "$1" ] || _hi_because "from: ${*:2} - wanted [$1], got [$_hi_vi]"
+  local _hi_vi="" rc=0
+  "$2" _hi_vi "${@:3}" || rc=$?
+  [ "$rc" != 127 ] && [ "$_hi_vi" = "$1" ] || _hi_because "from: ${*:2} - exit $rc, wanted [$1], got [$_hi_vi]"
 }
 
 # _hi_case_failed <label> <why> [transcript] - a target case's red heading, its
@@ -506,20 +509,19 @@ function _hi_note_failure_unless_named() {
 # case's stdout and replays it in submission order, which this writes to like
 # any other case output.
 function _hi_expect_eq() {
-  local label="$1" want="$2" got
+  local label="$1" want="$2" got rc=0
   shift 2
-  # `|| true`, because the assertion is about what <cmd> *printed*: the bare
-  # `[ "$(cmd)" = ... ]` this replaces discarded the exit status too, and a
-  # plain assignment would instead hand it to `set -e` and lose the diagnostic
-  # in the one case it exists for.
-  got="$("$@" || true)"
-  if [ "$got" = "$want" ]; then
+  # the status kept aside, because the assertion is about what <cmd> *printed*
+  # (a plain assignment would hand it to `set -e` and lose the diagnostic in
+  # the one case it exists for); 127 alone counts, as in _hi_prints
+  got="$("$@")" || rc=$?
+  if [ "$rc" != 127 ] && [ "$got" = "$want" ]; then
     _hi_align " | $label" "OK" "$GREEN"
     return 0
   fi
   _hi_align " | $label" "FAILED" "$RED"
   _hi_cecho "      want: \"$want\"" "$RED"
-  _hi_cecho "      got:  \"$got\"" "$RED"
+  _hi_cecho "      got:  \"$got\" (exit $rc)" "$RED"
   _hi_note_failure "$label"
   return 1
 }

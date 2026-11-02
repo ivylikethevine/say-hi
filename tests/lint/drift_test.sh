@@ -697,6 +697,9 @@ function lint_dockerfiles() {
 #           _hi_why prints the statement and its variables, so the value
 #           that was wrong is in neither. Captured into a variable on the
 #           line above, the reason has it.
+#   dropped a check with statements after it in its block and nothing taking
+#           its status: a case runs under `if`, so `set -e` is off and the
+#           case carries on past the failure
 #
 # A reporter is _hi_because, _hi_why, _hi_cecho, _hi_prints, _hi_refused,
 # _hi_says, _hi_var_is, _hi_arrives, _hi_show_*, _hi_dump_*, or a printf or echo that is neither captured nor sent to a file. Statements are
@@ -705,7 +708,7 @@ function lint_dockerfiles() {
 # `return 1` (a stub's `{ return 1; }`, a fixture's text) is not one. What it
 # cannot see: an arm inside a loop or an `if` that the function ends on, and
 # a helper the case calls. One row a finding:
-# <file>:<line>|<case>|<return|last|subst>|<statement>. No awk comments inside: the
+# <file>:<line>|<case>|<return|last|subst|dropped>|<statement>. No awk comments inside: the
 # portable-spelling sweep above reads this file too.
 function _hi_reasons_awk() {
   cat <<'AWK'
@@ -735,8 +738,14 @@ function scan(s,   i, c, x) {
 }
 function bare(s) { gsub(/'[^']*'/, "", s); gsub(/[A-Za-z_][A-Za-z0-9_]*\(\) \{ return 1; \}/, "", s); return s }
 function hit(kind, i) { printf "%s:%d|%s|%s|%s\n", FILENAME, ln[i], fn, kind, substr(st[i], 1, 160) }
-function flush(   last) {
+function dropped(s,   t) {
+  t = bare(s)
+  if (t ~ /\|\||&&|_hi_because|_hi_why|^(if|elif|while|until) /) return 0
+  return t ~ /\|[ \t]*(grep[ \t]+-[A-Za-z]*q|python3[ \t]+-c)/ || t ~ /^(\[\[? |! |grep -[A-Za-z]*q |cmp |diff )/
+}
+function flush(   last, i) {
   if (fn != "" && n > 0) {
+    for (i = 1; i < n; i++) if (dropped(st[i]) && st[i + 1] !~ /^(\)|\}|fi|else|elif|done|esac)/) hit("dropped", i)
     last = st[n]
     if (last !~ /^(return( 0)?|fi|done.*|esac|\}|\)|:|true)$/ && last !~ /\|\| (true|:)$/ && last !~ /^test_[A-Za-z0-9_]+( |$)/ &&
       bare(last) !~ /(^|[^A-Za-z0-9_])return 1([^0-9]|$)/ && !says(last)) hit("last", n)
@@ -768,6 +777,50 @@ d == 0 && /^\}/ { flush(); next }
   if (t != s && t ~ /(^|[ !({])\[\[? [^]]*\$\([^(]/) hit("subst", n)
 }
 END { flush() }
+AWK
+}
+
+# A case whose state a wrapper declares (`_hi_ctl_case test_...`) has to be
+# registered through it: run bare, what it reads is unset and it can still pass.
+# In each suite, a function that ends in `"$@"` with lowercase locals is a
+# wrapper, and a case not registered through one must not read those names
+# without setting them. One row a finding, the same shape.
+function _hi_wrappers_awk() {
+  cat <<'AWK'
+function finish(   f, v) {
+  for (f in body) {
+    if (f !~ /^test_/ || ((f in regs) && (regs[f] in wrappers))) continue
+    for (v in vars) {
+      if (body[f] ~ ("[$][{]?" v "([^A-Za-z0-9_]|$)") && body[f] !~ ("(^|[ \t\n;(])" v "=") && (" " decl[f] " ") !~ (" " v "[ =]"))
+        printf "%s:%d|%s|wrapper|reads $%s, a local of %s, and is not registered through it\n", file, at[f], f, v, vars[v]
+    }
+  }
+  split("", body); split("", decl); split("", at); split("", regs); split("", wrappers); split("", vars)
+  fn = ""
+}
+function declare(line,   n, w, i) {
+  sub(/^[ \t]*local[ \t]+(-[a-z]+[ \t]+)?/, "", line)
+  n = split(line, w, " ")
+  for (i = 1; i <= n; i++) { sub(/=.*/, "", w[i]); if (w[i] ~ /^[A-Za-z_][A-Za-z0-9_]*$/) decl[fn] = decl[fn] " " w[i] }
+}
+FNR == 1 { finish(); file = FILENAME }
+/^function [A-Za-z0-9_]+\(\) \{/ { fn = $2; sub(/\(\).*/, "", fn); at[fn] = FNR; body[fn] = ""; decl[fn] = ""; prev = ""; next }
+fn != "" && /^\}/ {
+  if (prev ~ /^  "\$@"$/ && decl[fn] != "") {
+    wrappers[fn] = 1
+    n = split(decl[fn], w, " ")
+    for (i = 1; i <= n; i++) if (w[i] ~ /^[a-z]/) vars[w[i]] = fn
+  }
+  fn = ""
+  next
+}
+fn != "" {
+  body[fn] = body[fn] "\n" $0
+  prev = $0
+  if ($0 ~ /^[ \t]*local[ \t]/) declare($0)
+}
+match($0, /_hi_[a-z0-9_]+ test_[A-Za-z0-9_]+/) { r = substr($0, RSTART, RLENGTH); split(r, w, " "); regs[w[2]] = w[1] }
+END { finish() }
 AWK
 }
 
@@ -821,16 +874,33 @@ function lint_case_reasons() {
     'function test_fixture_returns_silently() {' '  true || return 1' '  [ -n "$a" ] || _hi_why a' '}' \
     'function test_fixture_says_why() {' '  true || _hi_because "it was false" || return 1' '  [ -n "$a" ] || _hi_why a' '}' \
     'function test_fixture_compares_a_substitution() {' '  [ "$(cat "$a")" = x ] || _hi_why a' '}' \
+    'function test_fixture_drops_a_check() {' '  printf x | grep -q y' '  [ -n "$a" ] || _hi_why a' '}' \
     >"$dir/fixture_test.sh"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   rows="$(awk "$(_hi_reasons_awk)" "$dir/fixture_test.sh" | sed "s|^$dir/||")"
   # shellcheck disable=SC2016
   if [ "$rows" = 'fixture_test.sh:3|test_fixture_ends_bare|last|[ "$a" = "$b" ]
 fixture_test.sh:6|test_fixture_returns_silently|return|true || return 1
-fixture_test.sh:14|test_fixture_compares_a_substitution|subst|[ "$(cat "$a")" = x ] || _hi_why a' ]; then
-    _hi_align " | the scan names a bare last line, a silent return 1, and a compared substitution" "OK" "$GREEN"
+fixture_test.sh:14|test_fixture_compares_a_substitution|subst|[ "$(cat "$a")" = x ] || _hi_why a
+fixture_test.sh:17|test_fixture_drops_a_check|dropped|printf x | grep -q y' ]; then
+    _hi_align " | the scan names a bare last line, a silent return 1, a compared substitution, and a dropped check" "OK" "$GREEN"
   else
     _hi_lint_fail " | the scan read its own fixture as: $rows" "case reasons: the scan no longer sees its fixture"
+    bad=1
+  fi
+  # shellcheck disable=SC2016 # the fixture's own text
+  printf '%s\n' 'function _hi_w_case() {' '  local dir=/x' '  "$@"' '}' \
+    'function test_bare() {' '  [ -n "$dir" ] || _hi_why dir' '}' \
+    'function test_wrapped() {' '  [ -n "$dir" ] || _hi_why dir' '}' \
+    'function test_its_own() {' '  local dir=/y' '  [ -n "$dir" ] || _hi_why dir' '}' \
+    'function run() {' '  _hi_check a test_bare' '  _hi_check b _hi_w_case test_wrapped' '  _hi_check c test_its_own' '}' \
+    >"$dir/wrapper_test.sh"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  rows="$(awk "$(_hi_wrappers_awk)" "$dir/wrapper_test.sh" | sed "s|^$dir/||" | cut -d'|' -f1-3)"
+  if [ "$rows" = 'wrapper_test.sh:5|test_bare|wrapper' ]; then
+    _hi_align " | the wrapper scan names a case registered bare" "OK" "$GREEN"
+  else
+    _hi_lint_fail " | the wrapper scan read its own fixture as: $rows" "case reasons: the wrapper scan no longer sees its fixture"
     bad=1
   fi
   _hi_read_lines suites < <(find "$_HI_ROOT/tests" -name '*_test.sh' | sort)
@@ -838,11 +908,42 @@ fixture_test.sh:14|test_fixture_compares_a_substitution|subst|[ "$(cat "$a")" = 
     "every failing arm of ${#suites[@]} suites' cases says why" \
     "case reasons: an arm that says nothing, or compares a \$( ) it cannot show - end it in _hi_because \"<why>\" or _hi_why <variable>..., the substitution captured first" \
     "${suites[@]}"
+  _hi_reasons_check "$(_hi_wrappers_awk)" "reads a wrapper's state without the wrapper" \
+    "every case that reads a wrapper's state is registered through it" \
+    "case reasons: a case reads a wrapper's local, registered bare - register it through the wrapper" \
+    "${suites[@]}"
   suites=("$_HI_ROOT"/tests/targets/*_test.sh)
   _hi_reasons_check "$(_hi_transcripts_awk)" "a failure line with no transcript beside it" \
     "every end-to-end failure line has its session beside it" \
     "case reasons: an end-to-end failure line alone - add _hi_show_transcript or _hi_show_target" \
     "${suites[@]}"
+  return "$bad"
+}
+
+# A negated helper passes on a name nothing defines (`! f` is true at exit 127),
+# as a reporter's subject did before it refused that: every _hi_* a case negates
+# or hands a reporter has to be defined somewhere in the tree.
+function lint_case_subjects() {
+  local defined names name bad=0
+  local assign='([A-Za-z_][A-Za-z0-9_]*=[^ ]* )*'
+  _hi_h2 "Checking that every helper a case negates or reports through exists"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  defined=" $(grep -rhoE 'function _hi_[a-z0-9_]+|(^|[^A-Za-z0-9_])_hi_[a-z0-9_]+\(\)' \
+    "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" "$_HI_ROOT/common" "$_HI_ROOT/scripts" "$_HI_ROOT/tests" "$_HI_ROOT/packaging" |
+    sed -E 's/.*(_hi_[a-z0-9_]+).*/\1/' | sort -u | tr '\n' ' ')"
+  names="$(find "$_HI_ROOT/tests" -name '*_test.sh' -exec grep -hoE \
+    "(^[[:space:]]*|\|\| |&& )! ${assign}_hi_[a-z0-9_]+|_hi_(prints|var_is) [^ ]+ ${assign}_hi_[a-z0-9_]+|_hi_(says|refused) \"[^\"]*\" ${assign}_hi_[a-z0-9_]+" {} + |
+    sed -E 's/.*[ !](_hi_[a-z0-9_]+)$/\1/' | sort -u)"
+  while IFS= read -r name; do
+    case "$defined" in *" $name "*) continue ;; esac
+    _hi_align " | a case runs $name, which nothing defines" "FOUND" "$RED"
+    bad=$((bad + 1))
+  done <<<"$names"
+  if [ "$bad" = 0 ]; then
+    _hi_align " | every helper a case negates or reports through is defined" "OK" "$GREEN"
+    return 0
+  fi
+  _hi_note_failure "case subjects: a case negates or reports through a helper nothing defines, which passes"
   return "$bad"
 }
 
@@ -854,7 +955,7 @@ function run_drift() {
 
   _hi_lint_halves lint_bash32 lint_portable lint_portable_pairs lint_home_default lint_ignored_payload \
     lint_container_family lint_runtime_dir lint_eval_roster lint_dockerfiles lint_image_tags \
-    lint_image_digests lint_case_reasons lint_mise
+    lint_image_digests lint_case_reasons lint_case_subjects lint_mise
   _hi_lint_suite_end
 }
 

@@ -33,7 +33,7 @@ function _hi_keep_shims() {
   local bin="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/keepbin"
   if [ ! -d "$bin" ]; then
     mkdir -p "$bin" "${bin%/*}/keepzbin"
-    cat >"$bin/zellij" <<'SHIM'
+    _hi_script "$bin/zellij" <<'SHIM'
 #!/bin/sh
 printf 'ZELLIJ %s\n' "$*" >>"$_HI_TEST_LOG"
 case "$1" in
@@ -48,7 +48,7 @@ options) printf '%b' "${_HI_TEST_ZOPTS:-}" ;;
 esac
 exit 0
 SHIM
-    cat >"$bin/tmux" <<'SHIM'
+    _hi_script "$bin/tmux" <<'SHIM'
 #!/bin/sh
 printf 'TMUX %s\n' "$*" >>"$_HI_TEST_LOG"
 case "$1" in
@@ -57,14 +57,14 @@ new-session | -f) env >"$_HI_TEST_LOG.env" ;;
 esac
 exit 0
 SHIM
-    cat >"$bin/screen" <<'SHIM'
+    _hi_script "$bin/screen" <<'SHIM'
 #!/bin/sh
 printf 'SCREEN %s\n' "$*" >>"$_HI_TEST_LOG"
 case "$1" in -ls) printf '%b' "${_HI_TEST_SCREENS:-}" ;; esac
 exit 0
 SHIM
     printf '%s\n' '#!/bin/sh' 'printf '\''BASH %s\n'\'' "$*" >>"$_HI_TEST_LOG"' >"$bin/bash"
-    chmod +x "$bin/tmux" "$bin/zellij" "$bin/screen" "$bin/bash"
+    chmod +x "$bin/bash"
     cp "$bin/zellij" "$bin/bash" "${bin%/*}/keepzbin/"
   fi
   printf '%s' "$bin"

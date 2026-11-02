@@ -50,7 +50,7 @@ source "$_HI_LAUNCHER"
 function _hi_ct_shim() {
   _HI_CT_BIN="$_HI_WORKDIR/ctbin"
   mkdir -p "$_HI_CT_BIN"
-  cat >"$_HI_CT_BIN/docker" <<'SHIM'
+  _hi_script "$_HI_CT_BIN/docker" <<'SHIM'
 #!/bin/sh
 case "$1" in
 ps) exit 0 ;;
@@ -95,7 +95,7 @@ esac
 PATH="${_HI_CT_PATH:-$PATH}" TMPDIR="$_HI_CT_TMPDIR" exec "$SH" -c "$script"
 SHIM
   cp "$_HI_CT_BIN/docker" "$_HI_CT_BIN/podman"
-  chmod +x "$_HI_CT_BIN/docker" "$_HI_CT_BIN/podman"
+  chmod +x "$_HI_CT_BIN/podman"
 }
 
 # _hi_ct_run <slug> [NAME=VALUE...] - one interactive-shaped _say_hi docker

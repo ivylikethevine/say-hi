@@ -239,14 +239,14 @@ function test_gh_dispatch_retries_twice_then_fails() {
   local got got2
   local dir="$_HI_WORKDIR/dispatch" out rc=0
   mkdir -p "$dir/bin"
-  cat >"$dir/bin/gh" <<'EOF'
+  _hi_script "$dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$HI_DISPATCH_LOG"
 [ "$(grep -c . "$HI_DISPATCH_LOG")" -gt "$HI_DISPATCH_FAILS" ]
 EOF
   # shellcheck disable=SC2016 # the stub expands these, not this shell
   printf '#!/bin/sh\nprintf "sleep %%s\\n" "$1" >>"$HI_DISPATCH_LOG.sleeps"\n' >"$dir/bin/sleep"
-  chmod +x "$dir/bin/gh" "$dir/bin/sleep"
+  chmod +x "$dir/bin/sleep"
   out="$(HI_DISPATCH_LOG="$dir/once" HI_DISPATCH_FAILS=1 PATH="$dir/bin:$PATH" \
     bash "$_HI_ROOT/.github/scripts/gh_dispatch.sh" demos.yml v1.2.3 2>&1)" || _hi_why dir || return 1
   got="$(cat "$dir/once")"

@@ -88,7 +88,7 @@ EOF
 
   # connect ok; -O teardown ok; the tool-inventory loop answers per
   # $HI_FAKE_TOOLS, matched on a string only that one script contains.
-  cat >"$dir/ssh" <<'EOF'
+  _hi_script "$dir/ssh" <<'EOF'
 #!/bin/sh
 for a in "$@"; do
   [ "$a" = -O ] && exit 0
@@ -99,7 +99,7 @@ for a in "$@"; do
 done
 exit 0
 EOF
-  chmod +x "$dir/podman" "$dir/ssh"
+  chmod +x "$dir/podman"
   printf '%s' "$dir"
 }
 
