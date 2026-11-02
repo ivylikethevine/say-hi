@@ -272,12 +272,11 @@ function test_complete_the_word_after_link_preset_and_update() {
 # --shell completes the names install.sh's own check takes, the list spelled
 # in both files
 function test_shell_words_match_what_install_takes() {
-  local want got got2
+  local want got
   want="$(sed -n 's/^      \(bash | zsh | fish | all\)) ;;$/\1/p' "$_HI_ROOT/scripts/install.sh" | tr -d '|' | tr -s ' ' '\n' | sort | tr '\n' ' ')"
   got="$(_hi_completions_for --shell "" | sort | tr '\n' ' ')"
   [ -n "$want" ] && [ "$got" = "$want" ] || _hi_because "install.sh takes [$want], targets.sh offers [$got]" || return 1
-  got2="$(_hi_completions_for --shell z)"
-  [ "$got2" = zsh ] || _hi_why got2
+  _hi_prints zsh _hi_completions_for --shell z
 }
 
 # the preset names targets.sh offers are configure.sh's table, spelled twice

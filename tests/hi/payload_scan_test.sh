@@ -50,11 +50,10 @@ set number
 function test_editor_includes_are_dropped_on_the_way_out() {
   local dir out
   dir="$(_hi_lint_fixture drop vim/vimrc "$_HI_LINT_VIMRC")"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
-  [ "$out" = 'set nocompatible
+  _HI_CONFIG_DIR="$dir" _hi_arrives vim/vimrc 'set nocompatible
 source $VIMRUNTIME/defaults.vim
 runtime! plugin/sensible.vim
-set number' ] || _hi_because "vim/vimrc arrived as: [$out]"
+set number'
 }
 
 # lua and elisp are not line-oriented: commenting only the line that matched
@@ -68,9 +67,8 @@ require("lazy").setup({
 })
 vim.opt.tabstop = 2
 ')"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nvim/init.lua)"
-  [ "$out" = 'vim.opt.number = true
-vim.opt.tabstop = 2' ] || _hi_because "nvim/init.lua arrived as: [$out]"
+  _HI_CONFIG_DIR="$dir" _hi_arrives nvim/init.lua 'vim.opt.number = true
+vim.opt.tabstop = 2'
 }
 
 # neovim 0.12's own manager clones into the target's data dir on the first
@@ -87,9 +85,8 @@ vim.opt.tabstop = 2
 ')"
   out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1-3)"
   [ "$out" = 'nvim/init.lua|2|plugin' ] || _hi_because "reported: [$out]" || return 1
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nvim/init.lua)"
-  [ "$out" = 'vim.opt.number = true
-vim.opt.tabstop = 2' ] || _hi_because "nvim/init.lua arrived as: [$out]"
+  _HI_CONFIG_DIR="$dir" _hi_arrives nvim/init.lua 'vim.opt.number = true
+vim.opt.tabstop = 2'
 }
 
 # the editor rc in force on this machine rides the stream the way the tool
@@ -116,7 +113,7 @@ function test_a_home_config_is_found_in_its_tools_order() {
     tmux/tmux.conf:.tmux.conf tmux/tmux.conf:.config/tmux/tmux.conf screenrc:.screenrc"
   mkdir -p "$dir"
   p="$(_hi_fake_path order-bins vim nvim hx nano emacs tmux screen):$PATH"
-  set -- HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_XDG_CONFIG="$home/.config" PATH="$p" _HI_CONFIG_DIR="$dir"
+  set -- HOME="$home" XDG_CONFIG_HOME="$home/.config" PATH="$p" _HI_CONFIG_DIR="$dir"
   for f in $places; do
     f="$home/${f#*:}"
     mkdir -p "${f%/*}" && printf 'x\n' >"$f" || _hi_why f || return 1
@@ -197,13 +194,12 @@ function test_nano_keeps_the_stock_directory_and_drops_the_rest() {
   [ "$out" = "nano/nanorc|3|include,nano/nanorc|4|include" ] || _hi_because "the scan reported: [$out]" || return 1
   # a dropped syntax include or extendsyntax keeps its comment through the
   # strip: load.sh's _hi_nano_fallback reads it on the target
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nano/nanorc)"
-  [ "$out" = 'include "/usr/share/nano/*.nanorc"
+  _HI_CONFIG_DIR="$dir" _hi_arrives nano/nanorc 'include "/usr/share/nano/*.nanorc"
 include "/usr/share/nano/sh.nanorc"
 # hi dropped: include "/usr/share/nano/extra/*.nanorc"
 # hi dropped: include "~/.nano/mine.nanorc"
 # hi dropped: extendsyntax JSX linter eslint
-set tabsize 4' ] || _hi_because "nano/nanorc arrived as: [$out]"
+set tabsize 4'
 }
 
 # a config with nothing to resolve is silent - the scan is a report of danglers,
@@ -273,11 +269,10 @@ if test -f ~/x.fish; source ~/x.fish; end
 status is-interactive; and source (starship init fish | psub)
 fisher install jorgebucaran/nvm.fish
 ')"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat config.fish)"
-  [ "$out" = 'true
+  _HI_CONFIG_DIR="$dir" _hi_arrives config.fish 'true
 if test -f ~/x.fish; true; end
 status is-interactive; and source (starship init fish | psub)
-true fisher install jorgebucaran/nvm.fish' ] || _hi_because "config.fish arrived as: [$out]"
+true fisher install jorgebucaran/nvm.fish'
 }
 
 # tmux is line-oriented like vim, except that a finding ending in `\` takes
@@ -296,16 +291,16 @@ set -g status-left "#S "
 source-file -q ~/.tmux.kept
 run "~/.tmux/plugins/tpm/tpm"
 ')"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat tmux/tmux.conf)"
-  [ "$out" = 'set -g mouse on
+  _HI_CONFIG_DIR="$dir" _hi_arrives tmux/tmux.conf 'set -g mouse on
 set -g status-left "#S "
-source-file -q ~/.tmux.kept' ] || _hi_because "tmux/tmux.conf arrived as: [$out]"
+source-file -q ~/.tmux.kept'
 }
 
 # a multiplexer's default shell is a path on the client: dropped, a pane
 # opens on the session's $SHELL; a line that only names the option stays
 function test_a_multiplexers_default_shell_stays_home() {
-  local dir out d="$_HI_WORKDIR/sent"
+  local out
+  local dir d="$_HI_WORKDIR/sent"
   dir="$(_hi_lint_fixture muxshell tmux/tmux.conf 'set -g mouse on
 set -g default-shell /usr/bin/fish
 set-option -g -q default-shell /opt/zsh
@@ -320,8 +315,7 @@ set -g status-left "default-shell"
 set -g status-left "default-shell"' ] || _hi_because "tmux.conf arrived as: [$out]" || return 1
   out="$(<"$d/screenrc")"
   [ "$out" = 'defscrollback 100' ] || _hi_because "screenrc arrived as: [$out]" || return 1
-  out="$(grep -v '^// hi dropped: ' "$d/zellij/config.kdl")"
-  [ "$out" = 'theme "x"' ] || _hi_because "config.kdl arrived as: [$out]"
+  _hi_prints 'theme "x"' grep -v '^// hi dropped: ' "$d/zellij/config.kdl"
 }
 
 # zellij names a plugin's .wasm in more places than a layout's location=: a
@@ -390,7 +384,8 @@ function _hi_carry_home() {
 # member, its path held for the target's overlay directory, and the file's
 # own includes the same; one naming nothing there is dropped as ever
 function test_an_include_under_the_tools_directory_rides() {
-  local h d="$_HI_WORKDIR/carry-unpacked" got
+  local got
+  local h d="$_HI_WORKDIR/carry-unpacked"
   h="$(_hi_carry_home rides)"
   mkdir "$d" && HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _hi_overlay_tar tmux/tmux.conf |
     tar -x -z -f - -C "$d" || _hi_why h d || return 1
@@ -400,8 +395,7 @@ source-file $_HI_CARRY_TOKEN/tmux/theme.conf" ] || _hi_because "tmux.conf: [$got
   got="$(cat "$d/tmux/theme.conf")"
   [ "$got" = "set -g @theme HI
 source-file \"$_HI_CARRY_TOKEN/tmux/parts/bar.conf\"" ] || _hi_because "theme.conf: [$got]" || return 1
-  got="$(cat "$d/tmux/parts/bar.conf")"
-  [ "$got" = 'set -g @bar HI' ] || _hi_why got d
+  _hi_prints 'set -g @bar HI' cat "$d/tmux/parts/bar.conf"
 }
 
 # a line under hi-carry rides the files under $HOME it names, as written and
@@ -487,10 +481,9 @@ set -g mouse on" ] || _hi_because "after the fixup: [$got]"
 
 # hi --doctor names what is dropped and nothing the packer carries
 function test_a_carried_include_is_no_finding() {
-  local h out
+  local h
   h="$(_hi_carry_home doctor)"
-  out="$(HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _hi_include_lint)"
-  [ "$out" = 'tmux/tmux.conf|3|include|source-file $HOME/.config/tmux/gone.conf' ] || _hi_because "rows: [$out]"
+  HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _hi_prints 'tmux/tmux.conf|3|include|source-file $HOME/.config/tmux/gone.conf' _hi_include_lint
 }
 
 # the overlay cache keeps the carried files' list beside it, so an edit to
@@ -734,8 +727,7 @@ source ~/.vim/other.vim
   out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | paste -sd, -)"
   [ "$out" = 'vim/vimrc|1|unclosed|" hi-allow-start,vim/vimrc|2|include|source ~/.vim/extra.vim,vim/vimrc|7|unclosed|" hi-quiet-start,vim/vimrc|8|include|source ~/.vim/other.vim' ] ||
     _hi_because "the scan reported: [$out]" || return 1
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
-  [ "$out" = 'source ~/.vim/kept.vim' ] || _hi_because "vim/vimrc arrived as: [$out]"
+  _HI_CONFIG_DIR="$dir" _hi_arrives vim/vimrc 'source ~/.vim/kept.vim'
 }
 
 # `hi-allow` and `hi-quiet` still decide the one line under them, inside a
@@ -789,15 +781,13 @@ set_it=1
   printf '[mine.mine]\ntool = "-"\nwire = "env:MINERC"\nfiles = "mine.rc"\n' >"$bare/plugins"
   out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1-3)"
   [ "$out" = 'mine.rc|2|include' ] || _hi_because "reported: [$out]" || return 1
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat mine.rc)"
-  [ "$out" = ':
-set_it=1' ] || _hi_because "arrived as: [$out]" || return 1
+  _HI_CONFIG_DIR="$dir" _hi_arrives mine.rc ':
+set_it=1' || return 1
   got="$(_HI_CONFIG_DIR="$bare" _hi_include_lint)"
   [ -z "$got" ] || _hi_because "reported with no dialect" || return 1
-  out="$(_HI_CONFIG_DIR="$bare" _hi_overlay_tar | _hi_tar_cat mine.rc)"
-  [ "$out" = '# about it
+  _HI_CONFIG_DIR="$bare" _hi_arrives mine.rc '# about it
 . ~/.mine-extra
-set_it=1' ] || _hi_because "with no dialect arrived as: [$out]"
+set_it=1'
 }
 
 # a module neovim's init.lua requires from its lua/ rides, what that module
@@ -805,7 +795,7 @@ set_it=1' ] || _hi_because "with no dialect arrived as: [$out]"
 # require of nothing there is dropped as before, and a module nothing
 # requires stays home
 function test_a_required_neovim_module_rides() {
-  local dir out listing
+  local dir listing out
   dir="$(_hi_lint_fixture require nvim/init.lua 'vim.g.one = 1
 require("mine.opts")
 local keys = require '"'"'keys'"'"'
@@ -824,8 +814,7 @@ require("absent")
 vim.g.one = 1
 require(\"mine.opts\")
 local keys = require 'keys'" ] || _hi_because "nvim/init.lua arrived as: [$out]" || return 1
-  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint)"
-  [ "$out" = 'nvim/init.lua|4|include|require("absent")' ] || _hi_because "the findings: [$out]"
+  _HI_CONFIG_DIR="$dir" _hi_prints 'nvim/init.lua|4|include|require("absent")' _hi_include_lint
 }
 
 # _hi_real_nvim <outvar> - an nvim past the suite's stand-in on $PATH, or a
@@ -870,8 +859,7 @@ function test_neovim_s_init_vim_rides_in_the_vim_dialect() {
   dir="$(_hi_lint_fixture initvim nvim/init.vim 'set number
 source ~/elsewhere.vim
 ')"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nvim/init.vim)"
-  [ "$out" = 'set number' ] || _hi_because "nvim/init.vim arrived as: [$out]" || return 1
+  _HI_CONFIG_DIR="$dir" _hi_arrives nvim/init.vim 'set number' || return 1
   _hi_overlay_wiring w nvim/init.vim
   [[ "$w" == *'export _HI_NVIMRC="$_HI_CONFIG_DIR/nvim/init.vim"'* && "$w" == *'nvim -u $_HI_CONFIG_DIR/nvim/init.vim"'* ]] ||
     _hi_because "its wiring: $w"
@@ -907,7 +895,7 @@ _HI_LINT_GITCONFIG='[user]
 # the lines continuing it. The name and the email ride, a header stays, and a
 # private line rides under a hi-allow alone, where it is listed.
 function test_git_keeps_its_keys_and_credentials_home() {
-  local dir out w
+  local dir w out
   dir="$(_hi_lint_fixture gitkeys git/config "$_HI_LINT_GITCONFIG")"
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)"
   [ -z "$out" ] || _hi_because "git rode without being switched on: $out" || return 1
@@ -928,8 +916,7 @@ sshCommand = ssh -o Compression=yes
 postBuffer = 1' ] || _hi_because "git/config arrived as: [$out]" || return 1
   out="$(_HI_PLUGINS_ON=git _HI_CONFIG_DIR="$dir" _hi_include_lint)"
   [ -z "$out" ] || _hi_because "what stays home was a finding: $out" || return 1
-  out="$(_HI_PLUGINS_ON=git _HI_CONFIG_DIR="$dir" _hi_allowed_lines)"
-  [ "$out" = 'git/config|16|allowed|sshCommand = ssh -o Compression=yes' ] || _hi_because "the allowed lines: [$out]" || return 1
+  _HI_PLUGINS_ON=git _HI_CONFIG_DIR="$dir" _hi_prints 'git/config|16|allowed|sshCommand = ssh -o Compression=yes' _hi_allowed_lines || return 1
   _hi_overlay_wiring w git/config
   [[ "$w" == *'export GIT_CONFIG_COUNT="1" GIT_CONFIG_KEY_0="include.path" GIT_CONFIG_VALUE_0="$_HI_CONFIG_DIR/git/config"'* ]] ||
     _hi_because "its wiring: $w"

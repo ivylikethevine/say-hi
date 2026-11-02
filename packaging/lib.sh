@@ -50,6 +50,13 @@ function need_file() {
   }
 }
 
+# _hi_bad_arg <word> - the parse loops' refusal: named, with $_HI_USAGE
+function _hi_bad_arg() {
+  echo "$_HI_ME: unrecognized argument: $1" >&2
+  echo "$_HI_USAGE" >&2
+  exit 1
+}
+
 # gpg_fpr <gpg args...> - the first fingerprint in gpg's --with-colons output,
 # or empty. The `|| true` matters: gpg failing inside a caller's command
 # substitution would otherwise kill a `set -e` + pipefail script silently,

@@ -19,26 +19,16 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 _HI_PLUGINS_TREE=""
 
 # _hi_plugins_run <config> <flag> <args...> - `hi <flag>` over that overlay,
-# at a home of the case's own, with no toggle or list inherited. What it says
-# goes through a file, so a run that wrote nothing is told on stderr from one
-# whose words the caller's capture lost: Windows arm64 has shown an empty
-# capture from a run that exited 0.
+# at a home of the case's own, with no toggle or list inherited.
 function _hi_plugins_run() {
-  local cfg="$1" rc=0
+  local cfg="$1"
   shift
   mkdir -p "$cfg.home"
-  env -u _HI_PLUGINS_OFF -u _HI_DISABLE_LOCAL \
+  _hi_run_said --both "hi $*" env -u _HI_PLUGINS_OFF -u _HI_DISABLE_LOCAL \
     HOME="$cfg.home" XDG_CONFIG_HOME="$cfg.home/.config" _HI_CONFIG_DIR="$cfg" \
     _HI_HOME="$_HI_PLUGINS_TREE" NO_COLOR=1 \
-    "$_HI_PLUGINS_TREE/say-hi/hi.sh" "$@" >"$cfg.said" 2>&1 || rc=$?
-  cat "$cfg.said"
-  [ -s "$cfg.said" ] ||
-    printf ' | hi %s wrote nothing and exited %s; its overlay holds: %s\n' "$*" "$rc" "$(printf '%s ' "$cfg"/*)" >&2
-  return "$rc"
+    "$_HI_PLUGINS_TREE/say-hi/hi.sh" "$@"
 }
-
-# _hi_plugins_cfg <name> - a fresh overlay directory's path; nothing is made
-function _hi_plugins_cfg() { printf '%s' "$_HI_WORKDIR/$1-cfg"; }
 
 # _hi_plugins_off_line <list> - the line the list is kept on, as the wizard
 # pads and tags its own
@@ -69,7 +59,7 @@ function _hi_plugins_refused() {
 
 function test_plugins_help_is_each_command_s_own() {
   local cfg out flag
-  cfg="$(_hi_plugins_cfg help)"
+  cfg="$_HI_WORKDIR/help-cfg"
   for flag in "--plugins:Usage: hi --plugins" "--disable-plugin:Usage: hi --disable-plugin <name>... [--dry-run]" \
     "--enable-plugin:Usage: hi --enable-plugin <name>... [--dry-run]"; do
     out="$(_hi_plugins_run "$cfg" "${flag%%:*}" --help)" || _hi_why cfg flag || return 1
@@ -79,13 +69,13 @@ function test_plugins_help_is_each_command_s_own() {
 }
 
 function test_plugins_refuse_what_they_cannot_take() {
-  { _hi_plugins_refused "$(_hi_plugins_cfg r1)" "takes no argument" --plugins vim &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r2)" "needs a plugin or a member" --disable-plugin &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r3)" "not a plugin or a member: nosuch" --disable-plugin nosuch &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r4)" "not a plugin or a member: colors" --disable-plugin colors &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r4g)" "not a plugin or a member: editors" --disable-plugin editors &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r4h)" "not a plugin or a member: hooks" --enable-plugin hooks &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r5)" "unknown option --force" --enable-plugin vim --force; } || _hi_why
+  { _hi_plugins_refused "$_HI_WORKDIR/r1-cfg" "takes no argument" --plugins vim &&
+    _hi_plugins_refused "$_HI_WORKDIR/r2-cfg" "needs a plugin or a member" --disable-plugin &&
+    _hi_plugins_refused "$_HI_WORKDIR/r3-cfg" "not a plugin or a member: nosuch" --disable-plugin nosuch &&
+    _hi_plugins_refused "$_HI_WORKDIR/r4-cfg" "not a plugin or a member: colors" --disable-plugin colors &&
+    _hi_plugins_refused "$_HI_WORKDIR/r4g-cfg" "not a plugin or a member: editors" --disable-plugin editors &&
+    _hi_plugins_refused "$_HI_WORKDIR/r4h-cfg" "not a plugin or a member: hooks" --enable-plugin hooks &&
+    _hi_plugins_refused "$_HI_WORKDIR/r5-cfg" "unknown option --force" --enable-plugin vim --force; } || _hi_why
 }
 
 # ---------------------------------------------------------------------------
@@ -96,7 +86,7 @@ function test_plugins_refuse_what_they_cannot_take() {
 # no file, a plugin and a member alike
 function test_plugin_off_writes_the_list() {
   local cfg out
-  cfg="$(_hi_plugins_cfg off)"
+  cfg="$_HI_WORKDIR/off-cfg"
   out="$(_hi_plugins_run "$cfg" --disable-plugin lazygit vim tmux/tmux.conf)" || _hi_why cfg || return 1
   [[ "$out" == *" - lazygit"* && "$out" == *" - vim"* && "$out" == *"settings.sh updated"* ]] || _hi_because "said: $out" || return 1
   _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(_hi_plugins_off_line 'lazygit vim tmux/tmux.conf')\n" || _hi_why cfg
@@ -106,23 +96,23 @@ function test_plugin_off_writes_the_list() {
 # hi's own directory, a path further down, and a backup's name are not
 function test_plugin_off_takes_one_file_of_a_directory() {
   local cfg out
-  cfg="$(_hi_plugins_cfg off-file)"
+  cfg="$_HI_WORKDIR/off-file-cfg"
   out="$(_hi_plugins_run "$cfg" --disable-plugin extensions/10-kube zellij/layouts/work.kdl)" || _hi_why cfg || return 1
   [[ "$out" == *" - extensions/10-kube"* ]] || _hi_because "said: $out" || return 1
   _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(_hi_plugins_off_line 'extensions/10-kube zellij/layouts/work.kdl')\n" || _hi_why cfg || return 1
   _hi_plugins_run "$cfg" --enable-plugin extensions/10-kube zellij/layouts/work.kdl >/dev/null || _hi_why cfg || return 1
   _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)" || _hi_why cfg || return 1
-  { _hi_plugins_refused "$(_hi_plugins_cfg off-file-r1)" "not a plugin or a member: header/sky" --disable-plugin header/sky &&
-    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r2)" "not a plugin or a member: extensions/sub/x" --disable-plugin extensions/sub/x &&
-    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r3)" "not a plugin or a member: extensions/x.bak" --disable-plugin extensions/x.bak &&
-    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r4)" "not a plugin or a member: vim/other" --disable-plugin vim/other; } || _hi_why
+  { _hi_plugins_refused "$_HI_WORKDIR/off-file-r1-cfg" "not a plugin or a member: header/sky" --disable-plugin header/sky &&
+    _hi_plugins_refused "$_HI_WORKDIR/off-file-r2-cfg" "not a plugin or a member: extensions/sub/x" --disable-plugin extensions/sub/x &&
+    _hi_plugins_refused "$_HI_WORKDIR/off-file-r3-cfg" "not a plugin or a member: extensions/x.bak" --disable-plugin extensions/x.bak &&
+    _hi_plugins_refused "$_HI_WORKDIR/off-file-r4-cfg" "not a plugin or a member: vim/other" --disable-plugin vim/other; } || _hi_why
 }
 
 # every other line of a settings.sh stays where it was, and a second list
 # line never joins the first
 function test_plugin_off_keeps_the_other_settings() {
   local cfg
-  cfg="$(_hi_plugins_cfg off-keeps)"
+  cfg="$_HI_WORKDIR/off-keeps-cfg"
   mkdir -p "$cfg"
   printf '#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_PLUGINS_OFF="bat, rg"\nexport _HI_KEEP=1\n' >"$cfg/settings.sh"
   _hi_plugins_run "$cfg" --disable-plugin fzf >/dev/null || _hi_why cfg || return 1
@@ -131,7 +121,7 @@ function test_plugin_off_keeps_the_other_settings() {
 
 function test_plugin_off_twice_writes_nothing() {
   local cfg out
-  cfg="$(_hi_plugins_cfg off-twice)"
+  cfg="$_HI_WORKDIR/off-twice-cfg"
   _hi_plugins_run "$cfg" --disable-plugin bat >/dev/null || _hi_why cfg || return 1
   out="$(_hi_plugins_run "$cfg" --disable-plugin bat)" || _hi_why cfg || return 1
   [[ "$out" == *"bat is off already"* && "$out" != *updated* ]] || _hi_because "said: $out" || return 1
@@ -141,7 +131,7 @@ function test_plugin_off_twice_writes_nothing() {
 # switching the last one back on takes the line with it
 function test_plugin_on_takes_a_word_back() {
   local cfg out
-  cfg="$(_hi_plugins_cfg on)"
+  cfg="$_HI_WORKDIR/on-cfg"
   _hi_plugins_run "$cfg" --disable-plugin bat vim >/dev/null || _hi_why cfg || return 1
   out="$(_hi_plugins_run "$cfg" --enable-plugin vim)" || _hi_why cfg || return 1
   [[ "$out" == *" + vim"* ]] || _hi_because "said: $out" || return 1
@@ -153,7 +143,7 @@ function test_plugin_on_takes_a_word_back() {
 # a word that is on says so, and nothing is written
 function test_plugin_on_says_a_word_is_on() {
   local cfg out
-  cfg="$(_hi_plugins_cfg on-already)"
+  cfg="$_HI_WORKDIR/on-already-cfg"
   mkdir -p "$cfg"
   printf '#!/bin/sh\n' >"$cfg/settings.sh"
   out="$(_hi_plugins_run "$cfg" --enable-plugin bat)" || _hi_why cfg || return 1
@@ -165,7 +155,7 @@ function test_plugin_on_says_a_word_is_on() {
 # takes it out, and neither touches _HI_PLUGINS_OFF
 function test_plugin_on_moves_a_default_off_plugin() {
   local cfg out
-  cfg="$(_hi_plugins_cfg on-default)"
+  cfg="$_HI_WORKDIR/on-default-cfg"
   out="$(_hi_plugins_run "$cfg" --enable-plugin zoxide)" || _hi_why cfg || return 1
   [[ "$out" == *" + zoxide"* ]] || _hi_because "said: $out" || return 1
   _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(printf '%-45s %s' "export _HI_PLUGINS_ON='zoxide'" "$_HI_MARKER")\n" || _hi_why cfg _HI_MARKER || return 1
@@ -182,7 +172,7 @@ function test_plugin_on_moves_a_default_off_plugin() {
 
 function test_plugin_off_dry_run_writes_nothing() {
   local cfg out
-  cfg="$(_hi_plugins_cfg off-dry)"
+  cfg="$_HI_WORKDIR/off-dry-cfg"
   out="$(_hi_plugins_run "$cfg" --disable-plugin bat --dry-run)" || _hi_why cfg || return 1
   [[ "$out" == *"dry run"*"_HI_PLUGINS_OFF='bat'"* ]] && [ ! -e "$cfg" ] || _hi_why out cfg
 }
@@ -195,7 +185,7 @@ function test_plugin_off_dry_run_writes_nothing() {
 # a row of the user's own beside hi's
 function test_plugins_lists_what_rides_and_what_is_off() {
   local cfg out
-  cfg="$(_hi_plugins_cfg list)"
+  cfg="$_HI_WORKDIR/list-cfg"
   mkdir -p "$cfg" "$cfg.home"
   mkdir -p "$cfg/bat" "$cfg/nano"
   printf 'x\n' >"$cfg/bat/config"
@@ -215,7 +205,7 @@ function test_plugins_lists_what_rides_and_what_is_off() {
 # the ignored line by its file and number, and no rule, bar, or escape
 function test_plugins_text_lists_a_row_a_line() {
   local cfg out rules
-  cfg="$(_hi_plugins_cfg text)"
+  cfg="$_HI_WORKDIR/text-cfg"
   mkdir -p "$cfg/bat" "$cfg.home"
   printf 'x\n' >"$cfg/bat/config"
   printf '[mine.task]\nbad line\nfiles = "taskrc"\n' >"$cfg/plugins"
@@ -231,7 +221,7 @@ function test_plugins_text_lists_a_row_a_line() {
 # tool missing here, the plugin off (by default, or by the list), or on
 function test_plugins_lists_the_hooks() {
   local cfg out stubs
-  cfg="$(_hi_plugins_cfg hooks)"
+  cfg="$_HI_WORKDIR/hooks-cfg"
   mkdir -p "$cfg"
   {
     printf '[mine.hi-hook-on]\ninit = "hi-hook-on init {shell}"\n'
@@ -252,7 +242,7 @@ function test_plugins_lists_the_hooks() {
 # ...and a hook whose init draws the prompt says so
 function test_plugins_says_a_hook_draws_the_prompt() {
   local cfg out stubs
-  cfg="$(_hi_plugins_cfg prompthook)"
+  cfg="$_HI_WORKDIR/prompthook-cfg"
   mkdir -p "$cfg"
   printf '[mine.hi-hook-prompt]\ninit = "hi-hook-prompt init {shell}"\nprompt = "yes"\n' >"$cfg/plugins"
   stubs="$(_hi_stub_tools hi-hook-prompt)"
@@ -271,7 +261,7 @@ function _hi_plugins_row_has() {
 # default), a value no line can hold, or riding
 function test_plugins_lists_the_variables() {
   local cfg out
-  cfg="$(_hi_plugins_cfg vars)"
+  cfg="$_HI_WORKDIR/vars-cfg"
   mkdir -p "$cfg"
   {
     printf '[mine.hi-env-on]\ntool = "-"\nenv = "HI_ENVT_SET HI_ENVT_UNSET HI_ENVT_QUOTED"\n'
@@ -293,7 +283,7 @@ function test_plugins_lists_the_variables() {
 # hi-allow is named, by its member and line
 function test_plugins_lists_what_rides_under_a_hi_allow() {
   local cfg out
-  cfg="$(_hi_plugins_cfg allowed)"
+  cfg="$_HI_WORKDIR/allowed-cfg"
   mkdir -p "$cfg/git"
   printf '[core]\n# hi-allow\nsshCommand = ssh -o Compression=yes\n' >"$cfg/git/config"
   out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || _hi_why cfg || return 1
@@ -311,7 +301,7 @@ function test_plugins_names_a_bad_tree_row_under_the_tree() {
   tree="$(_hi_scratch_tree plugins-badtree common config load.sh hi.sh link:scripts)"
   printf 'bad line\n' >>"$tree/say-hi/config/plugins"
   n=$(($(wc -l <"$tree/say-hi/config/plugins")))
-  cfg="$(_hi_plugins_cfg badtree)"
+  cfg="$_HI_WORKDIR/badtree-cfg"
   out="$(_hi_strip_ansi "$(_HI_PLUGINS_TREE="$tree" _hi_plugins_run "$cfg" --plugins)")" || _hi_why tree cfg || return 1
   [[ "$out" == *" ignored "*"$tree/say-hi/config/plugins line $n"*"not a line of a plugin"* && "$out" != *"$cfg/"* ]] ||
     _hi_because "listed: $out"

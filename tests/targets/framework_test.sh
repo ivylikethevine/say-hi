@@ -404,15 +404,12 @@ function _hi_run_framework_case() {
     _hi_config_client_home "$home"
     ;;
   tools)
-    # helix's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported
-    local -x _HI_XDG_CONFIG="$home/.config"
     tools=(hx kak lazygit)
     _hi_tools_client_home "$home"
     ;;
   carried)
-    # nvim's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported,
-    # and git's the global config test_lib.sh points at /dev/null
-    local -x _HI_XDG_CONFIG="$home/.config" GIT_CONFIG_GLOBAL="$home/.gitconfig"
+    # git's row reads the global config test_lib.sh points at /dev/null
+    local -x GIT_CONFIG_GLOBAL="$home/.gitconfig"
     tools=(nvim)
     _hi_carried_client_home "$home"
     ;;
@@ -429,8 +426,6 @@ function _hi_run_framework_case() {
     esac
     ;;
   editors | editors-release)
-    # nvim's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported
-    local -x _HI_XDG_CONFIG="$home/.config"
     tools=(vim nvim)
     _hi_editors_client_home "$home"
     ;;
@@ -464,9 +459,7 @@ function _hi_run_framework_case() {
     _hi_transcript_is_clean "$label" "$_HI_WORKDIR/$label.interactive.out" && ok=1
     # the config case's header drew the overlay's header/ cell
     [ "$3" != config ] || grep -q HITESTCELL "$_HI_WORKDIR/$label.interactive.out" || {
-      _hi_h3 " | [$label] -- FAILED: the overlay's header/ cell did not draw" "$RED"
-      _hi_show_transcript "the session's transcript (no HITESTCELL in it)" "$_HI_WORKDIR/$label.interactive.out"
-      _hi_note_failure "[$label] header/ cell missing"
+      _hi_case_failed "$label" "the overlay's header/ cell did not draw (no HITESTCELL)" "$_HI_WORKDIR/$label.interactive.out"
       ok=0
     }
   fi

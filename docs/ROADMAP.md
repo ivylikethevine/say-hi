@@ -66,9 +66,9 @@ review that lands when it lands.
       `publish-external.yml`'s `aur` job is written but unexercised. **When
       it reopens:** register, add `AUR_SSH_KEY` as a repository secret,
       and push each package once by hand
-      ([RELEASING.md](RELEASING.md#aur)). **Ticks when:** both
-      packages are live and a dispatch has kept `say-hi` current for one
-      release.
+      ([RELEASING.md](RELEASING.md#aur)), then make `aur` run from the release
+      itself, with nothing to dispatch. **Ticks when:** both packages are live
+      and a release has kept `say-hi` current with no human step.
 
 - [ ] **IV.** _Post 1.0:_ **nixpkgs** — the flake in this repository is the
       nix channel until then

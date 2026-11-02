@@ -331,9 +331,7 @@ More names look like settings and are not:
   `$_HI_HOME` (the directory **above** it) are read **before** `settings.sh`
   is sourced, so a line there is too late: export them, as `hi.sh` and
   `install.sh`'s rc line do. Unset, each entry point derives them from its
-  own path; `$_HI_HOME` alone names a `say-hi` under it. `$_HI_XDG_CONFIG` is the
-  `$XDG_CONFIG_HOME`-or-`~/.config` base resolved beside them — set
-  `$XDG_CONFIG_HOME` instead.
+  own path; `$_HI_HOME` alone names a `say-hi` under it.
 - `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:` comments and `Tag` lines are read
   from), `$_HI_COLORS`, and `$_HI_PACKAGES` are re-derived by
   `common/paths.sh` on every source, from `$_HI_ROOT`, `$HOME`, the site tier,

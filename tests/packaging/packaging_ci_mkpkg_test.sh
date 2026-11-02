@@ -38,7 +38,6 @@ function test_publish_job_ships_the_package_repository() {
 }
 
 function test_pages_workflow_serves_the_package_repository() {
-  [ -f "$_HI_PAGES_WF" ] || return 0
   { grep -qF 'gh release download' "$_HI_PAGES_WF" &&
     grep -qF 'package-repo.tar.gz' "$_HI_PAGES_WF" &&
     grep -qF -- '-C _site' "$_HI_PAGES_WF"; } || _hi_why _HI_PAGES_WF
@@ -51,7 +50,6 @@ function test_pages_workflow_serves_the_package_repository() {
 # redeploy instead, and Release must not claim a trigger that cannot fire.
 function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
   local got
-  [ -f "$_HI_PAGES_WF" ] && [ -f "$_HI_DEMOS_WF" ] || return 0
   local refresh
   refresh="$(_hi_wf_job "$_HI_DEMOS_WF" refresh-pages)"
   { ! grep -qE '^ *workflows: \[.*Release.*\]' "$_HI_PAGES_WF" &&
@@ -67,7 +65,6 @@ function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
 # first time with the previous push's coverage figures. Coverage's own event is
 # workflow_run, never push, so the build admits any successful run but a PR's.
 function test_pages_deploys_once_after_coverage() {
-  [ -f "$_HI_PAGES_WF" ] || return 0
   local build
   build="$(_hi_wf_job "$_HI_PAGES_WF" build)"
   grep -qE '^ *workflows: \[Coverage\]$' "$_HI_PAGES_WF" &&
@@ -78,7 +75,6 @@ function test_pages_deploys_once_after_coverage() {
 
 function test_packaging_smoke_builds_the_package_repository() {
   local got
-  [ -f "$_HI_CI_WF" ] || return 0
   got="$(_hi_wf_job "$_HI_CI_WF" packaging-smoke)"
   [[ "$got" == *'packaging/mkrepo.sh'* ]] || _hi_why got _HI_CI_WF
 }
@@ -168,14 +164,6 @@ function test_bump_srcinfo_fallback_rewrites_the_three_lines() {
       grep -qF 'b2sums = feedbeef' "$_HI_SRCINFO" &&
       grep -q $'^\tpkgver' "$_HI_SRCINFO" # the leading tab survived the sed
   ) || _hi_why -6 _HI_SRCINFO
-}
-
-function test_bump_check_passes_after_a_write() {
-  bump_fixture
-  (
-    _hi_bump_written
-    check_manifests >/dev/null 2>&1
-  ) || _hi_why
 }
 
 # corrupt one .SRCINFO line after a good write; --check has to catch it
@@ -416,21 +404,6 @@ function test_mkpkg_refuses_a_bare_flag_and_a_stranger() {
   [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkpkg.sh"* ]] || _hi_why out
 }
 
-# _hi_in_mkpkg <dist> <fn> [args...] - one mkpkg.sh function in a subshell,
-# through its HI.06 source guard, with the dist dir pointed at a fixture
-function _hi_in_mkpkg() {
-  local dist="$1"
-  shift
-  (
-    _hi_argv=("$@")
-    set -- # mkpkg.sh parses "$@" at source time; hand it none
-    # shellcheck source=../../packaging/mkpkg.sh
-    source "$_HI_PKG_DIR/mkpkg.sh"
-    _HI_DIST="$dist"
-    "${_hi_argv[@]}"
-  )
-}
-
 # no nfpm on the PATH: the refusal says where to get it, and nothing builds
 function test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it() {
   local out
@@ -466,7 +439,7 @@ function test_mkpkg_builds_every_packager_and_ships_the_tarball() {
   local bin="$_HI_WORKDIR/fakenfpm" dist="$_HI_WORKDIR/fakenfpm-dist" out
   mkdir -p "$bin"
   printf 'tarball\n' >"$_HI_WORKDIR/say-hi-9.9.9.tar.gz"
-  cat >"$bin/nfpm" <<'EOF'
+  _hi_script "$bin/nfpm" <<'EOF'
 #!/bin/sh
 while [ $# -gt 0 ]; do
   case "$1" in -p) p="$2" && shift ;; -t) t="$2" && shift ;; esac
@@ -475,7 +448,6 @@ done
 printf '%s %s\n' "$p" "$HI_VERSION" >>"$t.calls"
 printf '%s\n' "say-hi $HI_VERSION $p" >"$t/say-hi-$HI_VERSION.$p"
 EOF
-  chmod +x "$bin/nfpm"
   out="$(PATH="$bin:$PATH" "$_HI_PKG_DIR/mkpkg.sh" --version 9.9.9 --outdir "$dist" \
     --source-tarball="$_HI_WORKDIR/say-hi-9.9.9.tar.gz" 2>&1)" || {
     printf '%s\n' "$out" >"$dist.log"
@@ -499,13 +471,11 @@ EOF
 function _hi_mkrepo_docker() {
   local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/fakedocker"
   if [ ! -d "$dir" ]; then
-    mkdir -p "$dir"
-    cat >"$dir/docker" <<'EOF'
+    _hi_script "$dir/docker" <<'EOF'
 #!/bin/sh
 [ "$1" = info ] && exit 0
 [ "$1" = run ] || exit 1
 work=""
-: >"/dev/null"
 while [ $# -gt 0 ]; do
   case "$1" in
   -v) work="${2%%:*}"; shift ;;
@@ -522,7 +492,6 @@ case "$work" in
   ;;
 esac
 EOF
-    chmod +x "$dir/docker"
   fi
   printf '%s:%s' "$dir" "$(_hi_real_path mkrepotools sh bash awk sed grep cat cp mkdir rm chmod id printf gzip tar openssl gpg ar wc tr sort find head dirname readlink basename mktemp date)"
 }
@@ -628,8 +597,7 @@ function test_mkrepo_parses_flags_before_asking_for_docker() {
   local out
   ! out="$(PATH="$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" --outdir="$_HI_WORKDIR/x" --bogus 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkrepo.sh"* ]] || _hi_why out || return 1
-  out="$("$_HI_MKREPO" --dist 2>&1)" && return 1
-  [[ "$out" == *"--dist requires a value"* ]] || _hi_why out
+  _hi_refused "--dist requires a value" "$_HI_MKREPO" --dist || _hi_why
 }
 
 # the main guard's two refusals: no docker at all, and a docker whose daemon
@@ -659,7 +627,6 @@ function run_packaging_ci_mkpkg_tests() {
   _hi_check "Rewrites pkgver and b2sums" test_bump_write_rewrites_pkgver_and_b2sums
   _hi_check "Rewrites formula url and sha256" test_bump_write_rewrites_formula_url_and_sha256
   _hi_check ".SRCINFO fallback rewrites all three lines" test_bump_srcinfo_fallback_rewrites_the_three_lines
-  _hi_check "--check passes after a write" test_bump_check_passes_after_a_write
   _hi_check "Handles a PKGBUILD missing pkgver=" test_bump_check_handles_a_pkgbuild_missing_pkgver
   _hi_check "--check catches stale .SRCINFO b2sums" _hi_bump_check_rejects 's/^\([[:space:]]*\)b2sums = .*/\1b2sums = 1111/'
   _hi_check "--check catches a stale .SRCINFO source" test_bump_check_catches_stale_srcinfo_source

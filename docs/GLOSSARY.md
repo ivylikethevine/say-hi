@@ -234,9 +234,9 @@ code registers a cleanup trap.
 
 ## HI.15 strict-mode bracketing
 
-Files sourced into an interactive shell (`common/core.sh`, `hi.sh`,
-`common/git_prompt.sh`, `common/env_prompt.sh`, ...) set `set -euo pipefail`
-at the top _and disable it at the end of their own code_: left on, any later
+Files sourced into an interactive shell (`common/core.sh`, `hi.sh`, ...) that
+run anything as they load set `set -euo pipefail` at the top _and disable it
+at the end of their own code_: left on, any later
 non-zero status or unset variable kills the user's session. The `common/`
 files end with `_hi_opts_restore`, which gives an interactive shell back the
 `-e`, `-u`, and `pipefail` it had before the file loaded; a script keeps them
@@ -707,8 +707,7 @@ compresses in-process, padded as above, while GNU's and OpenBSD's implement
 fallback is not "no gzip is survivable" — it is "a tar that compresses on its
 own is". `_hi_can_gzip` asks which one this is (free where `gzip` is present,
 else one real `tar -c -z` of `hi.sh` — `/dev/null` is not reliably stat'able
-under Git Bash), `_hi_require_packer` refuses by name in `_say_hi` rather
-than letting the target receive an empty archive,
+under Git Bash), `_say_hi` refuses by name rather than letting the target receive an empty archive,
 and `hi --doctor` reports the same three verdicts.
 
 Every tar in `hi.sh`, client and target side, takes dash-style options:
@@ -836,7 +835,7 @@ tagged on the second hop.
 A container target may name what to run _in_ as well as where: `pod/container`
 for kube, `alloc/task` for nomad — one spelling for both, since a task and a
 container are the same idea here, and a suffix rather than a flag so completion
-can offer the pairs (`_hi_outer` / `_hi_inner` in `hi.sh`). Only those two
+can offer the pairs (`_hi_transport_cmds` in `hi.sh`). Only those two
 split: a container name on any of the docker-compatible family (HI.51) is
 taken whole, having no inner unit and `/` being legal in it.
 

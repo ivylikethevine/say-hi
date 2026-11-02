@@ -182,9 +182,9 @@ gh attestation verify say-hi_*_all.deb --repo ivylikethevine/say-hi # which CI r
 ```
 
 **That `minisign` line is load-bearing.** `release.yml`'s publish job `sed`s
-the public key out of it into every release body's checklist and fails the
-release if the pattern stops matching, so the key has one copy in the tree.
-Keep it a single line starting `minisign -Vm SHA256SUMS -P '`, with the key in
+the public key out of it into every release body's checklist, so the key has
+one copy in the tree; if the pattern stops matching, the job warns and the
+checklist points here instead. Keep it a single line starting `minisign -Vm SHA256SUMS -P '`, with the key in
 single quotes.
 
 The sums and the attestation cover the deb, rpm, apk, and

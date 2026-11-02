@@ -75,17 +75,13 @@ function test_container_target_names_the_fallback_shell() {
 # base64 but no shell on the whole ladder: there is nowhere for a session to
 # land, and the row says so rather than naming an empty fallback
 function test_container_target_flags_no_known_shell() {
-  local out
-  out="$(HI_FAKE_TOOLS="base64 tar-z " _hi_doc_target runningbox)"
-  [[ "$out" == *"no shell hi knows"* ]] || _hi_why out
+  HI_FAKE_TOOLS="base64 tar-z " _hi_says "no shell hi knows" _hi_doc_target runningbox
 }
 
 # a container that answers nothing is not running, and saying so beats an empty
 # inventory row that reads as "it has nothing installed"
 function test_container_target_flags_a_silent_target() {
-  local out
-  out="$(HI_FAKE_TOOLS="" _hi_doc_target runningbox)"
-  [[ "$out" == *"not running"* ]] || _hi_why out
+  HI_FAKE_TOOLS="" _hi_says "not running" _hi_doc_target runningbox
 }
 
 function test_target_falls_through_to_ssh() {
@@ -183,9 +179,7 @@ function test_ssh_target_reports_the_wire_cost() {
 }
 
 function test_ssh_target_flags_a_missing_base64() {
-  local out
-  out="$(PATH="$_HI_DOC_PATH" HI_FAKE_TOOLS="bash " _hi_doc_rows doctor_transport_target ssh somewhere)"
-  [[ "$out" == *"no base64"* ]] || _hi_why out
+  PATH="$_HI_DOC_PATH" HI_FAKE_TOOLS="bash " _hi_says "no base64" _hi_doc_rows doctor_transport_target ssh somewhere
 }
 
 # armor but no tar that reads gzip: the tree cannot unpack, and the row says

@@ -29,20 +29,20 @@ source "$_hi_d/scripts/lib.sh"
 set -euo pipefail
 
 # the script's own usage line names what was typed, the way doctor.sh does
-me="${_HI_ARGV0:-hi --update}" _HI_ME="${_HI_ARGV0:-hi --update}"
-root="$_HI_ROOT" tag="" dirty="" here="" dry_run="" branch="" behind="" ahead=""
+_HI_ME="${_HI_ARGV0:-hi --update}"
+root="$_HI_ROOT" tag="" dirty="" here="" branch="" behind="" ahead=""
 
 function _hi_update_help() {
   cat <<EOF
-Usage: $me [<tag>] [--dry-run]
+Usage: $_HI_ME [<tag>] [--dry-run]
 
 Moves the say-hi checkout this hi runs from to a release tag (needs its
 .git; a package has none, so it says so and stops):
-$me           the newest release tag, after fetching them
-$me <tag>     that release
+$_HI_ME           the newest release tag, after fetching them
+$_HI_ME <tag>     that release
 
 Either way the checkout is left detached on the tag. On the dev branch,
-$me with no tag fast-forwards dev to its upstream instead (git pull
+$_HI_ME with no tag fast-forwards dev to its upstream instead (git pull
 --ff-only), and refuses a dev that has diverged. A tree with uncommitted
 changes is refused. \`git -C $root tag\` lists the releases.
 
@@ -52,18 +52,9 @@ EOF
 }
 # --help and --dry-run anywhere on the line, and ahead of the .git check so a
 # package gets the help text too; what is left is the tag, if any
-for _hi_arg in "$@"; do
-  case "$_hi_arg" in
-  -h | --help)
-    _hi_update_help
-    exit 0
-    ;;
-  -n | --dry-run) dry_run=1 ;;
-  *) set -- "$@" "$_hi_arg" ;;
-  esac
-  shift
-done
-unset _hi_arg
+_HI_DRY_RUN="" args=()
+_hi_args _hi_update_help "one release tag, or nothing for the newest" "$@"
+set -- ${args[@]+"${args[@]}"}
 [ -d "$root/.git" ] || _hi_die "no .git in $_HI_ROOT - a packaged install updates through its package manager (apt/dnf/apk upgrade say-hi, or brew upgrade say-hi); a tarball install unpacks the next release from https://github.com/ivylikethevine/say-hi/releases over this one; a hi session updates on the machine say-hi lives on"
 case "${1:-}" in
 -*)
@@ -88,20 +79,19 @@ if [ "$branch" = dev ] && [ -z "${1:-}" ]; then
   git -C "$root" rev-parse -q --verify '@{u}' >/dev/null 2>&1 ||
     _hi_die "dev in $root has no upstream; git -C $root branch --set-upstream-to=origin/dev dev"
   git -C "$root" fetch --quiet || _hi_die "git fetch failed in $root (see above)"
-  behind="$(git -C "$root" rev-list --count 'HEAD..@{u}')"
-  ahead="$(git -C "$root" rev-list --count '@{u}..HEAD')"
+  read -r behind ahead < <(git -C "$root" rev-list --left-right --count '@{u}...HEAD')
   [ "$ahead" = 0 ] || [ "$behind" = 0 ] ||
     _hi_die "dev in $root has diverged from its upstream ($ahead ahead, $behind behind); rebase or reset it by hand"
   if [ "$behind" = 0 ]; then
-    _hi_cecho "$me: dev is up to date" "$GREEN"
+    _hi_cecho "$_HI_ME: dev is up to date" "$GREEN"
     exit 0
   fi
-  [ -z "$dry_run" ] || {
-    _hi_cecho "$me: dry run - would pull $behind commit(s) into dev, moving nothing" "$BLUE"
+  [ -z "$_HI_DRY_RUN" ] || {
+    _hi_cecho "$_HI_ME: dry run - would pull $behind commit(s) into dev, moving nothing" "$BLUE"
     exit 0
   }
   git -C "$root" merge --ff-only --quiet '@{u}' || _hi_die "fast-forward of dev failed in $root (see above)"
-  _hi_cecho "$me: dev is now at $(_hi_git_version "$root") ($behind new commit(s))" "$GREEN"
+  _hi_cecho "$_HI_ME: dev is now at $(_hi_git_version "$root") ($behind new commit(s))" "$GREEN"
   _hi_update_convert
   exit 0
 fi
@@ -118,7 +108,7 @@ elif ! git -C "$root" show-ref --verify -q "refs/tags/$tag"; then
 fi
 here="$(exec git -C "$root" describe --tags --exact-match 2>/dev/null)" || here=""
 if [ "$here" = "$tag" ]; then
-  _hi_cecho "$me: already on $tag" "$GREEN"
+  _hi_cecho "$_HI_ME: already on $tag" "$GREEN"
   exit 0
 fi
 # The tag's signature, read off gpg's status lines rather than verify-tag's
@@ -138,7 +128,7 @@ signers="$root/.github/allowed_signers"
 sig="$(git -C "$root" -c gpg.ssh.allowedSignersFile="$signers" verify-tag --raw "refs/tags/$tag" 2>&1)" || true
 case "$sig" in
 *'[GNUPG:] BADSIG'* | *'[GNUPG:] REVKEYSIG'* | *'Signature verification failed'*)
-  _hi_cecho "$me: the signature on $tag does not verify - refusing to check it out" "$RED" >&2
+  _hi_cecho "$_HI_ME: the signature on $tag does not verify - refusing to check it out" "$RED" >&2
   printf '%s\n' "$sig" | grep -v '^\[GNUPG:\]' >&2
   exit 1
   ;;
@@ -153,39 +143,39 @@ case "$sig" in
   esac
   signer="${signer#* }"
   signer="${signer%%$'\n'*}"
-  _hi_cecho "$me: $tag has a good signature from $signer" "$GREEN"
+  _hi_cecho "$_HI_ME: $tag has a good signature from $signer" "$GREEN"
   verified=1
   ;;
 *'Good "git" signature for '*)
   # an ssh-signed tag the allowed-signers file vouches for
   signer="${sig#*Good \"git\" signature for }"
   signer="${signer%% with*}"
-  _hi_cecho "$me: $tag has a good ssh signature from $signer" "$GREEN"
+  _hi_cecho "$_HI_ME: $tag has a good ssh signature from $signer" "$GREEN"
   verified=1
   ;;
 *'Good "git" signature with '*)
   # intact, but from a key no allowed signer names: the ssh twin of NO_PUBKEY
-  _hi_cecho "$me: $tag is signed by a key not in the allowed signers; checked nothing about who signed it" "$YELLOW"
+  _hi_cecho "$_HI_ME: $tag is signed by a key not in the allowed signers; checked nothing about who signed it" "$YELLOW"
   ;;
 *'[GNUPG:] NO_PUBKEY'* | *'[GNUPG:] ERRSIG'*)
-  _hi_cecho "$me: $tag is signed by a key not in your keyring; checked nothing about the signature" "$YELLOW"
+  _hi_cecho "$_HI_ME: $tag is signed by a key not in your keyring; checked nothing about the signature" "$YELLOW"
   ;;
 *'no signature found'* | *'cannot verify a non-tag object'*)
   # the second is a lightweight tag - a bare ref, no tag object to sign
-  _hi_cecho "$me: $tag is not signed" "$YELLOW"
+  _hi_cecho "$_HI_ME: $tag is not signed" "$YELLOW"
   ;;
 *)
   # gpg absent, or an output shape this script does not know: say so, no more
-  _hi_cecho "$me: could not check the signature on $tag (${sig:-no gpg?})" "$YELLOW"
+  _hi_cecho "$_HI_ME: could not check the signature on $tag (${sig:-no gpg?})" "$YELLOW"
   ;;
 esac
 [ "${_HI_UPDATE_UNSIGNED:-0}" = 1 ] || [ -n "$verified" ] ||
   _hi_die "$tag has no signature this checkout can vouch for - refusing to check it out (_HI_UPDATE_UNSIGNED=1 takes it anyway)"
-[ -z "$dry_run" ] || {
-  _hi_cecho "$me: dry run - would check out $tag${here:+ (now on $here)}, moving nothing" "$BLUE"
+[ -z "$_HI_DRY_RUN" ] || {
+  _hi_cecho "$_HI_ME: dry run - would check out $tag${here:+ (now on $here)}, moving nothing" "$BLUE"
   exit 0
 }
 git -C "$root" checkout -q "refs/tags/$tag" || _hi_die "git checkout of $tag failed in $root (see above)"
-_hi_cecho "$me: now on $tag (detached)" "$GREEN"
+_hi_cecho "$_HI_ME: now on $tag (detached)" "$GREEN"
 _hi_update_convert
 exit 0

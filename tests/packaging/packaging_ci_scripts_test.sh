@@ -36,8 +36,7 @@ function test_pct_ok_takes_a_figure_and_refuses_a_zero() {
 # run, and the oldest is the one named. No run left is an empty `run=`.
 function test_find_tree_run_names_the_newest_run_holding_everything() {
   local dir="$_HI_WORKDIR/treerun" out rc=0
-  mkdir -p "$dir/bin"
-  cat >"$dir/bin/gh" <<'EOF'
+  _hi_script "$dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$2" in
 "repos/o/r/actions/artifacts?name=ci-tree-abc&per_page=20") printf '7\n9\n8\n9\n' ;;
@@ -49,7 +48,6 @@ repos/o/r/actions/runs/8) ;;
 *) exit 1 ;;
 esac
 EOF
-  chmod +x "$dir/bin/gh"
   out="$(GITHUB_REPOSITORY=o/r PATH="$dir/bin:$PATH" \
     bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml ci-tree-abc tests sizes)" || _hi_why dir || return 1
   [ "$out" = "run=7" ] || _hi_because "with the oldest run whole: $out" || return 1
@@ -71,8 +69,7 @@ EOF
 function test_platform_badges_walk_back_past_a_skip() {
   local got
   local dir="$_HI_WORKDIR/badges" out rc=0
-  mkdir -p "$dir/bin"
-  cat >"$dir/bin/gh" <<'EOF'
+  _hi_script "$dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$2" in
 "repos/o/r/commits?sha=main&per_page=2") printf 'aaaaaaa1\nbbbbbbb2\n' && exit 0 ;;
@@ -86,11 +83,10 @@ case "${4#repos/o/r/commits/}|${6#check_name=}" in
 "aaaaaaa1/check-runs|e2e (OpenBSD) / hi localhost (OpenBSD both ends, shard 1/2)") echo success ;;
 "aaaaaaa1/check-runs|e2e (OpenBSD) / hi localhost (OpenBSD both ends, shard 2/2)") echo cancelled ;;
 "aaaaaaa1/check-runs|fast suites (Alpine client)") echo timed_out ;;
-"bbbbbbb2/check-runs|fast suites (Windows client) / fast suites (Git Bash x64, shard 1)") echo success ;;
-"bbbbbbb2/check-runs|fast suites (Windows client) / fast suites (Git Bash arm64, shard 3)") echo failure ;;
+"bbbbbbb2/check-runs|fast suites (Windows client) / fast suites (Git Bash x64, shard 1/4)") echo success ;;
+"bbbbbbb2/check-runs|fast suites (Windows client) / fast suites (Git Bash arm64, shard 3/4)") echo failure ;;
 esac
 EOF
-  chmod +x "$dir/bin/gh"
   out="$(GITHUB_REPOSITORY=o/r PLATFORM_BADGE_COMMITS=2 PATH="$dir/bin:$PATH" \
     bash "$_HI_ROOT/.github/scripts/platform_badges.sh" "$dir/out" 2>&1)" || _hi_why dir || return 1
   got="$(cat "$dir/out/linux.json")"
@@ -148,7 +144,7 @@ function test_no_hi_session_left_waits_then_fails() {
 function _hi_gh_api() {
   mkdir -p "$1/bin" "$1/api"
   printf '{"check_runs":[]}\n' >"$1/api/none.json"
-  cat >"$1/bin/gh" <<'EOF'
+  _hi_script "$1/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 shift
 [ "$1" != --method ] || shift 2
@@ -174,7 +170,6 @@ file="$HI_GH_API/$(printf '%s' "$key" | tr -c 'A-Za-z0-9._-' '_').json"
 esac
 jq -r "$filter" "$file"
 EOF
-  chmod +x "$1/bin/gh"
 }
 
 # _hi_gh_json <dir> <api path[|check name]> <json> - what _hi_gh_api's gh
@@ -280,9 +275,7 @@ EOF
 function test_tool_versions_reports_each_pin() {
   local got
   local dir="$_HI_WORKDIR/toolversions" out rc=0 line a b c h
-  printf -v a '%064d' 1
-  printf -v b '%064d' 2
-  printf -v c '%064d' 3
+  a="$_HI_SUM_1" b="$_HI_SUM_2" c="$_HI_SUM_3"
   printf -v h '%040d' 1
   mkdir -p "$dir/bin" "$dir/.github/scripts" "$dir/.github/actions/setup-tool" "$dir/.github/workflows" \
     "$dir/pins" "$dir/split"
@@ -305,7 +298,7 @@ function test_tool_versions_reports_each_pin() {
   printf 'FROM busybox:1.36@sha256:%s\nFROM --platform=linux/amd64 postgres:16@sha256:%s AS base\nFROM ghcr.io/o/i:1@sha256:%s\nFROM redis:7@sha256:%s\nFROM base\n' \
     "$a" "$b" "$a" "$a" >"$dir/a.Dockerfile"
   git -C "$dir" init -q >/dev/null 2>&1 && git -C "$dir" add a.Dockerfile pins split >/dev/null 2>&1 || _hi_why dir || return 1
-  cat >"$dir/bin/curl" <<EOF
+  _hi_script "$dir/bin/curl" <<EOF
 #!/usr/bin/env bash
 for u; do :; done
 now="\$(date -u +%Y-%m-%dT%H:%M:%S)"
@@ -322,7 +315,6 @@ https://gitlab.com/api/v4/projects/g%2Fn/repository/tags*) echo '[{"name":"rel-1
 *) exit 22 ;;
 esac
 EOF
-  chmod +x "$dir/bin/curl"
   out="$(env -u TOOL_COOLDOWN_DAYS GITHUB_ACTIONS=true CI_IMAGE_GLOBS='*.Dockerfile' PATH="$dir/bin:$PATH" \
     CI_WORKFLOW_ROSTER='held|pins/*.yml|ver: \([0-9.]*\)|github:o/held||3.1.0
 gone|pins/*.yml|nope: \([0-9]*\)|github:o/old||
@@ -368,9 +360,7 @@ split|split/*.yml|ver: \([0-9.]*\)|github:o/old||' \
 function _hi_scan_fixture() {
   local dir="$_HI_WORKDIR/imagescan" a b c name
   [ -d "$dir" ] && printf '%s' "$dir" && return 0
-  printf -v a '%064d' 1
-  printf -v b '%064d' 2
-  printf -v c '%064d' 3
+  a="$_HI_SUM_1" b="$_HI_SUM_2" c="$_HI_SUM_3"
   mkdir -p "$dir/bin" "$dir/.github/scripts"
   cp "$_HI_ROOT/.github/scripts/scan_pinned_images.sh" "$_HI_ROOT/.github/scripts/lib.sh" "$dir/.github/scripts/"
   for name in clean nodata fail same nogain win tagfail; do
@@ -380,7 +370,7 @@ function _hi_scan_fixture() {
   printf 'no image here\n' >"$dir/none.Dockerfile"
   printf 'FROM broken:1@sha256:%s\n' "$a" >"$dir/broken.df"
   git -C "$dir" init -q >/dev/null 2>&1 && git -C "$dir" add . >/dev/null 2>&1 || return 1
-  cat >"$dir/bin/trivy" <<EOF
+  _hi_script "$dir/bin/trivy" <<EOF
 #!/usr/bin/env bash
 [ "\$2" != --download-db-only ] || {
   [ -z "\${HI_SCAN_NO_DB:-}" ]
@@ -405,7 +395,6 @@ win:1) found $c "\$(id 2)" ;;
 *) exit 1 ;;
 esac
 EOF
-  chmod +x "$dir/bin/trivy"
   printf '%s' "$dir"
 }
 
@@ -425,8 +414,7 @@ function _hi_scan() {
 # the tag-only reference in its own section
 function test_image_scan_reports_the_repin_that_closes_a_finding() {
   local dir out rc=0 report a c
-  printf -v a '%064d' 1
-  printf -v c '%064d' 3
+  a="$_HI_SUM_1" c="$_HI_SUM_3"
   dir="$(_hi_scan_fixture)" || _hi_why || return 1
   out="$(_hi_scan '*.Dockerfile')" || rc=$?
   report="$(cat "$dir/report.md")"
@@ -492,9 +480,7 @@ function test_image_scan_exits_by_what_it_found() {
 function test_tool_versions_reads_compose_runs_the_hook_and_caps_the_status() {
   local got
   local dir="$_HI_WORKDIR/toolhook" out rc=0 i a b c line
-  printf -v a '%064d' 1
-  printf -v b '%064d' 2
-  printf -v c '%064d' 3
+  a="$_HI_SUM_1" b="$_HI_SUM_2" c="$_HI_SUM_3"
   mkdir -p "$dir/bin" "$dir/.github/scripts" "$dir/.github/actions/setup-tool" "$dir/deploy"
   cp "$_HI_ROOT/.github/scripts/check_tool_versions.sh" "$_HI_ROOT/.github/scripts/lib.sh" "$dir/.github/scripts/"
   cp "$_HI_ROOT/.github/actions/setup-tool/lib.sh" "$dir/.github/actions/setup-tool/"
@@ -504,7 +490,7 @@ function test_tool_versions_reads_compose_runs_the_hook_and_caps_the_status() {
   # shellcheck disable=SC2016 # the hook's own text
   printf '%s\n' 'CI_IMAGE_GLOBS="**/compose*.y*ml"' 'function ci_local_checks() {' '  echo "## The hook ran"' '  return 1' '}' \
     >"$dir/.github/scripts/check_tool_versions.local.sh"
-  cat >"$dir/bin/curl" <<EOF
+  _hi_script "$dir/bin/curl" <<EOF
 #!/usr/bin/env bash
 for u; do :; done
 case "\$u" in
@@ -513,7 +499,6 @@ case "\$u" in
 *) exit 22 ;;
 esac
 EOF
-  chmod +x "$dir/bin/curl"
   out="$(env -u TOOL_COOLDOWN_DAYS -u CI_WORKFLOW_ROSTER -u CI_IMAGE_GLOBS GITHUB_ACTIONS=true PATH="$dir/bin:$PATH" \
     bash "$dir/.github/scripts/check_tool_versions.sh" 2>&1)" || rc=$?
   for line in \
@@ -557,7 +542,7 @@ function test_tool_versions_reads_the_manifests() {
     '      version = "~> 2.9"' '    }' '  }' '}' >"$dir/tf/versions.tf"
   printf '%s\n' "CI_IMAGE_GLOBS=''" "CI_MANIFESTS='npm|package.json" 'pip|app/requirements.in' 'uv|uv.lock|django@major' \
     'cargo|Cargo.toml|sqlx@major' 'terraform|tf/versions.tf' "npm|nope.json'" >"$dir/.github/scripts/check_tool_versions.local.sh"
-  cat >"$dir/bin/curl" <<EOF
+  _hi_script "$dir/bin/curl" <<EOF
 #!/usr/bin/env bash
 for u; do :; done
 function rel() { printf '"%s":[{"upload_time_iso_8601":$o,"yanked":%s}]' "\$1" "\${2:-false}"; }
@@ -578,7 +563,6 @@ https://crates.io/api/v1/crates/sqlx/versions) echo "{\"versions\":[\$(crate 0.9
 *) exit 22 ;;
 esac
 EOF
-  chmod +x "$dir/bin/curl"
   out="$(env -u TOOL_COOLDOWN_DAYS -u CI_WORKFLOW_ROSTER -u GH_TOKEN GITHUB_ACTIONS=true PATH="$dir/bin:$PATH" \
     bash "$dir/.github/scripts/check_tool_versions.sh" 2>&1)" || rc=$?
   [[ "$out" == "## GitHub Actions (uses: SHAs)"* ]] || _hi_because "a tree with no setup-tool does not open on the actions: $out" || return 1
@@ -611,8 +595,7 @@ EOF
 function test_local_tool_checks_name_each_parting() {
   local got
   local dir="$_HI_WORKDIR/localchecks" pins="$_HI_WORKDIR/localchecks/tests/dockerfiles" out a b
-  printf -v a '%064d' 1
-  printf -v b '%064d' 2
+  a="$_HI_SUM_1" b="$_HI_SUM_2"
   mkdir -p "$pins" "$dir/packaging" "$dir/.github/workflows"
   printf 'FROM bash:3.2@sha256:%s AS base\n' "$a" >"$pins/floor.Dockerfile"
   printf 'FROM ubuntu:24.04@sha256:%s\n' "$a" >"$pins/ubuntu.Dockerfile"

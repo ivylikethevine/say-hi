@@ -86,7 +86,7 @@ function writeSettings(text) {
   const setBy = { advanced: "`hi --configure` advanced", you: "you" };
   const table = rows.map((c) => {
       const by = setBy[c[0]] ?? "`hi --configure`";
-      return `| \`${c[1]}\` | ${c[2]} | ${by} | ${c.slice(10).join(" | ")} |`;
+      return `| \`${c[1]}\` | ${c[2]} | ${by} | ${c.slice(9).join(" | ")} |`;
   });
   let end = start;
   while (end < lines.length && lines[end].startsWith("|")) end++;

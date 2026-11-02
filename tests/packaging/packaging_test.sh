@@ -277,7 +277,7 @@ function test_stamp_help_prints_usage_and_exits_zero() {
 function test_stamp_refuses_an_unknown_argument() {
   local out
   ! out="$(_hi_stamp --bogus 2>&1)" || _hi_why out || return 1
-  [[ "$out" == *"unknown argument: --bogus"* && "$out" == *"Usage: stamp.sh"* ]] || _hi_why out
+  [[ "$out" == *"unrecognized argument: --bogus"* && "$out" == *"Usage: stamp.sh"* ]] || _hi_why out
 }
 
 function test_stamp_requires_a_version() {

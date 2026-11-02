@@ -59,7 +59,7 @@ ROWS=(
   "alpine.json|Alpine client|fast suites (Alpine client)"
   "windows.json|Windows|e2e (Windows) / hi at Windows OpenSSH (PowerShell fallback, Git Bash shell)"
   "windows-client.json|Windows client|$(shards 'fast suites (Windows client) / fast suites (Git Bash ' \
-    'x64, shard '{1,2,3,4} 'arm64, shard '{1,2,3,4})"
+    'x64, shard '{1,2,3,4}/4 'arm64, shard '{1,2,3,4}/4)"
 )
 
 # How far back a row may look for a commit that did not skip it. Thirty is a

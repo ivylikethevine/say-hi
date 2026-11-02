@@ -82,10 +82,8 @@ function test_install_tree_skips_the_man_page_without_a_source() {
 # the link has to point where hi.sh will be on the installed system, not into
 # the staging root, which won't exist by then
 function test_install_tree_links_hi_without_destdir_in_the_target() {
-  local got
   _hi_package_fixture link
-  got="$(readlink "$_HI_WORKDIR/link/dest/usr/bin/hi")"
-  [ "$got" = "/usr/share/say-hi/hi.sh" ] || _hi_why got
+  _hi_prints "/usr/share/say-hi/hi.sh" readlink "$_HI_WORKDIR/link/dest/usr/bin/hi"
 }
 
 # a package can't rewrite anyone's rc file, so profile.d is the only place it
@@ -199,8 +197,7 @@ function test_link_flag_is_parsed_and_documented() {
   out="$(bash "$_HI_INSTALL" --link 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--link needs one of none, user, or system"* ]] || _hi_why rc out || return 1
   rc=0
-  out="$(bash "$_HI_INSTALL" --link=sideways 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--link wants one of none, user, or system (got sideways)"* ]] || _hi_why rc out
+  _hi_refused "--link wants one of none, user, or system (got sideways)" bash "$_HI_INSTALL" --link=sideways || _hi_why
 }
 
 function test_unlink_hi_skips_when_link_missing() {
@@ -290,19 +287,26 @@ function test_unlink_hi_instructs_with_no_sudo_at_all() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"no sudo here"* ]] && [ -L "$dir/bin/hi" ] || _hi_why rc out dir
 }
 
+# _hi_link_fixture <dir> - a launcher for config_hi to link, in <dir>
+function _hi_link_fixture() {
+  mkdir -p "$1"
+  printf '#!/bin/bash\n' >"$1/hi.sh"
+  chmod 755 "$1/hi.sh"
+}
+
+# _hi_config_hi_at <dir> <link> - config_hi over that launcher and link
+function _hi_config_hi_at() {
+  local _HI_LAUNCHER="$1/hi.sh" _HI_LINK="$2"
+  config_hi
+}
+
 # config_hi's user-local default: the bindir is made when it is missing, and
 # a bindir off $PATH is said so, once
 function test_config_hi_creates_the_user_bindir() {
   local got
   local dir="$_HI_WORKDIR/userbin" out
-  mkdir -p "$dir"
-  printf '#!/bin/bash\n' >"$dir/hi.sh"
-  chmod 755 "$dir/hi.sh"
-  out="$(
-    _HI_LAUNCHER="$dir/hi.sh"
-    _HI_LINK="$dir/.local/bin/hi"
-    config_hi
-  )" || _hi_why dir || return 1
+  _hi_link_fixture "$dir"
+  out="$(_hi_config_hi_at "$dir" "$dir/.local/bin/hi")" || _hi_why dir || return 1
   got="$(readlink "$dir/.local/bin/hi")"
   [ "$got" = "$dir/hi.sh" ] && [[ "$out" == *"not on your PATH"* ]] || _hi_why got dir out
 }
@@ -310,9 +314,7 @@ function test_config_hi_creates_the_user_bindir() {
 function test_config_hi_is_quiet_when_the_bindir_is_on_path() {
   local got
   local dir="$_HI_WORKDIR/onpathbin" out
-  mkdir -p "$dir/bin"
-  printf '#!/bin/bash\n' >"$dir/hi.sh"
-  chmod 755 "$dir/hi.sh"
+  _hi_link_fixture "$dir"
   out="$(
     # shellcheck disable=SC2030,SC2031 # subshell-local is the intent
     PATH="$dir/bin:$PATH"
@@ -376,11 +378,7 @@ function test_config_hi_refuses_a_foreign_link() {
   mkdir -p "$dir/bin"
   printf '#!/bin/bash\n' >"$dir/hi.sh"
   ln -sfn /bin/true "$dir/bin/hi"
-  out="$(
-    _HI_LAUNCHER="$dir/hi.sh"
-    _HI_LINK="$dir/bin/hi"
-    config_hi
-  )" || _hi_why dir || return 1
+  out="$(_hi_config_hi_at "$dir" "$dir/bin/hi")" || _hi_why dir || return 1
   got="$(readlink "$dir/bin/hi")"
   [[ "$out" == *"is not hi's"* ]] && [ "$got" = /bin/true ] || _hi_why got out dir
 }
@@ -423,9 +421,7 @@ function test_config_hi_warns_when_another_hi_shadows_the_link() {
 # that refuses the write ends in instructions, not a `set -e` death
 function test_config_hi_instructs_when_sudo_is_refused() {
   local dir="$_HI_WORKDIR/link-refused" out rc=0
-  mkdir -p "$dir/bin"
-  printf '#!/bin/bash\n' >"$dir/hi.sh"
-  chmod 755 "$dir/hi.sh"
+  _hi_link_fixture "$dir"
   chmod 555 "$dir/bin"
   out="$(
     function sudo() { return 1; }
@@ -441,9 +437,7 @@ function test_config_hi_instructs_when_sudo_is_refused() {
 function test_config_hi_instructs_with_no_sudo_at_all() {
   local dir="$_HI_WORKDIR/link-none" farm out rc=0
   farm="$(_hi_real_path link_tools readlink dirname)"
-  mkdir -p "$dir/bin"
-  printf '#!/bin/bash\n' >"$dir/hi.sh"
-  chmod 755 "$dir/hi.sh"
+  _hi_link_fixture "$dir"
   chmod 555 "$dir/bin"
   out="$(
     hash -r

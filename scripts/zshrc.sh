@@ -24,6 +24,16 @@ function _hi_rc_last_match() {
   [ -n "$_hi_rl_v" ] && printf -v "$_hi_rl_out" '%s' "$_hi_rl_v"
 }
 
+# _hi_rc_value <NAME> <outvar> <file...> - what the last NAME= line of
+# <file...> sets, its quotes dropped; 1 when none does, or it sets nothing
+function _hi_rc_value() {
+  local _hi_rv=""
+  _hi_rc_last_match "^[[:space:]]*(export[[:space:]]+)?$1=(\"[^\"]*\"|'[^']*'|[^[:space:]#;]*)" _hi_rv "${@:3}" || return 1
+  _hi_rv="${_hi_rv#[\"\']}"
+  _hi_rv="${_hi_rv%[\"\']}"
+  [ -n "$_hi_rv" ] && printf -v "$2" '%s' "$_hi_rv"
+}
+
 # _hi_zshrc_here [outvar] - the .zshrc zsh reads on this machine: under
 # $ZDOTDIR, else under what the last ZDOTDIR= line of ~/.zshenv sets, else
 # ~/.zshrc. Only a zsh has a ~/.zshenv's ZDOTDIR in its environment, and
@@ -33,14 +43,11 @@ function _hi_rc_last_match() {
 # else. Any other value reads as unset.
 function _hi_zshrc_here() {
   local _hi_zh_v="" _hi_zh_x="${XDG_CONFIG_HOME:-$HOME/.config}"
-  local _hi_zh_re="^[[:space:]]*(export[[:space:]]+)?ZDOTDIR=(\"[^\"]*\"|'[^']*'|[^[:space:]#;]*)"
   if [ -n "${ZDOTDIR:-}" ]; then
     _hi_out "${1:-}" "$ZDOTDIR/.zshrc"
     return 0
   fi
-  _hi_rc_last_match "$_hi_zh_re" _hi_zh_v "$HOME/.zshenv" || :
-  _hi_zh_v="${_hi_zh_v#[\"\']}"
-  _hi_zh_v="${_hi_zh_v%[\"\']}"
+  _hi_rc_value ZDOTDIR _hi_zh_v "$HOME/.zshenv" || :
   case "$_hi_zh_v" in
   \~ | \~/*) _hi_zh_v="$HOME${_hi_zh_v#?}" ;;
   '$HOME' | '$HOME/'*) _hi_zh_v="$HOME${_hi_zh_v#?????}" ;;

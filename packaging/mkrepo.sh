@@ -88,11 +88,7 @@ while [ $# -gt 0 ]; do
     usage
     exit 0
     ;;
-  *)
-    echo "mkrepo.sh: unrecognized argument: $1" >&2
-    echo "$_HI_USAGE" >&2
-    exit 1
-    ;;
+  *) _hi_bad_arg "$1" ;;
   esac
   shift
 done

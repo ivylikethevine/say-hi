@@ -52,15 +52,11 @@ function test_choose_glyphs_picks_a_whole_set() {
 }
 
 function test_sanitize_leaves_plain_text_alone() {
-  local out
-  _hi_sanitize_var out "hello world"
-  [ "$out" = "hello world" ] || _hi_why out
+  _hi_var_is "hello world" _hi_sanitize_var "hello world"
 }
 
 function test_sanitize_strips_control_chars_and_backslashes() {
-  local out
-  _hi_sanitize_var out $'a\tb\\c'
-  [ "$out" = "abc" ] || _hi_why out
+  _hi_var_is "abc" _hi_sanitize_var $'a\tb\\c'
 }
 
 # https://no-color.org - the convention is "non-empty means off", so both the
@@ -134,9 +130,7 @@ function test_scheme_is_inert_under_no_color() {
 }
 
 function test_unknown_scheme_falls_back_to_16_color() {
-  local out
-  _HI_COLOR_SCHEME=solarized _HI_TRUECOLOR=1 _hi_color_escape_var out brcyan
-  [ "$out" = '\e[1;36m' ] || _hi_why out
+  _HI_COLOR_SCHEME=solarized _HI_TRUECOLOR=1 _hi_var_is '\e[1;36m' _hi_color_escape_var brcyan
 }
 
 function test_scheme_hex_is_six_hex_digits_for_every_slot() {
@@ -295,10 +289,8 @@ function test_ramp_label_names_every_shape() {
   local l
   _HI_PACKAGES_PALETTE="" _hi_ramp_label l
   [ "$l" = default ] || _hi_why l || return 1
-  _HI_PACKAGES_PALETTE="$_HI_TEST_RAMP" _hi_ramp_label l
-  [ "$l" = custom ] || _hi_why l || return 1
-  _HI_PACKAGES_PALETTE=mono _hi_ramp_label l
-  [ "$l" = "mono (ignored - not eight color names)" ] || _hi_why l
+  _HI_PACKAGES_PALETTE="$_HI_TEST_RAMP" _hi_var_is custom _hi_ramp_label || return 1
+  _HI_PACKAGES_PALETTE=mono _hi_var_is "mono (ignored - not eight color names)" _hi_ramp_label
 }
 
 function test_scheme_label_names_every_shape() {
@@ -307,10 +299,8 @@ function test_scheme_label_names_every_shape() {
   [ "$l" = default ] || _hi_why l || return 1
   _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _hi_scheme_label l
   [ "$l" = "custom (24)" ] || _hi_why l || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _hi_scheme_label l
-  [ "$l" = "custom (48)" ] || _hi_why l || return 1
-  _HI_COLOR_SCHEME=solarized _hi_scheme_label l
-  [ "$l" = "solarized (ignored - not a scheme)" ] || _hi_why l
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _hi_var_is "custom (48)" _hi_scheme_label || return 1
+  _HI_COLOR_SCHEME=solarized _hi_var_is "solarized (ignored - not a scheme)" _hi_scheme_label
 }
 
 # _hi_cecho's %b is for the palette; the text goes through %s. What it prints
@@ -339,11 +329,9 @@ function test_hash_color_matches_hand_computed_bucket() {
   got="$(_hi_hash_color a)"
   [ "$got" = "green" ] || _hi_why got || return 1
   # ord('a')+ord('b')=97+98=195, 195 % 24 == 3 -> _HI_COLOR_NAMES[3] == blue
-  got="$(_hi_hash_color ab)"
-  [ "$got" = "blue" ] || _hi_why got || return 1
+  _hi_prints "blue" _hi_hash_color ab || return 1
   # ord('m')=109, 109 % 24 == 13 -> the extras are in the hash's range
-  got="$(_hi_hash_color m)"
-  [ "$got" = "pink" ] || _hi_why got
+  _hi_prints "pink" _hi_hash_color m
 }
 
 # The twelve extras: a 16-color pair of their own (orange is bright yellow
@@ -363,8 +351,7 @@ function test_extra_names_render_by_fallback_and_hex() {
   # tells "the list's word for an extra" from "the built-in one"
   _HI_COLOR_SCHEME="$_HI_TEST_SCHEME12 fd971f${_HI_TEST_SCHEME24#"$_HI_TEST_SCHEME12 ff8c00"}" _HI_TRUECOLOR=1 _hi_color_escape_var out orange
   [ "$out" = '\e[1;33;38;2;253;151;31m' ] || _hi_why out || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1 _hi_color_escape_at out 36
-  [ "$out" = '\e[1;33;38;2;224;123;57m' ] || _hi_why out
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1 _hi_var_is '\e[1;33;38;2;224;123;57m' _hi_color_escape_at 36
 }
 
 function test_color_base_names_the_16_color_half() {
@@ -375,10 +362,8 @@ function test_color_base_names_the_16_color_half() {
   [ "$b" = cyan ] || _hi_why b || return 1
   _hi_color_base b lavender
   [ "$b" = brmagenta ] || _hi_why b || return 1
-  _hi_color_base b brred
-  [ "$b" = brred ] || _hi_why b || return 1
-  _hi_color_base b nosuch
-  [ "$b" = nosuch ] || _hi_why b
+  _hi_var_is brred _hi_color_base brred || return 1
+  _hi_var_is nosuch _hi_color_base nosuch
 }
 
 # every extra has a hex of its own in the default table and in a list of the
@@ -405,9 +390,7 @@ function test_extra_names_have_a_hex_in_every_table() {
 
 # fish is handed the base name beside the hex: set_color knows no orange
 function test_prompt_colors_hand_fish_the_base_name() {
-  local out
-  out="$(_HI_USER_COLOR=orange _HI_HOST_COLOR=red _HI_TRUECOLOR=1 _hi_prompt_colors)"
-  [ "$out" = $'ff8c00 bryellow\nred' ] || _hi_why out
+  _HI_USER_COLOR=orange _HI_HOST_COLOR=red _HI_TRUECOLOR=1 _hi_prints $'ff8c00 bryellow\nred' _hi_prompt_colors
 }
 
 function test_override_color_exact_match() { _hi_colors_say red '[username]\nalice = "red"\n' _hi_override_color username alice; }
@@ -433,39 +416,33 @@ function test_pin_hex_joins_the_name() {
   [ "$got" = 'red#3ba55d' ] || _hi_why got colors || return 1
   got="$(_HI_COLORS="$colors" _hi_colors_pattern hostname 10.0.1.7)"
   [ "$got" = 'blue#102030' ] || _hi_why got colors || return 1
-  got="$(_HI_COLORS="$colors" _hi_override_color hosttag prod)"
-  [ "$got" = 'brred#ff5f5f' ] || _hi_why got colors || return 1
-  got="$(_HI_COLORS="$colors" _hi_resolve_color username alice)"
-  [ "$got" = 'red#3ba55d' ] || _hi_why got colors
+  _HI_COLORS="$colors" _hi_prints 'brred#ff5f5f' _hi_override_color hosttag prod || return 1
+  _HI_COLORS="$colors" _hi_prints 'red#3ba55d' _hi_resolve_color username alice
 }
 
 # a leading `#` is how a hex is usually written down, and the digits are
 # read in either case
 function test_pin_hex_accepts_a_leading_hash_and_either_case() {
-  local got
   local colors="$_HI_WORKDIR/colors.hexhash"
   printf '[username]\nalice = "red #FF00AA"\n' >"$colors"
-  got="$(_HI_COLORS="$colors" _hi_colors_lookup username alice)"
-  [ "$got" = 'red#FF00AA' ] || _hi_why got colors
+  _HI_COLORS="$colors" _hi_prints 'red#FF00AA' _hi_colors_lookup username alice
 }
 
 # The pinned hex is the escape's 24-bit half and outranks the scheme, while
 # the 16-color pair stays the third column's - which is all a terminal
 # without truecolor is given.
 function test_pin_hex_paints_the_escape_over_the_scheme() {
-  local out got
+  local got out
   _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_color_escape_var out 'red#3ba55d'
   [ "$out" = '\e[0;31;38;2;59;165;93m' ] || _hi_why out || return 1
   _HI_COLOR_SCHEME="" _HI_TRUECOLOR=1 _hi_color_escape_var out 'brgreen#3ba55d'
   [ "$out" = '\e[1;32;38;2;59;165;93m' ] || _hi_why out || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=0 _hi_color_escape_var out 'red#3ba55d'
-  [ "$out" = '\e[0;31m' ] || _hi_why out || return 1
+  _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=0 _hi_var_is '\e[0;31m' _hi_color_escape_var 'red#3ba55d' || return 1
   got="$(NO_COLOR=1 _HI_TRUECOLOR=1 _hi_color_escape 'red#3ba55d')"
   [ -z "$got" ] || _hi_why got || return 1
   # the name half still has to be one of the twenty-four: it is the escape's
   # 16-color half, so an unknown name resets exactly as it does without a hex
-  _HI_TRUECOLOR=1 _hi_color_escape_var out 'nosuch#3ba55d'
-  [ "$out" = "$NC" ] || _hi_why out
+  _HI_TRUECOLOR=1 _hi_var_is "$NC" _hi_color_escape_var 'nosuch#3ba55d'
 }
 
 # zsh's %F{#..} and fish's set_color take the hex; both take the base name,
@@ -476,10 +453,8 @@ function test_pin_hex_reaches_the_hex_and_base_readers() {
   [ "$out" = '3ba55d' ] || _hi_why out || return 1
   _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=0 _hi_color_hex out 'red#3ba55d'
   [ -z "$out" ] || _hi_why out || return 1
-  _hi_color_base out 'orange#3ba55d'
-  [ "$out" = bryellow ] || _hi_why out || return 1
-  out="$(_HI_USER_COLOR='orange#fd971f' _HI_HOST_COLOR=red _HI_TRUECOLOR=1 _hi_prompt_colors)"
-  [ "$out" = $'fd971f bryellow\nred' ] || _hi_why out
+  _hi_var_is bryellow _hi_color_base 'orange#3ba55d' || return 1
+  _HI_USER_COLOR='orange#fd971f' _HI_HOST_COLOR=red _HI_TRUECOLOR=1 _hi_prints $'fd971f bryellow\nred' _hi_prompt_colors
 }
 
 # _hi_toml_rows_probe - _hi_toml_row over the lines a data file can hold, a
@@ -512,7 +487,7 @@ ROWS
 }
 
 function test_toml_row_reads_the_subset() {
-  local want got
+  local want
   want="0|bat|batcat,ccat
 0|direnv|
 0|g++|c++,clang++
@@ -528,8 +503,7 @@ function test_toml_row_reads_the_subset() {
 1||
 1||
 1||"
-  got="$(_hi_toml_rows_probe)"
-  [ "$got" = "$want" ] || _hi_because "$got"
+  _hi_prints "$want" _hi_toml_rows_probe
 }
 
 function test_zsh_toml_row_agrees_with_bash() {
@@ -542,13 +516,11 @@ function test_zsh_toml_row_agrees_with_bash() {
 # A colors file is hand-written: a typo in the hex field costs the row its
 # hex, never its color.
 function test_pin_hex_ignores_a_malformed_hex_field() {
-  local got
   local colors="$_HI_WORKDIR/colors.hexbad"
   printf '[username]\na = "red zzz"\nb = "red 12345"\nc = "red 12345g"\ne = "red"\nf = "red #"\n' >"$colors"
   local name
   for name in a b c e f; do
-    got="$(_HI_COLORS="$colors" _hi_colors_lookup username "$name")"
-    [ "$got" = red ] || _hi_why got colors name || return 1
+    _HI_COLORS="$colors" _hi_prints red _hi_colors_lookup username "$name" || return 1
   done
 }
 
@@ -622,10 +594,9 @@ function _hi_colors_batch_probe() {
 }
 
 function test_colors_scan_reads_a_batch_once() {
-  local colors="$_HI_WORKDIR/colors.batch" out
+  local colors="$_HI_WORKDIR/colors.batch"
   printf '[username]\nalice = "red"\n' >"$colors"
-  out="$(_HI_COLORS="$colors" _hi_colors_batch_probe)"
-  [ "$out" = "red|blue|username,alice,red," ] || _hi_because "batched|unbatched|rows: $out"
+  _HI_COLORS="$colors" _hi_prints "red|blue|username,alice,red," _hi_colors_batch_probe
 }
 
 function test_zsh_pin_hex_agrees_with_bash() {
@@ -645,11 +616,10 @@ _HI_SSH_TAG_FIXTURE=""
 # _hi_colors_say <want> <rows> <cmd...> - what <cmd> prints over a colors file
 # of <rows>, and the tag fixture as the ssh config
 function _hi_colors_say() {
-  local want="$1" rows="$2" colors="$_HI_WORKDIR/colors" got
+  local want="$1" rows="$2" colors="$_HI_WORKDIR/colors"
   shift 2
   printf '%b' "$rows" >"$colors"
-  got="$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" "$@")"
-  [ "$got" = "$want" ] || _hi_because "from: $* over [$rows] - wanted [$want], got [$got]"
+  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_prints "$want" "$@"
 }
 
 function _hi_ssh_tag_fixture() {
@@ -737,7 +707,7 @@ function _hi_shell_agrees() {
 # millisecond rounds up here where awk's double may round down, so the grid
 # keeps off those.
 function test_elapsed_matches_awk() {
-  local a b got want
+  local a b want got
   for a in 0 100 0123.5 1793362192.949459 1793362192.892534501 1793362192.999999; do
     for b in 0 103 124 1793362192.980899 1793362192.914272262 1793362194.777039 1793362193.0012; do
       got="$(_hi_elapsed "$a" "$b")"
@@ -745,10 +715,8 @@ function test_elapsed_matches_awk() {
       [ "$got" = "$want" ] || _hi_because "$b - $a: $got, awk says $want" || return 1
     done
   done
-  got="$(_hi_elapsed x 3)"
-  [ "$got" = 3.000 ] || _hi_because "a word falls back to awk: $got" || return 1
-  got="$(_hi_elapsed 1.5e3 2000)"
-  [ "$got" = 500.000 ] || _hi_because "an exponent falls back to awk: $got"
+  _hi_prints 3.000 _hi_elapsed x 3 || return 1
+  _hi_prints 500.000 _hi_elapsed 1.5e3 2000
 }
 
 function test_sum_matches_awk() {
@@ -757,10 +725,8 @@ function test_sum_matches_awk() {
   [ "$got" = 0.120 ] || _hi_because "two legs: $got" || return 1
   got="$(_hi_sum 0 0)"
   [ "$got" = 0.000 ] || _hi_because "nothing timed: $got" || return 1
-  got="$(_hi_sum 1.5 2.25 0.001)"
-  [ "$got" = 3.751 ] || _hi_because "three legs: $got" || return 1
-  got="$(_hi_sum -1 0.2)"
-  [ "$got" = -0.800 ] || _hi_because "a negative falls back to awk: $got"
+  _hi_prints 3.751 _hi_sum 1.5 2.25 0.001 || return 1
+  _hi_prints -0.800 _hi_sum -1 0.2
 }
 
 # _hi_du_size tries --apparent-size and drops it for the shell where du

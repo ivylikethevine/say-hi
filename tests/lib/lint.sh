@@ -33,9 +33,8 @@ _HI_LINT_NOT_OUTPUT=(--exclude-dir=.git --exclude-dir=dist --exclude-dir=coverag
 
 # The counted-file suite protocol - the lint twin of report.sh's
 # _hi_suite_begin/_hi_suite_end, reporting files where those report cases.
-# A lint suite opens with _hi_lint_suite_begin (or, like shellcheck_test.sh,
-# derives $_HI_LINT_TOTAL its own way), runs its halves, and closes with
-# _hi_lint_suite_end. The counts line the end helper prints is parsed by
+# A lint suite opens with _hi_lint_suite_begin, runs its halves, and closes
+# with _hi_lint_suite_end. The counts line the end helper prints is parsed by
 # test_runner.sh's collector, so its format moves only in lockstep with
 # _hi_report_counts' readers.
 
@@ -53,6 +52,20 @@ function _hi_lint_fail() {
   _hi_align "$1" "${4:-FAILED}" "$RED"
   [ -z "${3:-}" ] || printf '%s\n' "$3" | sed 's/^/      /'
   _hi_note_failure "$2"
+}
+
+# _hi_lint_cmd <ok-left> <fail-left> <label> <cmd...> - one counted file: <cmd>,
+# run from the root, an OK row, or a red one over what it said.
+function _hi_lint_cmd() {
+  local ok="$1" fail="$2" label="$3" out
+  shift 3
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  if out="$(cd "$_HI_ROOT" && "$@" 2>&1)"; then
+    _hi_align "$ok" "OK" "$GREEN"
+  else
+    _hi_lint_fail "$fail" "$label" "$out"
+    return 1
+  fi
 }
 
 # _hi_lint_suite_begin <banner> - zero the file counters, start the clock,

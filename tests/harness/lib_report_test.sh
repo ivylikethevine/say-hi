@@ -634,7 +634,7 @@ function test_dump_log_does_not_print_the_path() {
   [[ "$out" != *"$log"* ]] || _hi_why out log
 }
 # _hi_align is the one rule behind every verdict a run prints - the per-case
-# lines here and, through _hi_status_line, the per-suite ones the runner leaves
+# lines here and the per-suite ones the runner leaves
 # behind. runner_test.sh covers it from that end; these cover it directly.
 function _hi_align_out() {
   _hi_strip_ansi "$(_hi_align "$@")"

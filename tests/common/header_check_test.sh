@@ -28,15 +28,6 @@ function _hi_contains() {
   printf '%s' "$1" | LC_ALL=C grep -qF -- "$2"
 }
 
-# _hi_contains with the mismatch printed, so a failure on a machine this suite
-# cannot be run on interactively still says what it actually got.
-function _hi_assert_contains() {
-  _hi_contains "$1" "$2" && return 0
-  _hi_cecho "   expected to find: $(printf '%s' "$2" | od -An -tx1 | tr -d ' \n')" "$RED"
-  _hi_cecho "   in: $(printf '%s' "$1" | od -An -tx1 | tr -d ' \n')" "$RED"
-  return 1
-}
-
 # The scaffold every check_line case shares: run one row (and optional tier)
 # against a fresh row sink and assert how many records it left. check_line
 # appends to the array it is named, and the single record - when there is
@@ -143,11 +134,10 @@ function test_full_check_empty_when_everything_is_silent() {
 
 # _hi_group_tier: the named groups' tiers, and 1 for any other name
 function test_group_tier_maps_names_to_tiers() {
-  local spec t
+  local spec
   for spec in core=3 base=3 deprecated=3 useful=2 trivia=0 platform=0 \
     extras=1 mine=1 cores=1; do
-    _hi_group_tier t "${spec%=*}"
-    [ "$t" = "${spec#*=}" ] || _hi_why t spec || return 1
+    _hi_var_is "${spec#*=}" _hi_group_tier "${spec%=*}" || return 1
   done
 }
 
@@ -174,10 +164,8 @@ function test_group_on_reads_the_list() {
 # _hi_package_groups: the tables in file order, a group once however many
 # tables it has, a comment behind one read past, and a commented one skipped
 function test_package_groups_lists_sections_in_file_order() {
-  local got
   _HI_PACKAGES="$(_hi_pkg_one list-groups "top = []\n[required]\nneed = []\n[beta.unwanted]\nx = []\n#[gone]\n[alpha] # c\n[beta]\n[alpha.required]\n")" \
-    _hi_package_groups got
-  [ "$got" = "beta alpha" ] || _hi_why got
+    _hi_var_is "beta alpha" _hi_package_groups
 }
 
 # a row is its key and its array, whatever pads or follows them: a quoted
@@ -422,7 +410,6 @@ function test_shipped_ramp_names_are_all_real_colors() {
 # _HI_TEST_SCHEME24/_HI_TEST_SCHEME48: tests/lib/fixtures.sh, shared with core_test.sh
 
 function test_packages_palette_uses_the_second_bank_under_48_words() {
-  local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
     export _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1
@@ -433,38 +420,33 @@ function test_packages_palette_uses_the_second_bank_under_48_words() {
     _hi_color_escape_at want 29
     [ "${_HI_YES[0]}" = "$want" ] && [ "${_HI_YES[0]}" != "$CYAN" ] &&
       [ "$want" = '\e[0;36;38;2;17;168;205m' ] &&
-      [ "${#_HI_YES[@]}" -eq 4 ] && [ "${#_HI_NO[@]}" -eq 4 ]
-  ) && ok=1
-  [ "$ok" = 1 ] || _hi_why ok
+      [ "${#_HI_YES[@]}" -eq 4 ] && [ "${#_HI_NO[@]}" -eq 4 ] || _hi_why -4 want _HI_YES _HI_NO
+  )
 }
 
 # ...and stays the first bank - the palette variables themselves - under a
 # 24-word list or nothing
 function test_packages_palette_keeps_the_first_bank_under_24_words() {
-  local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
     export _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1
     _hi_assign_palette
     unset _HI_PACKAGES_PALETTE
     _hi_packages_palette
-    [ "${_HI_YES[0]}" = "$CYAN" ] && [ "${_HI_NO[3]}" = "$BRRED" ] && [[ "$CYAN" == *";38;2;"* ]]
-  ) && ok=1
-  [ "$ok" = 1 ] || _hi_why ok
+    [ "${_HI_YES[0]}" = "$CYAN" ] && [ "${_HI_NO[3]}" = "$BRRED" ] && [[ "$CYAN" == *";38;2;"* ]] || _hi_why _HI_YES _HI_NO CYAN
+  )
 }
 
 # NO_COLOR empties every palette variable, and the second-bank swap has to
 # leave them empty rather than paint over the user's no
 function test_packages_palette_second_bank_is_inert_under_no_color() {
-  local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
     export _HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1 NO_COLOR=1
     _hi_assign_palette
     _hi_packages_palette
-    [ -z "${_HI_YES[0]}" ] && [ -z "${_HI_NO[3]}" ]
-  ) && ok=1
-  [ "$ok" = 1 ] || _hi_why ok
+    [ -z "${_HI_YES[0]}" ] && [ -z "${_HI_NO[3]}" ] || _hi_why _HI_YES _HI_NO
+  )
 }
 
 function run_header_check_tests() {

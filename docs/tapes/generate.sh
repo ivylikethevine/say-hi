@@ -61,6 +61,7 @@ set -uo pipefail
 # wherever the caller happened to be standing.
 cd "$_HI_ROOT"
 
+_HI_ME=generate.sh
 _HI_USAGE="Usage: generate.sh [-l|--list] [--head] [--keep] [--require-run] [--version <v>] [--down] [name ...]"
 
 # "<name>:<fixture>:<tool...>", in render order. A string table rather than an
@@ -293,7 +294,7 @@ function gen_preflight() {
   # surprise. A non-default toggle below means the GIFs are not the defaults.
   [ -f "$_HI_CONFIG_DIR/settings.sh" ] && overlay="settings.sh (toggles only)"
   for toggle in ${_HI_TOGGLES[@]+"${_HI_TOGGLES[@]}"}; do
-    eval "val=\${$toggle:-0}"
+    val="${!toggle:-0}"
     [ "$val" = 0 ] || overlay="$overlay $toggle=$val"
   done
   if [ -n "$overlay" ]; then
@@ -459,16 +460,7 @@ EOF
   --head) _HI_GEN_HEAD=1 ;;
   --keep) _HI_GEN_KEEP=1 ;;
   --require-run) _HI_GEN_REQUIRE=1 ;;
-  --version)
-    if [ $# -lt 2 ] || [ -z "$2" ]; then
-      echo "generate.sh: --version needs a value" >&2
-      echo "$_HI_USAGE" >&2
-      exit 1
-    fi
-    _HI_GEN_VERSION="$2"
-    shift
-    ;;
-  --version=*) _HI_GEN_VERSION="${1#--version=}" ;;
+  --version | --version=*) _hi_flag_word_or_die _HI_GEN_VERSION "--version needs a value" "$@" || shift ;;
   --down) _HI_GEN_DOWN=1 ;;
   -*)
     echo "generate.sh: unknown option: $1" >&2

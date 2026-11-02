@@ -347,11 +347,10 @@ printf %s "$TERM"' 2>/dev/null
 }
 
 function test_term_fallback_keeps_a_term_with_terminfo() {
-  local got ti="$_HI_WORKDIR/terminfo"
+  local ti="$_HI_WORKDIR/terminfo"
   mkdir -p "$ti/h"
   : >"$ti/h/hi-test-present-term"
-  got="$(_hi_preamble_final_term TERM=hi-test-present-term TERMINFO="$ti")"
-  [ "$got" = hi-test-present-term ] || _hi_why got ti
+  _hi_prints hi-test-present-term _hi_preamble_final_term TERM=hi-test-present-term TERMINFO="$ti"
 }
 
 # On a target, $_HI_CONFIG_DIR is the overlay/ the overlay was unpacked into,
@@ -508,60 +507,58 @@ function test_boot_probe_splits_the_archives_out() {
 # script renamed in whole, a short landing refused, and so is a directory
 # that already exists
 function test_boot_probe_lands_in_a_named_dir() {
-  local out d="$_HI_WORKDIR/named.boot" mode ec=0
+  local out d="$_HI_WORKDIR/named.boot" ec=0
   { _hi_boot_feed && printf x; } | sh -c "$(_hi_boot_probe "$d.short")" >/dev/null 2>&1 || ec=$?
   { [ "$ec" -eq 66 ] && [ ! -e "$d.short" ]; } || _hi_why ec || return 1
   ec=0
   out="$(_hi_boot_feed | sh -c "$(_hi_boot_probe "$d")" 2>/dev/null)" || _hi_why out || return 1
   { [ "${out##*HIBOOT:}" = "$d" ] && [ -f "$d/bootloader" ] && [ ! -e "$d/part" ]; } || _hi_why out || return 1
   if _hi_capable mode_bits; then
-    mode="$(find "$d" -prune -perm 700)"
-    [ "$mode" = "$d" ] || _hi_because "$d is not mode 0700" || return 1
+    _hi_prints "$d" find "$d" -prune -perm 700 || return 1
   fi
   _hi_boot_feed | sh -c "$(_hi_boot_probe "$d")" >/dev/null 2>&1 || ec=$?
   [ "$ec" -eq 65 ] || _hi_why ec
+}
+
+# _hi_stub_start <dir> <out> [pipe] - the stub in the background, in this shell
+# so $! is its; [pipe] with the client's word and a line of stdin
+function _hi_stub_start() {
+  if [ -n "${3:-}" ]; then
+    printf 'go\nthrough\n' | sh -c "$(_hi_overlap_stub "$1" pipe)" >"$2" 2>&1 &
+  else
+    sh -c "$(_hi_overlap_stub "$1")" >"$2" 2>&1 &
+  fi
+}
+
+# _hi_stub_orders <dir> <out> <want> [pipe] - the stub and the boot probe in
+# either order: <want> said, and the directory gone
+function _hi_stub_orders() {
+  local d="$1" out="$2" want="$3" got order
+  for order in stub-first probe-first; do
+    : >"$out"
+    [ "$order" != stub-first ] || _hi_stub_start "$d.$order" "$out" "${4:-}"
+    _hi_boot_feed | sh -c "$(_hi_boot_probe "$d.$order")" >/dev/null 2>&1 || _hi_why order || return 1
+    [ "$order" = stub-first ] || _hi_stub_start "$d.$order" "$out" "${4:-}"
+    _hi_wait_pid "$!" 10
+    got="$(cat "$out")"
+    { [ "$_HI_WAIT_EXIT" = 0 ] && [ "$got" = "$want" ] && [ ! -e "$d.$order" ]; } ||
+      _hi_why order _HI_WAIT_EXIT got || return 1
+  done
 }
 
 # _hi_overlap_stub waits for the script and runs it: woken by the probe's
 # FIFO when it starts first, and straight through when it comes after the
 # landing; either way the script ran and its directory went with it
 function test_the_stub_runs_the_script_once_it_lands() {
-  local d="$_HI_WORKDIR/stub.boot" out="$_HI_WORKDIR/stub.out" ct=0 got order
-  for order in stub-first probe-first; do
-    : >"$out"
-    if [ "$order" = stub-first ]; then
-      sh -c "$(_hi_overlap_stub "$d.$order")" >"$out" 2>&1 &
-      _hi_boot_feed | sh -c "$(_hi_boot_probe "$d.$order")" >/dev/null 2>&1 || _hi_why order || return 1
-    else
-      _hi_boot_feed | sh -c "$(_hi_boot_probe "$d.$order")" >/dev/null 2>&1 || _hi_why order || return 1
-      sh -c "$(_hi_overlap_stub "$d.$order")" >"$out" 2>&1 &
-    fi
-    _hi_wait_pid "$!" 10
-    got="$(cat "$out")"
-    { [ "$_HI_WAIT_EXIT" = 0 ] && [ "$got" = boot ] && [ ! -e "$d.$order" ]; } ||
-      _hi_why order _HI_WAIT_EXIT got || return 1
-  done
+  _hi_stub_orders "$_HI_WORKDIR/stub.boot" "$_HI_WORKDIR/stub.out" boot
 }
 
 # ...and its form with no tty: the client's `go` line ahead of the session's
 # stdin, which reaches the script whichever lands first, and an end of file
 # in its place ends a stub no probe ever woke, leaving no directory
 function test_the_piped_stub_takes_its_word_from_stdin() {
-  local d="$_HI_WORKDIR/pipe.boot" out="$_HI_WORKDIR/pipe.out" ct=0 got order feed_script='cat; echo boot'
-  for order in stub-first probe-first; do
-    : >"$out"
-    if [ "$order" = stub-first ]; then
-      printf 'go\nthrough\n' | sh -c "$(_hi_overlap_stub "$d.$order" pipe)" >"$out" 2>&1 &
-      _hi_boot_feed | sh -c "$(_hi_boot_probe "$d.$order")" >/dev/null 2>&1 || _hi_why order || return 1
-    else
-      _hi_boot_feed | sh -c "$(_hi_boot_probe "$d.$order")" >/dev/null 2>&1 || _hi_why order || return 1
-      printf 'go\nthrough\n' | sh -c "$(_hi_overlap_stub "$d.$order" pipe)" >"$out" 2>&1 &
-    fi
-    _hi_wait_pid "$!" 10
-    got="$(cat "$out")"
-    { [ "$_HI_WAIT_EXIT" = 0 ] && [ "$got" = $'through\nboot' ] && [ ! -e "$d.$order" ]; } ||
-      _hi_why order _HI_WAIT_EXIT got || return 1
-  done
+  local d="$_HI_WORKDIR/pipe.boot" out="$_HI_WORKDIR/pipe.out" got feed_script='cat; echo boot'
+  _hi_stub_orders "$d" "$out" $'through\nboot' pipe || return 1
   sh -c "$(_hi_overlap_stub "$d.eof" pipe)" </dev/null >"$out" 2>&1 &
   _hi_wait_pid "$!" 10
   got="$(cat "$out")"

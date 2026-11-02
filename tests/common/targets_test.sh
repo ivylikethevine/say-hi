@@ -386,7 +386,7 @@ function test_dedupe_leaves_nomad_and_kube_alone() {
   local dir="$_HI_WORKDIR/shims/pod-twin" out
   mkdir -p "$dir"
   cp "$_HI_SUITE_WORKDIR/shims/twins/docker" "$_HI_SUITE_WORKDIR/shims/twins/podman" "$dir/"
-  cat >"$dir/kubectl" <<'EOF'
+  _hi_script "$dir/kubectl" <<'EOF'
 #!/bin/sh
 case "$1" in
 config) printf 'default' ;;
@@ -394,7 +394,6 @@ get) printf 'default twin\n' ;;
 *) exit 1 ;;
 esac
 EOF
-  chmod +x "$dir/kubectl"
   out="$(PATH="$dir:$PATH" _HI_SSH_CONFIG="$_HI_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS")"
   _hi_has_row "$out" twin docker || _hi_why out || return 1
   _hi_has_row "$out" twin kube || _hi_why out
@@ -419,8 +418,7 @@ function test_kube_kind_lists_running_pods() {
 # syntax hi takes for picking one; a lone task is the alloc itself, no row
 function test_nomad_multi_task_alloc_lists_each_task() {
   local dir="$_HI_WORKDIR/shims/nomad-tasks" out
-  mkdir -p "$dir"
-  cat >"$dir/nomad" <<'EOF'
+  _hi_script "$dir/nomad" <<'EOF'
 #!/bin/sh
 case "$1 $2" in
 "job status") printf 'ID    Type     Status\nweb   service  running\n' ;;
@@ -428,7 +426,6 @@ case "$1 $2" in
 *) exit 1 ;;
 esac
 EOF
-  chmod +x "$dir/nomad"
   out="$(PATH="$dir:$PATH" _HI_SSH_CONFIG="$_HI_NO_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" nomad)"
   _hi_has_row "$out" abc12345 nomad || _hi_why out || return 1
   _hi_has_row "$out" abc12345/web nomad || _hi_why out || return 1
@@ -441,8 +438,7 @@ EOF
 # "pod/container" rows, a one-container pod gets none
 function test_kube_multi_container_pod_lists_each_container() {
   local dir="$_HI_WORKDIR/shims/kube-containers" out
-  mkdir -p "$dir"
-  cat >"$dir/kubectl" <<'EOF'
+  _hi_script "$dir/kubectl" <<'EOF'
 #!/bin/sh
 case "$1" in
 config) printf 'default' ;;
@@ -450,7 +446,6 @@ get) printf 'default pod-a app sidecar\ndefault pod-b app\n' ;;
 *) exit 1 ;;
 esac
 EOF
-  chmod +x "$dir/kubectl"
   out="$(PATH="$dir:$PATH" _HI_SSH_CONFIG="$_HI_NO_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" kube)"
   _hi_has_row "$out" pod-a kube || _hi_why out || return 1
   _hi_has_row "$out" pod-a/app kube || _hi_why out || return 1
@@ -475,14 +470,13 @@ function test_backends_are_swept_together() {
 # which is slow and must still be right. TMPDIR under /dev/null can never be
 # mkdir'd, so scratch_dir fails the way an unwritable host would.
 function test_no_scratch_dir_falls_back_in_turn() {
-  local out got
+  local out
   out="$(_hi_targets_slow /dev/null/nope)" || _hi_why || return 1
   _hi_has_row "$out" slow-docker docker || _hi_why out || return 1
   _hi_has_row "$out" slow-podman podman || _hi_why out || return 1
   _hi_has_row "$out" slow-pod kube || _hi_why out || return 1
   # one backend finished before the next started, i.e. really the in-turn arm
-  got="$(sed -n '2p' "$_HI_PROBE_LOG")"
-  [ "$got" = "docker end" ] || _hi_why got _HI_PROBE_LOG
+  _hi_prints "docker end" sed -n '2p' "$_HI_PROBE_LOG"
 }
 
 # ...and nomad's per-job calls fall back the same way: nomad alone would fan
@@ -520,7 +514,7 @@ function _hi_targets_cached() {
 }
 
 function test_cache_reuses_the_first_answer() {
-  local dir="$_HI_WORKDIR/cache-hit" shim="$_HI_SUITE_WORKDIR/shims/docker" first second ok=0
+  local dir="$_HI_WORKDIR/cache-hit" shim="$_HI_SUITE_WORKDIR/shims/docker" first second
   mkdir -p "$dir"
   first="$(_hi_targets_cached "$dir" 60 docker)"
   # take the shim away: a miss now produces nothing, a hit still has the rows,
@@ -528,8 +522,7 @@ function test_cache_reuses_the_first_answer() {
   mv "$shim" "$shim.aside"
   second="$(_hi_targets_cached "$dir" 60 docker)"
   mv "$shim.aside" "$shim"
-  [ -n "$first" ] && [ "$first" = "$second" ] && ok=1
-  [ "$ok" -eq 1 ] || _hi_why ok
+  [ -n "$first" ] && [ "$first" = "$second" ] || _hi_why first second
 }
 
 function test_cache_is_bypassed_at_ttl_zero() {
@@ -641,7 +634,7 @@ function test_cache_dir_wrong_owner_is_not_trusted() {
   uid="$(id -u)"
   mkdir -m 700 "$tmp"
   mkdir -m 700 "$tmp/hi-$uid"
-  cat >"$bin/ls" <<SHIM
+  _hi_script "$bin/ls" <<SHIM
 #!/bin/sh
 if [ "\$*" = "-ldn $tmp/hi-$uid" ]; then
   printf 'drwx------ 2 65534 65534 4096 Jan  1 00:00 %s\n' "$tmp/hi-$uid"
@@ -649,7 +642,6 @@ else
   exec $(command -v ls) "\$@"
 fi
 SHIM
-  chmod +x "$bin/ls"
   out="$(PATH="$bin:$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
     XDG_RUNTIME_DIR='' TMPDIR="$tmp" _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" docker)"
   _hi_has_row "$out" alpha docker || _hi_why out || return 1

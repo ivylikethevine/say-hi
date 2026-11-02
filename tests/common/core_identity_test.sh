@@ -82,45 +82,39 @@ function _hi_config_d_tags() {
 # Included from it is not of the config.d and the lines after it are again,
 # and neither a name that is no plain word nor the config itself tags
 function test_ssh_host_tag_takes_a_config_d_file_s_name() {
-  local h got want='web1=acme(0) db1=prod(0) x.acme=(2) nested=(2) late=acme(0) top=(2) odd=(2) nope=(1) '
+  local h want='web1=acme(0) db1=prod(0) x.acme=(2) nested=(2) late=acme(0) top=(2) odd=(2) nope=(1) '
   h="$(_hi_config_d_home configd-tags)"
-  got="$(_hi_config_d_tags "$h")"
-  [ "$got" = "$want" ] || _hi_why got want h
+  _hi_prints "$want" _hi_config_d_tags "$h"
 }
 
 function test_zsh_config_d_tag_agrees_with_bash() {
-  local h got want
+  local h want
   h="$(_hi_config_d_home configd-zsh)"
   want="$(_hi_config_d_tags "$h")"
-  got="$(_hi_config_d_tags "$h" zsh)"
-  [ "$got" = "$want" ] || _hi_why got want h
+  _hi_prints "$want" _hi_config_d_tags "$h" zsh
 }
 
 # a host of ~/.ssh/config.d/acme under no `# Tags:` line takes the hosttag
 # row's color, and a usertag row colors its user
 function test_config_d_host_colors_by_its_file() {
-  local h got tag
+  local h tag
   h="$(_hi_config_d_home configd-color)"
   printf '[hosttag]\nacme = "brred"\n\n[usertag]\nacme = "teal"\n' >"$h/colors"
   unset _HI_TAG_NAME
-  got="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _HI_COLORS="$h/colors" _hi_resolve_color hostname web1)"
-  [ "$got" = brred ] || _hi_why got h || return 1
+  HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _HI_COLORS="$h/colors" _hi_prints brred _hi_resolve_color hostname web1 || return 1
   unset _HI_TAG_NAME
   tag="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag web1)"
-  got="$(_HI_COLORS="$h/colors" _hi_resolve_color username deploy "$tag")"
-  [ "$got" = teal ] || _hi_why got tag h
+  _HI_COLORS="$h/colors" _hi_prints teal _hi_resolve_color username deploy "$tag"
 }
 
 # a matching untagged block earlier in the file does not end the walk: a
 # leading `Host *` of defaults marks every name known (rc 2) and the walk
 # goes on to the tagged block below it, as ssh reads on past a first match
 function test_ssh_host_tag_survives_a_leading_untagged_wildcard() {
-  local got
   local cfg="$_HI_WORKDIR/ssh_config.leadingstar" rc=0
   printf 'Host *\n  AddKeysToAgent yes\n\n# Tags: prod\nHost behind\n' >"$cfg"
   unset _HI_TAG_NAME
-  got="$(_HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag behind)"
-  [ "$got" = prod ] || _hi_why got cfg || return 1
+  _HI_SSH_CONFIG="$cfg" _hi_prints prod _hi_ssh_host_tag behind || return 1
   unset _HI_TAG_NAME
   _HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag elsewhere >/dev/null || rc=$?
   [ "$rc" -eq 2 ] || _hi_why rc
@@ -129,12 +123,10 @@ function test_ssh_host_tag_survives_a_leading_untagged_wildcard() {
 # a blank line between the Tags comment and its Host does not drop the tag -
 # only another Host or Match line does
 function test_ssh_host_tag_survives_a_blank_line_before_its_host() {
-  local got
   local cfg="$_HI_WORKDIR/ssh_config.blankline"
   printf '# Tags: spaced\n\nHost gap\n' >"$cfg"
   unset _HI_TAG_NAME
-  got="$(_HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag gap)"
-  [ "$got" = spaced ] || _hi_why got cfg
+  _HI_SSH_CONFIG="$cfg" _hi_prints spaced _hi_ssh_host_tag gap
 }
 
 # _hi_native_tag_home <name> - a home whose config carries ssh's own Tag
@@ -165,18 +157,16 @@ function _hi_native_tags() {
 # config.d file's name, `=` and quotes are read as ssh reads them, a Match
 # host block takes one too, and one block's Tag line is not the next's
 function test_ssh_host_tag_reads_ssh_s_own_tag_keyword() {
-  local h got want='kw=native(0,tag) both=comment(0,comment) eq=quoted(0,tag) m-1=matched(0,tag) next=(2,) web1=fromline(0,tag) web2=acme(0,file) '
+  local h want='kw=native(0,tag) both=comment(0,comment) eq=quoted(0,tag) m-1=matched(0,tag) next=(2,) web1=fromline(0,tag) web2=acme(0,file) '
   h="$(_hi_native_tag_home native-tags)"
-  got="$(_hi_native_tags "$h")"
-  [ "$got" = "$want" ] || _hi_why got want h
+  _hi_prints "$want" _hi_native_tags "$h"
 }
 
 function test_zsh_native_tag_agrees_with_bash() {
-  local h got want
+  local h want
   h="$(_hi_native_tag_home native-zsh)"
   want="$(_hi_native_tags "$h")"
-  got="$(_hi_native_tags "$h" zsh)"
-  [ "$got" = "$want" ] || _hi_why got want h
+  _hi_prints "$want" _hi_native_tags "$h" zsh
 }
 
 function test_ssh_host_tag_untagged_host_fails() {
@@ -184,11 +174,8 @@ function test_ssh_host_tag_untagged_host_fails() {
 }
 
 function test_ssh_host_tag_equals_syntax_and_multialias() {
-  local got
-  got="$(_hi_fixture_tag devhost)"
-  [ "$got" = "dev" ] || _hi_why got || return 1
-  got="$(_hi_fixture_tag otheralias)"
-  [ "$got" = "dev" ] || _hi_why got
+  _hi_prints "dev" _hi_fixture_tag devhost || return 1
+  _hi_prints "dev" _hi_fixture_tag otheralias
 }
 
 function test_ssh_host_tag_unknown_host_fails() {
@@ -221,11 +208,8 @@ function test_ssh_host_tag_wildcard_requires_the_dash() {
 }
 
 function test_ssh_host_tag_match_host_comma_patterns() {
-  local got
-  got="$(_hi_fixture_tag staging-db1)"
-  [ "$got" = "staging" ] || _hi_why got || return 1
-  got="$(_hi_fixture_tag staging2-x)"
-  [ "$got" = "staging" ] || _hi_why got
+  _hi_prints "staging" _hi_fixture_tag staging-db1 || return 1
+  _hi_prints "staging" _hi_fixture_tag staging2-x
 }
 
 function test_ssh_host_tag_wildcard_untagged_block_is_rc_2() {
@@ -244,9 +228,7 @@ function test_ssh_host_tag_negation_token_is_inert_not_exclusionary() { _hi_prin
 # canonical, ...); those words are not host patterns, so a host that happens
 # to be called "deploy" must not inherit the block's tag - only bastion-* does
 function test_ssh_host_tag_match_criteria_are_not_patterns() {
-  local got
-  got="$(_hi_fixture_tag bastion-2)"
-  [ "$got" = "bastion" ] || _hi_why got || return 1
+  _hi_prints "bastion" _hi_fixture_tag bastion-2 || return 1
   local rc=0
   _hi_fixture_tag deploy >/dev/null || rc=$?
   [ "$rc" -eq 1 ] || _hi_why rc
@@ -268,11 +250,9 @@ function test_ssh_host_tag_match_criteria_localuser_exec_canonical_final() {
   _hi_fixture_tag build >/dev/null || rc=$?
   [ "$rc" -eq 1 ] || _hi_why rc || return 1
 
-  got="$(_hi_fixture_tag robot-1)"
-  [ "$got" = "robot" ] || _hi_why got || return 1
+  _hi_prints "robot" _hi_fixture_tag robot-1 || return 1
 
-  got="$(_hi_fixture_tag lastcall-1)"
-  [ "$got" = "lastword" ] || _hi_why got
+  _hi_prints "lastword" _hi_fixture_tag lastcall-1
 }
 
 # a Match on anything but host opens a block of its own, so the tag comment
@@ -301,13 +281,10 @@ function test_resolve_color_falls_back_to_hash() {
 # target through _hi_ssh_pattern_hit. Structural precedence: exact pin >
 # hosttag > pattern > hash.
 function test_pattern_pin_colors_a_subnet() {
-  local got
   local colors="$_HI_WORKDIR/colors.pattern"
   printf '[hostname]\n"10.0.1.*" = "red"\n"*.prod.example" = "blue"\n' >"$colors"
-  got="$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)"
-  [ "$got" = red ] || _hi_why got colors || return 1
-  got="$(_HI_COLORS="$colors" _hi_resolve_color hostname db.prod.example)"
-  [ "$got" = blue ] || _hi_why got colors || return 1
+  _HI_COLORS="$colors" _hi_prints red _hi_resolve_color hostname 10.0.1.7 || return 1
+  _HI_COLORS="$colors" _hi_prints blue _hi_resolve_color hostname db.prod.example || return 1
   ! _HI_COLORS="$colors" _hi_colors_pattern hostname 10.0.2.7 || _hi_why colors
 }
 

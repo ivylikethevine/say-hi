@@ -217,11 +217,7 @@ packaging/aur/say-hi-git/ is untouched: its pkgver() derives from the branch.
 EOF
     exit 0
     ;;
-  -*)
-    echo "bump.sh: unrecognized argument: $1" >&2
-    echo "$_HI_USAGE" >&2
-    exit 1
-    ;;
+  -*) _hi_bad_arg "$1" ;;
   *) _HI_VERSION="$1" ;;
   esac
   shift

@@ -48,12 +48,11 @@ case "${1:-}" in
   ;;
 esac
 case "$mode" in
-list) me="hi --plugins" usage="hi --plugins [--text]" ;;
-off) me="hi --disable-plugin" usage="hi --disable-plugin <name>... [--dry-run]" ;;
-on) me="hi --enable-plugin" usage="hi --enable-plugin <name>... [--dry-run]" ;;
+list) _HI_ME="hi --plugins" usage="hi --plugins [--text]" ;;
+off) _HI_ME="hi --disable-plugin" usage="hi --disable-plugin <name>... [--dry-run]" ;;
+on) _HI_ME="hi --enable-plugin" usage="hi --enable-plugin <name>... [--dry-run]" ;;
 esac
-me="${_HI_ARGV0:-$me}"
-_HI_ME="$me"
+_HI_ME="${_HI_ARGV0:-$_HI_ME}"
 _HI_DRY_RUN="" args=()
 
 function _hi_plugins_help() {
@@ -96,7 +95,7 @@ EOF
 }
 
 # --text, read ahead of core.sh above, is the list's alone
-[ "$_HI_TEXT" != 1 ] || [ "$mode" = list ] || _hi_die "--text is hi --plugins' switch ($me --help)"
+[ "$_HI_TEXT" != 1 ] || [ "$mode" = list ] || _hi_die "--text is hi --plugins' switch ($_HI_ME --help)"
 _hi_args _hi_plugins_help "$usage" "$@"
 
 # _hi_plugin_row <label> <text> [severity] - a member's row, its label in the
@@ -187,8 +186,8 @@ function _hi_plugins_write_list() {
 }
 
 function _hi_plugins_switch() {
-  local word known now="" next="" w changed="" on="" nexton="" changedon=""
-  [ "${#args[@]}" -gt 0 ] || _hi_die "needs a plugin or a member ($me --help)"
+  local word known now="" next="" changed="" on="" nexton="" changedon="" list flag adding stays absent cur
+  [ "${#args[@]}" -gt 0 ] || _hi_die "needs a plugin or a member ($_HI_ME --help)"
   _hi_plugins_load
   known=" $(_hi_plugin_words | tr '\n' ' ')"
   # settings.sh's last _HI_PLUGINS_OFF and _HI_PLUGINS_ON lines, read without
@@ -203,49 +202,42 @@ function _hi_plugins_switch() {
     # off takes it out (and never into the off list, which would say more
     # than it needs to)
     if _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$word"; then
-      case "$mode:$nexton" in
-      on:*" $word "*) _hi_cecho " $word is on already" "$GREEN" ;;
-      on:*)
-        nexton="$nexton$word "
-        changedon=1
-        _hi_cecho " + $word" "$GREEN"
-        ;;
-      off:*" $word "*)
-        nexton="${nexton// $word / }"
-        changedon=1
-        _hi_cecho " - $word" "$YELLOW"
-        ;;
-      off:*) _hi_cecho " $word is off already (off by default)" "$GREEN" ;;
-      esac
+      list=nexton flag=changedon adding=on stays="is on already" absent="is off already (off by default)"
+    else
+      list=next flag=changed adding=off stays="is off already" absent="is not in the list - nothing to switch"
+    fi
+    cur="${!list}"
+    if [[ "$cur" == *" $word "* ]]; then
+      [ "$mode" != "$adding" ] || {
+        _hi_cecho " $word $stays" "$GREEN"
+        continue
+      }
+      cur="${cur// $word / }"
+    elif [ "$mode" = "$adding" ]; then
+      cur="$cur$word "
+    else
+      _hi_cecho " $word $absent" "$GREEN"
       continue
     fi
-    case "$mode:$next" in
-    off:*" $word "*) _hi_cecho " $word is off already" "$GREEN" ;;
-    off:*)
-      next="$next$word "
-      changed=1
-      _hi_cecho " - $word" "$YELLOW"
-      ;;
-    on:*" $word "*)
-      next="${next// $word / }"
-      changed=1
-      _hi_cecho " + $word" "$GREEN"
-      ;;
-    on:*) _hi_cecho " $word is not in the list - nothing to switch" "$GREEN" ;;
-    esac
+    printf -v "$list" '%s' "$cur"
+    printf -v "$flag" '%s' 1
+    if [ "$mode" = on ]; then _hi_cecho " + $word" "$GREEN"; else _hi_cecho " - $word" "$YELLOW"; fi
   done
   [ -n "$changed" ] || [ -n "$changedon" ] || exit 0
   # one space between words, none at the ends
-  now="" on=""
-  for w in $next; do now="$now${now:+ }$w"; done
-  for w in $nexton; do on="$on${on:+ }$w"; done
+  # shellcheck disable=SC2086 # word lists
+  set -- $next
+  now="$*"
+  # shellcheck disable=SC2086 # word lists
+  set -- $nexton
+  on="$*"
   [ -z "$changed" ] || _hi_plugins_write_list _HI_PLUGINS_OFF "$now"
   [ -z "$changedon" ] || _hi_plugins_write_list _HI_PLUGINS_ON "$on"
 }
 
 case "$mode" in
 list)
-  [ "${#args[@]}" -eq 0 ] || _hi_die "takes no argument ($me --help)"
+  [ "${#args[@]}" -eq 0 ] || _hi_die "takes no argument ($_HI_ME --help)"
   _hi_plugins_list
   ;;
 off | on) _hi_plugins_switch ;;

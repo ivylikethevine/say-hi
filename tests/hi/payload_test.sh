@@ -43,9 +43,16 @@ function _hi_overlay_tar() {
 # _hi_tar_cat <member> - one member of the gzipped archive on stdin, printed:
 # unpacked and read back, since OpenBSD's tar has no -O to extract to stdout
 function _hi_tar_cat() {
-  local d
-  d="$(mktemp -d "$_HI_WORKDIR/tarcat.XXXXXX")" || return 1
+  local d="$_HI_WORKDIR/tarcat.$RANDOM"
+  mkdir "$d" || return 1
   tar -x -z -f - -C "$d" && cat "$d/$1"
+}
+
+# _hi_arrives <member> <body> - the overlay's archive holds <member> as <body>
+function _hi_arrives() {
+  local got
+  got="$(_hi_overlay_tar | _hi_tar_cat "$1")"
+  [ "$got" = "$2" ] || _hi_because "$1 arrived as: [$got]"
 }
 
 # An unconfigured client ships everything - which is also what both size budgets
@@ -84,9 +91,9 @@ function test_payload_always_ships_aliases() {
 # point at a fixture home and the tools' own variables start unset (the
 # harness clears them), so the developer's real configs never answer.
 function _hi_tool_home_unpacked() {
-  local dir="$1" d
+  local dir="$1" d="$_HI_WORKDIR/toolhome.$RANDOM"
   shift
-  d="$(mktemp -d "$_HI_WORKDIR/toolhome.XXXXXX")" || return 1
+  mkdir "$d" || return 1
   (
     export HOME="$_HI_WORKDIR/tool-home" XDG_CONFIG_HOME="$_HI_WORKDIR/tool-home/.config" \
       _HI_PROMPT_TOOL=starship _HI_CONFIG_DIR="$dir" ${1+"$@"}
@@ -213,10 +220,8 @@ function test_human_bytes_matches_du_shapes() {
   [ "$got" = 1023B ] || _hi_why got || return 1
   got="$(_hi_human_bytes 1024)"
   [ "$got" = 1.0K ] || _hi_why got || return 1
-  got="$(_hi_human_bytes 34559)"
-  [ "$got" = 34K ] || _hi_why got || return 1
-  got="$(_hi_human_bytes 5000000)"
-  [ "$got" = 4.8M ] || _hi_why got
+  _hi_prints 34K _hi_human_bytes 34559 || return 1
+  _hi_prints 4.8M _hi_human_bytes 5000000
 }
 
 # the reported number counts what is sent, not what is on disk: it must be
@@ -573,7 +578,8 @@ function test_a_session_relays_its_tree_as_it_stands() {
 # ...and what an include of it names is the relaying hop's directory, which
 # the next hop makes its own
 function test_a_relay_hands_on_what_it_carried() {
-  local got dir next="$_HI_WORKDIR/nexthop/config" fix
+  local got
+  local dir next="$_HI_WORKDIR/nexthop/config" fix
   dir="$(_hi_session_tree)"
   mkdir -p "$next/vim"
   cp "$dir/say-hi/config/vim/vimrc" "$next/vim/vimrc"
@@ -583,8 +589,7 @@ function test_a_relay_hands_on_what_it_carried() {
   [ "$got" = "source $next/vim/extra.vim" ] ||
     _hi_because "the include on the next hop: $got" || return 1
   # a path no script can hold bare is no token: nothing is rewritten
-  got="$(_hi_in_session "$dir" "$dir/say hi/config" _hi_overlay_fixup "'$next'")"
-  [ "$got" = : ] || _hi_why got dir
+  _hi_prints : _hi_in_session "$dir" "$dir/say hi/config" _hi_overlay_fixup "'$next'"
 }
 
 # hi.sh reaches the packer through the five functions a session defines for

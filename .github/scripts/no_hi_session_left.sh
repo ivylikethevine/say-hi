@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # no_hi_session_left.sh [file that must still exist] - ci.yml's macOS loopback,
 # bsd_loopback.sh, and windows-e2e.yml's openssh-target and wsl-suites
-# (shard 1) all share this:
+# all share this:
 # the session directory a client leaves under $_HI_HOME's mktemp -d (GLOSSARY:
 # HI.33) must not survive the client's own exit (load.sh's clean_all).
 # ${TMPDIR:-/tmp} is macOS's own convention and, unset inside WSL, is
