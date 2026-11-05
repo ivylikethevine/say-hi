@@ -6,29 +6,86 @@ an entry leaves as one sentence for the top list of
 [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **The session starts once the core files land** — on a fresh
-      connection a script past about 45 KB costs two extra round trips over
-      a small one, and one under 40 KB costs one (at 150 ms added). At
-      081bbd6a the script is 68.9 KB (the README badge's 67 KB, which counts
-      1024 bytes to the KB), 61.3 KB of it the gzipped tree.
-      At 7165ce44, when both were 0.2 KB smaller: without `hi.sh`, the zsh
-      completion, and the zsh and fish files, the
-      tree is 39.1 KB, a script of about 46.7 KB: still past the line. It
-      is 34.2 KB, about 41.8 KB with the script, only with `keep.sh` held
-      back too, and `load()` calls `keep.sh`'s functions as the session
-      starts. **Blocked:** a core whose script is under 40 KB, which needs
-      the tree cut by about 2 KB more and `keep.sh`'s start-up functions in
-      the core without the rest of it. These sizes predate the cleaning
-      passes through e89eb83c, which changed the shipped tree by +472/-579
-      lines since 081bbd6a with the badge still within the 5 KB the bench
-      group allows, so every size above wants measuring again first.
-      **Do:** the core members first on the boot call's stdin and the rest
-      after, the stub starting once the core is in while the rest lands
-      behind it; a `hi host cmd` still waits for the whole tree, and what
-      reads a later file (the `hi` relay, zsh, fish) waits for it.
-      **Ticks when:** a cold connect is a round trip shorter at
-      150 ms added, with nothing dropped from the tree, and the relay, fish,
-      zsh, and kept-session suites pass.
+- [ ] **Six settings for two aliases become two** — `_HI_CAT_BIN`,
+      `_HI_BAT_BIN`, `_HI_LS_BIN`, `_HI_LS_OPTS`, `_HI_EZA_OPTS` and
+      `_HI_BAT_OPTS` all sit under `_HI_TOOL_ALIASES`, and SETTINGS.md
+      already says to leave the `_BIN` rows alone. **Do:** drop the three
+      `_BIN` rows (the ladder in `common/aliases.sh` is deterministic) and
+      fold `_HI_EZA_OPTS` into `_HI_LS_OPTS`; rows in `scripts/settings`,
+      SETTINGS.md, INTEGRATIONS.md, and the wizard. Small. **Ticks when:**
+      the two rows are the whole surface and the configure suites pass.
+
+- [ ] **One glyph setting, or none** — `_HI_SYMBOL_SSH`, `_CONTAINER`,
+      `_NOMAD` and `_KUBE` are four rows for the completion listings' marks,
+      with the ASCII fallback already decided by `_HI_ASCII`. **Do:** one
+      `_HI_SYMBOLS` of four words, or drop the rows and keep the shipped
+      glyphs; `common/bash.sh`, `zsh.zsh`, `config.fish`, `_hi`. Small.
+      **Ticks when:** the completion suites pass with the rows gone.
+
+- [ ] **Banner and greeting are words of `_HI_HEADER_ORDER`** —
+      `_HI_DISABLE_BANNER` and `_HI_DISABLE_GREETING` toggle two lines the
+      order list could name as `banner` and `greeting`, leaving
+      `_HI_DISABLE_HEADER` the one switch. **Do:** add the words, drop the
+      two rows and their wizard rows; `common/header.sh`, `load.sh`,
+      `scripts/configure_menu.sh`, SETTINGS.md's _Header details_. Small.
+      **Ticks when:** the header suites pass and the wizard's pages still
+      fit 24 rows.
+
+- [ ] **The two cosmetic flags go** — `_HI_DISABLE_LEAD_SPACE` and
+      `_HI_DISABLE_RIGHT_EDGE`, or one `_HI_HEADER_STYLE` word if the look
+      has a user; `common/header.sh`, `common/bash.sh`, `zsh.zsh`,
+      `config.fish`. Small. **Ticks when:** the rows are gone from
+      `scripts/settings` and the header and prompt suites pass.
+
+- [ ] **Color has one home** — `_HI_PACKAGES_PALETTE` (eight names) and
+      `_HI_COLOR_SCHEME` (24 or 48 hex words) are settings while every other
+      color is a pin in the colors file. **Do:** a `[palette]` and a
+      `[scheme]` table in `config/colors`, read by `common/core.sh`'s colors
+      loader; the two rows go, with their COLORS.md sections rewritten.
+      Medium. **Ticks when:** `hi --preview colors` and the header show the
+      same result from the file as from the rows today, and the color suites
+      pass.
+
+- [ ] **The test levers sit outside the 1.x freeze** — `_HI_TARGETS_TTL`,
+      `_HI_PROBE_TIMEOUT`, `_HI_CTL_PERSIST`, `_HI_WATCH_STEP` and the other
+      _Not settings_ knobs are read by shipped code. **Do:** check
+      CONTRIBUTING.md's _What 1.x will not break_ names them as unfrozen, or
+      rename them `_HI_TEST_*`. Small. **Ticks when:** the contract says
+      which, in one line.
+
+- [ ] **Two add/remove pairs go the way of `--add-plugin`** —
+      `--add-package`/`--remove-package` and `--add-color`/`--remove-color`
+      do by flag what `hi --edit` does by hand, the choice already made for
+      plugins; `--add-tag` stays, since it edits `~/.ssh/config`, which
+      `--edit` cannot reach. **Do:** drop `scripts/add_package.sh`,
+      `scripts/set_color.sh`, their suites, and their rows in `common/flags`,
+      `docs/hi.1`, USAGE.md, tldr.md and the completions. Medium.
+      **Ticks when:** `hi --help` lists neither pair and the parse, help and
+      drift suites pass.
+
+- [ ] **Three presets, not five** — `minimal`, `lean` and `configs` differ
+      by two or three variables each (`scripts/configure.sh`'s
+      `_HI_PRESETS`); `everything`, `balanced` and `minimal` are the ladder.
+      **Do:** fold `lean` into `minimal` or keep it and drop `configs`;
+      SETTINGS.md's _Presets_, `common/flags`, the wizard. Small.
+      **Ticks when:** the preset suites pass with the table at three.
+
+- [ ] **The packages grammar loses a dimension** — groups, the
+      `.required` and `.unwanted` sub-tables, and a ramp of four installed
+      and four missing tiers are three dials on one check, and the format
+      freezes at 1.0. **Do:** a per-row marker in place of the sub-tables,
+      so group on/off is the only dial; `config/packages`,
+      `docs/packages.example`, `common/header.sh`'s check, COLORS.md's
+      _The package check's rows_, `scripts/convert_settings.sh` for the old
+      shape. Medium. **Ticks when:** the shipped file and the example use
+      the new shape and the header and configure suites pass.
+
+- [ ] **Each backend has a user** — nomad, nerdctl and finch each cost a
+      header probe, a completion sweep, doctor rows, a suite and a CI
+      shard. **Do:** ask; one with none is a word out of
+      `_HI_CONTAINER_CLIS` or the roster, its suite, and its rows in
+      COMPATIBILITY.md and the docs. Small each. **Ticks when:** every
+      backend that ships has a named reason to.
 
 - [ ] **Every default and preset audited before the tag** —
       [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
@@ -46,6 +103,52 @@ an entry leaves as one sentence for the top list of
       to `core deprecated`, with `useful` under the `everything` preset.
       **Ticks when:** the 1.0.0 release note lists those moves, the known
       changes, and any others that move.
+
+- [ ] **The pre-1.0 conversions go at the tag** —
+      `scripts/convert_settings.sh` (21 KB, 11 functions) rewrites overlay
+      shapes nothing after the tag has a contract for. **Do:** keep the entry
+      point, which `--install`, `--configure` and `--update` call, and drop
+      the pre-1.0 arms and their fixtures. Small. **Ticks when:** the script
+      converts only shapes a 1.x release wrote.
+
+- [ ] **A smaller wizard** — `scripts/configure.sh`, `configure_menu.sh` and
+      `configure_preview.sh` are 90 KB for the settings rows, and the doctor
+      53 KB. The settings cuts above shrink the pages for free; the larger
+      option is presets plus `hi --edit` in place of the paged menu. Large.
+      **Ticks when:** decided, and the chosen shape is in.
+
+- [ ] **One coverage tool** — kcov and bashcov each produce a badge and
+      each has cost an incident (the PS4 switch, the SimpleCov root filter).
+      **Do:** keep bashcov, which credits the staged copies; drop
+      `tests/coverage.sh`, its job in `coverage.yml`, the kcov pin in
+      `tools.txt`, and the kcov badge; TESTING.md's _Coverage_. Medium.
+      **Ticks when:** `main` publishes one coverage figure.
+
+- [ ] **Fewer workflows** — `rerun-timeouts.yml` retries hung jobs where
+      the rule is to fix slow jobs in code; `cancel-closed-pr.yml` is one
+      `concurrency:` block; `usage.yml` is a `pages.yml` job; and
+      `apple-container.yml` is a dispatch-only probe. Of the six scanners,
+      CodeQL and scorecard earn their keep on a public repo; dependency
+      review, the image scan, the link check and the tool-versions report are
+      each a question. **Do:** one PR per cut; a file ci-shared owns moves in
+      the batch, never alone. Small each. **Ticks when:** every workflow left
+      has a line in CONTRIBUTING.md's _What CI runs_ saying what it catches.
+
+- [ ] **One introduction** — README, GETTING-STARTED, TOUR and USAGE each
+      walk the flags, and FILES.md's target and package sections repeat
+      HOW-IT-WORKS and PACKAGING. **Do:** fold TOUR into GETTING-STARTED,
+      move FILES.md's sections to their homes, and let the settings cuts
+      shrink SETTINGS.md; `docs/README.md`'s index and every `## Contents`
+      follow. Medium. **Ticks when:** each fact has one home and the link
+      check passes.
+
+- [ ] **The hosted package repository has subscribers** — the apt, rpm and
+      apk repository (`packaging/mkrepo.sh`, `release.yml`, `pages.yml`, two
+      signing keys) is the heaviest channel to keep honest, and the release
+      already carries the .deb, .rpm and .apk files. **Do:** ask; with none,
+      drop the repository and its keys and keep the files on the release;
+      PACKAGING.md and RELEASING.md. Medium. **Ticks when:** decided, and the
+      channels shipped are the ones PACKAGING.md lists.
 
 ## Release Stages
 
