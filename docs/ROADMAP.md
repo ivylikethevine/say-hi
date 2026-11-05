@@ -6,22 +6,6 @@ an entry leaves as one sentence for the top list of
 [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **Every default and preset audited before the tag** —
-      [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
-      freezes the name and default of all 47 rows of
-      [SETTINGS.md's _Every setting_](SETTINGS.md#every-setting) and the
-      five presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
-      stranger's first run, every row's default agreeing with its code. The
-      known changes, both shipped in 0.8.0, are the `balanced` first-install
-      default and `hi --update`'s verification. Moved since fe63e85e:
-      `_HI_IP_HIDE` from `172.*`, which hid public addresses and missed
-      rootful podman's bridge, to the bridges' interface names;
-      `_HI_PROMPT_END_ZSH` from `>` to `%(!.#.>)`, which marks root as bash
-      and fish do; and `_HI_PACKAGES_GROUPS` from `core useful deprecated`
-      to `core deprecated`, with `useful` under the `everything` preset.
-      **Ticks when:** the 1.0.0 release note lists those moves, the known
-      changes, and any others that move.
-
 - [ ] **The session starts once the core files land** — on a fresh
       connection a script past about 45 KB costs two extra round trips over
       a small one, and one under 40 KB costs one (at 150 ms added). At
@@ -34,9 +18,10 @@ an entry leaves as one sentence for the top list of
       back too, and `load()` calls `keep.sh`'s functions as the session
       starts. **Blocked:** a core whose script is under 40 KB, which needs
       the tree cut by about 2 KB more and `keep.sh`'s start-up functions in
-      the core without the rest of it. These sizes predate 8d9296d3 and
-      62d9d558, which changed the shipped tree (+111/-15 lines since
-      081bbd6a), so the 2 KB wants measuring again first.
+      the core without the rest of it. These sizes predate the cleaning
+      passes through e89eb83c, which changed the shipped tree by +472/-579
+      lines since 081bbd6a with the badge still within the 5 KB the bench
+      group allows, so every size above wants measuring again first.
       **Do:** the core members first on the boot call's stdin and the rest
       after, the stub starting once the core is in while the rest lands
       behind it; a `hi host cmd` still waits for the whole tree, and what
@@ -44,6 +29,23 @@ an entry leaves as one sentence for the top list of
       **Ticks when:** a cold connect is a round trip shorter at
       150 ms added, with nothing dropped from the tree, and the relay, fish,
       zsh, and kept-session suites pass.
+
+- [ ] **Every default and preset audited before the tag** —
+      [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
+      freezes the name and default of all 47 rows of
+      [SETTINGS.md's _Every setting_](SETTINGS.md#every-setting) and the
+      five presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
+      stranger's first run, every row's default agreeing with its code, and
+      no default has moved since, through e89eb83c. The
+      known changes, both shipped in 0.8.0, are the `balanced` first-install
+      default and `hi --update`'s verification. Moved since fe63e85e:
+      `_HI_IP_HIDE` from `172.*`, which hid public addresses and missed
+      rootful podman's bridge, to the bridges' interface names;
+      `_HI_PROMPT_END_ZSH` from `>` to `%(!.#.>)`, which marks root as bash
+      and fish do; and `_HI_PACKAGES_GROUPS` from `core useful deprecated`
+      to `core deprecated`, with `useful` under the `everything` preset.
+      **Ticks when:** the 1.0.0 release note lists those moves, the known
+      changes, and any others that move.
 
 ## Release Stages
 
