@@ -240,7 +240,7 @@ function _hi_plugins_shape() {
 # The shape of settings.sh this hi writes and reads: the N of the
 # `# say-hi settings N` line hi --configure opens its block with. A file
 # with none is shape 0, told by its rows (convert_settings.sh's heuristics).
-_HI_SETTINGS_SHAPE=1
+_HI_SETTINGS_SHAPE=2
 
 # _hi_settings_shape <outvar> <file> - the N of <file>'s first
 # `# say-hi settings N` line, 0 for a file with none, empty for no file

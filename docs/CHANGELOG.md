@@ -12,6 +12,10 @@ in the list below, and nothing else is ever done to this file.
 
 From the roadmap:
 
+- The banner and the `hi loaded:` greeting are the `banner` and `greeting` words of `_HI_HEADER_ORDER`, in place of `_HI_DISABLE_BANNER` and `_HI_DISABLE_GREETING`; `hi --configure`, `--install` and `--update` add both words to an order you set, less one you had switched off.
+- The 1.x contract leaves out the six test levers SETTINGS.md lists under _Not settings_ (`_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT` and the rest), so they keep their names and may change in a minor.
+- The styled tool aliases take two settings, `_HI_LS_OPTS` and `_HI_BAT_OPTS`: `_HI_EZA_OPTS` folds into `_HI_LS_OPTS`, and `_HI_CAT_BIN`, `_HI_BAT_BIN` and `_HI_LS_BIN` are no longer settings, only values your `aliases.sh` can read.
+- The four `_HI_SYMBOL_*` settings are gone: `hi <TAB>` always shows the shipped backend glyphs, or their ASCII stand-ins.
 - The eleven scratch scripts nothing named are gone from the repository.
 - The README opens with the pitch, the sixty-second install, and a GIF of a 502 fixed on a web host with the aliases and vimrc that ride in; the seven stories moved to [TOUR.md](TOUR.md).
 - Every release's source tarball carries `CHANGELOG.md`.

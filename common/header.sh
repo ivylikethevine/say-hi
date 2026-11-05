@@ -682,7 +682,7 @@ function _hi_slow_out() {
 # memo is set, as configure.sh's repeated renders inherit them.
 function _hi_header_prefetch() {
   if [ -d "$_HI_ROOT/.git" ]; then
-    [[ "${_HI_DISABLE_BANNER:-0}" == 1 || -n "${_HI_BANNER_CHANGES+x}" ]] || _hi_slow_start status
+    ! _hi_order_has banner || [ -n "${_HI_BANNER_CHANGES+x}" ] || _hi_slow_start status
     _hi_order_has version && [ -z "${_HI_HEADER_VERSION+x}${_HI_RELEASE:-}" ] && _hi_slow_start describe
   fi
   if [ -z "${_HI_ID_PROBED:-}" ]; then
@@ -808,9 +808,9 @@ function _hi_cell_auth() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_AUTH; 
 function _hi_cell_pub() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PUB; }
 
 # "=== <label> [host] ===" prefixed with say-hi's local change count, always
-# _hi_draw_width columns wide
+# _hi_draw_width columns wide; first wherever `banner` sits in the order
 function banner() {
-  [[ "${_HI_DISABLE_BANNER:-0}" == 1 ]] && return 0
+  _hi_order_has banner || return 0
   local label="$1" color="${2:-$BRGREEN}" changes="" prefix="${3:-}" changes_w=0
   # ~10ms of `git status`, computed once and kept for both banners.
   # --no-optional-locks as git_prompt.sh: a plain `git status` also rewrites
@@ -969,8 +969,10 @@ function _hi_header_word_alt() {
 # letting consecutive features pack onto one, the very thing this flattening
 # is supposed to stop being a fixed row rather than reintroduce one at a
 # time. An unknown word is silently skipped: a reorder, not a second way to
-# spell a typo into an error.
+# spell a typo into an error. banner and greeting are lines of their own,
+# drawn by banner() and load.sh, never cells.
 function _hi_collect_header_word() {
+  case "$1" in banner | greeting) return 0 ;; esac
   if [ "$1" = check ]; then
     if ((${#_HI_PENDING_CELLS[@]})); then
       header_row "${_HI_PENDING_CELLS[@]}"

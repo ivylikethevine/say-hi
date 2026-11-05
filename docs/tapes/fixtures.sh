@@ -704,7 +704,7 @@ up:editors)
   client_rc zsh maya mbp macos
   demo_settings <<'EOF'
 export _HI_DISABLE_LOCAL='1'
-export _HI_HEADER_ORDER='utc version localtime gitid containers jobs pods'
+export _HI_HEADER_ORDER='banner utc version localtime gitid containers jobs pods greeting'
 export _HI_PROMPT_TOOL='starship'
 export _HI_SUDO_ALIAS='1'
 export _HI_PLUGINS_ON='git'
@@ -740,7 +740,7 @@ up:overlay)
   demo_settings <<'EOF'
 export _HI_DISABLE_LOCAL='1'
 export _HI_PROMPT_TOOL='hi'
-export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
+export _HI_HEADER_ORDER='banner utc localtime containers jobs pods check greeting'
 export _HI_PACKAGES_PALETTE='blue cyan brblue brcyan yellow bryellow red brred'
 export _HI_TOOL_ALIASES='1'
 EOF
@@ -793,12 +793,12 @@ up:colors)
   demo_settings <<'EOF'
 export _HI_PROMPT_TOOL='hi'
 export _HI_COLOR_SCHEME='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0'
-export _HI_HEADER_ORDER='gitid uptime'
+export _HI_HEADER_ORDER='banner gitid uptime greeting'
 EOF
   demo_overlay settings.prod.sh <<'EOF'
 #!/bin/sh
 # prod: what the box is, how long it has been up, and who can get in
-export _HI_HEADER_ORDER='os uptime auth pub'
+export _HI_HEADER_ORDER='banner os uptime auth pub greeting'
 EOF
   # the boxes' login shell is fish, and this config.fish is sourced after hi's,
   # so the prompt below replaces hi's fish_prompt while reusing the colors hi
@@ -866,7 +866,7 @@ up:keep)
   client_rc zsh noor air macos
   demo_settings <<'EOF'
 export _HI_DISABLE_LOCAL='1'
-export _HI_HEADER_ORDER='utc localtime uptime'
+export _HI_HEADER_ORDER='banner utc localtime uptime greeting'
 EOF
   up_ssh deploy db-prod
   demo_ssh_config_live db-prod:prod

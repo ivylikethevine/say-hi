@@ -149,7 +149,7 @@ _hi_cell_load() {
 
 ```sh
 # ~/.config/say-hi/settings.sh
-export _HI_HEADER_ORDER="utc version localtime os load check"
+export _HI_HEADER_ORDER="banner utc version localtime os load check greeting"
 ```
 
 The header is bash on every side, so the file is bash whatever shell the
@@ -215,7 +215,8 @@ from whatever the target has, first installed wins:
 - `ls` and `eza` are one alias under two names, running the first of eza and
   `ls` the target has (`_HI_LS_BIN`); `eza` answers only where that binary is
   installed. The flags follow the rung that answered, since the two share
-  almost no syntax: `_HI_EZA_OPTS`, or a plain `-F -l` for `ls`, with
+  almost no syntax: `-F -1 -l -m --group-directories-first --smart-group`
+  and a time format for eza, or a plain `-F -l` for `ls`, with
   `--color=auto` where that `ls` takes it (coreutils, busybox, newer BSD),
   since it colors only when asked. `_HI_LS_OPTS` is whichever of those the
   ladder picked, and setting it yourself wins outright.
@@ -225,8 +226,8 @@ skipped: `cat`, `ls`, and `bat` are the commands themselves. The tmux, screen,
 and zellij config aliases are not among them: they follow the overlay's files
 alone ([Terminal multiplexers](#terminal-multiplexers)). No alias names a tool
 the target lacks: an editor, tmux, bat, eza, or sudo that is not installed
-leaves its name to the shell's own not-found. The flags and the binary each
-alias runs are rows in [Every setting](SETTINGS.md#every-setting), set in your
+leaves its name to the shell's own not-found. The flags each alias runs with
+are rows in [Every setting](SETTINGS.md#every-setting), set in your
 `settings.sh`; to add one flag to hi's instead, redefine the alias in
 [your `aliases.sh`](SETTINGS.md#shells-you-drop-into-inside-a-session).
 

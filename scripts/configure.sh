@@ -310,16 +310,14 @@ declare -a _HI_SETTING_LINES=()
 # writes nothing) - setting_on has the rule. <preview-fn> is boxed under the
 # menu after the row flips, for what the menu's own preview does not show.
 # <label> is the menu's name for it, and its
-# part before " - " is what the flip reports. banner is the header's one row
-# with a hide switch of its own: it is not part of $_HI_HEADER_ORDER's
-# reorderable list (it always leads). The prompt's switch, off altogether, is
-# a feature toggle, and so in every preset's vocabulary. The advanced items
-# are the ones most installs never touch, listed last.
+# part before " - " is what the flip reports. The prompt's switch, off
+# altogether, is a feature toggle, and so in every preset's vocabulary. The
+# advanced items are the ones most installs never touch, listed last.
 #
 # _hi_settings_load fills them from scripts/settings, whose rows with a
-# <label> in the feature, header, prompt, and advanced sections are these
-# items, so adding a setting is one row there.
-_HI_FEATURE_PROMPTS=() _HI_HEADER_PROMPTS=() _HI_PROMPT_PROMPTS=() _HI_ADVANCED_PROMPTS=()
+# <label> in the feature, prompt, and advanced sections are these items, so
+# adding a setting is one row there.
+_HI_FEATURE_PROMPTS=() _HI_PROMPT_PROMPTS=() _HI_ADVANCED_PROMPTS=()
 function _hi_settings_load() {
   local line sec name off on preview label item us=$'\x1f'
   while IFS= read -r line || [ -n "$line" ]; do
@@ -330,7 +328,6 @@ function _hi_settings_load() {
     item="$name|${off#-}|${on#-}|${preview#-}|$label"
     case "$sec" in
     feature) _HI_FEATURE_PROMPTS+=("$item") ;;
-    header) _HI_HEADER_PROMPTS+=("$item") ;;
     prompt) _HI_PROMPT_PROMPTS+=("$item") ;;
     advanced) _HI_ADVANCED_PROMPTS+=("$item") ;;
     esac
@@ -375,7 +372,7 @@ _HI_PRESETS=(
 # is set, and no other preset changes it back.
 function _hi_preset_vocab() {
   local row
-  for row in "${_HI_FEATURE_PROMPTS[@]}" "${_HI_HEADER_PROMPTS[@]}"; do
+  for row in "${_HI_FEATURE_PROMPTS[@]}"; do
     printf '%s\n' "${row%%|*}"
   done
   # the one feature toggle listed under Prompt rather than Features
@@ -593,7 +590,6 @@ function _hi_collect_value() {
 function collect_setting_lines() {
   local row name shell
   _HI_SETTING_LINES=()
-  _hi_collect_group _HI_HEADER_PROMPTS
   _hi_collect_value _HI_HEADER_ORDER "$_HI_HEADER_ORDER_DEFAULT" quoted
   _hi_collect_value _HI_PACKAGES_GROUPS "$_HI_PACKAGES_GROUPS_DEFAULT" quoted
   _hi_collect_value _HI_PACKAGES_PALETTE ""

@@ -13,7 +13,9 @@
 #                _HI_DISABLE_TOOL_ALIASES/_HI_DISABLE_SUDO_ALIAS lines dropped;
 #                an editor's or a multiplexer's _HI_DISABLE_* -> its word in
 #                _HI_PLUGINS_OFF; a group's word in _HI_PLUGINS_OFF or
-#                _HI_PLUGINS_ON -> its plugins'
+#                _HI_PLUGINS_ON -> its plugins'; shape 1's
+#                _HI_DISABLE_BANNER/_HI_DISABLE_GREETING -> the `banner` and
+#                `greeting` words of _HI_HEADER_ORDER
 # A file already in the current shape is left alone, so a second run is a
 # no-op; a packages or colors file holding one TOML row is in it, whatever
 # else it holds, and a settings.sh is the shape its `# say-hi settings N`
@@ -339,9 +341,13 @@ function _hi_toml_plugins() {
 # of the _HI_PLUGINS_OFF line, which is written where the file's own was, or
 # last, under the marker any of them carried; and with a group's word in
 # either plugins list replaced by its plugins, $_HI_GROUP_MAP's or the
-# tree's
+# tree's; and with the banner and greeting toggles gone into the header
+# order: a custom order gains `banner` first and `greeting` last but for the
+# one a toggle hid, a hidden one with no order writes the default less it,
+# and the file is then marked this hi's shape so the words are added once
 function _hi_convert_settings() {
-  awk -v old="$_HI_OLD_TOGGLES" -v gmap="${_HI_GROUP_MAP:-$(_hi_group_map "$_HI_ROOT/config/plugins")}" '
+  awk -v old="$_HI_OLD_TOGGLES" -v gmap="${_HI_GROUP_MAP:-$(_hi_group_map "$_HI_ROOT/config/plugins")}" \
+    -v def="$_HI_HEADER_ORDER_DEFAULT" -v shape="$_HI_SETTINGS_SHAPE" -v marker="$_HI_MARKER" '
     BEGIN {
       word["EDITORS"] = "editors"; word["VIM"] = "vim nvim"; word["NANO"] = "nano"
       word["EMACS"] = "emacs"; word["MICRO"] = "micro"; word["HELIX"] = "hx"
@@ -374,7 +380,27 @@ function _hi_convert_settings() {
       sub(/^[^=]*=/, "", l); sub(/[ \t]+#.*/, "", l); gsub(/["\047]/, "", l)
       return l
     }
+    # l with its trailing comment set off by \037 for the pad, or nothing
+    function tail(l,   t) {
+      if (!match(l, /[ \t]+#.*/)) return ""
+      t = substr(l, RSTART); sub(/^[ \t]+/, "\037", t)
+      return t
+    }
+    # words without <w>
+    function drop(words, w,   k, m, a, out) {
+      m = split(words, a, " ")
+      for (k = 1; k <= m; k++) if (a[k] != w) out = out (out == "" ? "" : " ") a[k]
+      return out
+    }
     { lines[++n] = $0 }
+    /^#[ \t]*say-hi settings [0-9]+/ { sub(/settings [0-9]+/, "settings " shape, lines[n]); stamped = 1 }
+    /^[ \t]*(export[ \t]+)?_HI_HEADER_ORDER=/ { ord = n }
+    /^[ \t]*(export[ \t]+)?_HI_DISABLE_(BANNER|GREETING)=/ {
+      t = $0; sub(/^[ \t]*(export[ \t]+)?_HI_DISABLE_/, "", t); sub(/=.*/, "", t)
+      if (value($0) == 1) hide[tolower(t)] = 1
+      if (!hat) { hat = n; hmark = tail($0) }
+      gone[n] = 1
+    }
     /^[ \t]*(export[ \t]+)?_HI_PACKAGES_GROUPS=/ { has = 1 }
     /^[ \t]*(export[ \t]+)?_HI_PLUGINS_OFF=/ { at = n }
     /^[ \t]*(export[ \t]+)?_HI_PLUGINS_ON=/ {
@@ -390,8 +416,24 @@ function _hi_convert_settings() {
     END {
       if (at) { add(value(lines[at])); marked(lines[at]) }
       add(moved)
+      if (ord) hw = value(lines[ord])
+      if (hat || hw != "") {
+        if (hw == "") hw = def
+        if (index(" " hw " ", " banner ") == 0) hw = "banner " hw
+        if (index(" " hw " ", " greeting ") == 0) hw = hw " greeting"
+        if ("banner" in hide) hw = drop(hw, "banner")
+        if ("greeting" in hide) hw = drop(hw, "greeting")
+        if (hw != def) hl = "export _HI_HEADER_ORDER=\047" hw "\047" (ord ? tail(lines[ord]) : hmark)
+        hdone = 1
+      }
+      if (hdone && !stamped) {
+        sl = "# say-hi settings " shape "\037" marker
+        if (lines[1] !~ /^#!/) print sl
+      }
       for (i = 1; i <= n; i++) {
-        if (gone[i]) continue
+        if (i == 1 && hdone && !stamped && lines[1] ~ /^#!/) { print lines[1]; print sl; continue }
+        if (gone[i]) { if (i == hat && !ord && hl != "") print hl; continue }
+        if (i == ord && hdone) { if (hl != "") print hl; continue }
         if (i == at) { if (off != "") listed(); continue }
         l = lines[i]
         # the tool and sudo aliases went opt-in under new names: the old
@@ -499,5 +541,9 @@ _hi_settings_shape _hi_shape "$dir/settings.sh"
 if [ -n "$_hi_shape" ] && [ "$_hi_shape" -gt "$_HI_SETTINGS_SHAPE" ]; then
   _hi_cecho " $dir/settings.sh is shape $_hi_shape, which this hi does not read (it writes $_HI_SETTINGS_SHAPE) - left as it is" "$YELLOW"
 elif [ "$_hi_shape" = 0 ] && grep -Eq "$_hi_old_settings" "$dir/settings.sh"; then
+  _hi_convert_one "$dir/settings.sh" settings _hi_convert_settings
+# shape 1 had the banner and greeting as toggles beside the header order
+elif [ -n "$_hi_shape" ] && [ "$_hi_shape" -lt 2 ] &&
+  grep -Eq '^[[:space:]]*(export[[:space:]]+)?_HI_(HEADER_ORDER|DISABLE_BANNER|DISABLE_GREETING)=' "$dir/settings.sh"; then
   _hi_convert_one "$dir/settings.sh" settings _hi_convert_settings
 fi

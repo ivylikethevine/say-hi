@@ -97,14 +97,13 @@ function test_menu_switches_a_default_off_plugin_on() {
 }
 
 # The indices here are positions in $_HI_FEATURE_PROMPTS, so inserting a row
-# above the one a case means shifts it: the tool aliases are 4 and
-# _HI_DISABLE_ENV_STATUS 3 because the greeting row sits at 1, under the
-# header's.
+# above the one a case means shifts it: the header is 0, git status 1,
+# _HI_DISABLE_ENV_STATUS 2, and the tool aliases 3.
 
-# an opt-in row (the tool aliases, 4) flips on to its on-value
+# an opt-in row (the tool aliases, 3) flips on to its on-value
 function test_menu_opt_in_row_writes_its_on_value() {
   local got
-  _hi_cfg_pty feat_opt_in "$(_hi_item 'row|_HI_FEATURE_PROMPTS|4')\ns\n" '' config_hub || _hi_why || return 1
+  _hi_cfg_pty feat_opt_in "$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')\ns\n" '' config_hub || _hi_why || return 1
   _hi_cfg_has feat_opt_in "styled tool aliases: now on" || _hi_why || return 1
   got="$(_hi_cfg_lines feat_opt_in)"
   [[ "$got" == *"export _HI_TOOL_ALIASES=1"* ]] || _hi_why got
@@ -116,7 +115,7 @@ function test_menu_opt_in_row_writes_its_on_value() {
 # paren shape, not a name only this machine would have.
 function test_menu_env_segment_toggles_and_previews() {
   local got
-  _hi_cfg_pty feat_env "r\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')\ns\n" '' config_hub || _hi_why || return 1
+  _hi_cfg_pty feat_env "r\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|2')\ns\n" '' config_hub || _hi_why || return 1
   { _hi_cfg_has feat_env "environment segment: now off" && _hi_cfg_has feat_env "myproj"; } || _hi_why || return 1
   got="$(_hi_cfg_lines feat_env)"
   [[ "$got" == *"export _HI_DISABLE_ENV_STATUS=1"* ]] || _hi_why got
@@ -325,7 +324,7 @@ function test_menu_main_page_switches_where_hi_styles() {
 # on the main page, the Plugins page's flips a main-page switch and stays there
 function test_menu_number_works_from_any_page() {
   local p t
-  p="$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')" && t="$(_hi_item 'row|_HI_FEATURE_PROMPTS|4')" || _hi_why p t || return 1
+  p="$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')" && t="$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')" || _hi_why p t || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_num "$p\ng\n$t\ns\n" '' run_configure "" || _hi_why p t || return 1
   local lines
   lines="$(_hi_cfg_lines hub_num)"

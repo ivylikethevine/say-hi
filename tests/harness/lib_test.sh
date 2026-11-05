@@ -76,8 +76,8 @@ function test_probe_cmd_bash_shape_fires_only_with_a_real_root() {
 }
 
 function test_probe_cmd_fallback_shape_fires_only_with_the_aliases_default() {
-  { _hi_probe_says_ok fallback "_HI_EZA_OPTS=x; " &&
-    ! _hi_probe_says_ok fallback "unset _HI_EZA_OPTS; "; } || _hi_why
+  { _hi_probe_says_ok fallback "_HI_BAT_OPTS=x; " &&
+    ! _hi_probe_says_ok fallback "unset _HI_BAT_OPTS; "; } || _hi_why
 }
 
 function test_probe_cmd_ssh_fallback_fires_only_with_hi_info() {
@@ -93,8 +93,8 @@ function test_probe_cmd_rooted_elsewhere_fires_off_another_tree() {
 }
 
 function test_probe_cmd_fish_shapes_run_under_fish() {
-  { _hi_probe_says_ok fallback_fish "set -g _HI_EZA_OPTS x; " "" fish &&
-    ! _hi_probe_says_ok fallback_fish "set -e _HI_EZA_OPTS; " "" fish &&
+  { _hi_probe_says_ok fallback_fish "set -g _HI_BAT_OPTS x; " "" fish &&
+    ! _hi_probe_says_ok fallback_fish "set -e _HI_BAT_OPTS; " "" fish &&
     _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " "" fish &&
     ! _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " /nonexistent/say-hi fish; } || _hi_why
 }

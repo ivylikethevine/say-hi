@@ -103,14 +103,15 @@ function test_marks_swap_to_ascii_with_the_set() {
   ) || _hi_why _HI_MARK_OK _HI_MARK_NO _HI_MARK_ALT _HI_MARK_WARN
 }
 
-function test_banner_disabled_produces_no_output() {
-  _HI_DISABLE_BANNER=1 _hi_prints "" banner TestBanner
+function test_banner_left_out_produces_no_output() {
+  _HI_HEADER_ORDER=utc _hi_prints "" banner TestBanner
 }
 
-# guards the default: the toggle is opt-out, so an unset var must still print
-function test_banner_prints_when_toggle_unset() {
+# guards the default: the word is in the shipped order, so an unset order
+# must still print
+function test_banner_prints_when_order_unset() {
   local out
-  out="$(unset _HI_DISABLE_BANNER && banner TestBanner)"
+  out="$(unset _HI_HEADER_ORDER && banner TestBanner)"
   [[ "$out" == *"TestBanner"* ]] || _hi_why out
 }
 
@@ -228,11 +229,11 @@ function test_banner_branch_shrinks_padding() {
   [ "$got" -lt "$got2" ] || _hi_why got got2 branched plain
 }
 
-# the regression this toggle exists for: silencing the banner must leave the
-# rest of the header alone, unlike _HI_DISABLE_HEADER which kills all of it
+# silencing the banner must leave the rest of the header alone, unlike
+# _HI_DISABLE_HEADER which kills all of it
 function test_hi_header_banner_off_keeps_detail_lines() {
   local out
-  out="$(_HI_DISABLE_BANNER=1 hi_header Connected)"
+  out="$(_HI_HEADER_ORDER="cores ram" hi_header Connected)"
   [[ "$out" != *"Connected"* && "$out" == *"Cores:"* && "$out" == *"RAM:"* ]] || _hi_why out
 }
 
@@ -730,8 +731,8 @@ function run_header_whole_tests() {
   _hi_check "Survives a narrow _HI_MAX_WIDTH" test_banner_narrow_width_does_not_error
   _hi_check "ASCII fallback swaps the arrow" test_banner_ascii_fallback_uses_caret
   _hi_check "...and the marks with it" test_marks_swap_to_ascii_with_the_set
-  _hi_check "No output when _HI_DISABLE_BANNER=1" test_banner_disabled_produces_no_output
-  _hi_check "Still prints when the toggle is unset" test_banner_prints_when_toggle_unset
+  _hi_check "No output when the order leaves banner out" test_banner_left_out_produces_no_output
+  _hi_check "Still prints when the order is unset" test_banner_prints_when_order_unset
   _hi_check "Change count is computed once per session" test_banner_change_count_is_computed_once
   _hi_check "No count without a .git dir" test_banner_omits_the_count_without_a_git_dir
   _hi_check "Online names an off-main branch" test_banner_online_names_an_off_main_branch

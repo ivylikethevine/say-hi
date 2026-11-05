@@ -204,9 +204,9 @@ function _hi_diff_run() {
 function test_settings_diff_reports_added_and_removed() {
   local out
   local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "export _HI_MAX_WIDTH=120")
-  _hi_settings_fixture diff _hi_diff_run "export _HI_DISABLE_PROMPT=1" "export _HI_DISABLE_BANNER=1"
+  _hi_settings_fixture diff _hi_diff_run "export _HI_DISABLE_PROMPT=1" "export _HI_DISABLE_GIT_STATUS=1"
   out="$(cat "$_HI_WORKDIR/diff/overlay/diff.out")"
-  [[ "$out" == *"+ export _HI_MAX_WIDTH=120"* && "$out" == *"- export _HI_DISABLE_BANNER=1"* &&
+  [[ "$out" == *"+ export _HI_MAX_WIDTH=120"* && "$out" == *"- export _HI_DISABLE_GIT_STATUS=1"* &&
     "$out" != *"_HI_DISABLE_PROMPT"* ]] || _hi_why out
 }
 

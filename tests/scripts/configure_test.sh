@@ -428,7 +428,7 @@ function test_settings_shebang_preserves_mode() {
 # because one config_shell call per group against one file would have each
 # wipe the other two's lines
 function _hi_settings_one_write() {
-  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "" "export _HI_DISABLE_BANNER=1")
+  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "" "export _HI_DISABLE_GIT_STATUS=1")
   config_shell settings "$_HI_SETTINGS" "${_HI_SETTING_LINES[@]}"
 }
 
@@ -436,7 +436,7 @@ function test_config_settings_writes_every_group_at_once() {
   _hi_settings_fixture onewrite _hi_settings_one_write
   local f
   f="$(_hi_fixture_settings onewrite)"
-  { grep -qF "export _HI_DISABLE_PROMPT=1" "$f" && grep -qF "export _HI_DISABLE_BANNER=1" "$f"; } || _hi_why f
+  { grep -qF "export _HI_DISABLE_PROMPT=1" "$f" && grep -qF "export _HI_DISABLE_GIT_STATUS=1" "$f"; } || _hi_why f
 }
 
 # the whole point of the overlay: a fresh install leaves the tree untouched, so
@@ -675,7 +675,7 @@ function test_menu_switch_keys_find_their_rows() {
 function test_menu_numbers_every_row() {
   local t i
   local -a rows=()
-  for t in _HI_FEATURE_PROMPTS _HI_HEADER_PROMPTS _HI_PROMPT_PROMPTS _HI_ADVANCED_PROMPTS; do
+  for t in _HI_FEATURE_PROMPTS _HI_PROMPT_PROMPTS _HI_ADVANCED_PROMPTS; do
     _hi_prompt_rows "$t" rows
     for i in "${!rows[@]}"; do
       _hi_item "row|$t|$i" >/dev/null || _hi_because "no menu number for $t row $i" || return 1

@@ -578,13 +578,13 @@ function load() {
   [[ "${_HI_CLIENT_EDITOR:-}" == "${_HI_CLIENT_VISUAL:-}" ]] && visual="$editor" || visual="$(_hi_session_editor "${_HI_CLIENT_VISUAL:-}" "${_HI_CLIENT_EDITOR:-}")"
   [[ -n "$editor" ]] && export EDITOR="$editor" SUDO_EDITOR="$editor"
   [[ -n "$visual" ]] && export VISUAL="$visual"
-  # the greeting and its three timers are a line of their own, not part of
-  # the header: they survive $_HI_DISABLE_HEADER and answer to their own
-  # toggle
+  # the greeting and its three timers are a line of their own, shown while
+  # `greeting` is in the order, header on or off; spelled out rather than
+  # _hi_order_has, since header.sh stays home with the header off
   local shell greeting color
   local -a cells
   _hi_session_shell shell
-  if [[ "${_HI_DISABLE_GREETING:-0}" != 1 ]]; then
+  if [[ " ${_HI_HEADER_ORDER:-$_HI_HEADER_ORDER_DEFAULT} " == *" greeting "* ]]; then
     case "$shell" in
     fish) greeting="fish shell! :^)" color="$GREEN" ;;
     zsh) greeting="zsh shell! :)" color="$PURPLE" ;;

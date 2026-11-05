@@ -65,13 +65,12 @@ function _hi_probe_once() {
 # Captured, not a tty, so _hi_draw_width draws to $_HI_MAX_WIDTH
 # exactly - which is what the width dial is previewing.
 function _hi_header_preview() {
-  local order banner width groups palette lead iphide scheme w
+  local order width groups palette lead iphide scheme w
   if setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS"; then
     _hi_cecho " header off - nothing prints on connect or disconnect" "$YELLOW"
     return 0
   fi
   setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" order
-  setting_value _HI_DISABLE_BANNER "$_HI_SETTINGS" banner
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
@@ -83,7 +82,7 @@ function _hi_header_preview() {
     # terminal the same way
     w="${width:-$_HI_MAX_WIDTH_DEFAULT}"
     ((w > _HI_MENU_W - 8)) && w=$((_HI_MENU_W - (_HI_MENU_W < 60 ? 6 : 8)))
-    export _HI_HEADER_ORDER="$order" _HI_DISABLE_BANNER="${banner:-0}" _HI_MAX_WIDTH="$w"
+    export _HI_HEADER_ORDER="$order" _HI_MAX_WIDTH="$w"
     export _HI_PACKAGES_GROUPS="$groups" _HI_PACKAGES_PALETTE="$palette"
     export _HI_DISABLE_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-$_HI_IP_HIDE_DEFAULT}"
     # the palette and the check ramps were captured at source time;
@@ -198,7 +197,7 @@ function _hi_tool_alias_preview() {
   (
     _HI_TOOL_ALIASES=1
     _HI_CAT_BIN="" _HI_BAT_BIN="" _HI_LS_BIN=""
-    _HI_BAT_OPTS="" _HI_EZA_OPTS="" _HI_LS_OPTS=""
+    _HI_BAT_OPTS="" _HI_LS_OPTS=""
     # shellcheck disable=SC2031 # lives and dies in this subshell
     # shellcheck source=../common/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1

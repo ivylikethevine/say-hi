@@ -6,37 +6,6 @@ an entry leaves as one sentence for the top list of
 [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **Six settings for two aliases become two** — `_HI_CAT_BIN`,
-      `_HI_BAT_BIN`, `_HI_LS_BIN`, `_HI_LS_OPTS`, `_HI_EZA_OPTS` and
-      `_HI_BAT_OPTS` all sit under `_HI_TOOL_ALIASES`, and SETTINGS.md
-      already says to leave the `_BIN` rows alone. **Do:** drop the three
-      `_BIN` rows (the ladder in `common/aliases.sh` is deterministic) and
-      fold `_HI_EZA_OPTS` into `_HI_LS_OPTS`; rows in `scripts/settings`,
-      SETTINGS.md, INTEGRATIONS.md, and the wizard. Small. **Ticks when:**
-      the two rows are the whole surface and the configure suites pass.
-
-- [ ] **One glyph setting, or none** — `_HI_SYMBOL_SSH`, `_CONTAINER`,
-      `_NOMAD` and `_KUBE` are four rows for the completion listings' marks,
-      with the ASCII fallback already decided by `_HI_ASCII`. **Do:** one
-      `_HI_SYMBOLS` of four words, or drop the rows and keep the shipped
-      glyphs; `common/bash.sh`, `zsh.zsh`, `config.fish`, `_hi`. Small.
-      **Ticks when:** the completion suites pass with the rows gone.
-
-- [ ] **Banner and greeting are words of `_HI_HEADER_ORDER`** —
-      `_HI_DISABLE_BANNER` and `_HI_DISABLE_GREETING` toggle two lines the
-      order list could name as `banner` and `greeting`, leaving
-      `_HI_DISABLE_HEADER` the one switch. **Do:** add the words, drop the
-      two rows and their wizard rows; `common/header.sh`, `load.sh`,
-      `scripts/configure_menu.sh`, SETTINGS.md's _Header details_. Small.
-      **Ticks when:** the header suites pass and the wizard's pages still
-      fit 24 rows.
-
-- [ ] **The two cosmetic flags go** — `_HI_DISABLE_LEAD_SPACE` and
-      `_HI_DISABLE_RIGHT_EDGE`, or one `_HI_HEADER_STYLE` word if the look
-      has a user; `common/header.sh`, `common/bash.sh`, `zsh.zsh`,
-      `config.fish`. Small. **Ticks when:** the rows are gone from
-      `scripts/settings` and the header and prompt suites pass.
-
 - [ ] **Color has one home** — `_HI_PACKAGES_PALETTE` (eight names) and
       `_HI_COLOR_SCHEME` (24 or 48 hex words) are settings while every other
       color is a pin in the colors file. **Do:** a `[palette]` and a
@@ -45,13 +14,6 @@ an entry leaves as one sentence for the top list of
       Medium. **Ticks when:** `hi --preview colors` and the header show the
       same result from the file as from the rows today, and the color suites
       pass.
-
-- [ ] **The test levers sit outside the 1.x freeze** — `_HI_TARGETS_TTL`,
-      `_HI_PROBE_TIMEOUT`, `_HI_CTL_PERSIST`, `_HI_WATCH_STEP` and the other
-      _Not settings_ knobs are read by shipped code. **Do:** check
-      CONTRIBUTING.md's _What 1.x will not break_ names them as unfrozen, or
-      rename them `_HI_TEST_*`. Small. **Ticks when:** the contract says
-      which, in one line.
 
 - [ ] **Two add/remove pairs go the way of `--add-plugin`** —
       `--add-package`/`--remove-package` and `--add-color`/`--remove-color`
@@ -89,7 +51,7 @@ an entry leaves as one sentence for the top list of
 
 - [ ] **Every default and preset audited before the tag** —
       [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
-      freezes the name and default of all 47 rows of
+      freezes the name and default of all 37 rows of
       [SETTINGS.md's _Every setting_](SETTINGS.md#every-setting) and the
       five presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
       stranger's first run, every row's default agreeing with its code, and
@@ -99,8 +61,9 @@ an entry leaves as one sentence for the top list of
       `_HI_IP_HIDE` from `172.*`, which hid public addresses and missed
       rootful podman's bridge, to the bridges' interface names;
       `_HI_PROMPT_END_ZSH` from `>` to `%(!.#.>)`, which marks root as bash
-      and fish do; and `_HI_PACKAGES_GROUPS` from `core useful deprecated`
-      to `core deprecated`, with `useful` under the `everything` preset.
+      and fish do; `_HI_PACKAGES_GROUPS` from `core useful deprecated`
+      to `core deprecated`, with `useful` under the `everything` preset;
+      and `_HI_HEADER_ORDER` gaining `banner` first and `greeting` last.
       **Ticks when:** the 1.0.0 release note lists those moves, the known
       changes, and any others that move.
 

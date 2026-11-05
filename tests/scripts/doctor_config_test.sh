@@ -461,10 +461,10 @@ function test_config_lists_a_non_default_toggle() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_BANNER=1
+    _HI_DISABLE_GIT_STATUS=1
     doctor_config
   )"
-  [[ "$out" == *"toggle"*"_HI_DISABLE_BANNER=1"* && "$out" != *"all defaults"* ]] || _hi_why out
+  [[ "$out" == *"toggle"*"_HI_DISABLE_GIT_STATUS=1"* && "$out" != *"all defaults"* ]] || _hi_why out
 }
 
 # an opt-in turned on is the non-default, so it gets a row; off is silent
@@ -680,14 +680,14 @@ function test_config_flags_an_old_format_colors_file() {
 function test_config_collapses_the_local_gates_toggles() {
   local dir="$_HI_WORKDIR/localgate" out
   mkdir "$dir"
-  printf 'export _HI_DISABLE_LOCAL=1\nexport _HI_DISABLE_BANNER=1\n' >"$dir/settings.sh"
+  printf 'export _HI_DISABLE_LOCAL=1\nexport _HI_DISABLE_GIT_STATUS=1\n' >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_LOCAL=1 _HI_DISABLE_BANNER=1 _HI_DISABLE_HEADER=1 _HI_DISABLE_PROMPT=1
+    _HI_DISABLE_LOCAL=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_HEADER=1 _HI_DISABLE_PROMPT=1
     doctor_config
   )"
-  [[ "$out" == *"_HI_DISABLE_LOCAL=1 (every feature off"* && "$out" == *"_HI_DISABLE_BANNER=1"* &&
+  [[ "$out" == *"_HI_DISABLE_LOCAL=1 (every feature off"* && "$out" == *"_HI_DISABLE_GIT_STATUS=1"* &&
     "$out" != *"_HI_DISABLE_HEADER"* && "$out" != *"_HI_DISABLE_PROMPT"* ]] || _hi_because "rows: $(printf '%s' "$out" | grep -c toggle)"
 }
 
@@ -835,7 +835,7 @@ function test_secret_awk_passes_a_name_inside_a_value() {
 function test_config_flags_values_set_in_aliases_sh() {
   local dir="$_HI_WORKDIR/latevals" out
   mkdir "$dir"
-  printf '%s\n' "export _HI_BAT_OPTS='-p'" '# export _HI_EZA_OPTS=x' \
+  printf '%s\n' "export _HI_BAT_OPTS='-p'" '# export _HI_LS_OPTS=x' \
     'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' \
     'export _HI_TOOL_ALIASES=1' \
     'export _HI_SUDO_ALIAS=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"

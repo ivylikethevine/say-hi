@@ -22,8 +22,7 @@ set -q _HI_HOME; or set -gx _HI_HOME (string replace -r '/[^/]*$' '' -- $_HI_ROO
 # GLOSSARY: HI.07 - defaulted, never assigned, so settings.sh still overrides.
 # Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
-    _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
-    _HI_DISABLE_BANNER _HI_DISABLE_GREETING
+    _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle
@@ -169,18 +168,13 @@ function __hi_prev_takes_word --description 'is the previous token one of $_HI_W
   # would read them as its own options
   test (count $toks) -gt 0; and contains -- $toks[-1] (string split -- ' ' $_HI_WORD_FLAGS)
 end
-# targets.sh's "<target>\t<kind>" rows, each kind behind its backend symbol:
-# $_HI_SYMBOL_* from settings.sh over hi's own (core.sh's _hi_target_symbol)
+# targets.sh's "<target>\t<kind>" rows, each kind behind its backend symbol
+# (core.sh's _hi_target_symbol)
 function __hi_targets --description 'hi targets, each kind behind its backend symbol'
-  set -l sym $__hi_symbols
-  test -n "$_HI_SYMBOL_SSH"; and set sym[1] $_HI_SYMBOL_SSH
-  test -n "$_HI_SYMBOL_CONTAINER"; and set sym[2] $_HI_SYMBOL_CONTAINER
-  test -n "$_HI_SYMBOL_NOMAD"; and set sym[3] $_HI_SYMBOL_NOMAD
-  test -n "$_HI_SYMBOL_KUBE"; and set sym[4] $_HI_SYMBOL_KUBE
   for row in (sh $_HI_TARGETS)
     set -l f (string split -m1 \t -- $row)
     set -l i (contains -i -- $f[2] ssh container nomad kube; or echo 2)
-    printf '%s\t%s %s\n' $f[1] $sym[$i] $f[2]
+    printf '%s\t%s %s\n' $f[1] $__hi_symbols[$i] $f[2]
   end
 end
 complete -c hi -f -k -n 'not string match -q -- "-*" (commandline -ct); and not __hi_prev_takes_word' \

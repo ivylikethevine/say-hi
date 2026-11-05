@@ -52,8 +52,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # a *disable* (0 = shipped behaviour): hi.sh's fallback rc exports the lot
   # as 0 and paths.sh's _HI_DISABLE_LOCAL gate sets the disables to 1.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
-    _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
-    _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
+    _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
@@ -134,7 +133,7 @@ _HI_MUXES="tmux zellij screen"
 # source this file, spell theirs again under the same pin.
 _HI_MAX_WIDTH_DEFAULT=80
 _HI_IP_HIDE_DEFAULT='docker* br-* podman* cni-podman* virbr* lxdbr* incusbr*'
-_HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime check"
+_HI_HEADER_ORDER_DEFAULT="banner utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime check greeting"
 _HI_PACKAGES_GROUPS_DEFAULT="core deprecated"
 # a kept session's wait with nobody attached, and a held tree's for a reconnect
 _HI_KEEP_TIMEOUT_DEFAULT=24h
@@ -1209,15 +1208,14 @@ function _hi_choose_glyphs() {
 }
 _hi_choose_glyphs
 
-# _hi_target_symbol <outvar> <kind> - a backend's symbol in the completion
-# list: $_HI_SYMBOL_<SSH|CONTAINER|NOMAD|KUBE> from settings.sh, else hi's
-# glyph; config.fish mirrors it
+# _hi_target_symbol <outvar> <kind> - a backend's glyph in the completion
+# list; config.fish mirrors it
 function _hi_target_symbol() {
   case "$2" in
-  ssh) printf -v "$1" '%s' "${_HI_SYMBOL_SSH:-$_HI_GLYPH_SSH}" ;;
-  nomad) printf -v "$1" '%s' "${_HI_SYMBOL_NOMAD:-$_HI_GLYPH_NOMAD}" ;;
-  kube) printf -v "$1" '%s' "${_HI_SYMBOL_KUBE:-$_HI_GLYPH_KUBE}" ;;
-  *) printf -v "$1" '%s' "${_HI_SYMBOL_CONTAINER:-$_HI_GLYPH_CONTAINER}" ;;
+  ssh) printf -v "$1" '%s' "$_HI_GLYPH_SSH" ;;
+  nomad) printf -v "$1" '%s' "$_HI_GLYPH_NOMAD" ;;
+  kube) printf -v "$1" '%s' "$_HI_GLYPH_KUBE" ;;
+  *) printf -v "$1" '%s' "$_HI_GLYPH_CONTAINER" ;;
   esac
 }
 
