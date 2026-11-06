@@ -401,6 +401,10 @@ prod      = "red"
 dev       = "green"
 staging   = "yellow"
 desktop   = "green"
+
+# atom's one dark, for every name
+[scheme]
+colors    = "e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0"
 EOF
 }
 
@@ -741,9 +745,13 @@ up:overlay)
 export _HI_DISABLE_LOCAL='1'
 export _HI_PROMPT_TOOL='hi'
 export _HI_HEADER_ORDER='banner utc localtime containers jobs pods check greeting'
-export _HI_PACKAGES_PALETTE='blue cyan brblue brcyan yellow bryellow red brred'
 export _HI_TOOL_ALIASES='1'
 EOF
+  # the ramp, on the tree's pins: a colors file of one's own replaces the tree's
+  {
+    cat "$_HI_ROOT/config/colors"
+    printf '\n[palette]\ninstalled = ["blue", "cyan", "brblue", "brcyan"]\nmissing   = ["yellow", "bryellow", "red", "brred"]\n'
+  } | demo_overlay colors
   # The demo's subject: a new alias and a redefinition of the shipped `cat`
   # over the binary hi resolved (the opt-in above is what resolves it), in
   # the POSIX+fish subset common/aliases.sh
@@ -792,7 +800,6 @@ up:colors)
   client_rc bash kai ops-laptop ubuntu
   demo_settings <<'EOF'
 export _HI_PROMPT_TOOL='hi'
-export _HI_COLOR_SCHEME='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0'
 export _HI_HEADER_ORDER='banner gitid uptime greeting'
 EOF
   demo_overlay settings.prod.sh <<'EOF'

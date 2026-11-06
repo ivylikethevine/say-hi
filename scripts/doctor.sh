@@ -652,6 +652,17 @@ function doctor_settings_values() {
     done < <(_hi_toml_strays "${_HI_COLORS:-}")
     ;;
   esac
+  # the file's two tables, which render the default in silence when wrong
+  [ -z "${_HI_COLOR_SCHEME:-}" ] || _hi_scheme_ok "$_HI_COLOR_SCHEME" ||
+    doctor_row colors "[scheme] '$_HI_COLOR_SCHEME' is ignored - colors is 24 six-digit hex words, and packages 24 more" bad
+  [ -z "${_HI_PACKAGES_PALETTE:-}" ] || _hi_ramp_ok "$_HI_PACKAGES_PALETTE" ||
+    doctor_row colors "[palette] '$_HI_PACKAGES_PALETTE' is ignored - installed and missing are four color names each" bad
+  # ...and the settings.sh lines they took over, which nothing reads
+  for name in _HI_COLOR_SCHEME:scheme _HI_PACKAGES_PALETTE:palette; do
+    if [ -f "${_HI_SETTINGS:-}" ] && grep -E "^[[:space:]]*(export[[:space:]]+)?${name%%:*}=" "$_HI_SETTINGS" >/dev/null; then
+      doctor_row "${name%%:*}" "is ignored - it is the [${name#*:}] table of $_HI_CONFIG_DIR/colors now" bad
+    fi
+  done
 }
 
 # doctor_files - every member's row (lib.sh's _hi_member_rows, the rows

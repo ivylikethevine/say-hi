@@ -169,8 +169,8 @@ function _hi_has_truecolor() {
 function _hi_truecolor_flag() { if _hi_has_truecolor; then _hi_out "${1:-}" 1; else _hi_out "${1:-}" 0; fi; }
 
 # _hi_scheme_words <outvar> - 24 or 48 when $_HI_COLOR_SCHEME is that many
-# six-digit hex words one space apart (the scheme itself, written into
-# settings.sh), 0 for nothing or anything else. The shape is
+# six-digit hex words one space apart (the colors file's [scheme], which
+# _hi_color_tables reads), 0 for nothing or anything else. The shape is
 # the one _hi_scheme_hex slices, so the walk is by offset: no read, no fork,
 # no arrays, and no variable in a `case` pattern (zsh reads one literally).
 # Memoized on the scheme string: _hi_scheme_hex asks once per slot.
@@ -401,7 +401,8 @@ function _hi_load_extensions() {
 }
 
 # _hi_ramp_ok <value> - true when <value> is eight _HI_COLOR_NAMES words,
-# the shape $_HI_PACKAGES_PALETTE takes (header.sh reads it per render,
+# the shape $_HI_PACKAGES_PALETTE takes from the colors file's [palette]
+# (header.sh reads it per render,
 # scripts/lib.sh's _hi_ramp_label reports it, so both judge by this one
 # function). The `case` up front rejects every byte a name cannot hold; the
 # walk then trims a word at a time rather than splitting on $IFS, since zsh
@@ -452,8 +453,8 @@ function _hi_color_hex() {
 
 # The twelve exported palette variables - the sixteen-color names, which are
 # what hi's own output paints with; the extras are for pins and the hash -
-# under the scheme and terminal of the moment; re-callable (configure.sh's
-# previews flip $_HI_COLOR_SCHEME and call again). $PURPLE is the magenta
+# under the scheme and terminal of the moment; re-callable (the suites flip
+# $_HI_COLOR_SCHEME and call again). $PURPLE is the magenta
 # slot's variable, as it always was.
 function _hi_assign_palette() {
   local _hi_ap_i=0 _hi_ap_v
@@ -462,14 +463,6 @@ function _hi_assign_palette() {
     _hi_ap_i=$((_hi_ap_i + 1))
   done
 }
-
-# https://no-color.org: non-empty $NO_COLOR blanks the palette. hi.sh ships it along.
-if [ -n "${NO_COLOR:-}" ]; then
-  NC=''
-else
-  NC='\e[0m'
-fi
-_hi_assign_palette
 
 # _hi_cecho <text> [color] [no_newline]
 #
@@ -1343,6 +1336,46 @@ function _hi_colors_load() {
     _HI_COLORS_ROWS+="$t$us$n$us$c$us${h%% *}"$'\n'
   done <"$_HI_COLORS"
 }
+
+# _hi_color_tables [file] - $_HI_COLOR_SCHEME and $_HI_PACKAGES_PALETTE from
+# the [scheme] and [palette] tables of [file] ($_HI_COLORS by default): the
+# scheme's `colors` words with its `packages` words after them as the second
+# bank, and the palette's `installed` names then its `missing` ones. Empty
+# where the file has none, and taken as written otherwise, for the readers to
+# judge. GLOSSARY: HI.50
+function _hi_color_tables() {
+  local f="${1:-${_HI_COLORS:-}}" t="" l k v s="" p="" i="" m=""
+  _HI_COLOR_SCHEME="" _HI_PACKAGES_PALETTE=""
+  [[ -f "$f" ]] || return 0
+  while read -r l; do
+    case "$l" in
+    '['*']'*)
+      t="${l#\[}"
+      t="${t%%\]*}"
+      continue
+      ;;
+    esac
+    case "$t" in scheme | palette) ;; *) continue ;; esac
+    _hi_toml_row "$l" k v || continue
+    case "$t.$k" in
+    scheme.colors) s="$v" ;;
+    scheme.packages) p="$v" ;;
+    palette.installed) i="${v//,/ }" ;;
+    palette.missing) m="${v//,/ }" ;;
+    esac
+  done <"$f"
+  _HI_COLOR_SCHEME="$s${p:+ $p}"
+  [ -z "$i$m" ] || _HI_PACKAGES_PALETTE="$i $m"
+}
+_hi_color_tables
+
+# https://no-color.org: non-empty $NO_COLOR blanks the palette. hi.sh ships it along.
+if [ -n "${NO_COLOR:-}" ]; then
+  NC=''
+else
+  NC='\e[0m'
+fi
+_hi_assign_palette
 
 # The two readers of those rows. One walk behind both: they differ only in
 # whether the name field is compared or matched, and the two wrappers below

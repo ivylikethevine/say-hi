@@ -1015,7 +1015,8 @@ hues.
 
 ## HI.50 truecolor color schemes
 
-`_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twenty-four palette
+`_HI_COLOR_SCHEME` (`common/core.sh`), which `_hi_color_tables` fills from
+the colors file's `[scheme]` table, remaps what the twenty-four palette
 names render as; it never adds a name. `_hi_hash_color`, the
 `config/colors` pins, `_hi_color_escape`, and `hi --preview colors` all keep
 the same vocabulary, so a scheme is invisible to everything that reasons
@@ -1056,12 +1057,16 @@ are the only bytes that cost anything on the wire. hi ships **no named schemes**
 `000000` (meaning "the terminal's own") and whose twelve extras carry a built-in
 hex. A scheme is always the user's own. `_hi_assign_palette` builds
 `$RED..$BRCYAN`, shell variables a child never sees, through the same primitive
-as `_hi_color_escape`, so the two can never disagree and
-`scripts/configure.sh`'s previews can rebuild the palette under a pending
-answer.
+as `_hi_color_escape`, so the two can never disagree and a suite can rebuild
+the palette under another scheme.
 
-**The scheme is that same string, in the setting.** `_hi_scheme_words` reads
-`$_HI_COLOR_SCHEME` by the same offsets and answers 24, 48, or 0: exactly that
+**The scheme is that same string, in the colors file.** `_hi_color_tables`
+reads `[scheme]` and `[palette]` as core.sh loads, before
+`_hi_assign_palette`: the scheme's `colors` row, then its `packages` row as
+the second bank, is `$_HI_COLOR_SCHEME`, and nothing else sets it - a
+`settings.sh` line of that name is overwritten, and `hi --doctor` names it.
+`_hi_scheme_words` reads `$_HI_COLOR_SCHEME` by the same offsets and answers
+24, 48, or 0: exactly that
 many six-digit hex words one space apart is a scheme, anything else — a leftover
 name, a typo, nothing — renders as the default. Forty-eight words are two banks
 of the twenty-four names: `_hi_scheme_hex` takes slot indexes 0-47 and folds
@@ -1076,8 +1081,8 @@ the first bank by contract. `scripts/lib.sh`'s `_hi_scheme_ok` and
 ever renders.
 
 **The packages check's ramp is the same shape, one level down.**
-`$_HI_PACKAGES_PALETTE` is eight `_HI_COLOR_NAMES` words — four for
-installed, four for missing — and `_hi_ramp_ok` (`common/core.sh`, beside
+`$_HI_PACKAGES_PALETTE` is eight `_HI_COLOR_NAMES` words — `[palette]`'s
+four `installed`, then its four `missing` — and `_hi_ramp_ok` (`common/core.sh`, beside
 the vocabulary it checks against, so `scripts/doctor.sh` reaches it without
 sourcing `header.sh`) is the one judge: `_hi_packages_palette` falls back to
 `$_HI_PACKAGES_RAMP`, the shipped ramp as one string, whenever it says no,
@@ -1090,8 +1095,8 @@ The gate is `_hi_has_truecolor`: `COLORTERM` (`truecolor` or `24bit`), with
 `_HI_TRUECOLOR` overriding both ways. ssh never forwards `COLORTERM`, so
 `hi.sh`'s `_hi_session_env` ships the client's verdict as `_HI_TRUECOLOR` beside
 `_HI_ASCII` - the escapes render in the client's terminal, and the target must
-not guess from its own environment. The scheme name itself needs no transport:
-`settings.sh` is in the overlay. zsh takes `%F{#rrggbb}` from 5.7
+not guess from its own environment. The scheme itself needs no transport:
+the colors file is in the overlay. zsh takes `%F{#rrggbb}` from 5.7
 (`common/zsh.zsh`, behind `is-at-least`) and fish takes `set_color hex name`, a
 list it resolves to the first entry it can render, so both fall back to the
 plain name on their own.

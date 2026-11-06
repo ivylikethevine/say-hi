@@ -65,7 +65,7 @@ function _hi_probe_once() {
 # Captured, not a tty, so _hi_draw_width draws to $_HI_MAX_WIDTH
 # exactly - which is what the width dial is previewing.
 function _hi_header_preview() {
-  local order width groups palette lead iphide scheme w
+  local order width groups lead iphide w
   if setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS"; then
     _hi_cecho " header off - nothing prints on connect or disconnect" "$YELLOW"
     return 0
@@ -73,24 +73,16 @@ function _hi_header_preview() {
   setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" order
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
-  setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
   setting_value _HI_DISABLE_LEAD_SPACE "$_HI_SETTINGS" lead
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
-  setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" scheme
   (
     # no wider than the menu's box can hold: a session clamps to its
     # terminal the same way
     w="${width:-$_HI_MAX_WIDTH_DEFAULT}"
     ((w > _HI_MENU_W - 8)) && w=$((_HI_MENU_W - (_HI_MENU_W < 60 ? 6 : 8)))
     export _HI_HEADER_ORDER="$order" _HI_MAX_WIDTH="$w"
-    export _HI_PACKAGES_GROUPS="$groups" _HI_PACKAGES_PALETTE="$palette"
+    export _HI_PACKAGES_GROUPS="$groups"
     export _HI_DISABLE_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-$_HI_IP_HIDE_DEFAULT}"
-    # the palette and the check ramps were captured at source time;
-    # rebuild both under this run's scheme so the preview paints with it
-    # shellcheck disable=SC2030 # the scheme lives and dies in this subshell
-    export _HI_COLOR_SCHEME="$scheme"
-    _hi_assign_palette
-    _hi_packages_palette
     unset _HI_DISABLE_HEADER
     hi_header Connected
   )
@@ -139,19 +131,12 @@ function _hi_env_status_preview() {
 # user@host cwd, the git segment when that is on, and the end character -
 # or a sentence, when the colored prompt itself is off
 function _hi_prompt_sample_preview() {
-  local prompt git="" env="" end scheme
+  local prompt git="" env="" end
   if setting_off _HI_DISABLE_PROMPT "$_HI_SETTINGS"; then
     _hi_cecho " prompt off - your shell's own" "$YELLOW"
     return 0
   fi
-  setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" scheme
-  # the escape memos are per shell, so the scheme is applied in a subshell
-  # with them cleared, and the palette rebuilt under it
   prompt="$(
-    # shellcheck disable=SC2031 # the same subshell-scoped export as the header preview
-    export _HI_COLOR_SCHEME="$scheme"
-    _hi_assign_palette
-    unset _HI_HOST_ESC _HI_USER_ESC
     # a narrow menu's box has room for the cwd's last part, not its path
     ((_HI_MENU_W >= 60)) || PWD="${PWD##*/}"
     _hi_prompt_preview

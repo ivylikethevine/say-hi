@@ -115,8 +115,8 @@ Takes no arguments. Reads:
   config/packages    the [group] tables of package = [...] rows (a
                      ~/.config/say-hi/packages of your own replaces it)
   \$_HI_PACKAGES_GROUPS   the groups that run (unset: $_HI_PACKAGES_GROUPS_DEFAULT)
-  \$_HI_PACKAGES_PALETTE   the ramp in force - unset for the shipped one, or
-                     eight color names of your own - printed above the legend
+  config/colors      its [palette], the ramp in force - none for the shipped
+                     one, or eight color names of your own - printed above the legend
 
 A row's table decides which states speak at all: [group] both ways,
 [group.unwanted] only as a warning when installed, [group.required] only as
@@ -143,8 +143,8 @@ EOF
 *) _hi_die "takes no arguments (got: $*) - $_HI_ME --help" ;;
 esac
 
-# what the swatches are painted under, so an eyeball pass of a
-# $_HI_COLOR_SCHEME says which one it is looking at (GLOSSARY: HI.50)
+# what the swatches are painted under, so an eyeball pass of a [scheme]
+# says which one it is looking at (GLOSSARY: HI.50)
 function _hi_print_scheme_line() {
   local label
   _hi_scheme_label label

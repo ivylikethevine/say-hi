@@ -6,15 +6,6 @@ an entry leaves as one sentence for the top list of
 [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **Color has one home** — `_HI_PACKAGES_PALETTE` (eight names) and
-      `_HI_COLOR_SCHEME` (24 or 48 hex words) are settings while every other
-      color is a pin in the colors file. **Do:** a `[palette]` and a
-      `[scheme]` table in `config/colors`, read by `common/core.sh`'s colors
-      loader; the two rows go, with their COLORS.md sections rewritten.
-      Medium. **Ticks when:** `hi --preview colors` and the header show the
-      same result from the file as from the rows today, and the color suites
-      pass.
-
 - [ ] **Two add/remove pairs go the way of `--add-plugin`** —
       `--add-package`/`--remove-package` and `--add-color`/`--remove-color`
       do by flag what `hi --edit` does by hand, the choice already made for
@@ -24,13 +15,6 @@ an entry leaves as one sentence for the top list of
       `docs/hi.1`, USAGE.md, tldr.md and the completions. Medium.
       **Ticks when:** `hi --help` lists neither pair and the parse, help and
       drift suites pass.
-
-- [ ] **Three presets, not five** — `minimal`, `lean` and `configs` differ
-      by two or three variables each (`scripts/configure.sh`'s
-      `_HI_PRESETS`); `everything`, `balanced` and `minimal` are the ladder.
-      **Do:** fold `lean` into `minimal` or keep it and drop `configs`;
-      SETTINGS.md's _Presets_, `common/flags`, the wizard. Small.
-      **Ticks when:** the preset suites pass with the table at three.
 
 - [ ] **The packages grammar loses a dimension** — groups, the
       `.required` and `.unwanted` sub-tables, and a ramp of four installed
@@ -42,18 +26,11 @@ an entry leaves as one sentence for the top list of
       shape. Medium. **Ticks when:** the shipped file and the example use
       the new shape and the header and configure suites pass.
 
-- [ ] **Each backend has a user** — nomad, nerdctl and finch each cost a
-      header probe, a completion sweep, doctor rows, a suite and a CI
-      shard. **Do:** ask; one with none is a word out of
-      `_HI_CONTAINER_CLIS` or the roster, its suite, and its rows in
-      COMPATIBILITY.md and the docs. Small each. **Ticks when:** every
-      backend that ships has a named reason to.
-
 - [ ] **Every default and preset audited before the tag** —
       [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
-      freezes the name and default of all 37 rows of
+      freezes the name and default of all 35 rows of
       [SETTINGS.md's _Every setting_](SETTINGS.md#every-setting) and the
-      five presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
+      four presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
       stranger's first run, every row's default agreeing with its code, and
       no default has moved since, through e89eb83c. The
       known changes, both shipped in 0.8.0, are the `balanced` first-install

@@ -146,8 +146,10 @@ function test_scheme_hex_is_six_hex_digits_for_every_slot() {
 # fresh shell under a scheme assigns $RED exactly what _hi_color_escape red
 # prints - preview.sh's reverse map depends on that
 function test_palette_vars_agree_with_color_escape_under_a_scheme() {
-  local out
-  out="$(env _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
+  local out dir="$_HI_WORKDIR/scheme-overlay"
+  mkdir -p "$dir"
+  printf '[scheme]\ncolors = "%s"\n' "$_HI_TEST_SCHEME24" >"$dir/colors"
+  out="$(env _HI_CONFIG_DIR="$dir" _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
     . "$_HI_HOME/say-hi/common/core.sh"
     . "$_HI_HOME/say-hi/scripts/lib.sh"
     for n in RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN; do
@@ -156,6 +158,30 @@ function test_palette_vars_agree_with_color_escape_under_a_scheme() {
     printf "|"
     for n in "${_HI_COLOR_NAMES[@]:0:12}"; do _hi_color_escape "$n"; done | od -An -c | tr -d " \n"')"
   [ -n "${out%%|*}" ] && [ "${out%%|*}" = "${out#*|}" ] && [[ "${out%%|*}" == *"38;2;"* ]] || _hi_why out
+}
+
+# the colors file's [scheme] and [palette] are the two variables: colors then
+# packages as one word list, installed then missing as one ramp, and a file
+# with neither, the shipped one among them, leaves both empty
+function test_color_tables_read_the_colors_file() {
+  local f="$_HI_WORKDIR/colors.tables" got got2 got3
+  printf '[username]\nroot = "red"\n\n[scheme]\ncolors = "%s"\npackages = "%s"\n\n[palette]\ninstalled = ["cyan", "green", "brcyan", "brgreen"]\nmissing   = ["blue", "magenta", "bryellow", "brred"]\n' \
+    "${_HI_TEST_SCHEME48:0:167}" "${_HI_TEST_SCHEME48:168}" >"$f"
+  got="$(
+    _hi_color_tables "$f"
+    _hi_scheme_words n
+    printf '%s|%s|%s' "$n" "$_HI_COLOR_SCHEME" "$_HI_PACKAGES_PALETTE"
+  )"
+  got2="$(
+    _hi_color_tables "$_HI_ROOT/config/colors"
+    printf '%s|%s' "$_HI_COLOR_SCHEME" "$_HI_PACKAGES_PALETTE"
+  )"
+  got3="$(
+    _hi_color_tables "$_HI_WORKDIR/colors.none"
+    printf '%s|%s' "$_HI_COLOR_SCHEME" "$_HI_PACKAGES_PALETTE"
+  )"
+  [ "$got" = "48|$_HI_TEST_SCHEME48|cyan green brcyan brgreen blue magenta bryellow brred" ] &&
+    [ "$got2" = "|" ] && [ "$got3" = "|" ] || _hi_why got got2 got3
 }
 
 # the hash is untouched by a scheme: a name, never a hex
@@ -789,6 +815,7 @@ function run_core_tests() {
   _hi_check "Blanks the palette at source time" test_no_color_blanks_the_palette_at_source_time
 
   _hi_h2 "Testing: _HI_COLOR_SCHEME (HI.50)"
+  _hi_check "The colors file's [scheme] and [palette] are read" test_color_tables_read_the_colors_file
   _hi_check "_hi_has_truecolor reads COLORTERM" test_has_truecolor_reads_colorterm
   _hi_check "_HI_TRUECOLOR overrides both ways" test_truecolor_override_wins_both_ways
   _hi_check "A scheme escape keeps the 16-color prefix" test_scheme_escape_keeps_the_16_color_prefix

@@ -261,7 +261,7 @@ function test_complete_the_word_after_link_preset_and_update() {
   out="$(_hi_completions_for --link "" | sort | tr '\n' ' ')"
   [ "$out" = "none system user " ] || _hi_because "--link: $out" || return 1
   out="$(_hi_completions_for --preset "" | sort | tr '\n' ' ')"
-  [ "$out" = "balanced configs everything lean minimal " ] || _hi_because "--preset: $out" || return 1
+  [ "$out" = "balanced everything lean minimal " ] || _hi_because "--preset: $out" || return 1
   got="$(_hi_completions_for --update "")"
   got2="$(git -C "$_HI_ROOT" tag --list 'v*' --sort=-v:refname 2>/dev/null)"
   [ "$got" = "$got2" ] || _hi_why got got2

@@ -349,49 +349,51 @@ function test_configs_fish_row_catches_sh_only_aliases() {
   [[ "$out" == *"aliases.sh"*"parses (sh)"* && "$out" == *"aliases.sh"*"has issues (fish)"* ]] || _hi_why out
 }
 
-# a scheme that is neither a name nor 24/48 hex words renders nothing, and
-# nothing else says so (core.sh renders the default in silence)
+# a [scheme] that is not 24 or 48 hex words renders nothing, and nothing else
+# says so (core.sh renders the default in silence); a settings.sh line of the
+# setting it replaced is named too, since nothing reads it
 function test_config_flags_a_scheme_nothing_renders() {
   local dir="$_HI_WORKDIR/badscheme" out
   mkdir "$dir"
-  printf "export _HI_COLOR_SCHEME='solarized'\n" >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_COLOR_SCHEME=solarized
     doctor_config
   )"
-  [[ "$out" == *"_HI_COLOR_SCHEME"*"'solarized' is ignored"* ]] || _hi_why out || return 1
+  [[ "$out" == *"colors"*"[scheme] 'solarized' is ignored"* ]] || _hi_why out || return 1
+  printf "export _HI_COLOR_SCHEME='%s'\n" "$_HI_TEST_SCHEME24" >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_COLOR_SCHEME="$_HI_TEST_SCHEME24"
     doctor_config
   )"
-  [[ "$out" != *"is ignored - not 24 or 48 six-digit hex words"* ]] || _hi_why out
+  [[ "$out" != *"[scheme]"*"is ignored - colors is"* &&
+    "$out" == *"_HI_COLOR_SCHEME"*"is ignored - it is the [scheme] table of"*"/colors now"* ]] || _hi_why out
 }
 
-# ...and the same for a ramp nothing paints: both are hand-written into
-# settings.sh, so a stale preset name (mono, warm) or a typo would otherwise
-# be silent - header.sh just falls back to the shipped ramp
+# ...and the same for a [palette] nothing paints: a typo would otherwise be
+# silent, since header.sh just falls back to the shipped ramp
 function test_config_flags_a_ramp_nothing_paints() {
   local dir="$_HI_WORKDIR/badramp" out
   mkdir "$dir"
-  printf "export _HI_PACKAGES_PALETTE='mono'\n" >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_PACKAGES_PALETTE=mono
     doctor_config
   )"
-  [[ "$out" == *"_HI_PACKAGES_PALETTE"*"'mono' is ignored"* ]] || _hi_why out || return 1
+  [[ "$out" == *"colors"*"[palette] 'mono' is ignored"* ]] || _hi_why out || return 1
+  printf "export _HI_PACKAGES_PALETTE='%s'\n" "$_HI_TEST_RAMP" >"$dir/settings.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_PACKAGES_PALETTE="$_HI_TEST_RAMP"
     doctor_config
   )"
-  [[ "$out" != *"is ignored - not eight color names"* ]] || _hi_why out
+  [[ "$out" != *"[palette]"*"is ignored - installed and"* &&
+    "$out" == *"_HI_PACKAGES_PALETTE"*"is ignored - it is the [palette] table of"*"/colors now"* ]] || _hi_why out
 }
 
 # extensions/ (HI.59): the load order in one row, a warn for an extension a

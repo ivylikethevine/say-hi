@@ -16,9 +16,9 @@
 # (a leading # is fine): `prod-db = "brred ff5f5f"` under [hostname] renders
 # prod-db in exactly that red on a truecolor terminal. The color still has to be
 # a name from the list above and is what a 16-color terminal gets, so pick
-# the nearest one. It beats _HI_COLOR_SCHEME, which says what a *name*
-# renders as; six hex digits is the whole of what is accepted, and anything
-# else is ignored and the row colors by its name alone.
+# the nearest one. It beats [scheme], which says what a *name* renders as;
+# six hex digits is the whole of what is accepted, and anything else is
+# ignored and the row colors by its name alone.
 # a name that is not letters, digits, _ and - alone goes in double quotes.
 # a hostname name holding * or ? is a pattern: `"10.0.1.*" = "red"` colors
 # a whole subnet or domain at once. An exact pin and a hosttag both beat it.
@@ -30,6 +30,18 @@
 # still takes priority over these.
 # anything with no pin at all falls back to a hash of the name.
 # run `hi --preview colors` to preview what everything currently resolves to.
+#
+# Two tables say how the names render rather than who wears them
+# (docs/COLORS.md):
+#
+# [scheme]
+# colors   = "<24 hex words>"  what each name above renders as on a truecolor
+#                              terminal, in that order; none is the terminal's own
+# packages = "<24 hex words>"  the same, for the package check alone (optional)
+#
+# [palette]
+# installed = ["cyan", "green", "brcyan", "brgreen"]   the package check's
+# missing   = ["blue", "magenta", "bryellow", "brred"] tiers, 0 to 3 (shipped)
 
 [hosttag]
 terminal        = "brmagenta"

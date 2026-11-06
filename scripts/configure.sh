@@ -359,15 +359,14 @@ _HI_PRESETS=(
   "balanced|everything on every target, a shorter package check; nothing on this machine|_HI_PACKAGES_GROUPS=core,deprecated _HI_DISABLE_LOCAL=1"
   "minimal|the colored prompt and your configs, no header or editor configs; nothing on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro _HI_DISABLE_LOCAL=1"
   "lean|minimal, and nothing of yours rides: hi's own prompt, no plugin's config, ssh the only backend|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro,aliases,bash,zsh,fish,extensions,bin,env,starship,powerlevel10k,tide,oh-my-posh,oh-my-zsh,oh-my-bash,bash-it,eza,bat,rg,fzf,lazygit,git,readline,tmux,screen,zellij _HI_DISABLE_LOCAL=1 _HI_PROMPT_TOOL=hi _HI_BACKENDS_OFF=all"
-  "configs|your aliases, editor rcs, and every other config along, each target's own prompt, no header; nothing on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_PROMPT=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
 # plus the two lists - so "not named by the preset" can mean "back to the
-# default". _HI_PROMPT_TOOL (hi's prompt) stays out, like the color scheme and the
-# packages ramp: those are taste, not a feature level, and no preset resets
-# them. Neither is asked here at all - both are written into settings.sh by
-# hand (GLOSSARY: HI.50). A preset may still name a variable outside this
+# default". _HI_PROMPT_TOOL (hi's prompt) stays out: it is taste, not a
+# feature level, and no preset resets it - as none touches the color scheme
+# or the packages ramp, which are the colors file's (GLOSSARY: HI.50). A
+# preset may still name a variable outside this
 # vocabulary, as `lean` does _HI_PROMPT_TOOL and _HI_BACKENDS_OFF: that one
 # is set, and no other preset changes it back.
 function _hi_preset_vocab() {
@@ -592,8 +591,6 @@ function collect_setting_lines() {
   _HI_SETTING_LINES=()
   _hi_collect_value _HI_HEADER_ORDER "$_HI_HEADER_ORDER_DEFAULT" quoted
   _hi_collect_value _HI_PACKAGES_GROUPS "$_HI_PACKAGES_GROUPS_DEFAULT" quoted
-  _hi_collect_value _HI_PACKAGES_PALETTE ""
-  _hi_collect_value _HI_COLOR_SCHEME ""
   _hi_collect_value _HI_IP_HIDE "$_HI_IP_HIDE_DEFAULT" quoted
   _hi_collect_value _HI_MAX_WIDTH "$_HI_MAX_WIDTH_DEFAULT"
   _hi_collect_group _HI_FEATURE_PROMPTS
@@ -611,8 +608,8 @@ function collect_setting_lines() {
   _hi_collect_value _HI_TRUECOLOR ""
 }
 
-# A line written by hand - `export _HI_COLOR_SCHEME=...` with no marker, the
-# way SETTINGS.md says to set a scheme of your own - is read by
+# A line written by hand - `export _HI_TRUECOLOR=1` with no marker, the
+# way COLORS.md says to force 24-bit color - is read by
 # setting_value (it sources the file) and then written again as a marker
 # line, and the two then survive every later run. Adopted instead: for every
 # name this run writes, the un-marked line goes and the marker line carries

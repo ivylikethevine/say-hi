@@ -398,7 +398,7 @@ function test_first_install_asks_only_about_this_machine() {
   _hi_run_install_pty first-q 'm\n' --link none || _hi_why || return 1
   # each name as the pick draws it, its first letter the hotkey: [b]alanced
   plain="$(_hi_strip_ansi "$(cat "$out")")"
-  for p in everything balanced minimal lean configs; do
+  for p in everything balanced minimal lean; do
     [[ "$plain" == *"[${p:0:1}]${p:1}"* ]] || _hi_because "the pick never listed $p: $plain" || return 1
   done
   { grep -qF "Start from which?" "$out" && grep -qF "starting from the 'minimal' preset" "$out" &&
@@ -587,7 +587,7 @@ function test_configure_help_is_its_own() {
 function test_configure_without_a_terminal_says_so() {
   local out rc=0
   out="$(_hi_run_install_here nomenu --configure 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal lean configs"* ]] || _hi_why rc out || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal lean"* ]] || _hi_why rc out || return 1
   rc=0
   out="$(_hi_run_install_here nomenu-install --dry-run --link none 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu"* ]] || _hi_why rc out

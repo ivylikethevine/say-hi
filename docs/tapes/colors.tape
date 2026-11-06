@@ -8,7 +8,7 @@
 # running, hi on PATH. CI renders it too (demos.yml).
 #
 # Its configuration (docs/tapes/fixtures.sh, up:colors): the `colors` overlay
-# with hosttag pins, a one-dark _HI_COLOR_SCHEME hex list, a short
+# with hosttag pins and a one-dark [scheme] hex list, a short
 # _HI_HEADER_ORDER and a settings.prod.sh with a longer one, `hi` as the
 # prompt (so the laptop's is hi's too, in the
 # colors the demo is about), and a two-line fish prompt of kai's own on hi's

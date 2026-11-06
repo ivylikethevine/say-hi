@@ -202,8 +202,9 @@ function fish_greeting
 end
 
 # a whole process for two colors, so memoized in a universal variable keyed
-# on user@host, the colors file's and core.sh's mtimes (an upgrade can change
-# how the same file resolves), the scheme, and the terminal's 24-bit verdict
+# on user@host, the colors file's and core.sh's mtimes (the file holds the
+# scheme, and an upgrade can change how the same file resolves), and the
+# terminal's 24-bit verdict
 # (a universal variable outlives this terminal): only the first shell after a
 # change pays. Each value is a list - "rrggbb name" under a scheme, the bare
 # name otherwise - and set_color takes the first entry this terminal renders.
@@ -215,7 +216,7 @@ for hi_f in $_HI_COLORS $_HI_CORE
   test -f $hi_f; and set hi_key "$hi_key"(builtin -q path; and path mtime $hi_f 2>/dev/null; or command stat -c %Y $hi_f 2>/dev/null; or command stat -f %m $hi_f 2>/dev/null)
 end
 set -e hi_f
-set hi_key "$hi_key:$_HI_COLOR_SCHEME:$_HI_TRUECOLOR:$COLORTERM"
+set hi_key "$hi_key:$_HI_TRUECOLOR:$COLORTERM"
 if not set -q __hi_colors_key; or test "$__hi_colors_key" != "$hi_key"
   set -l hi_colors (__hi_bash "source $_HI_CORE; _hi_prompt_colors")
   set -U __hi_color_user (string split ' ' $hi_colors[1])

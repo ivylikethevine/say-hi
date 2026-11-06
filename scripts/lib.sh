@@ -510,7 +510,7 @@ function _hi_is_plugin_list() {
 # _hi_setting_check <check> <value> - is <value> what a scripts/settings row
 # of that <check> takes; 2 for a <check> this does not know. The kinds are
 # $_HI_SETTING_CHECKS, which drift holds every row's to.
-_HI_SETTING_CHECKS="toggle flag number: duration globs groups header prompts plugins editor shells noquote scheme palette -"
+_HI_SETTING_CHECKS="toggle flag number: duration globs groups header prompts plugins editor shells noquote -"
 function _hi_setting_check() {
   case "$1" in
   toggle | flag) _hi_is_flag "$2" ;;
@@ -524,8 +524,6 @@ function _hi_setting_check() {
   editor) _hi_is_editor "$2" ;;
   shells) _hi_is_shell_list "$2" ;;
   noquote) _hi_has_no_single_quote "$2" ;;
-  scheme) _hi_scheme_ok "$2" ;;
-  palette) _hi_ramp_ok "$2" ;;
   -) ;;
   *) return 2 ;;
   esac
@@ -551,7 +549,7 @@ function _hi_setting_rules() {
 }
 
 # The scheme helpers only the tooling reads (GLOSSARY: HI.50): core.sh
-# answers "what does slot n render as", these answer "what is the setting".
+# answers "what does slot n render as", these answer "what does the table hold".
 # _hi_scheme_ok <value> - 24/48 hex words, the only shape there is
 function _hi_scheme_ok() {
   local _hi_so_n

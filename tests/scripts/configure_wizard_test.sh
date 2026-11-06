@@ -112,28 +112,28 @@ function _hi_run_in() {
   return 0
 }
 
-# a line written by hand - the way SETTINGS.md says to set a scheme of your
-# own - is adopted into the block rather than written again beside itself
+# a line written by hand, its value holding a space, is adopted into the
+# block rather than written again beside itself
 function test_configure_adopts_a_hand_written_line() {
-  local out got got2
-  out="$(_hi_run_in adopt "export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME24'")" || _hi_why || return 1
-  got="$(printf '%s\n' "$out" | grep -c _HI_COLOR_SCHEME)"
-  got2="$(printf '%s\n' "$out" | grep _HI_COLOR_SCHEME)"
-  [ "$got" -eq 1 ] && [[ "$got2" == *"$_HI_TEST_SCHEME24"*"$_HI_MARKER" ]] || _hi_why got got2 out _HI_MARKER
+  local out got got2 hide='10.0.* 192.168.*'
+  out="$(_hi_run_in adopt "export _HI_IP_HIDE='$hide'")" || _hi_why || return 1
+  got="$(printf '%s\n' "$out" | grep -c _HI_IP_HIDE)"
+  got2="$(printf '%s\n' "$out" | grep _HI_IP_HIDE)"
+  [ "$got" -eq 1 ] && [[ "$got2" == *"$hide"*"$_HI_MARKER" ]] || _hi_why got got2 out _HI_MARKER
 }
 
 # ...and with 256 KB after it: an early-exiting reader in the match pipe gets
 # its writer a SIGPIPE, which pipefail reads as no match, every time at this size
 function test_configure_adopts_a_hand_line_in_a_large_file() {
-  local out got got2 pad="" i=0
+  local out got got2 pad="" i=0 hide='10.0.* 192.168.*'
   while ((i < 4096)); do
     pad="$pad# padding padding padding padding padding padding padding pad"$'\n'
     i=$((i + 1))
   done
-  out="$(_hi_run_in adopt_large "export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME24'"$'\n'"$pad")" || _hi_why || return 1
-  got="$(printf '%s\n' "$out" | grep -c _HI_COLOR_SCHEME)"
-  got2="$(printf '%s\n' "$out" | grep _HI_COLOR_SCHEME)"
-  [ "$got" -eq 1 ] && [[ "$got2" == *"$_HI_TEST_SCHEME24"*"$_HI_MARKER" ]] || _hi_why got got2 _HI_MARKER
+  out="$(_hi_run_in adopt_large "export _HI_IP_HIDE='$hide'"$'\n'"$pad")" || _hi_why || return 1
+  got="$(printf '%s\n' "$out" | grep -c _HI_IP_HIDE)"
+  got2="$(printf '%s\n' "$out" | grep _HI_IP_HIDE)"
+  [ "$got" -eq 1 ] && [[ "$got2" == *"$hide"*"$_HI_MARKER" ]] || _hi_why got got2 _HI_MARKER
 }
 
 # ...and a hand line for a name this run does not write is left as it is
@@ -464,18 +464,27 @@ function test_prompt_sample_preview_draws_the_prompt_when_on() {
   [[ "$out" == *"$got@$got2"* && "$out" == *' $' && "$out" != *"prompt off"* ]] || _hi_why got got2 out
 }
 
-# the sample paints with the settings file's scheme, not the running shell's,
-# and leaves this shell's scheme and palette as they were
-function test_prompt_sample_preview_paints_with_the_settings_scheme() {
-  local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-scheme.settings.sh" scheme="" i out before="$RED"
+# the sample paints with the scheme in force, which the colors file sets
+# when the shell loads, so a settings.sh line naming one changes nothing
+function test_prompt_sample_preview_paints_with_the_scheme_in_force() {
+  local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-scheme.settings.sh" scheme="" i out
   for ((i = 0; i < 24; i++)); do scheme="$scheme${scheme:+ }abcdef"; done
-  printf 'export _HI_COLOR_SCHEME="%s"\n' "$scheme" >"$_HI_SETTINGS"
-  out="$(_HI_TRUECOLOR=1 _HI_COLOR_SCHEME='' _hi_prompt_sample_preview)"
-  [[ "$out" == *"38;2;171;205;239m"* ]] || _hi_because "no scheme escape in: $(printf '%q' "$out")" || return 1
-  [ "$RED" = "$before" ] || _hi_because "the palette changed: $(printf '%q' "$RED")" || return 1
   : >"$_HI_SETTINGS"
-  out="$(_HI_TRUECOLOR=1 _HI_COLOR_SCHEME="$scheme" _hi_prompt_sample_preview)"
-  [[ "$out" != *"38;2;171;205;239m"* ]] || _hi_because "the shell's scheme leaked in: $(printf '%q' "$out")"
+  out="$(
+    _HI_TRUECOLOR=1 _HI_COLOR_SCHEME="$scheme"
+    _hi_assign_palette
+    unset _HI_HOST_ESC _HI_USER_ESC
+    _hi_prompt_sample_preview
+  )"
+  [[ "$out" == *"38;2;171;205;239m"* ]] || _hi_because "no scheme escape in: $(printf '%q' "$out")" || return 1
+  printf 'export _HI_COLOR_SCHEME="%s"\n' "$scheme" >"$_HI_SETTINGS"
+  out="$(
+    _HI_TRUECOLOR=1 _HI_COLOR_SCHEME=""
+    _hi_assign_palette
+    unset _HI_HOST_ESC _HI_USER_ESC
+    _hi_prompt_sample_preview
+  )"
+  [[ "$out" != *"38;2;171;205;239m"* ]] || _hi_because "the settings file's scheme painted: $(printf '%q' "$out")"
 }
 
 # a menu under 60 columns has room for the cwd's last part, not its path
@@ -825,7 +834,7 @@ function run_configure_wizard_tests() {
   _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
   _hi_check "Prompt sample says off when the prompt is disabled" test_prompt_sample_preview_says_off_when_disabled
   _hi_check "...and draws the prompt when it is on" test_prompt_sample_preview_draws_the_prompt_when_on
-  _hi_check "...painted with the settings file's scheme" test_prompt_sample_preview_paints_with_the_settings_scheme
+  _hi_check "...painted with the scheme in force" test_prompt_sample_preview_paints_with_the_scheme_in_force
   _hi_check "...its cwd cut to the last part in a narrow menu" test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu
   _hi_check "vim's alias carries its vimrc" test_editor_alias_carries_its_config vim vim/vimrc vim '* vim -i NONE -u */vim/vimrc*'
   _hi_check "...nvim's its init.lua" test_editor_alias_carries_its_config nvim nvim/init.lua nvim '* nvim -u */nvim/init.lua*'

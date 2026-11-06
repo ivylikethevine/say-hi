@@ -26,7 +26,8 @@ tier ([docs/COMPATIBILITY.md](COMPATIBILITY.md#the-shell-you-end-up-in)).
 
 **Config:** fish's own prompt at home and hi's on the boxes, the header
 trimmed to the clocks, the backend counts, and the check on a blue-to-red
-`_HI_PACKAGES_PALETTE`, and the styled tool aliases (`_HI_TOOL_ALIASES=1`).
+`[palette]` in a `colors` overlay, and the styled tool aliases
+(`_HI_TOOL_ALIASES=1`).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on an alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
@@ -56,7 +57,7 @@ and connects: the prod host lands in red with the longer header its tag's
 and Kai's own two-line fish prompt rides along, drawn on the colors hi
 resolved.
 
-**Config:** hosttag pins in a `colors` overlay, a hex `_HI_COLOR_SCHEME`, hi's
+**Config:** hosttag pins and a hex `[scheme]` in a `colors` overlay, hi's
 prompt on the laptop too (`_HI_PROMPT_TOOL=hi`), and a `settings.prod.sh`
 ([Settings by host tag](SETTINGS.md#settings-by-host-tag)).
 
