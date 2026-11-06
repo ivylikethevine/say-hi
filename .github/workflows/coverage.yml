@@ -89,7 +89,7 @@ jobs:
       sweep: ${{ steps.gate.outputs.sweep }}
       sweep_kcov: ${{ steps.gate.outputs.sweep_kcov }}
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           disable-sudo: true
@@ -207,7 +207,7 @@ jobs:
       matrix:
         shard: [1/3, 2/3, 3/3]
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           # Off this job's own audit log: the checkout, the cache, the suite's
@@ -301,7 +301,7 @@ jobs:
       matrix:
         shard: [1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 8/8]
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           # Off this job's own audit log, bashcov's gem included:
@@ -409,7 +409,7 @@ jobs:
       cancel-in-progress: true
     continue-on-error: true
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           # Off this job's own audit log: artifacts in, apt for kcov's runtime
@@ -525,7 +525,7 @@ jobs:
       HI_MERGE: ${{ needs.reuse.outputs.sweep == 'true' && needs.shard-bashcov.result == 'success' }}
       HI_COMMENT: ${{ github.event_name == 'pull_request' }}
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           # Off the audit logs of the two jobs this replaced: it merges the

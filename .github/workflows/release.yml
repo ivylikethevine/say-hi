@@ -71,7 +71,7 @@ jobs:
       actions: read # the CI run lookup
       contents: read # the checkout and the compare call
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           disable-sudo: true
@@ -192,7 +192,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           # the checkout, the cache receiver, and setup-shells' apt - ci.yml's
@@ -258,7 +258,7 @@ jobs:
       prerelease: ${{ steps.tag.outputs.prerelease }}
       debug: ${{ steps.tag.outputs.debug }}
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           # Off the v0.4.2 run's audit log. Artifact upload needs no row of its
@@ -543,7 +543,7 @@ jobs:
     steps:
       # demos.yml's render list, which says why each host is there: change the
       # two together
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           allowed-endpoints: >
@@ -666,7 +666,7 @@ jobs:
       # hosts are the agent's implicit allowlist. Read off the steps, not a
       # recorded run: tighten or extend it from a release's harden-runner
       # insights (the run summary links them), not by guessing.
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           allowed-endpoints: >
@@ -1036,7 +1036,7 @@ jobs:
       TAP: ${{ github.repository_owner }}/tap
     steps:
       # audit until this job has an allowlist taken from its audit runs
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -1121,7 +1121,7 @@ jobs:
       # checkout (github) and gh's ref, commit, PR and release calls (api);
       # the artifact download is on the agent's implicit allowlist. Tighten
       # or extend it from a release's harden-runner insights.
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           allowed-endpoints: >

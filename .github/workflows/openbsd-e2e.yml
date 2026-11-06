@@ -28,7 +28,7 @@ jobs:
       matrix:
         shard: [1/2, 2/2]
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           # Off this job's own audit log, with unwind stopped in the prepare
@@ -64,7 +64,7 @@ jobs:
       # the shard and how it is dealt reach the VM through envs; shard 1 also
       # says hi to itself (bsd_loopback.sh)
       - name: Fast suites, then say hi to ourselves
-        uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
+        uses: vmactions/openbsd-vm@f1ca8bc8ecc5b6ef7218e5b914836e067e1546d3 # v1.4.9
         env:
           HI_BSD_SHARD: ${{ matrix.shard }}
           _HI_SHARD_BY: gitbash
