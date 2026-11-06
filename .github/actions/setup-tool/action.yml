@@ -10,14 +10,6 @@ inputs:
   tool:
     description: which tool to install - the first column of a ./tools.txt row
     required: true
-  version:
-    description: override the row's pin (normally empty); refused unless sha256 is also given
-    required: false
-    default: ""
-  sha256:
-    description: checksum for a version override, in tools.txt's sha256 column format
-    required: false
-    default: ""
 
 runs:
   using: composite
@@ -29,8 +21,6 @@ runs:
       shell: bash
       env:
         CI_TOOL: ${{ inputs.tool }}
-        CI_TOOL_VERSION: ${{ inputs.version }}
-        CI_TOOL_SHA256: ${{ inputs.sha256 }}
       run: '"$GITHUB_ACTION_PATH/install.sh" resolve'
 
     # the sha256 is in the key so a corrected checksum re-downloads rather
@@ -49,6 +39,4 @@ runs:
       shell: bash
       env:
         CI_TOOL: ${{ inputs.tool }}
-        CI_TOOL_VERSION: ${{ steps.resolve.outputs.version }}
-        CI_TOOL_SHA256: ${{ inputs.sha256 }}
       run: '"$GITHUB_ACTION_PATH/install.sh" install'

@@ -9,9 +9,8 @@
 # before the install step runs.
 #
 # Environment:
-#   CI_TOOL           the tools.txt row to act on (required)
-#   CI_TOOL_VERSION   override the row's pin; needs CI_TOOL_SHA256 too
-#   CI_TOOL_SHA256    the checksum for that override, in tools.txt's format
+#   CI_TOOL           the tools.txt row to act on (required); its pin and
+#                     sha256 are the only version and checksum installed
 #   CI_TOOL_BIN_DIR   where the binary lands (default /usr/local/bin, via
 #                     sudo only when the directory is not writable)
 #
@@ -36,20 +35,7 @@ esac
 # failing command substitution inside `read <<<` is not the read's status, so
 # an unknown tool would print its error and still exit 0
 _ci_row="$(_ci_tool_row "$CI_TOOL")" || exit 1
-IFS='|' read -r _ _ci_pin _ci_kind _ci_url _ci_verify _ _ _ci_row_sha256 <<<"$_ci_row"
-
-_ci_version="${CI_TOOL_VERSION:-$_ci_pin}"
-
-# The row's sha256 only vouches for the pinned asset. An override without its
-# own checksum would install unverified bytes, so it is refused outright.
-_ci_sha256_col="${CI_TOOL_SHA256:-}"
-if [ -z "$_ci_sha256_col" ]; then
-  if [ "$_ci_version" != "$_ci_pin" ]; then
-    echo "setup-tool: $CI_TOOL version $_ci_version overrides the pin ($_ci_pin) without a sha256 - pass one, or bump tools.txt" >&2
-    exit 1
-  fi
-  _ci_sha256_col="$_ci_row_sha256"
-fi
+IFS='|' read -r _ _ci_version _ci_kind _ci_url _ci_verify _ _ _ci_sha256_col <<<"$_ci_row"
 
 _ci_plat="$(_ci_platform)"
 _ci_picked="$(_ci_sha256_pick "$_ci_sha256_col" "$_ci_plat")" || {
