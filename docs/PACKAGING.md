@@ -1,9 +1,10 @@
 # Packaging
 
 Installing `hi` from a package: [which channels exist](#install-channels),
-[checking a download you did not build](#verifying-a-release-download), and
-[what a package leaves for you to do](#after-installing-from-a-package). How
-each channel is built, signed, and published is the maintainer's runbook,
+[checking a download you did not build](#verifying-a-release-download),
+[what a package leaves for you to do](#after-installing-from-a-package), and
+[where its files land](#packaged-installs). How each channel is built,
+signed, and published is the maintainer's runbook,
 [RELEASING.md](RELEASING.md).
 
 ## Contents
@@ -17,6 +18,7 @@ each channel is built, signed, and published is the maintainer's runbook,
   - [ubi / mise](#ubi--mise)
 - [Verifying a release download](#verifying-a-release-download)
 - [After installing from a package](#after-installing-from-a-package)
+- [Packaged installs](#packaged-installs)
 
 ## Install channels
 
@@ -59,7 +61,7 @@ sha256sum say-hi.rsa.pub
 **No maintainer scripts, no `conffiles`, on purpose.** Everything a user
 writes lives outside the package's paths - the overlay under
 `$XDG_CONFIG_HOME` - and the package owns only
-[files no user edits](FILES.md#packaged-installs). So an upgrade is a plain
+[files no user edits](#packaged-installs). So an upgrade is a plain
 file replacement with nothing to preserve, merge, or prompt about;
 `tests/packaging/repo_test.sh`'s upgrade cases, which write a
 `~/.config/say-hi/colors` between two versions and check it after, keep that
@@ -218,4 +220,22 @@ machine's own shells, once a user there has run `hi --install`; its
 `tests/targets/install_methods_test.sh` installs a real `.deb`, `.rpm`, and
 `.apk` on real targets and asserts exactly that: the session works, out of its
 own tree, and the installed one is untouched afterwards. Where every packaged
-file lands is [FILES.md's Packaged installs](FILES.md#packaged-installs).
+file lands is [below](#packaged-installs).
+
+## Packaged installs
+
+| Channel                      | Tree                                                | `hi`                                        | Also                                                                           |
+| ---------------------------- | --------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------ |
+| `.deb`, `.rpm`, `.apk`       | `/usr/share/say-hi/`                                | `/usr/bin/hi` → `hi.sh`                     | `/etc/profile.d/say-hi.sh` (exports `_HI_HOME`), `/usr/share/man/man1/hi.1.gz` |
+| `install.sh --prefix <dir>`  | `$DESTDIR<dir>/say-hi/` (default `/usr/share`)      | `$DESTDIR/usr/bin/hi`                       | the same profile snippet and man page; no rc files, no sudo                    |
+| AUR (`say-hi`, `say-hi-git`) | `/usr/share/say-hi/`, through `install.sh --prefix` | `/usr/bin/hi`                               | `/usr/share/licenses/<package>/LICENSE.md`                                     |
+| Homebrew                     | `#{libexec}/say-hi/`                                | `#{bin}/hi`, a wrapper exporting `_HI_HOME` | `#{man1}/hi.1`; no profile snippet                                             |
+| nix flake                    | `$out/share/say-hi/`, through `install.sh --prefix` | `$out/bin/hi`, the same wrapper             | `$out/share/man/man1/hi.1.gz`; no profile snippet                              |
+
+A package touches no user's rc files: each user runs `hi --install`, or
+enables the flake's home-manager module, which writes the same lines into
+the rc files home-manager generates. Adding a
+repository places `/etc/apt/keyrings/say-hi.asc` and
+`/etc/apt/sources.list.d/say-hi.list`, `/etc/yum.repos.d/say-hi.repo`, or
+`/etc/apk/keys/say-hi.rsa.pub` and a line in `/etc/apk/repositories`
+([Package repository](#package-repository)).

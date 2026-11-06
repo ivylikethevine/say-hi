@@ -432,7 +432,7 @@ function test_config_lists_the_header_cells() {
 }
 
 # packages is an overlay file like colors: a copy of the tree's (what
-# `hi --add-package` starts from) says so until it is edited
+# `hi --edit packages` starts from) says so until it is edited
 function test_config_reports_the_packages_file() {
   local dir="$_HI_WORKDIR/packages" out
   mkdir "$dir"
@@ -587,15 +587,17 @@ function test_config_flags_an_old_plugin_toggle() {
   [[ "$out" != *_HI_DISABLE_NANO* ]] || _hi_because "a row for an unset toggle: $out"
 }
 
-# a packages file still in name:N rows, or in bare rows under [group] lines,
-# is read as no rows at all, so it is a bad row naming which; a `:N` or a bare
-# row inside a comment is not, in a file of TOML rows
+# a packages file still in name:N rows, in bare rows under [group] lines, or
+# with [group.required] tables, is read as no rows or the wrong ones, so it is
+# a bad row naming which; a `:N` or a bare row inside a comment is not, in a
+# file of TOML rows
 function test_config_flags_an_old_format_packages_file() {
   local dir="$_HI_WORKDIR/oldpkgs" out
   mkdir "$dir"
   printf '# the header\nbat:3,batcat:3\n' >"$dir/old"
-  printf '# was bat:3\n# bat,batcat\n[core]\nbat = ["batcat"]\n\n[core.required]\n"g++" = [] # a note\n' >"$dir/new"
+  printf '# was bat:3\n# bat,batcat\n[core]\nbat = ["batcat"]\n\n"+g++" = [] # a note\n' >"$dir/new"
   printf '# the header\n[core]\nbat,batcat\n+sudo\n' >"$dir/sectioned"
+  printf '[core]\nbat = []\n[core.required]\nsudo = []\n' >"$dir/tabled"
   out="$(
     _HI_PACKAGES="$dir/old"
     _hi_doc_values_json
@@ -618,16 +620,24 @@ function test_config_flags_an_old_format_packages_file() {
   *'"label": "packages", "text": "'"$dir/sectioned"' has rows that are not TOML'*'hi --configure converts it", "severity": "bad"'*) ;;
   *) _hi_why -3 out || return 1 ;;
   esac
+  out="$(
+    _HI_PACKAGES="$dir/tabled"
+    _hi_doc_values_json
+  )"
+  case "$out" in
+  *'"label": "packages", "text": "'"$dir/tabled"' has [group.required] or [group.unwanted] tables'*'hi --configure converts it", "severity": "bad"'*) ;;
+  *) _hi_why -3 out || return 1 ;;
+  esac
 }
 
 # a packages file of the user's own names the tree's groups it lacks, a row
-# with a marker leading a name, which its table says instead, and a line that
-# is no row, which does not make the file an old one; the tree's own names
-# none
+# with a marker leading an alternative, which only the row's own name takes,
+# and a line that is no row, which does not make the file an old one; the
+# tree's own names none
 function test_config_names_what_a_packages_copy_lacks() {
   local dir="$_HI_WORKDIR/driftpkgs" out
   mkdir "$dir"
-  printf '[core]\nbat = []\neza = ["-exa", "lsd"]\nlesspipe.sh = []\n[extras.required]\n' >"$dir/packages"
+  printf '[core]\nbat = []\neza = ["-exa", "lsd"]\nlesspipe.sh = []\n[extras]\n"+sudo" = []\n' >"$dir/packages"
   out="$(
     _HI_PACKAGES="$dir/packages"
     _hi_doc_values_json

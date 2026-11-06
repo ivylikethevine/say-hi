@@ -7,7 +7,7 @@
 # <example> is the words after the flag, one space apart (no quoting, no
 # expansion); empty runs the bare flag, and `-` shows no image - a connect
 # modifier, or a command whose output is the network's - and `-#<anchor>` none
-# either, linking docs/TOUR.md's story at <anchor>.
+# either, linking the tour's story in docs/GETTING-STARTED.md at <anchor>.
 # <setup> is a hi command run first, unseen, in the same throwaway home.
 # docs/tapes/usage.sh renders each example as usage-<flag>[-<n>].svg, <n>
 # counting a flag's second row and on.
@@ -27,12 +27,8 @@
 --uninstall|--dry-run|--install --yes --link user
 --configure|--preset minimal --dry-run|
 --update|-|
---add-package|useful lazygit,tig --dry-run|
---remove-package|kubectl --dry-run|
 --add-tag|web-dev dev --dry-run|
 --remove-tag|web-dev --dry-run|
---add-color|hosttag prod red --dry-run|
---remove-color|username root --dry-run|
 --plugins||--disable-plugin tmux
 --plugins|--text|--disable-plugin tmux
 --disable-plugin|bat --dry-run|

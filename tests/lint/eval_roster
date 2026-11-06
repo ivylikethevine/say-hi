@@ -61,7 +61,6 @@ source|common/paths.sh|1
 source|common/zsh.zsh|7
 source|hi.sh|5
 source|load.sh|8
-source|scripts/add_package.sh|2
 source|scripts/add_tag.sh|2
 source|scripts/configure.sh|5
 source|scripts/configure_menu.sh|1
@@ -75,5 +74,4 @@ source|scripts/pack.sh|4
 source|scripts/plugins.sh|5
 source|scripts/preview.sh|4
 source|scripts/rc.sh|3
-source|scripts/set_color.sh|2
 source|scripts/update.sh|2

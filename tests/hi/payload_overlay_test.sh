@@ -73,17 +73,17 @@ function test_overlay_sends_nothing_outside_the_roster() {
 }
 
 # the overlay's packages file rides as packages, comment-stripped like the
-# tree's, every table and row intact - a quoted key included
+# tree's, every table and row intact - a quoted, marked key included
 function test_overlay_carries_packages_stripped() {
   local got2 dir="$_HI_WORKDIR/packages-overlay" got="$_HI_WORKDIR/packages-sent" out
   mkdir -p "$dir" "$got"
-  printf '# a note\n[core]\nbat = ["batcat"]\n\n  # indented\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []\n' >"$dir/packages"
+  printf '# a note\n[core]\nbat = ["batcat"]\n\n  # indented\n"-sudo" = ["doas"]\n[extras]\n"+g++" = []\n' >"$dir/packages"
   _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
   got2="$(cd "$got" && printf '%s,' *)"
   [ "$got2" = packages, ] || _hi_why got2 got || return 1
   out="$(<"$got/packages")"
   got2="$(printf '%s\n' "$out" | grep -v '^$')"
-  [ "$got2" = $'[core]\nbat = ["batcat"]\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []' ] || _hi_because "packages arrived as: [$out]"
+  [ "$got2" = $'[core]\nbat = ["batcat"]\n"-sudo" = ["doas"]\n[extras]\n"+g++" = []' ] || _hi_because "packages arrived as: [$out]"
 }
 
 # an extension rides as extensions/<name>, comment-stripped, and only the

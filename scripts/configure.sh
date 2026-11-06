@@ -276,13 +276,13 @@ function _hi_package_group_notes() {
     function flush() { if (g != "") print g "|" (note != "" ? note : eg); g = "" }
     /^[ \t]*#/ { c = $0; sub(/^[ \t]*#[ \t]*/, "", c); com = com == "" ? c : com " " c; next }
     /^[ \t]*\[/ {
-      t = $0; sub(/^[ \t]*\[/, "", t); sub(/\].*/, "", t); sub(/\.(required|unwanted)$/, "", t)
+      t = $0; sub(/^[ \t]*\[/, "", t); sub(/\].*/, "", t)
       flush()
       if (!(t in seen)) { seen[t] = 1; g = t; eg = ""; note = com; sub(/\. .*/, "", note); sub(/\.$/, "", note) }
       com = ""; next
     }
     { com = "" }
-    g != "" && /=/ && length(eg) < 60 { p = $0; sub(/[ \t]*=.*/, "", p); gsub(/^[ \t]+|"/, "", p); eg = eg == "" ? p : eg ", " p }
+    g != "" && /=/ && length(eg) < 60 { p = $0; sub(/[ \t]*=.*/, "", p); gsub(/^[ \t]+|"/, "", p); sub(/^[-+]/, "", p); eg = eg == "" ? p : eg ", " p }
     END { flush() }
   ' "$_HI_PACKAGES"
 }

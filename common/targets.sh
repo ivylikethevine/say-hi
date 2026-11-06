@@ -150,26 +150,16 @@ fi
 # The word after a flag that takes one, so `hi --preview <TAB>` and
 # `hi --use <TAB>` complete it the way a flag completes: "<word>\t<help>"
 # lines. A fixed list is common/flags' <flag>=<word> rows; what is computed
-# (a host, a package row, a plugin) is read here. --use's roster is the arms
+# (a host, a tag, a plugin) is read here. --use's roster is the arms
 # hi.sh dispatches on, in its order - ssh, the docker-compatible family,
 # nomad, kube - spelled here because a completion can reach this file without
 # hi.sh (parse_test.sh pins the two against each other). Answered before the
 # probes, like the flags. The membership test is paths.sh's $_HI_WORD_FLAGS.
 
 if [ "$kind" = words ]; then
-  # The packages file this session would actually read/write: the overlay's
-  # when one exists, else the tree's (common/paths.sh's cascade, reimplemented
-  # here since this file can run forked with the session's own _HI_*
-  # unexported (HI.47) and cannot source paths.sh).
-  pkgs="${_HI_CONFIG_DIR:-}/packages"
-  [ -f "$pkgs" ] || pkgs="${_HI_SITE_DIR:-/etc/say-hi}/packages"
-  [ -f "$pkgs" ] || pkgs="$hi_tree/config/packages"
-  # a fixed list is common/flags' <flag>=<word> rows; --remove-color takes
-  # --add-color's
-  key="${2:-}"
-  [ "$key" != --remove-color ] || key=--add-color
+  # a fixed list is common/flags' <flag>=<word> rows
   while IFS='|' read -r flag help; do
-    case "$flag" in "$key="?*) printf '%s\t%s\n' "${flag#*=}" "$help" ;; esac
+    case "$flag" in "${2:-}="?*) printf '%s\t%s\n' "${flag#*=}" "$help" ;; esac
   done <"$hi_tree/common/flags"
   case "${2:-}" in
   --update)
@@ -183,12 +173,6 @@ if [ "$kind" = words ]; then
     ;;
   --remove-tag)
     ssh_hosts 'an ssh host to untag'
-    ;;
-  --remove-package)
-    # each row's key, bare or quoted: its first package and the name remove matches on
-    [ -f "$pkgs" ] &&
-      sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$pkgs" |
-      while IFS= read -r line; do printf '%s\ta package check row\n' "$line"; done
     ;;
   --disable-plugin)
     # the plugins files read as text, since this file cannot source the
@@ -216,23 +200,6 @@ if [ "$kind" = words ]; then
       *) printf '%s\ta file of your overlay\n' "$line" ;;
       esac
     done
-    ;;
-  --add-package)
-    # the file's groups, add_package.sh's first argument: its tables, less
-    # the word that says what a table's rows are, each group once
-    [ -f "$pkgs" ] &&
-      sed -n 's/^[[:space:]]*\[\([^]]*\)\].*/\1/p' "$pkgs" | {
-        seen=" "
-        while IFS= read -r line; do
-          case "$line" in
-          required | unwanted) continue ;;
-          *.required | *.unwanted) line="${line%.*}" ;;
-          esac
-          case "$seen" in *" $line "*) continue ;; esac
-          seen="$seen$line "
-          printf '%s\ta package check group\n' "$line"
-        done
-      }
     ;;
   --use)
     printf 'ssh\tssh, no probing (a container of the same name loses)\n'

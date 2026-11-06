@@ -647,7 +647,7 @@ function test_h_flag_prints_the_same_usage() {
 
 # One row above the first group (always runs), then a group per case: core
 # and useful on (_HI_PREVIEW_GROUPS), deprecated holding every outcome of its
-# two tables, extras and platform off but still collected.
+# two marks, extras and platform off but still collected.
 function _hi_write_package_fixtures() {
   _hi_fake_path pkgbin hitop hialpha hibravo hicharlie hidelta hiecho hifoxtrot >/dev/null
 
@@ -662,12 +662,11 @@ highostalt = ["hibravo"]
 [useful]
 hibravo = []
 highost2 = []
-[deprecated.unwanted]
-hiecho = []
-highostgone = []
-[deprecated.required]
-hifoxtrot = []
-highostplus = []
+[deprecated]
+"-hiecho" = []
+"-highostgone" = []
+"+hifoxtrot" = []
+"+highostplus" = []
 [extras]
 hicharlie = []
 highost1 = []

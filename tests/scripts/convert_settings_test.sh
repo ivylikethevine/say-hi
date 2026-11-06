@@ -92,19 +92,18 @@ function test_packages_comments_travel_with_their_row() {
 
 # --- packages, sections to TOML ------------------------------------------------
 
-# a group's rows gather by kind, plain then required then unwanted, in file
-# order within one; a group of marked rows alone has no table of plain ones,
-# and a name TOML would not read bare is quoted
-function test_toml_packages_gather_a_group_by_kind() {
+# a group's rows stay in file order under its one table, a marked row's name
+# keeping its mark in double quotes, as a name TOML would not read bare is
+function test_toml_packages_keep_a_row_s_mark() {
   _hi_conv_is _hi_toml_packages '[a]\nbat,batcat,cat\n+sudo,doas\njq\n-exa\n+g++\n[b]\n+awk\n[c]\n' \
-    '[a]\nbat = ["batcat", "cat"]\njq = []\n\n[a.required]\nsudo = ["doas"]\n"g++" = []\n\n[a.unwanted]\nexa = []\n\n[b.required]\nawk = []\n\n[c]\n' || _hi_why
+    '[a]\nbat = ["batcat", "cat"]\n"+sudo" = ["doas"]\njq = []\n"-exa" = []\n"+g++" = []\n\n[b]\n"+awk" = []\n\n[c]\n' || _hi_why
 }
 
 # a group named twice is one table, and rows above the first group keep
-# their place on top, the marked ones under a table that names no group
+# their place on top, marked ones included
 function test_toml_packages_merge_a_group_named_twice() {
   _hi_conv_is _hi_toml_packages 'top\n-gone\n[a]\nx\n[b]\ny\n[a]\nz\n' \
-    'top = []\n\n[unwanted]\ngone = []\n\n[a]\nx = []\nz = []\n\n[b]\ny = []\n' || _hi_why
+    'top = []\n"-gone" = []\n\n[a]\nx = []\nz = []\n\n[b]\ny = []\n' || _hi_why
 }
 
 # the leading block stays on top, a comment above a group above its first
@@ -112,7 +111,26 @@ function test_toml_packages_merge_a_group_named_twice() {
 # is a comment
 function test_toml_packages_comments_travel() {
   _hi_conv_is _hi_toml_packages '# top\n# more\n\n# about a\n[a]\n+x\n# about y\ny\nz # inert\n\n# trailing\n' \
-    '# top\n# more\n\n# about a\n[a]\n# about y\ny = []\n\n[a.required]\nx = []\n\n# z # inert\n# trailing\n' || _hi_why
+    '# top\n# more\n\n# about a\n[a]\n"+x" = []\n# about y\ny = []\n\n# z # inert\n# trailing\n' || _hi_why
+}
+
+# --- packages, sub-tables to marked rows ---------------------------------------
+
+# a [group.required] or [group.unwanted] table's rows join [group] after its
+# own, each name taking its mark in double quotes, and a bare [required]
+# holds rows of no group, which go above the first table; comments and blank
+# lines travel with the row below, a row keeps what follows it, and a name
+# already marked keeps its one mark
+function test_marked_packages_fold_the_sub_tables() {
+  _hi_conv_is _hi_marked_packages '# top\nlone = []\n[a]\nx = []\n\n# need these\n[a.required]\n  "g++" = [] # c\nsudo = ["doas"]\n[required]\nz = []\n[b.unwanted]\n-y = []\n\n# tail\n' \
+    '# top\nlone = []\n"+z" = []\n\n[a]\nx = []\n\n# need these\n"+g++" = [] # c\n"+sudo" = ["doas"]\n\n[b]\n"-y" = []\n\n# tail\n' || _hi_why
+}
+
+# a sub-table ahead of its group's own table opens the group there, and the
+# group's later table adds to it
+function test_marked_packages_open_a_group_at_its_first_table() {
+  _hi_conv_is _hi_marked_packages '[b.unwanted]\nold = []\n[a]\nx = []\n[b]\nkeep = []\n' \
+    '[b]\n"-old" = []\nkeep = []\n\n[a]\nx = []\n' || _hi_why
 }
 
 # --- colors, sections to TOML --------------------------------------------------
@@ -342,7 +360,7 @@ function test_entry_converts_each_old_file() {
       _hi_because "$f: $out" || return 1
   done
   { grep -qx '\[core\]' "$dir/packages" && grep -qx 'bat = \["batcat"\]' "$dir/packages" &&
-    grep -qx '\[useful.required\]' "$dir/packages" && grep -qx 'sudo = \[\]' "$dir/packages" &&
+    grep -qx '"+sudo" = \[\]' "$dir/packages" && ! grep -q '\.required\]' "$dir/packages" &&
     grep -qx '\[hostname\]' "$dir/colors" && grep -q '^me  *= "blue 3ba55d"$' "$dir/colors" &&
     grep -qx "export _HI_PACKAGES_GROUPS='core deprecated'" "$dir/settings.sh" &&
     ! grep -q MIN_PRIORITY "$dir/settings.sh" && grep -qx 'export _HI_MAX_WIDTH=100' "$dir/settings.sh"; } || _hi_why dir
@@ -442,10 +460,22 @@ function test_entry_converts_the_sections() {
   [[ "$out" == *"converted $dir/packages to the current format"* && "$out" == *"converted $dir/colors to"* ]] &&
     grep -qx 'bat,batcat' "$dir/packages.old" && grep -qx '10.0.\* red' "$dir/colors.old" || _hi_why out dir || return 1
   got="$(cat "$dir/packages")"
-  got2="$(printf '# mine\n[core]\nbat = ["batcat"]\n\n[core.required]\nsudo = []')"
+  got2="$(printf '# mine\n[core]\nbat = ["batcat"]\n"+sudo" = []')"
   [ "$got" = "$got2" ] ||
     _hi_because "$got" || return 1
   grep -q '^"10.0.\*"  *= "red"$' "$dir/colors" || _hi_why dir
+}
+
+# a TOML file with a [group.required] table is converted in place, the
+# original kept as <file>.old
+function test_entry_converts_the_sub_tables() {
+  local dir="$_HI_WORKDIR/conv-tables" out got
+  mkdir -p "$dir"
+  printf '[core]\nbat = ["batcat"]\n[core.required]\nsudo = []\n' >"$dir/packages"
+  out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
+  got="$(cat "$dir/packages")"
+  [[ "$out" == *"converted $dir/packages to the current format"* ]] && grep -qx '\[core.required\]' "$dir/packages.old" &&
+    [ "$got" = $'[core]\nbat = ["batcat"]\n"+sudo" = []' ] || _hi_why out got dir
 }
 
 # files already in the current shape, or absent, are left alone, whatever
@@ -453,7 +483,7 @@ function test_entry_converts_the_sections() {
 function test_entry_leaves_current_files_alone() {
   local dir="$_HI_WORKDIR/conv-current" out
   mkdir -p "$dir"
-  printf '# bat:3\n[core]\nbat = ["batcat"] # was bat,batcat\n\n[core.required]\n  "g++" = []\n' >"$dir/packages"
+  printf '# bat:3\n[core]\nbat = ["batcat"] # was bat,batcat\n\n  "+g++" = []\n' >"$dir/packages"
   printf '# hostname,box,red\n[hostname]\nbox = "red"\n' >"$dir/colors"
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
   [ -z "$out" ] && [ ! -e "$dir/packages.old" ] && [ ! -e "$dir/colors.old" ] &&
@@ -522,7 +552,8 @@ function test_entry_help_and_unknown_option() {
 # config/packages and config/colors as the last release in each old shape
 # shipped them, kept verbatim beside this suite so the cases never depend on
 # how much history a checkout carries: the first shape's under their own
-# names, the sections' as <name>.sections
+# names, the sections' as <name>.sections, and the sub-tables' packages as
+# packages.tables
 _HI_CONV_OLD="$_HI_ROOT/tests/scripts/convert_settings"
 
 # the old shipped config/packages converts into a file full_check reads
@@ -539,10 +570,10 @@ function test_shipped_old_packages_convert_and_parse() {
 }
 
 # the sections' shipped config/packages converts into the rows it held: as
-# many, every first name a key, and each marked row under its kind's table
+# many, every first name a key, and each marked row keeping its mark
 function test_shipped_sections_packages_convert_whole() {
   local old="$_HI_CONV_OLD/packages.sections" new="$_HI_WORKDIR/shipped.packages.toml"
-  local line group="" mark="" name="" alts="" got want
+  local line group="" name="" alts="" got want
   _hi_var_is sections _hi_data_shape "$old" "$_HI_FLAT_PACKAGES" || return 1
   _hi_toml_packages <"$old" >"$new"
   _hi_var_is toml _hi_data_shape "$new" "$_HI_FLAT_PACKAGES" || return 1
@@ -550,9 +581,38 @@ function test_shipped_sections_packages_convert_whole() {
   want="$(awk '/#/ || /^$/ { next } /^\[/ { g = substr($0, 2, length($0) - 2); next } { print g, $0 }' "$old" | sort)"
   got="$(
     while IFS= read -r line; do
-      _hi_package_table "$line" group mark && continue
+      _hi_package_table "$line" group && continue
       _hi_toml_row "$line" name alts || continue
-      printf '%s %s\n' "$group" "$mark$name${alts:+,$alts}"
+      printf '%s %s\n' "$group" "$name${alts:+,$alts}"
+    done <"$new" | sort
+  )"
+  [ -n "$want" ] && [ "$got" = "$want" ] || _hi_because "$(diff <(printf '%s\n' "$want") <(printf '%s\n' "$got"))"
+}
+
+# the sub-tables' shipped config/packages folds into the rows it held: as
+# many, in the same groups, each row of a .required or .unwanted table marked
+# + or -
+function test_shipped_tables_packages_convert_whole() {
+  local old="$_HI_CONV_OLD/packages.tables" new="$_HI_WORKDIR/shipped.packages.marked"
+  local line group="" name="" alts="" got want
+  _hi_var_is tables _hi_data_shape "$old" "$_HI_FLAT_PACKAGES" || return 1
+  _hi_marked_packages <"$old" >"$new"
+  _hi_var_is toml _hi_data_shape "$new" "$_HI_FLAT_PACKAGES" || return 1
+  # both as "<group> <marker><name>,<alternatives>" lines, sorted
+  want="$(awk '
+    /^#/ || /^$/ { next }
+    /^\[/ {
+      g = substr($0, 2, length($0) - 2); m = ""
+      if (sub(/\.required$/, "", g)) m = "+"; else if (sub(/\.unwanted$/, "", g)) m = "-"
+      next
+    }
+    { k = $1; gsub(/"/, "", k); v = $0; sub(/^[^=]*=[ \t]*\[/, "", v); sub(/\].*/, "", v); gsub(/[" \t]/, "", v); print g, m k (v != "" ? "," v : "") }
+  ' "$old" | sort)"
+  got="$(
+    while IFS= read -r line; do
+      _hi_package_table "$line" group && continue
+      _hi_toml_row "$line" name alts || continue
+      printf '%s %s\n' "$group" "$name${alts:+,$alts}"
     done <"$new" | sort
   )"
   [ -n "$want" ] && [ "$got" = "$want" ] || _hi_because "$(diff <(printf '%s\n' "$want") <(printf '%s\n' "$got"))"
@@ -611,10 +671,14 @@ function run_convert_settings_tests() {
   _hi_check "Comments travel with the row below" test_packages_comments_travel_with_their_row
 
   _hi_h2 "Testing: _hi_toml_packages and _hi_toml_colors"
-  _hi_check "A group's rows gather by kind" test_toml_packages_gather_a_group_by_kind
+  _hi_check "A marked row keeps its mark, in file order" test_toml_packages_keep_a_row_s_mark
   _hi_check "A group named twice is one table" test_toml_packages_merge_a_group_named_twice
   _hi_check "Comments travel with the row or the group below" test_toml_packages_comments_travel
   _hi_check "A colors row is its name and a string" test_toml_colors_rows_become_strings
+
+  _hi_h2 "Testing: _hi_marked_packages"
+  _hi_check "The sub-tables fold into their groups, marked" test_marked_packages_fold_the_sub_tables
+  _hi_check "A group opens at its first table" test_marked_packages_open_a_group_at_its_first_table
 
   _hi_h2 "Testing: _hi_convert_colors"
   _hi_check "Types in first-appearance order, rows in file order" test_colors_group_rows_by_type_in_order
@@ -645,6 +709,7 @@ function run_convert_settings_tests() {
   _hi_check "--dry-run writes nothing" test_entry_dry_run_writes_nothing
   _hi_check "A second run is a no-op" test_entry_is_idempotent
   _hi_check "The rows under [section] lines are converted too" test_entry_converts_the_sections
+  _hi_check "The sub-tables are converted too" test_entry_converts_the_sub_tables
   _hi_check "Current or absent files are left alone" test_entry_leaves_current_files_alone
   _hi_check "...and so is a TOML file with a line hi does not read" test_entry_leaves_a_toml_file_with_an_unread_line_alone
   _hi_check "A settings.sh is the shape its line says" test_entry_reads_the_settings_shape_line
@@ -655,6 +720,7 @@ function run_convert_settings_tests() {
   _hi_check "config/packages converts and parses" test_shipped_old_packages_convert_and_parse
   _hi_check "config/colors converts and resolves the same" test_shipped_old_colors_convert_and_resolve
   _hi_check "The sections' config/packages converts whole" test_shipped_sections_packages_convert_whole
+  _hi_check "The sub-tables' config/packages converts whole" test_shipped_tables_packages_convert_whole
   _hi_check "...and their config/colors" test_shipped_sections_colors_convert_whole
 
   _hi_suite_end "scripts/convert_settings.sh"

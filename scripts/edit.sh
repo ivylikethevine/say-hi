@@ -3,9 +3,8 @@
 # the whole directory, or one file of it by its path there - the way
 # `chezmoi edit` opens its source. A file of hi's own that is not there yet
 # is made first: plugins from the key reference at the top of config/plugins,
-# colors and packages as copies of the tree's (what --add-color and
-# --add-package do on their first write), settings.sh as --configure starts
-# one; any other gets its directory and the editor makes the file on save.
+# colors and packages as copies of the tree's, settings.sh as --configure
+# starts one; any other gets its directory and the editor makes the file on save.
 # The editor is $VISUAL, else $EDITOR, else $_HI_EDITOR, else the first of
 # $_HI_EDITORS on PATH. add_tag.sh's shape: HI.33 the standalone entry.
 

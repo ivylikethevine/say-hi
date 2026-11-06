@@ -81,11 +81,9 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:packaging:packaging/packaging_test.sh"
     "fast:hi_container:hi/container_test.sh"
     "fast:git_prompt:common/git_prompt_test.sh"
-    "fast:add_package:scripts/add_package_test.sh"
     "fast:hi_remote:hi/remote_test.sh"
     "fast:env_prompt:common/env_prompt_test.sh"
     "fast:add_tag:scripts/add_tag_test.sh"
-    "fast:set_color:scripts/set_color_test.sh"
     "fast:plugins:scripts/plugins_test.sh"
     "fast:edit:scripts/edit_test.sh"
     "fast:convert_settings:scripts/convert_settings_test.sh"
@@ -159,10 +157,10 @@ _HI_TEST_COSTS_KCOV="
   targets:10 doctor_json:9 alias_fallthrough:7 install_run:7 test_runner_ci:7
   doctor_report:6 packaging_ci_scripts:6 test_lib_par:6 update:6 header:5
   hi_cache:5 hi_keep:4 packaging_ci_mkpkg:4 rc_lines:4 test_lib_report:4
-  add_package:3 aliases:3 configure:3 hi_help:3 hi_payload:3
+  aliases:3 configure:3 hi_help:3 hi_payload:3
   packaging_ci_release:3 preview:3 add_tag:2 bench:2 core_identity:2 drift:2 edit:2
   drift_docs:2 hi:2 hi_container:2 load:2 packaging:2
-  packaging_ci_workflows:2 preview_packages:2 set_color:2 convert_settings:1
+  packaging_ci_workflows:2 preview_packages:2 convert_settings:1
   core:1 core_target:1 doctor:1 exports:1 git_prompt:1 header_bare:1
   header_check:1 header_whole:1 hi_helpers:1 hi_prompt:1 hi_remote:1
   install:1 packaging_ci:1 paths:1 targets_complete:1 tools:1 env_prompt:0
@@ -172,7 +170,7 @@ _HI_TEST_COSTS_BASHCOV="
   ssh_keep:323 framework:227 hi_payload_scan:181 kube:122
   hi_payload_overlay:107 doctor_config:106 ssh:100 doctor_target:93
   ssh_relay:80 hi_payload_home:79 configure_wizard:75 install_location:71
-  podman:59 add_package:58 set_color:58 plugins:50 update:46 test_lib:45
+  podman:59 plugins:50 update:46 test_lib:45
   rc:44 add_tag:43 dialects:43 load_session:43 ssh_disconnect:43
   test_runner:43 install_run:39 docker:38 doctor_json:38 hi_payload:35
   home_prompt:35 rc_prompt:34 hi_cache:31 targets:31 install_methods:30
@@ -195,7 +193,7 @@ _HI_TEST_COSTS_GITBASH="
   targets:84 hi_payload_home:79 rc_prompt:73 install_run:70 hi_cache:69
   doctor_report:60 hi_help:58 preview:52 configure:51 hi_payload:50
   test_lib_report:48 convert_settings:47 test_lib:47 hi_keep:46 header:45
-  add_package:43 header_whole:43 packaging:42 set_color:40 doctor:37
+  header_whole:43 packaging:42 doctor:37
   add_tag:36 install_location:36 targets_complete:35 rc:31 hi:26
   test_lib_par:25 load:24 git_prompt:23 aliases:22 header_bare:22
   preview_packages:22 hi_remote:20 paths:18 install:16 core_identity:15

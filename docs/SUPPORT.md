@@ -63,8 +63,8 @@ permanent - it is the argument to beat.
   moot, gets the pair read as one decision without new machinery.
 - **Renaming a user's overlay files for them in `hi --update`.** hi writes
   into `~/.config/say-hi/` only what the user asked it to write, by name, on
-  the command line (`settings.sh`, `hi --add-package`'s `packages`,
-  `hi --add-color`'s `colors`), plus the conversion of a file in a shape hi
+  the command line (`settings.sh`, and the `packages`, `colors` or `plugins`
+  `hi --edit` makes), plus the conversion of a file in a shape hi
   cannot read, which keeps the original as `<file>.old`; a rename is neither.
   The doctor row prints the exact `mv`, which is the same outcome with no new
   write.

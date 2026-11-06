@@ -73,8 +73,8 @@ $cfg/plugins" ] || _hi_why got || return 1
 files = "x"' ] || _hi_why out got
 }
 
-# colors and packages start as copies of the tree's, as --add-color and
-# --add-package make them; settings.sh as --configure starts one
+# colors and packages start as copies of the tree's; settings.sh as
+# --configure starts one
 function test_edit_makes_hi_s_other_files_as_their_commands_do() {
   local cfg out n got want
   cfg="$_HI_WORKDIR/own-cfg"

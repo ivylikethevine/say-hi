@@ -1058,12 +1058,12 @@ function hi_footer() {
   fi
 }
 
-# The package check reads config/packages as `[group]` sections of rows.
+# The package check reads config/packages as `[group]` tables of rows.
 # $_HI_PACKAGES_GROUPS names the groups that run (space- or comma-separated,
 # `none` for none); unset is $_HI_PACKAGES_GROUPS_DEFAULT. Rows above the first
 # `[group]` line always run. A row lists alternatives in order of preference,
-# and the first one installed is the one shown. One leading character sets
-# what the row is for:
+# and the first one installed is the one shown. One character leading the
+# row's name sets what the row is for:
 #   (none)  wanted: installed and missing both show
 #   `-`     unwanted: silent while absent, a warning when installed
 #   `+`     required: silent while installed, an alarm when missing
@@ -1225,7 +1225,7 @@ function _hi_check_close() {
 # that are off.
 function full_check() {
   local width_item max cell vislen piece i pkg_start close=1 line rank rec us=$'\x1f'
-  local on=1 tier=1 group mark="" name alts
+  local on=1 tier=1 group name alts
   _hi_draw_width max
   # $_HI_DISABLE_RIGHT_EDGE reaches this loop too, now - one column reserved,
   # not _hi_row_line's two, since every piece below already carries its own
@@ -1261,7 +1261,7 @@ function full_check() {
     case "$line" in
     '' | '#'*) continue ;;
     '['*)
-      if _hi_package_table "$line" group mark; then
+      if _hi_package_table "$line" group; then
         on=0
         [ -n "$group" ] && ! _hi_group_on "$group" || on=1
         _hi_group_tier tier "$group"
@@ -1271,7 +1271,7 @@ function full_check() {
     esac
     # a group that is off is skipped before its rows are read: each is a
     # PATH walk per alternative
-    ((on)) && _hi_toml_row "$line" name alts && check_line visible "$mark$name${alts:+,$alts}" "$tier"
+    ((on)) && _hi_toml_row "$line" name alts && check_line visible "$name${alts:+,$alts}" "$tier"
   done <"$_HI_PACKAGES"
   # highest rank first, file order within one: a pass per rank, not a fork
   for ((rank = 4; rank >= 0; rank--)); do

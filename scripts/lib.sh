@@ -48,9 +48,9 @@ function _hi_missing_into() {
 }
 
 # dry_run_say <what> - under --dry-run ($_HI_DRY_RUN: install.sh's flag, and
-# add_package.sh's), say what would happen and succeed, so the caller returns
-# before it writes; otherwise fail quietly and the caller carries on. Every
-# writer either of them reaches opens with one of these.
+# the editing scripts'), say what would happen and succeed, so the caller
+# returns before it writes; otherwise fail quietly and the caller carries on.
+# Every writer they reach opens with one of these.
 function dry_run_say() {
   [ -n "${_HI_DRY_RUN:-}" ] || return 1
   _hi_cecho " dry run: would $1" "$BLUE"
@@ -59,8 +59,8 @@ function dry_run_say() {
 
 # _hi_args <help-fn> <usage> <word>... - a script's own words: -h/--help runs
 # <help-fn> and exits, -n/--dry-run sets $_HI_DRY_RUN, any other --word is
-# refused naming <usage>, and the rest (a lone - word among them: a package's
-# unwanted mark) land in the caller's args array, in order
+# refused naming <usage>, and the rest land in the caller's args array, in
+# order
 function _hi_args() {
   local _hi_ag_help="$1" _hi_ag_usage="$2"
   shift 2
@@ -93,92 +93,13 @@ function _hi_write_back() {
   return "$rc"
 }
 
-# The TOML files (config/packages, config/colors) as the editing scripts hold
-# them: a global `_hi_rows` array of lines, one per file line.
-
-# _hi_toml_table <outvar> <line> - the name a `[table]` line gives, or 1
-function _hi_toml_table() {
-  local _hi_tt="${2#"${2%%[![:space:]]*}"}"
-  case "$_hi_tt" in '['*']'*) ;; *) return 1 ;; esac
-  _hi_tt="${_hi_tt#\[}"
-  printf -v "$1" '%s' "${_hi_tt%%\]*}"
-}
-
-# _hi_toml_key <outvar> <name> - <name> as a key: bare where TOML reads it
-# bare, in double quotes otherwise
-function _hi_toml_key() {
-  case "$2" in
-  '' | *[!A-Za-z0-9_-]*) printf -v "$1" '"%s"' "$2" ;;
-  *) printf -v "$1" '%s' "$2" ;;
-  esac
-}
-
-# _hi_section_of <outvar> <index> - the table the line at <index> of `_hi_rows`
-# sits in: the nearest `[...]` line above it, empty above the first
-function _hi_section_of() {
-  local _hi_so_i
-  printf -v "$1" '%s' ''
-  for ((_hi_so_i = $2; _hi_so_i >= 0; _hi_so_i--)); do
-    ! _hi_toml_table "$1" "${_hi_rows[_hi_so_i]}" || return 0
-  done
-}
-
-# _hi_section_add <table> <row> - <row> into `_hi_rows` after <table>'s last
-# row, or under a new `[<table>]` when the file has none: after the last row
-# of the tables of its group (`core` for `core.required`), else at the end
-function _hi_section_add() {
-  local _hi_sa_i _hi_sa_in=0 _hi_sa_at=-1 _hi_sa_by=-1 _hi_sa_t
-  for ((_hi_sa_i = 0; _hi_sa_i < ${#_hi_rows[@]}; _hi_sa_i++)); do
-    if _hi_toml_table _hi_sa_t "${_hi_rows[_hi_sa_i]}"; then
-      _hi_sa_in=0
-      case "$_hi_sa_t" in
-      "$1") _hi_sa_in=1 _hi_sa_at=$((_hi_sa_i + 1)) ;;
-      "${1%.*}" | "${1%.*}".*) _hi_sa_in=2 _hi_sa_by=$((_hi_sa_i + 1)) ;;
-      esac
-      continue
-    fi
-    case "${_hi_rows[_hi_sa_i]}" in
-    '' | '#'*) ;;
-    *)
-      case "$_hi_sa_in" in
-      1) _hi_sa_at=$((_hi_sa_i + 1)) ;;
-      2) _hi_sa_by=$((_hi_sa_i + 1)) ;;
-      esac
-      ;;
-    esac
-  done
-  if [ "$_hi_sa_at" -ge 0 ]; then
-    _hi_rows=("${_hi_rows[@]:0:_hi_sa_at}" "$2" "${_hi_rows[@]:_hi_sa_at}")
-  elif [ "$_hi_sa_by" -ge 0 ]; then
-    # a blank line either side, where a line follows that is not one
-    _hi_sa_t="$2"
-    [ -z "${_hi_rows[_hi_sa_by]:-}" ] || _hi_sa_t="$2"$'\n'
-    _hi_rows=("${_hi_rows[@]:0:_hi_sa_by}" "" "[$1]" "$_hi_sa_t" "${_hi_rows[@]:_hi_sa_by}")
-  else
-    [ "${#_hi_rows[@]}" -eq 0 ] || [ -z "${_hi_rows[${#_hi_rows[@]} - 1]}" ] || _hi_rows+=("")
-    _hi_rows+=("[$1]" "$2")
-  fi
-}
+# A file as the editing scripts hold it: a global `_hi_rows` array of lines,
+# one per file line.
 
 # _hi_rows_read <file> - <file>'s lines as `_hi_rows`, none when it is absent
 function _hi_rows_read() {
   _hi_rows=()
   [ ! -f "$1" ] || _hi_read_lines _hi_rows <"$1"
-}
-
-# _hi_rows_index <outvar> <key> [table] - the index in `_hi_rows` of the row
-# keyed <key>, in [<table>] when one is named, or -1
-function _hi_rows_index() {
-  local _hi_ri_i _hi_ri_k _hi_ri_v _hi_ri_t
-  for ((_hi_ri_i = 0; _hi_ri_i < ${#_hi_rows[@]}; _hi_ri_i++)); do
-    _hi_toml_row "${_hi_rows[_hi_ri_i]}" _hi_ri_k _hi_ri_v || continue
-    [ "$_hi_ri_k" = "$2" ] || continue
-    _hi_section_of _hi_ri_t "$_hi_ri_i"
-    [ -z "${3:-}" ] || [ "$_hi_ri_t" = "$3" ] || continue
-    printf -v "$1" '%s' "$_hi_ri_i"
-    return 0
-  done
-  printf -v "$1" '%s' -1
 }
 
 # _hi_rows_write <dst> [read-from] - `_hi_rows` as <dst>, or under --dry-run
@@ -204,23 +125,30 @@ _HI_OLD_TOGGLES='EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ'
 
 # _hi_data_shape <outvar> <file> <flat rows' pattern> - which hi wrote the
 # rows of a packages or colors file: `toml`, this one, also of a file with no
-# rows; `sections` for bare rows under `[section]` lines; `flat` for the rows
-# before those, which <flat rows' pattern> matches. Empty for no file. One
-# TOML row makes the file this hi's, whatever else it holds: no older shape
-# had one, and a converter would take every row of it for a name.
+# rows; `tables` for TOML rows under `[group.required]` or `[group.unwanted]`
+# tables, where a mark on each row's name now says what the row is for;
+# `sections` for bare rows under `[section]` lines; `flat` for the rows before
+# those, which <flat rows' pattern> matches. Empty for no file. One TOML row
+# makes the file a TOML one, whatever else it holds: no older shape had one,
+# and a converter would take every row of it for a name.
 function _hi_data_shape() {
-  local _hi_ds_l _hi_ds_k _hi_ds_v _hi_ds_heads=0 _hi_ds_old=0 _hi_ds_new=0
+  local _hi_ds_l _hi_ds_k _hi_ds_v _hi_ds_heads=0 _hi_ds_old=0 _hi_ds_new=0 _hi_ds_sub=0
   printf -v "$1" '%s' ''
   [ -f "$2" ] || return 0
   while IFS= read -r _hi_ds_l || [ -n "$_hi_ds_l" ]; do
     _hi_ds_l="${_hi_ds_l#"${_hi_ds_l%%[![:space:]]*}"}"
     case "$_hi_ds_l" in
     '' | '#'*) ;;
-    '['*']'*) _hi_ds_heads=1 ;;
+    '['*']'*)
+      _hi_ds_heads=1
+      case "${_hi_ds_l%%\]*}" in '[required' | '[unwanted' | *.required | *.unwanted) _hi_ds_sub=1 ;; esac
+      ;;
     *) if _hi_toml_row "$_hi_ds_l" _hi_ds_k _hi_ds_v; then _hi_ds_new=1; else _hi_ds_old=1; fi ;;
     esac
   done <"$2"
-  if ((_hi_ds_new)) || ! ((_hi_ds_old)); then
+  if ((_hi_ds_new && _hi_ds_sub)); then
+    printf -v "$1" tables
+  elif ((_hi_ds_new)) || ! ((_hi_ds_old)); then
     printf -v "$1" toml
   elif ! ((_hi_ds_heads)) && grep -Eq "$3" "$2"; then
     printf -v "$1" flat
@@ -270,18 +198,19 @@ function _hi_toml_strays() {
 # _hi_package_groups <outvar> - the groups $_HI_PACKAGES holds, in file
 # order, space-separated, each once
 function _hi_package_groups() {
-  local _hi_pg_l _hi_pg_g _hi_pg_m _hi_pg_all=""
+  local _hi_pg_l _hi_pg_g _hi_pg_all=""
   [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r _hi_pg_l; do
-    _hi_package_table "$_hi_pg_l" _hi_pg_g _hi_pg_m && [ -n "$_hi_pg_g" ] || continue
+    _hi_package_table "$_hi_pg_l" _hi_pg_g && [ -n "$_hi_pg_g" ] || continue
     case " $_hi_pg_all " in *" $_hi_pg_g "*) ;; *) _hi_pg_all="$_hi_pg_all${_hi_pg_all:+ }$_hi_pg_g" ;; esac
   done <"$_HI_PACKAGES"
   printf -v "$1" '%s' "$_hi_pg_all"
 }
 
 # _hi_packages_drift <file> <tree's> - what a packages file of the user's own
-# gets wrong unseen, a `<severity>|<sentence>` line each: a row with a name
-# led by - or +, which is part of a name nothing matches (a table says what
-# its rows are), and a line that is no row, which is never checked, then the
+# gets wrong unseen, a `<severity>|<sentence>` line each: a row with an
+# alternative led by - or +, which is part of a name nothing matches (only the
+# row's own name takes a mark), and a line that is no row, which is never
+# checked, then the
 # groups the tree's has and <file> lacks, since a copy replaces the tree's and
 # never gains one added later
 function _hi_packages_drift() {
@@ -289,11 +218,11 @@ function _hi_packages_drift() {
   [ -f "$1" ] || return 0
   while IFS= read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
     _hi_pd_l="${_hi_pd_l#"${_hi_pd_l%%[![:space:]]*}"}"
-    if _hi_package_table "$_hi_pd_l" _hi_pd_g _hi_pd_k; then
+    if _hi_package_table "$_hi_pd_l" _hi_pd_g; then
       _hi_pd_have="$_hi_pd_have$_hi_pd_g "
     elif _hi_toml_row "$_hi_pd_l" _hi_pd_k _hi_pd_v; then
-      case ",$_hi_pd_k,$_hi_pd_v" in *,[-+]*)
-        printf 'warn|the row %s never matches: a - or + leading a name is read as part of that name\n' "$_hi_pd_k${_hi_pd_v:+,$_hi_pd_v}"
+      case ",$_hi_pd_v" in *,[-+]*)
+        printf 'warn|the row %s never matches: a - or + leading an alternative is read as part of its name\n' "$_hi_pd_k${_hi_pd_v:+,$_hi_pd_v}"
         ;;
       esac
     else
@@ -305,7 +234,7 @@ function _hi_packages_drift() {
   done <"$1"
   [ "$1" != "$2" ] && [ -f "$2" ] || return 0
   while IFS= read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
-    _hi_package_table "$_hi_pd_l" _hi_pd_g _hi_pd_k || continue
+    _hi_package_table "$_hi_pd_l" _hi_pd_g || continue
     ! _hi_list_has "$_hi_pd_have" "$_hi_pd_g" || continue
     _hi_pd_have="$_hi_pd_have$_hi_pd_g " _hi_pd_lack="$_hi_pd_lack${_hi_pd_lack:+, }$_hi_pd_g"
   done <"$2"

@@ -147,8 +147,8 @@ step: it rides only from here, never found at home
 | --------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `~/.config/say-hi/settings.sh`          | -                 | what `hi --configure` writes; no in-tree counterpart                                                                                                                                                           |
 | `~/.config/say-hi/settings.<tag>.sh`    | -                 | settings for the hosts carrying that `# Tags:` or `Tag` value, over `settings.sh`; read here and sent joined to it, never as itself; see [below](#settings-by-host-tag)                                        |
-| `~/.config/say-hi/colors`               | `config/colors`   | your color pins; `hi --add-color` copies the tree's in before its first write ([COLORS.md](COLORS.md))                                                                                                         |
-| `~/.config/say-hi/packages`             | `config/packages` | what the package check looks for; `hi --add-package` copies the tree's in before its first write ([COLORS.md](COLORS.md#the-package-checks-rows))                                                              |
+| `~/.config/say-hi/colors`               | `config/colors`   | your color pins; `hi --edit colors` starts it as a copy of the tree's ([COLORS.md](COLORS.md))                                                                                                                 |
+| `~/.config/say-hi/packages`             | `config/packages` | what the package check looks for; `hi --edit packages` starts it as a copy of the tree's ([COLORS.md](COLORS.md#the-package-checks-rows))                                                                      |
 | `~/.config/say-hi/vim/vimrc`            | -                 | your vim config for the `vim` alias and `$VIMINIT`; only needed when it should differ from your `~/.vimrc`, which hi carries anyway ([below](#the-editor-rcs-come-from-where-you-keep-them))                   |
 | `~/.config/say-hi/nvim/init.lua`        | -                 | the same for neovim - the `nvim` alias - over your `~/.config/nvim/init.lua`; an `nvim/init.vim` is read the same way, and the modules either requires from the `lua/` beside it ride too                      |
 | `~/.config/say-hi/helix/config.toml`    | -                 | the same for the `hx` or `helix` alias (`-c`), over your `~/.config/helix/config.toml`                                                                                                                         |
@@ -191,9 +191,8 @@ mkdir -p ~/.config/say-hi
 cp "$_HI_ROOT/config/colors" ~/.config/say-hi/colors
 ```
 
-`hi --add-package core bat,batcat` does that copy for the package check, then
-adds the row; `hi --add-color hostname bastion yellow` does it for `colors`,
-then adds the pin.
+`hi --edit colors` and `hi --edit packages` make that copy and open it in
+your editor.
 
 A copy stops tracking what `hi --update` delivers for that file; delete it to
 track the tree's again, and `hi --doctor` names which of the two is in force. A
@@ -243,7 +242,7 @@ until you copy one into the overlay, and rides in the tree's place as your
 copy would; a site `plugins` adds to the tree's and a plugin of yours of the
 same name replaces it. `hi --doctor` names the tier, and its files table
 says which tier each file came from. No package ships anything there, and
-`hi --configure`, `--add-color`, and `--add-package` write the overlay alone.
+`hi --configure` and `hi --edit` write the overlay alone.
 A target never reads its own site directory: what rode is what applies.
 
 ## Every setting
@@ -834,8 +833,8 @@ number, boolean, date, dotted key (`a.b = ...`), single-quoted string, or
 escape inside a string (a `\` is a backslash, and the first `"` ends the
 string). Which headers and rows each file takes is its own: `colors` has
 `[type]` and `name = "color [rrggbb]"` ([COLORS.md](COLORS.md)); `packages`
-has `[group]`, `[group.required]`, `[group.unwanted]`, and
-`name = ["alternative", ...]`
+has `[group]` and `name = ["alternative", ...]`, the name led by `+` or `-`
+in double quotes for a required or an unwanted row
 ([COLORS.md](COLORS.md#the-package-checks-rows)); `plugins` has
 `[group.name]`, `[group.name."member"]`, and the keys
 [above](#a-tool-hi-does-not-know). A line outside the subset is skipped

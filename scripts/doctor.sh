@@ -634,6 +634,7 @@ function doctor_settings_values() {
   case "$v" in
   flat) doctor_row packages "$_HI_PACKAGES has name:priority rows, which this hi reads none of - hi --configure converts it" bad ;;
   sections) doctor_row packages "$_HI_PACKAGES has rows that are not TOML's name = [...], which this hi does not read - hi --configure converts it" bad ;;
+  tables) doctor_row packages "$_HI_PACKAGES has [group.required] or [group.unwanted] tables, which this hi reads as groups of those names - a \"+name\" or \"-name\" row says it now, and hi --configure converts it" bad ;;
   *)
     while IFS='|' read -r v why; do
       doctor_row packages "$why" "$v"

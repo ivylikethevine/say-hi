@@ -2,8 +2,8 @@
 # Unit tests for scripts/add_tag.sh - `hi --add-tag`, which writes the
 # `# Tags:` comment above a host's Host line in ~/.ssh/config.
 #
-# Driven through `hi.sh --add-tag`, as add_package_test.sh drives its
-# command, so the common/flags row and the dispatch are covered with it. Each
+# Driven through `hi.sh --add-tag`, as plugins_test.sh drives its
+# commands, so the common/flags row and the dispatch are covered with it. Each
 # case gets its own $HOME, and so its own ~/.ssh/config.
 #
 # GLOSSARY: HI.34.

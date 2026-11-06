@@ -159,7 +159,7 @@ function writeUsage(text) {
       // `-#<anchor>`: no image, the tour's story at <anchor> instead
       if (example.startsWith("-#")) {
         out.push(
-          `It changes how a connect runs, which [the tour's story](TOUR.md${example.slice(1)}) shows.`,
+          `It changes how a connect runs, which [the tour's story](GETTING-STARTED.md${example.slice(1)}) shows.`,
           "",
         );
         return;

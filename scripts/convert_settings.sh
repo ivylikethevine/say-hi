@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Rewrites overlay files still in a shape this hi no longer reads, in place,
 # keeping each original beside it as <file>.old:
-#   packages     "[-|+]name:N,..." rows, or "[-|+]name,..." rows under
-#                [group] lines -> TOML tables of name = [...] rows
+#   packages     "[-|+]name:N,..." rows, "[-|+]name,..." rows under
+#                [group] lines, or TOML [group.required] and
+#                [group.unwanted] tables -> a TOML table per group of
+#                name = [...] rows, "+name" and "-name" for the marked ones
 #   colors       "type,name,color[,rrggbb]" rows, or "name color [rrggbb]"
 #                rows under [type] lines -> TOML tables of name = "..." rows
 #   carry        "member | tool | wire | home" lines -> plugins, a
@@ -22,7 +24,7 @@
 # line says (lib.sh's $_HI_SETTINGS_SHAPE): with none it is shape 0, and
 # the rows above say whether it converts; one of a shape this hi does not
 # read is said and left alone. scripts/install.sh (--install, --configure) and scripts/update.sh
-# run it; add_package.sh's shape: HI.33 the standalone entry, HI.09 the
+# run it; add_tag.sh's shape: HI.33 the standalone entry, HI.09 the
 # commit step.
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
@@ -127,25 +129,15 @@ function _hi_convert_colors() {
 }
 
 # _hi_toml_packages - stdin's `[group]` sections of "[-|+]name,..." rows as
-# TOML on stdout: a group's plain rows under `[group]`, its + rows under
-# `[group.required]`, its - rows under `[group.unwanted]`, each
-# `name = ["alternative", ...]`. A table is written once, so a group's rows
-# gather by kind, in file order within one. A line holding a #, which nothing
-# read, is a comment; comments travel with the row or the group below them.
+# TOML on stdout: a `[group]` table each, written once, of
+# `name = ["alternative", ...]` rows in file order, a marked row's name with
+# its mark in double quotes. A line holding a #, which nothing read, is a
+# comment; comments travel with the row or the group below them.
 function _hi_toml_packages() {
   awk '
-    function key(n) { return (n ~ /^[A-Za-z0-9_-]+$/) ? n : "\"" n "\"" }
+    function key(n) { return (n ~ /^[A-Za-z0-9_][A-Za-z0-9_-]*$/) ? n : "\"" n "\"" }
     function group(g) {
       if (!(g in known)) { known[g] = 1; order[++ng] = g }
-    }
-    function table(g, k) {
-      if (body[g, k] == "" && (k != "" || body[g, "required"] body[g, "unwanted"] != "")) return
-      if (g k != "") {
-        printf "%s%s[%s%s%s]\n", (out ? "\n" : ""), above[g], g, (g != "" && k != "" ? "." : ""), k
-        above[g] = ""
-      }
-      printf "%s", body[g, k]
-      out = 1
     }
     /^[ \t]*$/ {
       if (!seen) { head = head pend "\n"; pend = "" }
@@ -167,14 +159,11 @@ function _hi_toml_packages() {
       seen = 1
       line = $0
       gsub(/[ \t]/, "", line)
-      m = substr(line, 1, 1)
-      k = (m == "+") ? "required" : (m == "-") ? "unwanted" : ""
-      if (k != "") line = substr(line, 2)
       n = split(line, alt, ",")
       row = ""
       for (i = 2; i <= n; i++) row = row (i > 2 ? ", " : "") "\"" alt[i] "\""
       group(g)
-      body[g, k] = body[g, k] pend key(alt[1]) " = [" row "]\n"
+      body[g] = body[g] pend key(alt[1]) " = [" row "]\n"
       pend = ""
     }
     END {
@@ -183,11 +172,73 @@ function _hi_toml_packages() {
       printf "%s", head
       out = (head != "")
       for (j = 1; j <= ng; j++) {
-        table(order[j], "")
-        table(order[j], "required")
-        table(order[j], "unwanted")
+        g = order[j]
+        if (g != "") printf "%s%s[%s]\n", (out ? "\n" : ""), above[g], g
+        printf "%s", body[g]
+        out = 1
       }
       if (pend != "") printf "%s%s", (out ? "\n" : ""), pend
+    }
+  '
+}
+
+# _hi_marked_packages - a TOML packages file on stdin with its
+# `[group.required]` and `[group.unwanted]` tables folded into `[group]` on
+# stdout: each of their rows keeps its line, its name taking + or - in double
+# quotes, after the group's own rows, and a bare `[required]` or `[unwanted]`
+# holds rows of no group, which go above the first table. Comments and blank
+# lines travel with the row below them; those above a group's first table
+# stay above it.
+function _hi_marked_packages() {
+  awk '
+    function group(g) {
+      if (g in known) return 0
+      known[g] = 1; order[++ng] = g
+      return 1
+    }
+    function trim(t) {
+      sub(/^\n+/, "", t); sub(/\n+$/, "\n", t)
+      return (t == "\n") ? "" : t
+    }
+    BEGIN { g = ""; group(g) }
+    /^[ \t]*$/ || /^[ \t]*#/ { pend = pend $0 "\n"; next }
+    /^[ \t]*\[[^]]*\]/ {
+      t = $0; sub(/^[ \t]*\[/, "", t); sub(/\].*/, "", t); gsub(/[ \t]/, "", t)
+      m = ""
+      if (t ~ /(^|\.)required$/) { m = "+"; sub(/\.?required$/, "", t) }
+      else if (t ~ /(^|\.)unwanted$/) { m = "-"; sub(/\.?unwanted$/, "", t) }
+      g = t
+      if (group(g) && g != "") above[g] = pend; else body[g] = body[g] pend
+      pend = ""
+      next
+    }
+    {
+      line = $0
+      if (m != "" && line ~ /=/) {
+        r = line; sub(/^[ \t]+/, "", r)
+        if (substr(r, 1, 1) == "\"") {
+          k = substr(r, 2); i = index(k, "\"")
+          name = substr(k, 1, i - 1); rest = substr(k, i + 1)
+        } else {
+          i = match(r, /[^A-Za-z0-9_-]/)
+          name = i ? substr(r, 1, i - 1) : r; rest = i ? substr(r, i) : ""
+        }
+        if (substr(name, 1, 1) != m) name = m name
+        line = "\"" name "\"" rest
+      }
+      body[g] = body[g] pend line "\n"
+      pend = ""
+    }
+    END {
+      out = trim(body[""])
+      printf "%s", out
+      for (j = 2; j <= ng; j++) {
+        g = order[j]
+        printf "%s%s[%s]\n%s", (out != "" ? "\n" : ""), trim(above[g]), g, trim(body[g])
+        out = 1
+      }
+      pend = trim(pend)
+      if (pend != "") printf "%s%s", (out != "" ? "\n" : ""), pend
     }
   '
 }
@@ -504,6 +555,7 @@ function _hi_convert_data() {
   case "$shape" in
   flat) _hi_convert_one "$1" flat "_hi_convert_$2" ;;
   sections) _hi_convert_one "$1" sections "_hi_toml_$2" ;;
+  tables) [ "$2" != packages ] || _hi_convert_one "$1" tables _hi_marked_packages ;;
   esac
 }
 

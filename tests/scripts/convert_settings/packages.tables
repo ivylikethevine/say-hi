@@ -1,0 +1,96 @@
+# The package check - `hi --preview packages` renders each group's colors, a
+# real example from this file, then the check itself.
+#
+# TOML, as much of it as hi reads: a row on one line, its value an array of
+# strings (docs/SETTINGS.md, "The TOML hi reads", is the whole grammar).
+#
+# `[group]` starts a group; $_HI_PACKAGES_GROUPS (space- or comma-separated,
+# or `none`) names the groups that run, and ships as `core deprecated`.
+# Drop `check` from _HI_HEADER_ORDER to turn the check off.
+#
+# `hi --add-package` copies this file to ~/.config/say-hi/packages the first
+# time and edits it there; that copy replaces this one wholesale.
+# docs/packages.example is a longer list to start one from.
+#
+# package = ["alternative2", ...]
+# alternatives in order of preference: the first one installed is shown.
+# under [group]: shown installed or missing
+# under [group.unwanted]: silent while absent, a warning when installed
+# under [group.required]: silent while installed, an alarm when missing
+
+# the install checklist, worth adding to a box you visit often
+[core]
+bat = ["batcat", "ccat", "cat"]
+eza = ["lsd"]
+jq = ["gojq", "jaq"]
+tldr = ["tlrc", "tealdeer", "man"]
+just = ["task"]
+asdf = ["mise"]
+direnv = []
+
+# good to know either way. bash and sudo are required rather than core: a
+# bash-less box gets hi's sh tier and a sudo-less one is a choice
+[useful]
+apt-get = ["dnf", "pacman", "zypper", "apk", "pkg", "brew"]
+nano = ["micro", "vim", "nvim", "vi", "emacs", "hx", "helix"]
+docker = ["podman", "nerdctl"]
+python3 = ["python"]
+curl = ["wget"]
+rsync = []
+top = ["btop", "htop"]
+zip = ["unzip"]
+less = ["more"]
+zsh = ["fish"]
+
+[useful.required]
+bash = []
+sudo = ["doas"]
+gpg = []
+tput = []
+ip = ["ifconfig"]
+
+# superseded or unmaintained: installed means a replacement is due
+[deprecated.unwanted]
+exa = []
+neofetch = []
+python2 = []
+xsv = []
+
+# the tools hi and a working shell lean on: silent unless one is missing
+[base.required]
+awk = []
+base64 = []
+grep = []
+tr = []
+cut = []
+head = []
+sort = []
+uniq = []
+wc = []
+paste = []
+date = []
+du = []
+mkdir = []
+rm = []
+ln = []
+chmod = []
+mktemp = []
+dirname = []
+readlink = []
+hostname = []
+uname = []
+whoami = []
+ssh = []
+ssh-keygen = []
+gzip = []
+od = []
+stty = []
+tar = []
+git = []
+df = []
+stat = []
+scp = []
+openssl = []
+ping = []
+timeout = ["gtimeout"]
+lscpu = ["nproc", "sysctl"]
