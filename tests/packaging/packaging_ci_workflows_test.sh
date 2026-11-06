@@ -72,30 +72,24 @@ $(sed -n '/^#$/,$p' "$_HI_FORMULA")"
 }
 
 # The release page says where the formula went and shows the thing running:
-# publish lays out a `tap` and a `demo` slot and dispatches demos.yml at the
-# tag; the tap job links its PR into one and demos.yml's attach job embeds the
-# uploaded GIF in the other, each under the GITHUB_TOKEN with contents: write
-# and in the one concurrency group, so the two writers never interleave. No
-# tag trigger of demos.yml's own: that run would race the release it attaches to.
+# publish embeds the demo it attached and lays out a `tap` slot, then
+# dispatches demos.yml at the tag for the site; the tap job links its PR into
+# the slot under the GITHUB_TOKEN with contents: write, in the body's
+# concurrency group. No tag trigger of demos.yml's own: that run would race
+# the release.
 function test_release_body_links_the_tap_pr_and_embeds_the_demo() {
   # shellcheck disable=SC2016 # the workflows' own literals, expanded there
-  local publish tap attach group='group: release-body-${{ github.ref_name }}'
+  local publish tap group='group: release-body-${{ github.ref_name }}'
   publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   tap="$(_hi_wf_job "$_HI_RELEASE_WF" tap)"
-  attach="$(_hi_wf_job "$_HI_DEMOS_WF" attach)"
-  [[ "$publish" == *'"<!-- hi:demo -->"'* && "$publish" == *'"<!-- hi:tap -->"'* ]] || _hi_why publish || return 1
+  # shellcheck disable=SC2016 # likewise
+  [[ "$publish" == *'${demo:+"$demo" ""}'* && "$publish" == *'"<!-- hi:tap -->"'* ]] || _hi_why publish || return 1
   # shellcheck disable=SC2016 # likewise
   [[ "$publish" == *'gh_dispatch.sh demos.yml "$GITHUB_REF_NAME"'* ]] || _hi_why publish || return 1
   # shellcheck disable=SC2016 # likewise
   [[ "$tap" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" tap'* && "$tap" == *"contents: write"* &&
     "$tap" == *"$group"* && "$tap" == *"GH_TOKEN: \${{ github.token }}"* &&
     "$tap" == *"RELEASE_SLOT_PREFIX: hi"* ]] || _hi_why tap group || return 1
-  # shellcheck disable=SC2016 # likewise
-  [[ "$attach" == *"github.ref_type == 'tag'"* && "$attach" == *"needs.collect.result == 'success'"* &&
-    "$attach" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" demo'* &&
-    "$attach" == *'_ci_upload_assets "$TAG" "$RUNNER_TEMP/demo.gif"'* &&
-    "$attach" == *'releases/download/$TAG/demo.gif'* && "$attach" == *"contents: write"* &&
-    "$attach" == *"$group"* && "$attach" == *"RELEASE_SLOT_PREFIX: hi"* ]] || _hi_why attach group || return 1
   ! sed -n '/^on:/,/^[a-z]/p' "$_HI_DEMOS_WF" | grep -qE '^  push:' || _hi_why _HI_DEMOS_WF
 }
 
@@ -154,7 +148,7 @@ function test_gh_asset_retries_through_the_raw_endpoint() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CI_GH_LOG"
 case "$*" in
-*releases/tags/v9.9.9*) printf '4242\t77\n' ;;
+*"releases?per_page=100"*) printf '4242\t77\n' ;;
 *"--method DELETE"*) ;;
 *"release upload"*)
   echo "HTTP 500: Error saving asset" >&2
@@ -194,7 +188,7 @@ function test_gh_asset_attaches_the_rest_and_names_the_missing() {
 printf '%s\n' "$*" >>"$CI_GH_LOG"
 case "$*" in
 *bad.rpm*) exit 1 ;;
-*releases/tags/v9.9.9*) printf '4242\t\n' ;;
+*"releases?per_page=100"*) printf '4242\t\n' ;;
 *"--method DELETE"*) ;;
 *) printf '{"state":"uploaded"}\n' ;;
 esac

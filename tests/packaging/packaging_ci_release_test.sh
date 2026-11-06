@@ -152,18 +152,49 @@ function test_release_signing_keys_are_read_under_the_release_environment() {
 # pass actionlint runs reports a file it was never told where to find.
 # shellcheck disable=SC2016 # matching the workflows' literal source text
 function test_release_assets_go_through_the_helper() {
-  local publish attach wf n got
+  local publish n got
   [ -f "$_HI_ROOT/.github/scripts/gh_asset.sh" ] || _hi_why || return 1
   publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
-  attach="$(_hi_wf_job "$_HI_DEMOS_WF" attach)"
-  [[ "$publish" != *'gh release upload'* && "$attach" != *'gh release upload'* ]] || _hi_because "a workflow still attaches its assets as one gh release upload list" || return 1
-  [[ "$publish" == *'_ci_upload_assets "$GITHUB_REF_NAME" "${files[@]}"'* ]] &&
-    [[ "$attach" == *'_ci_upload_assets "$TAG" "$RUNNER_TEMP/demo.gif"'* ]] || _hi_why publish attach || return 1
-  for wf in "$_HI_RELEASE_WF" "$_HI_DEMOS_WF"; do
-    n="$(grep -c '^ *source \.github/scripts/gh_asset\.sh$' "$wf")"
-    got="$(grep -c '^ *# shellcheck source=\.github/scripts/gh_asset\.sh$' "$wf")"
-    [ "$n" -gt 0 ] && [ "$n" = "$got" ] || _hi_because "${wf##*/} sources gh_asset.sh without the shellcheck directive above it ($n sources, $got directives)" || return 1
-  done
+  [[ "$publish" != *'gh release upload'* ]] || _hi_because "publish still attaches its assets as one gh release upload list" || return 1
+  [[ "$publish" == *'_ci_upload_assets "$GITHUB_REF_NAME" "${files[@]}"'* ]] || _hi_why publish || return 1
+  n="$(grep -c '^ *source \.github/scripts/gh_asset\.sh$' "$_HI_RELEASE_WF")"
+  got="$(grep -c '^ *# shellcheck source=\.github/scripts/gh_asset\.sh$' "$_HI_RELEASE_WF")"
+  [ "$n" -gt 0 ] && [ "$n" = "$got" ] || _hi_because "release.yml sources gh_asset.sh without the shellcheck directive above it ($n sources, $got directives)" || return 1
+  # nothing after publish attaches: a published immutable release takes no asset
+  ! grep -qF 'gh_asset.sh' "$_HI_DEMOS_WF" || _hi_because "demos.yml still attaches to a release, which an immutable one refuses once published" || return 1
+}
+
+# Immutable releases: a published release takes no asset, so publish creates
+# a draft, attaches everything, and publishes last, under a step that runs
+# whether the package repository attached or not. The release's demo GIF is
+# rendered in this run (the demo job) and attached with the rest, and publish
+# ships without it when that job fails.
+# shellcheck disable=SC2016 # matching release.yml's literal source text
+function test_release_publishes_after_its_assets() {
+  local publish demo last edit
+  publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
+  demo="$(_hi_wf_job "$_HI_RELEASE_WF" demo)"
+  [[ "$publish" == *'gh release create "$GITHUB_REF_NAME" --draft'* ]] || _hi_because "publish does not create the release as a draft" || return 1
+  last="$(printf '%s\n' "$publish" | grep -n '_ci_upload_assets "' | tail -1 | cut -d: -f1)"
+  edit="$(printf '%s\n' "$publish" | grep -n 'gh release edit "$GITHUB_REF_NAME" --draft=false' | cut -d: -f1)"
+  [ -n "$last" ] && [ -n "$edit" ] && [ "$edit" -gt "$last" ] || _hi_because "publish's --draft=false edit (line $edit) must come after its last upload (line $last)" || return 1
+  [[ "$publish" == *"if: \${{ !cancelled() && steps.attach.outcome == 'success' }}"* ]] || _hi_because "the publish step is not run whatever the package repository did" || return 1
+  [[ "$publish" == *'needs: [build, demo]'* && "$publish" == *"needs.demo.result == 'success'"* &&
+    "$publish" == *'files+=("$RUNNER_TEMP/demo/demo.gif")'* &&
+    "$publish" == *'releases/download/$GITHUB_REF_NAME/demo.gif'* ]] || _hi_why publish || return 1
+  [[ "$demo" == *'generate.sh --require-run packages'* ]] || _hi_why demo
+}
+
+# The demo job renders as demos.yml's render job does: the same egress list
+# and the same vhs version, so a fix to one reaches the other
+function test_release_demo_matches_the_render_job() {
+  local demo render want got
+  demo="$(_hi_wf_job "$_HI_RELEASE_WF" demo)"
+  render="$(_hi_wf_job "$_HI_DEMOS_WF" render)"
+  want="$(printf '%s\n' "$render" | grep -E '^ +[a-z0-9.-]+:[0-9]+$|^ +version: ')"
+  got="$(printf '%s\n' "$demo" | grep -E '^ +[a-z0-9.-]+:[0-9]+$|^ +version: ')"
+  [ -n "$want" ] && [ "$got" = "$want" ] && return 0
+  _hi_because "release.yml's demo job and demos.yml's render job differ in hosts or vhs version"$'\n'"render: [$want]"$'\n'"demo: [$got]"
 }
 
 # ...and nothing outside that gated job may touch `gh release`
@@ -690,6 +721,8 @@ function run_packaging_ci_release_tests() {
   # leaves publish reading secrets no environment guards.
   _hi_check "Publishing sits behind an environment" grep -qE '^ *environment: release' "$_HI_RELEASE_WF"
   _hi_check "Only the gated job publishes" test_only_the_gated_job_publishes
+  _hi_check "...a draft, published after its last asset" test_release_publishes_after_its_assets
+  _hi_check "...with a demo rendered as demos.yml renders" test_release_demo_matches_the_render_job
   _hi_check "Jobs under the gate check their needs" test_release_jobs_under_the_gate_check_their_needs
   _hi_check "release.yml walks the upgrade before it builds" test_release_walks_the_upgrade_before_build
   _hi_check_requires git "...and the walk goes red on a restored load guard" test_upgrade_path_goes_red_on_a_restored_load_guard

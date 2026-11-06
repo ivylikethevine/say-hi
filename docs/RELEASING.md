@@ -131,11 +131,13 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    and an SBOM. Nothing has published.
 4. The `publish` job runs unattended over exactly what `build` produced (see
    [The release environment](#the-release-environment)): it signs `SHA256SUMS`
-   with minisign, creates the release, attaches the packages, tarball, sums,
-   signature, manifests, SBOM, and attestation bundle, builds and attaches the
-   [package repository](#package-repository), and dispatches `demos.yml`, which
-   renders the demos, attaches one, and then redeploys the site once - new
-   package repository and new GIFs together (`pages.yml`'s own `workflow_run`
+   with minisign, creates the release as a draft, attaches the packages,
+   tarball, sums, signature, manifests, SBOM, attestation bundle, and the
+   `demo` job's `demo.gif`, builds and attaches the
+   [package repository](#package-repository), and only then publishes it: with
+   immutable releases on, a published release takes no asset. It then
+   dispatches `demos.yml`, which renders the demos and redeploys the site once -
+   new package repository and new GIFs together (`pages.yml`'s own `workflow_run`
    trigger cannot fire off a tag push, and a merge's Coverage deploy stands down
    for a commit a `v*` tag already carries). This workflow never writes to
    `main`, so the manifests committed in `packaging/aur/` and
@@ -212,8 +214,9 @@ refused. Drop a retired key only once no tag still to be released needs it.
 
 ### The release environment
 
-Two environments under _Settings → Environments_ and five secrets, none of
-which a file in the tree can set; the workflows only name them.
+Two environments under _Settings → Environments_, five secrets, and one
+release setting, none of which a file in the tree can set; the workflows only
+name them.
 
 - **`release`** — what `release.yml`'s `publish` (and `build`, on a tag push)
   and `publish-external.yml`'s `aur` run in. `tap` runs behind `publish` and
@@ -239,6 +242,10 @@ which a file in the tree can set; the workflows only name them.
   [Package repository](#package-repository)'s _What signs what_;
   `HOMEBREW_TAP_TOKEN` is a fine-grained PAT scoped to the tap repo with
   contents and pull-requests write.
+- **Immutable releases** (_Settings → General → Releases_) — on, a published
+  release's tag and assets are locked and it carries an attestation. `publish`
+  attaches every asset to a draft and publishes last for that reason; the body
+  stays editable, which `tap` relies on.
 
 **Storing, reaching, and rotating them.** A secret lives only as a GitHub
 repository secret and in the maintainer's offline copy of the key files,
@@ -272,8 +279,8 @@ A different pair means a new key on that line in the same commit, since
 
 Every job in `release.yml` and `publish-external.yml` runs on a GitHub-hosted
 runner and starts with `step-security/harden-runner`. Every job but `brew`
-runs it in `block` with an allowlist - `gate`, `upgrade`, `build`, and the
-three that hold a publishing credential: `publish` (the signing keys and a
+runs it in `block` with an allowlist - `gate`, `upgrade`, `build`, `demo`, and
+the three that hold a publishing credential: `publish` (the signing keys and a
 `contents: write` token), `tap` (`HOMEBREW_TAP_TOKEN`), and `aur`
 (`AUR_SSH_KEY`). `brew` stays on `audit`, which records its outbound
 connections without refusing any, until it has an allowlist of its own.
@@ -544,9 +551,11 @@ nomad, and kind as `ci.yml`'s `e2e-backends` does), for each release, weekly,
 or on dispatch. A `collect` job merges them into the one `demo-gifs` artifact
 the Pages build serves beside each tape, and is skipped if any tape failed, so
 the site never mixes a fresh render with a stale one. For a release,
-`publish` dispatches the workflow at the tag, and its `attach` job uploads the
-`packages` GIF to the release as `demo.gif` and embeds it in the body. A tape
-added to `generate.sh`'s roster goes in that workflow's `tape` matrix too.
+`publish` dispatches the workflow at the tag. The release's own `demo.gif` is
+`release.yml`'s `demo` job, which renders the `packages` tape before the
+publish, so `publish` attaches it and embeds it in the body; a failed render
+ships the release without it. A tape added to `generate.sh`'s roster goes in
+that workflow's `tape` matrix too.
 Nothing is committed back: branch protection refuses a bot commit, the same
 reason the tests badge is published rather than written into README. The
 committed top-of-README `demo.gif` claims the stock defaults, so re-render it
