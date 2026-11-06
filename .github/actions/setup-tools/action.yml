@@ -2,8 +2,7 @@ name: Setup tools
 # The batched form of ../setup-tool for a job that needs several pinned tools:
 # one actions/cache round trip covers every tool named. The trade is that
 # editing one tool's row redownloads the others in the same call - rows move
-# rarely and the downloads are small. Use ../setup-tool for one tool or for a
-# `version:` override; this action has neither.
+# rarely and the downloads are small. Use ../setup-tool for one tool.
 description: Install several pinned CI tools from ../setup-tool/tools.txt with one shared cache round trip
 
 inputs:
