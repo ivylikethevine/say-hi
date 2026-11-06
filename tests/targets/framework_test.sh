@@ -219,12 +219,13 @@ function _hi_prompt_client_home() {
 # config probe looks for; the nanorc's include is one hi drops, the tmux
 # config's, a file of tmux's own directory, one hi carries, and the
 # ripgreprc's ignore file one a hi-carry comment sends. Its overlay
-# has a header/ cell of its own, which $_HI_HEADER_ORDER puts in the header.
+# has a header/ cell of its own, which $_HI_HEADER_ORDER puts in the header,
+# before the greeting the session's readiness waits on.
 # shellcheck disable=SC2016 # the cell's own code, expanded on the target
 function _hi_config_client_home() {
   mkdir -p "$1/.config/micro" "$1/.config/say-hi/header"
   printf '_hi_cell_hitest() { printf -v "$1" %%s "${CYAN}HITESTCELL"; }\n' >"$1/.config/say-hi/header/hitest"
-  printf 'export _HI_HEADER_ORDER="utc hitest"\n' >"$1/.config/say-hi/settings.sh"
+  printf 'export _HI_HEADER_ORDER="utc hitest greeting"\n' >"$1/.config/say-hi/settings.sh"
   mkdir -p "$1/.config/tmux"
   printf 'set -g @hi_mark HITMUX\nsource-file ~/.config/tmux/hi.conf\n' >"$1/.tmux.conf"
   printf 'set -g @hi_carried HICARRY\n' >"$1/.config/tmux/hi.conf"

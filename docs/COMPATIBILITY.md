@@ -57,7 +57,9 @@ checks **every** backend on each uncached TAB (GLOSSARY: HI.26) — there the
 one is one parallel lane.
 
 **A row earns a yes by being something people actually sit in, not by being
-reachable.**
+reachable.** One that ships stays while it fits the model this cheaply: hi's
+point is one session on every host, so a backend is not cut for want of a
+counted user.
 
 ## What ships
 

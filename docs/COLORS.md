@@ -2,11 +2,12 @@
 
 How every color hi paints is chosen: the per-host hash, the pins in
 `~/.config/say-hi/colors`, the 24-bit scheme, and the package check's ramp and
-rows. The two settings here, `_HI_COLOR_SCHEME` and `_HI_PACKAGES_PALETTE`, are
-rows in [SETTINGS.md](SETTINGS.md#every-setting); the wizard asks about neither.
+rows. The scheme and the ramp are tables of that same file, `[scheme]` and
+`[palette]`; the wizard asks about neither.
 
 ## Contents
 
+- [The 24-bit scheme](#the-24-bit-scheme)
 - [The package check's ramp](#the-package-checks-ramp)
 - [The package check's rows](#the-package-checks-rows)
 - [Using the hash in your own prompt](#using-the-hash-in-your-own-prompt)
@@ -96,7 +97,7 @@ color as six hex digits (a leading `#` is fine; text after it is ignored):
 `prod-db = "brred ff5f5f"` under `[hostname]` renders `prod-db` in exactly
 that red on a truecolor terminal. The first word is still a name from the
 vocabulary below and is what a 16-color terminal gets, so name the nearest
-one. The hex outranks `_HI_COLOR_SCHEME` for that one pin — the scheme says
+one. The hex outranks the `[scheme]` for that one pin — the scheme says
 what a _name_ renders as, the hex what this host or user renders as — and
 anything that is not six hex digits is ignored.
 
@@ -106,9 +107,9 @@ The vocabulary is twenty-four names: the terminal's twelve (`red`, `green`,
 `indigo`, `mint`, `peach`, `lavender` - that a pin may name and the hash
 lands on as readily as the first twelve. A pin, the hash, and
 `hi --preview colors` never see anything else. What each name _renders as_ is
-`_HI_COLOR_SCHEME`'s: unset, the terminal's own sixteen colors for the first
-twelve and a built-in 24-bit color for each extra; set, that list's hex for
-every name. Each is emitted as one escape carrying a 16-color code first and
+the [scheme](#the-24-bit-scheme)'s: with none, the terminal's own sixteen
+colors for the first twelve and a built-in 24-bit color for each extra; with
+one, its hex for every name. Each is emitted as one escape carrying a 16-color code first and
 the 24-bit color after it, so a terminal that ignores the second keeps the
 first - an extra name's 16-color half is the nearest of the sixteen (orange
 reads as bright yellow there, teal as cyan).
@@ -122,40 +123,44 @@ Inside tmux, or on a terminal that renders 24-bit color without announcing it,
 takes the hex from 5.7 on and keeps the plain name below that; macOS
 Terminal.app never sets `COLORTERM` and so keeps its own sixteen.
 
-hi ships no named schemes: the scheme _is_ the setting — twenty-four
-six-digit hex words, one space apart, in the order of the names above (red,
-green, yellow, blue, magenta, cyan, the six bright ones, then the twelve
-extras), or forty-eight, whose second twenty-four paint only the package
-check, so a missing core tool can shout in a different red from the one your
-prompt wears. Write it into `settings.sh` by hand — it ships to every target,
-so a scheme follows you:
+## The 24-bit scheme
 
-```sh
-export _HI_COLOR_SCHEME='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca fab387 f2cdcd 81c8be c3e88d cba6f7 eba0ac e5c890 89dceb 7287fd 8be9b0 f5a97f b4befe'
+hi ships no named schemes: a scheme is the colors file's `[scheme]` table, its
+`colors` row twenty-four six-digit hex words, one space apart, in the order of
+the names above (red, green, yellow, blue, magenta, cyan, the six bright ones,
+then the twelve extras). An optional `packages` row of twenty-four more paints
+the package check alone, so a missing core tool can shout in a different red
+from the one your prompt wears. The colors file rides to every target, so a
+scheme follows you:
+
+```toml
+[scheme]
+colors = "f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca fab387 f2cdcd 81c8be c3e88d cba6f7 eba0ac e5c890 89dceb 7287fd 8be9b0 f5a97f b4befe"
 ```
 
-The quotes matter (the value holds spaces, and fish sources the file too).
-Anything that is not exactly 24 or 48 hex words renders as the default and
-`hi --doctor` says so. `hi --preview colors` and `hi --preview packages` judge
-a scheme, labelling it `custom (24)`, `custom (48)`, or
-`(ignored - not a scheme)`.
+Anything that is not exactly 24 hex words, with 24 more or none in
+`packages`, renders as the default and `hi --doctor` says so.
+`hi --preview colors` and `hi --preview packages` judge a scheme, labelling it
+`custom (24)`, `custom (48)`, or `(ignored - not a scheme)`.
 
 ## The package check's ramp
 
-`_HI_PACKAGES_PALETTE` is the same idea one level down: which of the
-twenty-four names the header's package check paints each tier in. It is
-eight of those names, one space apart — four for installed, rising 0→3, then
-four for missing:
+The `[palette]` table is the same idea one level down: which of the
+twenty-four names the header's package check paints each tier in. Its
+`installed` row is four of those names, rising 0→3, and its `missing` row four
+more:
 
-```sh
-export _HI_PACKAGES_PALETTE='cyan green brcyan brgreen blue magenta bryellow brred'
+```toml
+[palette]
+installed = ["cyan", "green", "brcyan", "brgreen"]
+missing   = ["blue", "magenta", "bryellow", "brred"]
 ```
 
-That line is the shipped ramp, so writing it changes nothing. A ramp reads
+Those rows are the shipped ramp, so writing them changes nothing. A ramp reads
 best when both halves climb in one direction — a missing core tool the loudest
 thing on screen, installed trivia the quietest — and stay legible on light and
-dark terminals alike. Anything that is not eight names from the vocabulary
-falls back to the shipped ramp, `hi --doctor` says so, and
+dark terminals alike. Anything that is not four names from the vocabulary in
+each row falls back to the shipped ramp, `hi --doctor` says so, and
 `hi --preview packages` labels the line `default`, `custom`, or
 `(ignored - not eight color names)`.
 

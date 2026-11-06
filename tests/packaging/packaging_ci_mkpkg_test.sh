@@ -55,7 +55,7 @@ function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
   { ! grep -qE '^ *workflows: \[.*Release.*\]' "$_HI_PAGES_WF" &&
     grep -qE '^ *workflow_dispatch:' "$_HI_PAGES_WF" &&
     [[ "$refresh" == *'gh_dispatch.sh pages.yml main'* ]] &&
-    [[ "$refresh" == *'needs: [collect, attach]'* ]]; } || _hi_why refresh _HI_PAGES_WF _HI_RELEASE_WF || return 1
+    [[ "$refresh" == *'needs: collect'* ]]; } || _hi_why refresh _HI_PAGES_WF _HI_RELEASE_WF || return 1
   got="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   [[ "$got" != *'gh_dispatch.sh pages.yml'* ]] || _hi_why got refresh _HI_PAGES_WF _HI_RELEASE_WF
 }

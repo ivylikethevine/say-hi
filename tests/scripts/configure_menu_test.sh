@@ -48,19 +48,19 @@ function _hi_menu_grid_at() {
   cells=$(($(_hi_item 'group|core') - $(_hi_item 'word|0')))
   _HI_TERM_COLS="$w" _hi_cfg_pty "$label" 'e\ns\n' '' run_configure "" || return 1
   page="$(_hi_cfg_screen "$label" 1)"
-  first="$(printf '%s\n' "$page" | grep -F " $(_hi_item 'word|0')) [x] utc" | grep -o ') \[[x ]\] ' | wc -l)"
+  first="$(printf '%s\n' "$page" | grep -F " $(_hi_item 'word|0')) [x] banner" | grep -o ') \[[x ]\] ' | wc -l)"
   page="$(printf '%s\n' "$page" | grep -o ') \[[x ]\] ' | wc -l)"
   ((first == want)) || _hi_because "the grid's first line at $w holds $first cells" || return 1
   ((page == cells)) || _hi_because "the grid at $w holds $page cells, not $cells"
 }
 
 # The menu: the real header boxed above the cells' page, and every command
-# re-renders. Toggling the first header item off (utc) writes the default
-# order minus that word, quoted - read off header.sh's own
+# re-renders. Toggling the first cell off (utc, after banner) writes the
+# default order minus that word, quoted - read off header.sh's own
 # $_HI_HEADER_ORDER_DEFAULT rather than a second copy of it, so a reorder
 # there cannot leave this expectation stale.
 function test_menu_header_item_toggle_writes_the_order() {
-  _hi_cfg_pty hdr_toggle "e\n$(_hi_item 'word|0')\ns\n" '' config_hub || _hi_why || return 1
+  _hi_cfg_pty hdr_toggle "e\n$(_hi_item 'word|1')\ns\n" '' config_hub || _hi_why || return 1
   local lines want
   want="$(bash -c 'source "$_HI_HEADER"; printf %s "$_HI_HEADER_ORDER_DEFAULT"')"
   want="${want/utc /}"
@@ -82,20 +82,20 @@ function test_menu_default_order_writes_nothing() {
 # `down N` swaps utc with its neighbor
 function test_menu_moves_a_header_item() {
   local got
-  _hi_cfg_pty hdr_move "down $(_hi_item 'word|0')\ns\n" '' config_hub || _hi_why || return 1
+  _hi_cfg_pty hdr_move "down $(_hi_item 'word|1')\ns\n" '' config_hub || _hi_why || return 1
   got="$(_hi_cfg_lines hdr_move)"
-  [[ "$got" == *"export _HI_HEADER_ORDER='version utc localtime"* ]] || _hi_why got
+  [[ "$got" == *"export _HI_HEADER_ORDER='banner version utc localtime"* ]] || _hi_why got
 }
 
-# the banner always leads: it toggles but never moves
-function test_menu_banner_never_moves() {
-  local b
-  b="$(_hi_item 'row|_HI_HEADER_PROMPTS|0')"
+# the banner is the cells page's first word: up from there is refused, and
+# its number takes it out of the order
+function test_menu_banner_flips_as_a_word() {
+  local b lines
+  b="$(_hi_item 'word|0')"
   _hi_cfg_pty hdr_banner "up $b\n$b\ns\n" '' config_hub || _hi_why b || return 1
-  local lines
   lines="$(_hi_cfg_lines hdr_banner)"
-  _hi_cfg_has hdr_banner "the banner always leads" &&
-    [[ "$lines" == *"export _HI_DISABLE_BANNER=1"* && "$lines" != *"_HI_HEADER_ORDER"* ]] || _hi_why lines
+  _hi_cfg_has hdr_banner "banner is already at that end" &&
+    [[ "$lines" == *"export _HI_HEADER_ORDER='utc "*" check greeting'"* ]] || _hi_why lines
 }
 
 # up/down off the header items, and at the end the item is already at - two
@@ -135,7 +135,7 @@ function test_menu_takes_a_header_preset() {
   local got
   _hi_cfg_pty hdr_preset 'h\nq\ns\n' '' config_hub || _hi_why || return 1
   got="$(_hi_cfg_lines hdr_preset)"
-  [[ "$got" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]] || _hi_why got
+  [[ "$got" == *"export _HI_HEADER_ORDER='banner utc localtime gitid greeting'"* ]] || _hi_why got
 }
 
 # ...by its full name too, which the one-letter shorthand would refuse
@@ -143,7 +143,7 @@ function test_menu_takes_a_header_preset_by_name() {
   local got
   _hi_cfg_pty hdr_preset_name 'h\nquiet\ns\n' '' config_hub || _hi_why || return 1
   got="$(_hi_cfg_lines hdr_preset_name)"
-  [[ "$got" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]] || _hi_why got
+  [[ "$got" == *"export _HI_HEADER_ORDER='banner utc localtime gitid greeting'"* ]] || _hi_why got
 }
 
 # the header feature row turns the whole header off, and its page's preview
@@ -174,7 +174,8 @@ function test_menu_lists_missing_header_items_off() {
   _hi_cfg_pty hdr_list 'e\ns\n' "export _HI_HEADER_ORDER='check gitid'" config_hub || _hi_why || return 1
   _hi_cfg_has hdr_list "$w) [x] check" &&
     _hi_cfg_has hdr_list "$((w + 1))) [x] gitid" &&
-    _hi_cfg_has hdr_list "$((w + 2))) [ ] utc" || _hi_why w
+    _hi_cfg_has hdr_list "$((w + 2))) [ ] banner" &&
+    _hi_cfg_has hdr_list "$((w + 3))) [ ] utc" || _hi_why w
 }
 
 # a package group's number flips it: useful, on
@@ -240,7 +241,7 @@ function run_configure_menu_tests() {
   _hi_par_check_capable pty "Menu: a header item toggle writes the order" test_menu_header_item_toggle_writes_the_order
   _hi_par_check_capable pty "Menu: back to the default order writes nothing" test_menu_default_order_writes_nothing
   _hi_par_check_capable pty "Menu: down N moves a header item" test_menu_moves_a_header_item
-  _hi_par_check_capable pty "Menu: the banner toggles but never moves" test_menu_banner_never_moves
+  _hi_par_check_capable pty "Menu: the banner is a word: first, and flips out of the order" test_menu_banner_flips_as_a_word
   _hi_par_check_capable pty "Menu: a move that cannot happen is refused in words" test_menu_refuses_a_move_that_cannot_happen
   _hi_par_check_capable pty "Menu: the last header item cannot be turned off" test_menu_keeps_the_last_header_item
   _hi_par_check_capable pty "Menu: items a stored order leaves out list unchecked" test_menu_lists_missing_header_items_off

@@ -72,24 +72,13 @@ function test_prompt_ends_kept_when_the_prompt_is_off() {
   [[ "$out" == *"export _HI_DISABLE_PROMPT=1"* && "$out" == *"export _HI_PROMPT_END_ZSH='::'"* ]] || _hi_why out
 }
 
-# The wizard asks about neither the scheme nor the packages ramp -
-# both are hand-written into settings.sh (GLOSSARY: HI.50). So the contract
-# here is that a full run leaves whatever they hold exactly as it found it,
-# quoted where it holds spaces.
-function test_hand_written_colors_survive_a_run() {
+# the scheme and the packages ramp are the colors file's (GLOSSARY: HI.50),
+# so a run writes no line for either, even over a settings.sh that still
+# holds them; doctor names those lines
+function test_collector_writes_no_color_line() {
   local out
   out="$(_hi_collected_lines colors_hand \
     "export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'" "export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME48'")"
-  [[ "$out" == *"export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'"* ]] &&
-    [[ "$out" == *"export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME48'"* ]] || _hi_why out
-}
-
-# an unset ramp is the shipped one, so a run that was never told otherwise
-# writes no line for it - the rule config_max_width and _hi_group_flip use
-# for their own defaults
-function test_packages_palette_does_not_write_the_default() {
-  local out
-  out="$(_hi_collected_lines palette_default)"
   [[ "$out" != *_HI_PACKAGES_PALETTE* ]] && [[ "$out" != *_HI_COLOR_SCHEME* ]] || _hi_why out
 }
 
@@ -106,16 +95,6 @@ function test_ip_hide_does_not_write_the_default() {
   out="$(_hi_section_lines iphide_default2 config_ip_hide "export _HI_IP_HIDE='$_HI_IP_HIDE_DEFAULT'")"
   got="$(printf '%s' "$out" | tr -d ' ')"
   [ -z "$got" ] || _hi_why got out
-}
-
-# the check itself is off, so which colors it would use is moot - the stored
-# ramp is still kept for when 'check' comes back
-function test_packages_palette_kept_when_the_check_is_off() {
-  local out
-  out="$(_hi_collected_lines palette_off \
-    "export _HI_HEADER_ORDER='gitid'" "export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'")"
-  [[ "$out" == *"export _HI_HEADER_ORDER='gitid'"* ]] &&
-    [[ "$out" == *"export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'"* ]] || _hi_why out
 }
 
 function test_header_order_keeps_an_existing_override() {
@@ -257,17 +236,11 @@ globs|10.* 192.168.?.*|0
 globs|172.*;rm|1
 groups|core useful|0
 groups|core;rm|1
-scheme|catppuccin|1
-palette|red|1
 noquote|plain value|0
 noquote|don't|1
 -|anything|0
 bogus-kind|1|2
 ROWS
-  # a scheme and palette taken, off the fixtures the literal heredoc cannot
-  # expand
-  _hi_setting_check scheme "$_HI_TEST_SCHEME24" || _hi_because "scheme [\$_HI_TEST_SCHEME24]: not taken" || return 1
-  _hi_setting_check palette "$_HI_TEST_RAMP" || _hi_because "palette [$_HI_TEST_RAMP]: not taken"
 }
 
 function test_pending_answer_reads_this_runs_answers() {
@@ -428,7 +401,7 @@ function test_settings_shebang_preserves_mode() {
 # because one config_shell call per group against one file would have each
 # wipe the other two's lines
 function _hi_settings_one_write() {
-  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "" "export _HI_DISABLE_BANNER=1")
+  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "" "export _HI_DISABLE_GIT_STATUS=1")
   config_shell settings "$_HI_SETTINGS" "${_HI_SETTING_LINES[@]}"
 }
 
@@ -436,7 +409,7 @@ function test_config_settings_writes_every_group_at_once() {
   _hi_settings_fixture onewrite _hi_settings_one_write
   local f
   f="$(_hi_fixture_settings onewrite)"
-  { grep -qF "export _HI_DISABLE_PROMPT=1" "$f" && grep -qF "export _HI_DISABLE_BANNER=1" "$f"; } || _hi_why f
+  { grep -qF "export _HI_DISABLE_PROMPT=1" "$f" && grep -qF "export _HI_DISABLE_GIT_STATUS=1" "$f"; } || _hi_why f
 }
 
 # the whole point of the overlay: a fresh install leaves the tree untouched, so
@@ -642,9 +615,9 @@ function test_header_edit_preset_turns_on_its_words_in_order() {
     _HI_SETTING_PENDING=()
     _hi_header_edit_preset quiet || _hi_why || exit 1
     got="$(_hi_hdr_on_count)"
-    [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=utc localtime gitid" ] &&
-      [ "${_HI_HDR_WORDS[*]:0:3}" = "utc localtime gitid" ] &&
-      [ "$got" = 3 ] &&
+    [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=banner utc localtime gitid greeting" ] &&
+      [ "${_HI_HDR_WORDS[*]:0:5}" = "banner utc localtime gitid greeting" ] &&
+      [ "$got" = 5 ] &&
       [[ "$_HI_MENU_NOTE" == *"the 'quiet' preset"* ]] ||
       _hi_because "quiet: pending [${_HI_SETTING_PENDING[*]}], words [${_HI_HDR_WORDS[*]}]" || exit 1
     _hi_header_edit_preset full || _hi_why || exit 1
@@ -675,7 +648,7 @@ function test_menu_switch_keys_find_their_rows() {
 function test_menu_numbers_every_row() {
   local t i
   local -a rows=()
-  for t in _HI_FEATURE_PROMPTS _HI_HEADER_PROMPTS _HI_PROMPT_PROMPTS _HI_ADVANCED_PROMPTS; do
+  for t in _HI_FEATURE_PROMPTS _HI_PROMPT_PROMPTS _HI_ADVANCED_PROMPTS; do
     _hi_prompt_rows "$t" rows
     for i in "${!rows[@]}"; do
       _hi_item "row|$t|$i" >/dev/null || _hi_because "no menu number for $t row $i" || return 1
@@ -725,10 +698,8 @@ function run_configure_tests() {
   _hi_check "Written values are quoted" test_prompt_ends_quotes_what_it_writes
   _hi_check "Kept when the prompt is off" test_prompt_ends_kept_when_the_prompt_is_off
 
-  _hi_h2 "Testing: the collector - palette and header order"
-  _hi_check "Colors: hand-written lines survive a run" test_hand_written_colors_survive_a_run
-  _hi_check "Colors: an unset scheme and ramp write nothing" test_packages_palette_does_not_write_the_default
-  _hi_check "Palette: kept when the check is off" test_packages_palette_kept_when_the_check_is_off
+  _hi_h2 "Testing: the collector - colors and header order"
+  _hi_check "Colors: no scheme or ramp line is written" test_collector_writes_no_color_line
   _hi_check "Hidden addresses: an existing override is kept" test_ip_hide_keeps_an_existing_override
   _hi_check "Hidden addresses: the default writes nothing" test_ip_hide_does_not_write_the_default
   _hi_check "Order: an existing override is kept" test_header_order_keeps_an_existing_override

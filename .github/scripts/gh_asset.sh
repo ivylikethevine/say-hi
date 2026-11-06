@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sourced (not run) by release.yml's publish job and its package-repository
-# step, and by demos.yml's attach job - the one way this repo puts a file on a
-# release. CI-only: nothing here runs outside a hosted runner.
+# step - the one way this repo puts a file on a release, always a draft one.
+# CI-only: nothing here runs outside a hosted runner.
 #
 # Two things went wrong on v0.4.3, and both are answered here.
 #
@@ -25,11 +25,12 @@
 # _ci_release_ids <tag> <asset-name> - "<release id><TAB><asset id>", the
 # asset id empty when the release carries no asset of that name. One call for
 # both: the raw endpoint is addressed by release id, the delete by asset id.
-# The name goes through the environment rather than into the jq program,
-# where it would need quoting twice.
+# Read off the release list, since `releases/tags/<tag>` answers 404 for the
+# draft publish attaches to. The tag and name go through the environment
+# rather than into the jq program, where they would need quoting twice.
 function _ci_release_ids() {
-  CI_ASSET_NAME="$2" gh api "repos/$GITHUB_REPOSITORY/releases/tags/$1" \
-    --jq '[.id] + [.assets[] | select(.name == env.CI_ASSET_NAME) | .id] | @tsv'
+  CI_TAG="$1" CI_ASSET_NAME="$2" gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+    --jq '.[] | select(.tag_name == env.CI_TAG) | [.id] + [.assets[] | select(.name == env.CI_ASSET_NAME) | .id] | @tsv'
 }
 
 # _ci_upload_asset <tag> <file> - attach one file, whatever it takes. Three

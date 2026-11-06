@@ -436,8 +436,7 @@ function _hi_bash_listing() {
 
 # bash lists each target's backend symbol only while readline lists (63),
 # never when it inserts (9); a name two backends share is listed once with
-# both symbols; ASCII stand-ins off a UTF-8 locale; $_HI_SYMBOL_* wins.
-# GLOSSARY: HI.56
+# both symbols; ASCII stand-ins off a UTF-8 locale. GLOSSARY: HI.56
 function test_bash_target_symbols_only_when_listing() {
   local out
   out="$(_hi_bash_listing 63 '' LANG=C.UTF-8)"
@@ -447,25 +446,24 @@ function test_bash_target_symbols_only_when_listing() {
   out="$(_hi_bash_listing 63 d LANG=C.UTF-8)"
   [ "$out" = dup ] || _hi_because "one shared name: $out" || return 1
   out="$(_hi_bash_listing 63 '')"
-  [ "$out" = "web #|web2 #|jobx *|podx @|sshy >|dup >#" ] || _hi_because "ascii: $out" || return 1
-  out="$(_hi_bash_listing 63 '' LANG=C.UTF-8 _HI_SYMBOL_KUBE=k8s)"
-  [[ "$out" == *"|podx k8s|"* ]] || _hi_why out
+  [ "$out" = "web #|web2 #|jobx *|podx @|sshy >|dup >#" ] || _hi_because "ascii: $out"
 }
 
 # fish's target rows carry the backend's symbol ahead of the kind, the
-# description fish shows beside each name; $_HI_SYMBOL_* wins
+# description fish shows beside each name
 function test_fish_target_symbols() {
   local fixture="$_HI_WORKDIR/targets-fixture.sh" out
   printf '%s\n' "printf 'web\\tdocker\\njobx\\tnomad\\npodx\\tkube\\nsshy\\tssh\\n'" >"$fixture"
   out="$(_hi_rc_shell dumb fish "source \$_HI_HOME/say-hi/common/config.fish 2>/dev/null
     set _HI_TARGETS $fixture
-    __hi_targets" LANG=C.UTF-8 _HI_SYMBOL_SSH=S)"
-  [ "$out" = $'web\t▣ docker\njobx\t◆ nomad\npodx\t⎈ kube\nsshy\tS ssh' ] || _hi_because "__hi_targets: ${out//$'\n'/ | }"
+    __hi_targets" LANG=C.UTF-8)"
+  [ "$out" = $'web\t▣ docker\njobx\t◆ nomad\npodx\t⎈ kube\nsshy\t» ssh' ] || _hi_because "__hi_targets: ${out//$'\n'/ | }"
 }
 
 # _hi_greet <shell> <i|c|s> [NAME=VALUE...] - how many times <shell> prints
 # the Online header sourcing hi's rc: typed in (i, from stdin), `-i -c` (c),
-# or as a script (s); settings.sh trims the header to one cell, no probes
+# or as a script (s); settings.sh trims the header to the banner and one
+# cell, no probes
 function _hi_greet() {
   local shell="$1" cfg="$_HI_WORKDIR/greet" src
   local -a args=(--norc)
@@ -473,7 +471,7 @@ function _hi_greet() {
   src="source \"\$_HI_HOME/say-hi/common/$(_hi_rc_of "$shell")\""
   case "$2" in i) args+=(-i) ;; c) args+=(-i -c "$src") ;; esac
   shift 2
-  mkdir -p "$cfg" && printf 'export _HI_HEADER_ORDER=utc\n' >"$cfg/settings.sh"
+  mkdir -p "$cfg" && printf "export _HI_HEADER_ORDER='banner utc'\n" >"$cfg/settings.sh"
   printf '%s\n' "$src" | env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" \
     _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$cfg" "$@" "$shell" "${args[@]}" 2>/dev/null |
     grep -c Online || true

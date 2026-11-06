@@ -149,7 +149,7 @@ function _hi_lint_fish_parse() {
       fish --no-execute "/h/say-hi/$f" || rc=1
     done
     g="$(_HI_HOME=/h _HI_DISABLE_LOCAL=1 _HI_REMOTE_SESSION=0 fish --no-config -c \
-      "source /h/say-hi/common/paths.sh; echo \$_HI_DISABLE_GREETING" 2>&1)"
+      "source /h/say-hi/common/paths.sh; echo \$_HI_DISABLE_ENV_STATUS" 2>&1)"
     [ "$g" = 1 ] || { printf "paths.sh with _HI_DISABLE_LOCAL=1: %s\n" "$g"; rc=1; }
     fish --version
     exit $rc' sh "${files[@]}" 2>&1)" || rc=$?

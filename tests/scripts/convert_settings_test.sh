@@ -277,6 +277,25 @@ function test_settings_drop_the_old_alias_toggles() {
     "#!/bin/sh\n# _HI_DISABLE_TOOL_ALIASES=1 was mine\nexport _HI_SUDO_ALIAS=1" || _hi_why
 }
 
+# shape 1's banner and greeting toggles fold into the header order: a custom
+# order gains both words but the one a toggle hid, keeping its marker; a
+# hidden one with no order writes the default less it; an order that comes
+# out the default goes; and the file is marked this hi's shape either way
+function test_settings_fold_the_banner_and_greeting_into_the_order() {
+  local n s got want
+  n="$(sed -n 's/^_HI_SETTINGS_SHAPE=//p' "$_HI_ROOT/scripts/lib.sh")"
+  printf -v s '%-45s %s' "# say-hi settings $n" "$_HI_MARKER"
+  got="$(printf '#!/bin/sh\n%-45s %s\n%-45s %s\n%-45s %s\n' '# say-hi settings 1' "$_HI_MARKER" \
+    "export _HI_HEADER_ORDER='utc gitid'" "$_HI_MARKER" 'export _HI_DISABLE_BANNER=1' "$_HI_MARKER" | _hi_convert_settings)"
+  printf -v want '#!/bin/sh\n%s\n%-45s %s' "$s" "export _HI_HEADER_ORDER='utc gitid greeting'" "$_HI_MARKER"
+  [ "$got" = "$want" ] || _hi_because "got:  [$got]"$'\n'"want: [$want]" || return 1
+  _hi_conv_is _hi_convert_settings "export _HI_DISABLE_GREETING=1\nexport _HI_KEEP=1\n" \
+    "$s\nexport _HI_HEADER_ORDER='${_HI_HEADER_ORDER_DEFAULT% greeting}'\nexport _HI_KEEP=1" || return 1
+  _hi_conv_is _hi_convert_settings "#!/bin/sh\nexport _HI_HEADER_ORDER=utc\n" \
+    "#!/bin/sh\n$s\nexport _HI_HEADER_ORDER='banner utc greeting'" || return 1
+  _hi_conv_is _hi_convert_settings "export _HI_HEADER_ORDER='${_HI_HEADER_ORDER_DEFAULT#banner }'\nexport _HI_DISABLE_BANNER=0\n" "$s" || _hi_why
+}
+
 # an editor's or a multiplexer's toggle at 1 is its word in the list, vim's
 # both of its plugins, and one at 0 just goes; the list's own line takes the
 # words where it stands, each once, and with none a line is written last
@@ -355,6 +374,21 @@ function test_entry_converts_a_tool_toggle() {
 # ...and a group's word in a list, a group of the overlay's plugins file
 # among them, though not one a plugin shares its name with; a second run
 # finds nothing to do
+# a shape 1 file with a banner or greeting line converts once: the run
+# marks it this hi's shape, so a second leaves it alone
+function test_entry_converts_a_shape_1_header_toggle_once() {
+  local dir="$_HI_WORKDIR/conv-greeting" out got
+  mkdir -p "$dir"
+  printf '#!/bin/sh\n%-45s %s\nexport _HI_DISABLE_GREETING=1\n' '# say-hi settings 1' "$_HI_MARKER" >"$dir/settings.sh"
+  out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
+  got="$(<"$dir/settings.sh")"
+  [[ "$out" == *"converted $dir/settings.sh"* && "$got" == *"_HI_HEADER_ORDER='banner utc"*" check'"* && "$got" != *GREETING* ]] ||
+    _hi_because "said: $out, wrote: $got" || return 1
+  cp "$dir/settings.sh" "$dir/settings.sh.orig"
+  out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
+  { [ -z "$out" ] && cmp -s "$dir/settings.sh" "$dir/settings.sh.orig"; } || _hi_because "a second run said: $out"
+}
+
 function test_entry_converts_a_group_word() {
   local dir="$_HI_WORKDIR/conv-group-word" out got
   mkdir -p "$dir"
@@ -598,6 +632,7 @@ function run_convert_settings_tests() {
   _hi_check "A trailing comment, install's marker too, is kept" test_settings_keep_the_trailing_comment
   _hi_check "The old alias toggles go, a comment naming one stays" test_settings_drop_the_old_alias_toggles
   _hi_check "An editor's toggle becomes its word in the list" test_settings_move_the_tool_toggles_to_the_list
+  _hi_check "The banner and greeting toggles fold into the order" test_settings_fold_the_banner_and_greeting_into_the_order
   _hi_check "A group's word becomes its plugins'" test_settings_spell_a_group_as_its_plugins
   _hi_check "...on a line the wizard's block takes as its own" test_settings_list_line_keeps_the_marker
 
@@ -606,6 +641,7 @@ function run_convert_settings_tests() {
   _hi_check "An old alias toggle alone makes settings.sh old-format" test_entry_converts_the_old_alias_toggles
   _hi_check "...and so does an editor's" test_entry_converts_a_tool_toggle
   _hi_check "...and a group's word in a list" test_entry_converts_a_group_word
+  _hi_check "...and a shape 1 banner or greeting line, once" test_entry_converts_a_shape_1_header_toggle_once
   _hi_check "--dry-run writes nothing" test_entry_dry_run_writes_nothing
   _hi_check "A second run is a no-op" test_entry_is_idempotent
   _hi_check "The rows under [section] lines are converted too" test_entry_converts_the_sections

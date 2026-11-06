@@ -58,13 +58,13 @@ function test_load_propagates_the_session_shells_exit_code() {
   _hi_because "transcript missing its fixed lines: $out"
 }
 
-# _HI_DISABLE_GREETING=1 takes that whole line - the greeting and its three
-# timers - and nothing else. Run with the header off, which is the case where
-# the greeting was also what closed the line hi.sh's size opened: the
+# An order without `greeting` takes that whole line - the greeting and its
+# three timers - and nothing else. Run with the header off, which is the case
+# where the greeting was also what closed the line hi.sh's size opened: the
 # disconnect line still has to land.
-function test_load_greeting_toggle_hides_the_line() {
+function test_load_greeting_word_left_out_hides_the_line() {
   local out
-  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_GREETING=1)" || _hi_why || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_HEADER_ORDER=banner)" || _hi_why || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in
   *"hi loaded:"* | *"init: "*)
@@ -77,13 +77,13 @@ function test_load_greeting_toggle_hides_the_line() {
 
 # With the header on, the greeting line wraps at the draw width and every
 # line of it ends on the header rows' closing "|"; $_HI_DISABLE_RIGHT_EDGE
-# leaves them open. Every row is off, so the greeting is all that could
-# close; the banner stays on, since it ends the line load() opens with the
+# leaves them open. Every cell is off, so the greeting is all that could
+# close; the banner stays in, since it ends the line load() opens with the
 # connect total. At 60 columns the timers no longer fit on one line.
 # <width> <right edge off> <lines wanted>
 function test_load_greeting_line_takes_the_right_edge() {
   local width="$1" edge="$2" want="$3" out line n=0
-  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=none \
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash '_HI_HEADER_ORDER=banner greeting' \
     "_HI_MAX_WIDTH=$width" "_HI_TERM_COLS=$width" "_HI_DISABLE_RIGHT_EDGE=$edge")" || _hi_why width edge || return 1
   while IFS= read -r line; do
     ((++n))
@@ -272,7 +272,7 @@ function test_load_notes_the_name_and_directory_a_session_holds_under() {
     # the session shell reads the two files while the tree is still there
     # (by the tree's path: its rc derives $_HI_ROOT from this checkout's)
     printf 'cat "%s/say-hi/hi.hold" "%s/say-hi/hi.cwd" >"%s"; exit 0\n' "$t" "$t" "$noted" |
-      env -u _HI_KEEP_MUX -u TMUX HOME="$home" SHELL=/bin/bash "_HI_HEADER_ORDER= " _HI_HOLD_TIMEOUT=10m \
+      env -u _HI_KEEP_MUX -u TMUX HOME="$home" SHELL=/bin/bash _HI_HEADER_ORDER=banner _HI_HOLD_TIMEOUT=10m \
         _HI_KEEP_HOLD=hi-box _HI_SESSION_RC_DIR="" _HI_LOAD_NO_INIT=1 _HI_HOME="$_HI_HOME" \
         python3 -c "$_HI_PTY_SPAWN" bash -c 'source "$_HI_HOME/say-hi/load.sh"; set +euo pipefail
           _HI_CLEANUP="$1" _HI_ROOT="$1/say-hi"; load' _ "$t"
@@ -300,13 +300,12 @@ function test_load_cleans_up_its_session_rc_dir() {
 
 # The disconnect footer: tree size and whole-session duration on the banner
 # line, then the timestamp cells. The connect header is trimmed to its
-# banner (an empty-but-set $_HI_HEADER_ORDER word-splits to nothing, so no
-# features and no probe-launch either) so the case measures load(), not
-# system_info.
+# banner (no cell word, so no probe-launch either) so the case measures
+# load(), not system_info.
 function test_load_prints_the_disconnect_banner_and_footer() {
   local out
   out="$(_hi_load_run 'exit 0' SHELL=/bin/bash \
-    "_HI_HEADER_ORDER= ")" || _hi_why || return 1
+    _HI_HEADER_ORDER=banner)" || _hi_why || return 1
   case "$(_hi_strip_ansi "$out")" in
   *"| session: "*" Disconnected ["*) return 0 ;;
   esac
@@ -330,20 +329,20 @@ function test_load_closes_the_prompt_mark_pair_on_exit() {
 # drops the clock row (the UTC cell is the marker - `date -u` prints it)
 function test_load_disconnect_timestamp_follows_the_header_order() {
   local out
-  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=utc)" || _hi_why || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash '_HI_HEADER_ORDER=banner utc')" || _hi_why || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected ["*" UTC"*) ;; *)
-    _hi_because "no UTC cell under _HI_HEADER_ORDER=utc: $out" || return 1
+    _hi_because "no UTC cell under _HI_HEADER_ORDER=banner utc: $out" || return 1
     ;;
   esac
-  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=os)" || _hi_why || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash '_HI_HEADER_ORDER=banner os')" || _hi_why || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected ["*) ;; *)
-    _hi_because "banner missing under _HI_HEADER_ORDER=os: $out" || return 1
+    _hi_because "banner missing under _HI_HEADER_ORDER=banner os: $out" || return 1
     ;;
   esac
   case "${out#*Disconnected}" in *" UTC"*)
-    _hi_because "clock row printed under _HI_HEADER_ORDER=os: $out" || return 1
+    _hi_because "clock row printed under _HI_HEADER_ORDER=banner os: $out" || return 1
     ;;
   esac
 }
@@ -729,7 +728,7 @@ function run_load_session_tests() {
   _hi_check "Greets a bash session honestly" test_load_greets_the_chosen_shell bash "bash today | init:"
   _hi_check_requires zsh "...a zsh one" test_load_greets_the_chosen_shell zsh "zsh shell! :)"
   _hi_check_requires fish "...and a fish one" test_load_greets_the_chosen_shell fish "fish shell! :^)"
-  _hi_check "_HI_DISABLE_GREETING=1 hides the line and its timers" test_load_greeting_toggle_hides_the_line
+  _hi_check "An order without greeting hides the line and its timers" test_load_greeting_word_left_out_hides_the_line
   _hi_check "The greeting line closes on the header's right edge" test_load_greeting_line_takes_the_right_edge 100 0 1
   _hi_check "...wraps its timers where they don't fit" test_load_greeting_line_takes_the_right_edge 60 0 2
   _hi_check "...and stays open under _HI_DISABLE_RIGHT_EDGE=1" test_load_greeting_line_takes_the_right_edge 60 1 2

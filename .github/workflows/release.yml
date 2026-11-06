@@ -71,7 +71,7 @@ jobs:
       actions: read # the CI run lookup
       contents: read # the checkout and the compare call
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           disable-sudo: true
@@ -192,7 +192,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           # the checkout, the cache receiver, and setup-shells' apt - ci.yml's
@@ -258,7 +258,7 @@ jobs:
       prerelease: ${{ steps.tag.outputs.prerelease }}
       debug: ${{ steps.tag.outputs.debug }}
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           # Off the v0.4.2 run's audit log. Artifact upload needs no row of its
@@ -527,14 +527,107 @@ jobs:
             dist/say-hi.spdx.json
           if-no-files-found: error
 
+  # The release's demo GIF: demos.yml's render job, for the packages tape (the
+  # header's check on two boxes) at this tag. Here rather than in demos.yml,
+  # because an immutable release takes no asset once published, so publish
+  # attaches it with the rest. Optional: publish ships without it when this
+  # fails. Tag pushes only, as publish is.
+  demo:
+    name: render the release's demo
+    needs: gate
+    if: ${{ !cancelled() && needs.gate.result == 'success' && github.event_name == 'push' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      # demos.yml's render list, which says why each host is there: change the
+      # two together
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            azure.archive.ubuntu.com:80
+            esm.ubuntu.com:443
+            motd.ubuntu.com:443
+            dl.google.com:443
+            deb.debian.org:80
+            dl-cdn.alpinelinux.org:443
+            registry-1.docker.io:443
+            auth.docker.io:443
+            production.cloudfront.docker.com:443
+            quay.io:443
+            apt.releases.hashicorp.com:443
+            checkpoint-api.hashicorp.com:443
+            dl.k8s.io:443
+            starship.rs:443
+            accounts.google.com:443
+            android.clients.google.com:443
+            clients2.google.com:443
+            content-autofill.googleapis.com:443
+            edgedl.me.gvt1.com:443
+            mtalk.google.com:443
+            optimizationguide-pa.googleapis.com:443
+            update.googleapis.com:443
+            www.google.com:443
+            www.gstatic.com:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-backends
+        with:
+          extra-packages: zsh fish
+
+      # demos.yml's pin, which says why vhs has a version
+      - name: Install vhs, ttyd, and ffmpeg
+        uses: charmbracelet/vhs-action@f6d7db07a432fcd3b06772628d36a57f96d95dcf # v2.1.1
+        with:
+          version: v0.12.1
+          install-fonts: "true"
+
+      - name: Render packages
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          docs/tapes/generate.sh --require-run packages
+          mkdir -p "$RUNNER_TEMP/demo"
+          cp docs/tapes/packages.gif "$RUNNER_TEMP/demo/demo.gif"
+
+      - name: The fixture's log, on a failed render
+        if: ${{ failure() }}
+        run: cat /tmp/hi-demo.log 2>/dev/null || echo "no /tmp/hi-demo.log - the tape never ran fixtures.sh"
+
+      - name: Take the fixtures down
+        if: ${{ always() }}
+        run: docs/tapes/generate.sh --down || true
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo
+          path: ${{ runner.temp }}/demo/demo.gif
+          retention-days: 7
+          if-no-files-found: error
+
   # The only job that publishes. It runs unattended: the gate is the tag
   # protection rule (only someone who can push a v* tag can start a release),
   # not a person clicking approve. `environment: release` stays because its
   # deployment-tags rule (`v*`) keeps the job to tag refs - a repo setting,
   # not this file. See docs/RELEASING.md.
+  #
+  # The release is created as a draft, every asset goes on, and it is
+  # published last: with immutable releases on, a published release takes no
+  # asset. The body stays editable, which the tap job relies on.
   publish:
     name: publish to the release
-    needs: build
+    needs: [build, demo]
     # hard gate on top of the environment: a rehearsal dispatch must never
     # publish, however the environment happens to be configured. The explicit
     # build result rather than a bare event check: the implicit success()
@@ -573,7 +666,7 @@ jobs:
       # hosts are the agent's implicit allowlist. Read off the steps, not a
       # recorded run: tighten or extend it from a release's harden-runner
       # insights (the run summary links them), not by guessing.
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           allowed-endpoints: >
@@ -600,6 +693,30 @@ jobs:
         with:
           name: packages
           path: dist
+
+      # the demo job's GIF, when it rendered; the release ships without one
+      # otherwise
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: ${{ needs.demo.result == 'success' }}
+        with:
+          name: demo
+          path: ${{ runner.temp }}/demo
+
+      # A re-run against a release already published attaches and publishes
+      # nothing, since a published release takes no asset; a draft from an
+      # earlier attempt carries on where that one stopped.
+      - id: state
+        name: Is the release already published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          draft="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null)" || draft=""
+          published=false
+          [ "$draft" != false ] || published=true
+          echo "published=$published" >>"$GITHUB_OUTPUT"
+          [ "$published" = false ] ||
+            echo "::notice title=Release::$GITHUB_REF_NAME is already published - nothing is attached or published again"
 
       - uses: ./.github/actions/setup-tools
         with:
@@ -689,7 +806,9 @@ jobs:
           } >>"$GITHUB_ENV"
           echo "badges: tests=$tests kcov=$kcov bashcov=$bashcov"
 
-      - name: Attach everything to the release
+      - id: attach
+        name: Attach everything to the release
+        if: ${{ steps.state.outputs.published != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -739,16 +858,20 @@ jobs:
           # are fetchable.
           pages="https://${GITHUB_REPOSITORY%%/*}.github.io/${GITHUB_REPOSITORY#*/}"
           echo "HI_PAGES_URL=$pages" >>"$GITHUB_ENV"
+          # the demo job's GIF, attached below; the sums predate it and do not
+          # cover it
+          demo=""
+          [ ! -f "$RUNNER_TEMP/demo/demo.gif" ] ||
+            demo="![say-hi $GITHUB_REF_NAME: the packages demo]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/demo.gif)"
           # printf rather than a heredoc: a heredoc body would have to be
-          # unindented, which ends the YAML block scalar. The two
-          # `<!-- hi:... -->` lines are slots later jobs fill through
-          # .github/scripts/release_slot.sh - `demo` (demos.yml's attach) and
-          # `tap` (the tap job below); unfilled, a comment renders as nothing.
+          # unindented, which ends the YAML block scalar. The
+          # `<!-- hi:tap -->` line is a slot the tap job below fills through
+          # .github/scripts/release_slot.sh; unfilled, a comment renders as
+          # nothing.
           body="$(printf '%s\n' \
             "![tests]($HI_BADGE_TESTS) ![kcov]($HI_BADGE_KCOV) ![bashcov]($HI_BADGE_BASHCOV)" \
             "" \
-            "<!-- hi:demo -->" \
-            "" \
+            ${demo:+"$demo" ""} \
             ${changed:+"$changed" ""} \
             "$notes" \
             "" \
@@ -775,11 +898,12 @@ jobs:
           # A prerelease tag (anything with a `-`: v1.0.0-rc.1) is marked as
           # one and never becomes "Latest" - README's release badge and
           # pages.yml's package repository both read that pointer, and
-          # neither should land on a candidate.
+          # neither should land on a candidate. A draft until the publish step
+          # below; one an earlier attempt left keeps its body.
           extra=()
           case "$GITHUB_REF_NAME" in *-*) extra=(--prerelease --latest=false) ;; esac
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 ||
-            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "$body" "${extra[@]}"
+            gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes "$body" "${extra[@]}"
           # the manifests ride along so publish-external.yml's later dispatch
           # is a `gh release download`, not a re-derivation; read line by
           # line, not mapfile (bash 4). No dotglob needed: the AUR
@@ -789,6 +913,7 @@ jobs:
           files+=(dist/manifests/*)
           [ -f dist/SHA256SUMS.minisig ] && files+=(dist/SHA256SUMS.minisig)
           files+=(dist/say-hi.spdx.json)
+          [ -z "$demo" ] || files+=("$RUNNER_TEMP/demo/demo.gif")
           # build's two attest steps covered every file dist/ARTIFACTS lists,
           # SHA256SUMS included - its bytes are unchanged since (minisign
           # signs it, never rewrites it), so its digest still matches what was
@@ -815,11 +940,13 @@ jobs:
       # apt, rpm, and apk indexes over the packages just uploaded, signed with
       # the GPG key the rpm was and the apk index with the apk's key, shipped
       # as one asset that pages.yml unpacks from the newest non-prerelease
-      # release. After the upload, so a failure here still leaves a complete
-      # release. Skips loudly without GPG_SIGNING_KEY: an unsigned repository
-      # is nothing to subscribe to. mkrepo.sh checks the key against
+      # release. After the upload, and the release publishes whatever this
+      # step does, so a failure here still leaves a complete release. Skips
+      # loudly without GPG_SIGNING_KEY: an unsigned repository is nothing to
+      # subscribe to. mkrepo.sh checks the key against
       # packaging/gpg/say-hi.asc, as build did before signing the rpm.
       - name: Build and attach the package repository
+        if: ${{ steps.state.outputs.published != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
@@ -849,12 +976,23 @@ jobs:
           source .github/scripts/gh_asset.sh
           _ci_upload_assets "$GITHUB_REF_NAME" dist/package-repo.tar.gz
 
-      # The release's demo GIF: demos.yml renders every tape at this tag and
-      # its attach job uploads one to the release and fills the body's `demo`
-      # slot. Dispatched here rather than on its own tag trigger, so the
-      # release it attaches to always exists by the time it looks. The site's
-      # redeploy for the release is demos.yml's too (its refresh-pages job):
-      # once, after the GIFs, rather than here and again after them.
+      # Last, once every asset is on. Not held by the package repository: a
+      # failure there still publishes, without it, and fails the job. The
+      # prerelease flags again, so the edit never makes a candidate Latest.
+      - name: Publish the release
+        if: ${{ !cancelled() && steps.attach.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          extra=()
+          case "$GITHUB_REF_NAME" in *-*) extra=(--prerelease --latest=false) ;; esac
+          gh release edit "$GITHUB_REF_NAME" --draft=false "${extra[@]}"
+
+      # The site's demos: demos.yml renders every tape at this tag, and its
+      # refresh-pages job is the site's one redeploy for the release, after
+      # the GIFs, rather than here and again after them. Dispatched once the
+      # release is out, so the redeploy serves its package repository.
       - name: Render the release's demos
         env:
           GH_TOKEN: ${{ github.token }}
@@ -898,7 +1036,7 @@ jobs:
       TAP: ${{ github.repository_owner }}/tap
     steps:
       # audit until this job has an allowlist taken from its audit runs
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -964,7 +1102,7 @@ jobs:
   # its registration is closed, and its push has no PR to hide behind. The PR
   # - or the tap's formula, when it is already current - is linked from the
   # release body's `tap` slot, under the GITHUB_TOKEN rather than the tap's,
-  # in the one concurrency group demos.yml's attach job also edits the body in.
+  # in the body's concurrency group, so a re-run never edits it alongside.
   tap:
     name: open the Homebrew tap PR
     needs: brew
@@ -983,7 +1121,7 @@ jobs:
       # checkout (github) and gh's ref, commit, PR and release calls (api);
       # the artifact download is on the agent's implicit allowlist. Tighten
       # or extend it from a release's harden-runner insights.
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
           allowed-endpoints: >

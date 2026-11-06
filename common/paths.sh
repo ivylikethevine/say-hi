@@ -111,6 +111,4 @@ export _HI_REMOTE_SESSION
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_ENV_STATUS=1
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_TOOL_ALIASES=0
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_SUDO_ALIAS=0
-[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_BANNER=1
-[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_GREETING=1
 true # the file's status, whichever way the last line went

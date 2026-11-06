@@ -6,44 +6,87 @@ an entry leaves as one sentence for the top list of
 [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 [Release Stages](#release-stages).
 
+- [ ] **Two add/remove pairs go the way of `--add-plugin`** —
+      `--add-package`/`--remove-package` and `--add-color`/`--remove-color`
+      do by flag what `hi --edit` does by hand, the choice already made for
+      plugins; `--add-tag` stays, since it edits `~/.ssh/config`, which
+      `--edit` cannot reach. **Do:** drop `scripts/add_package.sh`,
+      `scripts/set_color.sh`, their suites, and their rows in `common/flags`,
+      `docs/hi.1`, USAGE.md, tldr.md and the completions. Medium.
+      **Ticks when:** `hi --help` lists neither pair and the parse, help and
+      drift suites pass.
+
+- [ ] **The packages grammar loses a dimension** — groups, the
+      `.required` and `.unwanted` sub-tables, and a ramp of four installed
+      and four missing tiers are three dials on one check, and the format
+      freezes at 1.0. **Do:** a per-row marker in place of the sub-tables,
+      so group on/off is the only dial; `config/packages`,
+      `docs/packages.example`, `common/header.sh`'s check, COLORS.md's
+      _The package check's rows_, `scripts/convert_settings.sh` for the old
+      shape. Medium. **Ticks when:** the shipped file and the example use
+      the new shape and the header and configure suites pass.
+
+- [ ] **A smaller wizard** — `scripts/configure.sh`, `configure_menu.sh` and
+      `configure_preview.sh` are 88 KB for the settings rows, and the doctor
+      45 KB. The larger option is presets plus `hi --edit` in place of the
+      paged menu. Large. **Ticks when:** decided, and the chosen shape is in.
+
+- [ ] **One coverage tool** — kcov and bashcov each produce a badge and
+      each has cost an incident (the PS4 switch, the SimpleCov root filter).
+      **Do:** keep bashcov, which credits the staged copies; drop
+      `tests/coverage.sh`, its job in `coverage.yml`, the kcov pin in
+      `tools.txt`, and the kcov badge; TESTING.md's _Coverage_. Medium.
+      **Ticks when:** `main` publishes one coverage figure.
+
+- [ ] **Fewer workflows** — `rerun-timeouts.yml` retries hung jobs where
+      the rule is to fix slow jobs in code; `cancel-closed-pr.yml` is one
+      `concurrency:` block; `usage.yml` is a `pages.yml` job; and
+      `apple-container.yml` is a dispatch-only probe. Of the six scanners,
+      CodeQL and scorecard earn their keep on a public repo; dependency
+      review, the image scan, the link check and the tool-versions report are
+      each a question. **Do:** one PR per cut; a file ci-shared owns moves in
+      the batch, never alone. Small each. **Ticks when:** every workflow left
+      has a line in CONTRIBUTING.md's _What CI runs_ saying what it catches.
+
+- [ ] **The hosted package repository has subscribers** — the apt, rpm and
+      apk repository (`packaging/mkrepo.sh`, `release.yml`, `pages.yml`, two
+      signing keys) is the heaviest channel to keep honest, and the release
+      already carries the .deb, .rpm and .apk files. **Do:** ask; with none,
+      drop the repository and its keys and keep the files on the release;
+      PACKAGING.md and RELEASING.md. Medium. **Ticks when:** decided, and the
+      channels shipped are the ones PACKAGING.md lists.
+
+- [ ] **One introduction** — README, GETTING-STARTED, TOUR and USAGE each
+      walk the flags, and FILES.md's target and package sections repeat
+      HOW-IT-WORKS and PACKAGING. **Do:** fold TOUR into GETTING-STARTED and
+      move FILES.md's sections to their homes; `docs/README.md`'s index and
+      every `## Contents` follow. Medium. **Ticks when:** each fact has one
+      home and the link check passes.
+
 - [ ] **Every default and preset audited before the tag** —
       [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
-      freezes the name and default of all 47 rows of
+      freezes the name and default of all 35 rows of
       [SETTINGS.md's _Every setting_](SETTINGS.md#every-setting) and the
-      five presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
-      stranger's first run, every row's default agreeing with its code. The
+      four presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
+      stranger's first run, every row's default agreeing with its code, and
+      no default has moved since, through 8108d7d8. The
       known changes, both shipped in 0.8.0, are the `balanced` first-install
       default and `hi --update`'s verification. Moved since fe63e85e:
       `_HI_IP_HIDE` from `172.*`, which hid public addresses and missed
       rootful podman's bridge, to the bridges' interface names;
       `_HI_PROMPT_END_ZSH` from `>` to `%(!.#.>)`, which marks root as bash
-      and fish do; and `_HI_PACKAGES_GROUPS` from `core useful deprecated`
-      to `core deprecated`, with `useful` under the `everything` preset.
+      and fish do; `_HI_PACKAGES_GROUPS` from `core useful deprecated`
+      to `core deprecated`, with `useful` under the `everything` preset;
+      and `_HI_HEADER_ORDER` gaining `banner` first and `greeting` last.
       **Ticks when:** the 1.0.0 release note lists those moves, the known
       changes, and any others that move.
 
-- [ ] **The session starts once the core files land** — on a fresh
-      connection a script past about 45 KB costs two extra round trips over
-      a small one, and one under 40 KB costs one (at 150 ms added). At
-      081bbd6a the script is 68.9 KB (the README badge's 67 KB, which counts
-      1024 bytes to the KB), 61.3 KB of it the gzipped tree.
-      At 7165ce44, when both were 0.2 KB smaller: without `hi.sh`, the zsh
-      completion, and the zsh and fish files, the
-      tree is 39.1 KB, a script of about 46.7 KB: still past the line. It
-      is 34.2 KB, about 41.8 KB with the script, only with `keep.sh` held
-      back too, and `load()` calls `keep.sh`'s functions as the session
-      starts. **Blocked:** a core whose script is under 40 KB, which needs
-      the tree cut by about 2 KB more and `keep.sh`'s start-up functions in
-      the core without the rest of it. These sizes predate 8d9296d3 and
-      62d9d558, which changed the shipped tree (+111/-15 lines since
-      081bbd6a), so the 2 KB wants measuring again first.
-      **Do:** the core members first on the boot call's stdin and the rest
-      after, the stub starting once the core is in while the rest lands
-      behind it; a `hi host cmd` still waits for the whole tree, and what
-      reads a later file (the `hi` relay, zsh, fish) waits for it.
-      **Ticks when:** a cold connect is a round trip shorter at
-      150 ms added, with nothing dropped from the tree, and the relay, fish,
-      zsh, and kept-session suites pass.
+- [ ] **The pre-1.0 conversions go at the tag** —
+      `scripts/convert_settings.sh` (23 KB, 11 functions) rewrites overlay
+      shapes nothing after the tag has a contract for. **Do:** keep the entry
+      point, which `--install`, `--configure` and `--update` call, and drop
+      the pre-1.0 arms and their fixtures. Small. **Ticks when:** the script
+      converts only shapes a 1.x release wrote.
 
 ## Release Stages
 

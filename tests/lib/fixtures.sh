@@ -54,11 +54,35 @@ _HI_TEST_SCHEME12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd39
 _HI_TEST_SCHEME24="$_HI_TEST_SCHEME12 ff8c00 ff69b4 20b2aa 9acd32 8a2be2 fa8072 ffd700 87ceeb 6a5acd 98ff98 ffb07c b57edc"
 _HI_TEST_SCHEME48="$_HI_TEST_SCHEME24 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db e07b39 e75480 2a9d8f 7bc043 7b2cbf f08080 e6b800 5bc0eb 4b0082 3eb489 ffcba4 967bb6"
 
-# A packages ramp of the user's own, in $_HI_PACKAGES_PALETTE's eight-name
-# shape: four for installed rising 0->3, then four for missing. Deliberately
+# A packages ramp of the user's own, in the eight-name shape a [palette]
+# loads as: four for installed rising 0->3, then four for missing. Deliberately
 # shares no name with the shipped ramp, so a case can tell "taken verbatim"
 # from "fell back". Shared by common/header_test.sh and scripts/preview_test.sh.
 _HI_TEST_RAMP='yellow bryellow green brgreen magenta brmagenta red brred'
+
+# _hi_color_overlay <dir> <base> [scheme] [ramp] - <dir>/colors: <base>'s rows
+# (empty for none), then a [scheme] of [scheme]'s words, the first 24 as
+# `colors` and the rest as `packages`, and a [palette] of [ramp]'s names, the
+# first four `installed` and the rest `missing` - how a scheme or a ramp
+# reaches a child, since core.sh loads both from the colors file it resolves
+function _hi_color_overlay() {
+  local dir="$1" base="$2" s="${3:-}" r="${4:-}" f="$1/colors" a
+  local -a w=()
+  mkdir -p "$dir"
+  if [ -n "$base" ]; then cat "$base"; fi >"$f"
+  if [ -n "$s" ]; then
+    read -r -a w <<<"$s"
+    printf '\n[scheme]\ncolors = "%s"\n' "${w[*]:0:24}" >>"$f"
+    [ "${#w[@]}" -le 24 ] || printf 'packages = "%s"\n' "${w[*]:24}" >>"$f"
+  fi
+  [ -n "$r" ] || return 0
+  read -r -a w <<<"$r"
+  printf -v a '"%s", ' "${w[@]:0:4}"
+  printf '\n[palette]\ninstalled = [%s]\n' "${a%, }" >>"$f"
+  [ "${#w[@]}" -gt 4 ] || return 0
+  printf -v a '"%s", ' "${w[@]:4}"
+  printf 'missing = [%s]\n' "${a%, }" >>"$f"
+}
 
 # _hi_table_is_rectangular <text> - every line of every boxed table in <text>
 # is the same printed width. Both preview suites assert it through this one

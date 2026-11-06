@@ -84,7 +84,7 @@ function test_bare_help_lists_the_subjects() {
 function test_header_subject_renders_the_header() {
   local out
   out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
-    _HI_DISABLE_BANNER=1 _HI_HEADER_ORDER="version" _HI_TARGETS_TTL=0 \
+    _HI_HEADER_ORDER="version" _HI_TARGETS_TTL=0 \
     "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" header 2>&1)" || _hi_why || return 1
   [[ "$out" == *"| "* ]] || _hi_why out
 }
@@ -506,10 +506,11 @@ function test_tables_render_without_error() {
 # a scheme paints the swatches with the 24-bit tail, and the header line
 # says which scheme it is (HI.50)
 function test_tables_render_under_a_scheme() {
-  local out
-  out="$(_HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_render_colors)" || _hi_why || return 1
+  local out cfg="$_HI_WORKDIR/scheme-cfg"
+  _hi_color_overlay "$cfg" "$_HI_SUITE_WORKDIR/colors" "$_HI_TEST_SCHEME24"
+  out="$(_HI_CONFIG_DIR="$cfg" _HI_TRUECOLOR=1 _hi_render_colors)" || _hi_why || return 1
   [[ "$out" == *"scheme: custom (24)"* && "$out" == *";38;2;"* ]] || _hi_why out || return 1
-  out="$(_HI_COLOR_SCHEME="" _HI_TRUECOLOR=0 _hi_render_colors)" || _hi_why || return 1
+  out="$(_HI_TRUECOLOR=0 _hi_render_colors)" || _hi_why || return 1
   [[ "$out" == *"scheme: default"* && "$out" != *";38;2;"* ]] || _hi_why out
 }
 
@@ -619,7 +620,7 @@ function test_packages_text_is_a_row_a_line() {
 function test_header_text_is_a_cell_a_line() {
   local out rules
   out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
-    _HI_DISABLE_BANNER=1 _HI_HEADER_ORDER="version check" _HI_TARGETS_TTL=0 \
+    _HI_HEADER_ORDER="version check" _HI_TARGETS_TTL=0 \
     "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" header --text 2>&1)" || _hi_why out || return 1
   rules="$(_hi_text_rules "$out")"
   [[ "$out" == *"header / version: "*"header / check: as the header prints it"* ]] && [ "$rules" = 0 ] || _hi_why rules out

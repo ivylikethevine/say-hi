@@ -72,30 +72,24 @@ $(sed -n '/^#$/,$p' "$_HI_FORMULA")"
 }
 
 # The release page says where the formula went and shows the thing running:
-# publish lays out a `tap` and a `demo` slot and dispatches demos.yml at the
-# tag; the tap job links its PR into one and demos.yml's attach job embeds the
-# uploaded GIF in the other, each under the GITHUB_TOKEN with contents: write
-# and in the one concurrency group, so the two writers never interleave. No
-# tag trigger of demos.yml's own: that run would race the release it attaches to.
+# publish embeds the demo it attached and lays out a `tap` slot, then
+# dispatches demos.yml at the tag for the site; the tap job links its PR into
+# the slot under the GITHUB_TOKEN with contents: write, in the body's
+# concurrency group. No tag trigger of demos.yml's own: that run would race
+# the release.
 function test_release_body_links_the_tap_pr_and_embeds_the_demo() {
   # shellcheck disable=SC2016 # the workflows' own literals, expanded there
-  local publish tap attach group='group: release-body-${{ github.ref_name }}'
+  local publish tap group='group: release-body-${{ github.ref_name }}'
   publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   tap="$(_hi_wf_job "$_HI_RELEASE_WF" tap)"
-  attach="$(_hi_wf_job "$_HI_DEMOS_WF" attach)"
-  [[ "$publish" == *'"<!-- hi:demo -->"'* && "$publish" == *'"<!-- hi:tap -->"'* ]] || _hi_why publish || return 1
+  # shellcheck disable=SC2016 # likewise
+  [[ "$publish" == *'${demo:+"$demo" ""}'* && "$publish" == *'"<!-- hi:tap -->"'* ]] || _hi_why publish || return 1
   # shellcheck disable=SC2016 # likewise
   [[ "$publish" == *'gh_dispatch.sh demos.yml "$GITHUB_REF_NAME"'* ]] || _hi_why publish || return 1
   # shellcheck disable=SC2016 # likewise
   [[ "$tap" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" tap'* && "$tap" == *"contents: write"* &&
     "$tap" == *"$group"* && "$tap" == *"GH_TOKEN: \${{ github.token }}"* &&
     "$tap" == *"RELEASE_SLOT_PREFIX: hi"* ]] || _hi_why tap group || return 1
-  # shellcheck disable=SC2016 # likewise
-  [[ "$attach" == *"github.ref_type == 'tag'"* && "$attach" == *"needs.collect.result == 'success'"* &&
-    "$attach" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" demo'* &&
-    "$attach" == *'_ci_upload_assets "$TAG" "$RUNNER_TEMP/demo.gif"'* &&
-    "$attach" == *'releases/download/$TAG/demo.gif'* && "$attach" == *"contents: write"* &&
-    "$attach" == *"$group"* && "$attach" == *"RELEASE_SLOT_PREFIX: hi"* ]] || _hi_why attach group || return 1
   ! sed -n '/^on:/,/^[a-z]/p' "$_HI_DEMOS_WF" | grep -qE '^  push:' || _hi_why _HI_DEMOS_WF
 }
 
@@ -154,7 +148,7 @@ function test_gh_asset_retries_through_the_raw_endpoint() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CI_GH_LOG"
 case "$*" in
-*releases/tags/v9.9.9*) printf '4242\t77\n' ;;
+*"releases?per_page=100"*) printf '4242\t77\n' ;;
 *"--method DELETE"*) ;;
 *"release upload"*)
   echo "HTTP 500: Error saving asset" >&2
@@ -194,7 +188,7 @@ function test_gh_asset_attaches_the_rest_and_names_the_missing() {
 printf '%s\n' "$*" >>"$CI_GH_LOG"
 case "$*" in
 *bad.rpm*) exit 1 ;;
-*releases/tags/v9.9.9*) printf '4242\t\n' ;;
+*"releases?per_page=100"*) printf '4242\t\n' ;;
 *"--method DELETE"*) ;;
 *) printf '{"state":"uploaded"}\n' ;;
 esac
@@ -241,7 +235,7 @@ EOF
 function _hi_tool_run() {
   local dir="$1" sub="$2"
   shift 2
-  env -u CI_TOOL_VERSION -u CI_TOOL_SHA256 CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
+  env CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
     GITHUB_OUTPUT="$dir/output" HI_TOOL_SRC="$dir/src" PATH="$dir/bin:$PATH" "$@" \
     bash "$_HI_ROOT/.github/actions/setup-tool/install.sh" "$sub" 2>&1
 }
@@ -546,9 +540,9 @@ EOF
 }
 
 # resolve writes the pin, its checksum, where the binary will land, and the
-# hosted image ($ImageOS, empty off a hosted runner) for the cache key; a
-# version override needs a checksum of its own, and an unknown tool, a
-# platform the row has no asset for, and a stray subcommand each fail by name
+# hosted image ($ImageOS, empty off a hosted runner) for the cache key; an
+# unknown tool, a platform the row has no asset for, and a stray subcommand
+# each fail by name
 function test_setup_tool_resolve_names_the_pin() {
   local got2
   local dir out rc=0 a b plat
@@ -563,13 +557,6 @@ function test_setup_tool_resolve_names_the_pin() {
   [ "$got2" = "version=1.2.3"$'\n'"sha256=$a"$'\n'"path=$dir/out/one"$'\n'"image=img1" ] || _hi_because "one: $got2" || return 1
   : >"$dir/output"
   _hi_tool_run "$dir" resolve CI_TOOL=two >/dev/null && grep -qx "sha256=$b" "$dir/output" || _hi_why dir b || return 1
-  : >"$dir/output"
-  _hi_tool_run "$dir" resolve CI_TOOL=one CI_TOOL_VERSION=9.9 CI_TOOL_SHA256="$b" ImageOS= >/dev/null || _hi_because "an override: $(cat "$dir/output")" || return 1
-  got2="$(cat "$dir/output")"
-  [ "$got2" = "version=9.9"$'\n'"sha256=$b"$'\n'"path=$dir/out/one"$'\n'"image=" ] || _hi_because "an override: $got2" || return 1
-  out="$(_hi_tool_run "$dir" resolve CI_TOOL=one CI_TOOL_VERSION=9.9)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one version 9.9 overrides the pin (1.2.3) without a sha256"* ]] || _hi_because "a bare override: $out" || return 1
-  rc=0
   out="$(_hi_tool_run "$dir" resolve CI_TOOL=nope)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"no row for 'nope'"* ]] || _hi_because "an unknown tool: $out" || return 1
   rc=0
@@ -662,21 +649,21 @@ function test_setup_tools_batches_resolve_and_install() {
   printf '#!/bin/sh\necho two\n' >"$dir/src/two"
   sum="$(sha256_of "$dir/src/two")"
   printf '%s\n' "one|1.0|raw|https://x/one||-||$(sha256_of "$dir/src/one")" "two|2.5|raw|https://x/two||-||$sum" >"$dir/tools.txt"
-  env -u CI_TOOL_VERSION -u CI_TOOL_SHA256 ImageOS=img1 CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
+  env ImageOS=img1 CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
     GITHUB_OUTPUT="$dir/output" bash "$_HI_ROOT/.github/actions/setup-tools/resolve.sh" || _hi_why dir || return 1
   out="$(cat "$dir/output")"
   got="$(sha256_of "$dir/src/one" | cut -c1-12)"
   [ "$out" = "key= img1 one=1.0@$got two=2.5@${sum:0:12}"$'\n'"paths<<CI_TOOLS_EOF"$'\n'"$dir/out/one"$'\n'"$dir/out/two"$'\n'"CI_TOOLS_EOF" ] ||
     _hi_because "the outputs: $out" || return 1
   : >"$dir/output"
-  env -u CI_TOOL_VERSION -u CI_TOOL_SHA256 -u ImageOS CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
+  env -u ImageOS CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
     GITHUB_OUTPUT="$dir/output" bash "$_HI_ROOT/.github/actions/setup-tools/resolve.sh" || _hi_why dir || return 1
   out="$(sed -n 1p "$dir/output")"
   [ "$out" = "key= one=1.0@$got two=2.5@${sum:0:12}" ] ||
     _hi_because "the outputs: $out" || return 1
   printf '#!/bin/sh\necho unverified\n' >"$dir/out/one"
   chmod +x "$dir/out/one"
-  out="$(env -u CI_TOOL_VERSION -u CI_TOOL_SHA256 CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
+  out="$(env CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
     HI_TOOL_SRC="$dir/src" PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/actions/setup-tools/install-missing.sh" 2>&1)" ||
     _hi_because "the batch install failed: $out" || return 1
   got="$("$dir/out/one")"

@@ -30,7 +30,7 @@ _HI_MENU_GRID_N=0
 # a row indented under the section it is a page of.
 _HI_MENU_PAGE=""
 _HI_MENU_SECTIONS=(
-  "i|Header|Header|header, greeting, banner"
+  "i|Header|Header|header"
   "e|Header cells|  cells|"
   "c|Package check|  package check|"
   "r|Prompt|Prompt|prompt, git, env"
@@ -316,10 +316,10 @@ function _hi_menu_row() {
 
 # The list, grouped by what a setting changes, a heading over each part of a
 # page. First the two switches for where hi styles a shell at all, rows of
-# the main page alone. Header: the switch for the whole of it, the greeting
-# and the banner, its width, hidden addresses and right edge, and the two
-# pages under it
-# - its cells in the order they print, a grid of as many to a line as the
+# the main page alone. Header: the switch for the whole of it, its width,
+# hidden addresses and right edge, and the two pages under it
+# - its cells in the order they print, the banner and greeting among them,
+# a grid of as many to a line as the
 # width holds, four at most, and the package check's groups, a row each.
 # Prompt: its switches, then who draws each shell's and what it ends with.
 # Plugins: a row a group, and a page a group with a row a plugin. The main
@@ -347,11 +347,8 @@ function _hi_menu_list() {
   fi
   _hi_menu_switch l t
   _hi_menu_section i
-  for row in _HI_FEATURE_PROMPTS:0:header _HI_FEATURE_PROMPTS:1:greeting _HI_HEADER_PROMPTS:0:banner; do
-    IFS=: read -r name i word <<<"$row"
-    _hi_menu_row_fields "$name" "$i"
-    _hi_menu_grid_item "row|$name|$i" "$state" "$word" "$cols"
-  done
+  _hi_menu_row_fields _HI_FEATURE_PROMPTS 0
+  _hi_menu_grid_item "row|_HI_FEATURE_PROMPTS|0" "$state" header "$cols"
   _hi_menu_grid_end "$cols"
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
@@ -403,8 +400,8 @@ function _hi_menu_list() {
   done
   _hi_menu_section r
   _hi_menu_row _HI_PROMPT_PROMPTS 0
+  _hi_menu_row _HI_FEATURE_PROMPTS 1
   _hi_menu_row _HI_FEATURE_PROMPTS 2
-  _hi_menu_row _HI_FEATURE_PROMPTS 3
   setting_value _HI_PROMPT_TOOL "$_HI_SETTINGS" tool
   _hi_menu_heading "Who draws each shell's prompt - auto is the first program a target has, else hi"
   same="" note=""
@@ -747,7 +744,7 @@ function config_hub() {
         idx=$((arg - _HI_MENU_WORD0))
         case "$cmd" in u*) _hi_header_edit_move "$idx" -1 ;; *) _hi_header_edit_move "$idx" 1 ;; esac
       else
-        _hi_menu_note " up/down take a header item, $_HI_MENU_WORD0 to $last - the banner always leads" "$YELLOW"
+        _hi_menu_note " up/down take a header item, $_HI_MENU_WORD0 to $last - the banner always leads and the greeting closes" "$YELLOW"
       fi
       ;;
     s | save) return 0 ;;
@@ -785,8 +782,8 @@ function config_hub() {
 # of header.sh's word list.
 _HI_HEADER_PRESETS=(
   "full|every item, in the shipped order|"
-  "compact|the clocks, the version, your git identity, the backend counts, and the package check|utc version localtime gitid containers jobs pods check"
-  "quiet|just the clocks and your git identity|utc localtime gitid"
+  "compact|the banner, the clocks, the version, your git identity, the backend counts, the package check, and the greeting|banner utc version localtime gitid containers jobs pods check greeting"
+  "quiet|the banner, the clocks, your git identity, and the greeting|banner utc localtime gitid greeting"
 )
 
 # The menu's working copy of $_HI_HEADER_ORDER: every word of the

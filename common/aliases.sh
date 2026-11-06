@@ -15,7 +15,7 @@
 # intentional empties survive; $FISH_VERSION, which the lookups below test to
 # tell fish apart, stays unexported. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${_HI_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}"; _HI_ALIAS_GUARD="${_HI_ALIAS_GUARD-true}" FISH_VERSION="${FISH_VERSION-}"' 2>/dev/null || true
+  eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${_HI_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}"; _HI_ALIAS_GUARD="${_HI_ALIAS_GUARD-true}" FISH_VERSION="${FISH_VERSION-}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
@@ -79,11 +79,10 @@ command -v shift >/dev/null 2>&1 &&
 # is. ls colors only when asked (coreutils, busybox, newer BSD ls), so its
 # rung asks where the flag is taken; an ls that refuses it colors through
 # CLICOLOR, or not at all.
-[ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
-[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" eza && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
+[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" eza && export _HI_LS_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 # shellcheck disable=SC2006,SC2015
-[ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "`type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza`" ] || export _HI_LS_OPTS="$_HI_EZA_OPTS"
-[ -n "$FISH_VERSION" ] && [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v eza | string match -q -- "$_HI_LS_BIN" && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
+[ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "`type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza`" ] || export _HI_LS_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"'
+[ -n "$FISH_VERSION" ] && [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v eza | string match -q -- "$_HI_LS_BIN" && export _HI_LS_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ -z "$_HI_LS_OPTS" ] && export _HI_LS_OPTS='-F -l' && command ls --color=auto -d / >/dev/null 2>&1 && export _HI_LS_OPTS='-F -l --color=auto' || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
@@ -116,7 +115,7 @@ command -v shift >/dev/null 2>&1 &&
 # target), sourced LAST: an `alias` there replaces the same name above, can
 # build on what this file resolved (`alias ls="$_HI_LS_BIN $_HI_LS_OPTS
 # --icons"`), and `alias cat=cat` takes one back. The values the aliases above
-# read (_HI_*_OPTS, _HI_*_BIN, the two opt-ins) belong in
+# read (_HI_LS_OPTS, _HI_BAT_OPTS, the two opt-ins) belong in
 # settings.sh, which every shell sources first; set here they arrive too late,
 # and `hi --doctor` says so. Same POSIX+fish subset as this file: bash, zsh,
 # and fish parse it first, and one that cannot skips it with a line saying so

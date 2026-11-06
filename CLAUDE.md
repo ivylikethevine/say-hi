@@ -145,8 +145,8 @@ are all machine-read by a suite, and `README.md`'s payload badge by
   alone until `--plugins`): grep the tests for a prefix of the new flag's
   name.
 - A new `feature` row in `scripts/settings` shifts every index after it: the
-  wizard's pages and the configure suites name rows by position (0-5: header,
-  greeting, git, env, tool aliases, sudo), and a page fits 24. Append after
+  wizard's pages and the configure suites name rows by position (0-4: header,
+  git, env, tool aliases, sudo), and a page fits 24. Append after
   `_HI_PLAIN`'s row; the menu finds `_HI_DISABLE_LOCAL` and `_HI_PLAIN` by
   name.
 - A plugin's line on the wizard's group page is the comment right above its
