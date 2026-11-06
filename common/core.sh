@@ -1364,8 +1364,8 @@ function _hi_color_tables() {
     palette.missing) m="${v//,/ }" ;;
     esac
   done <"$f"
-  _HI_COLOR_SCHEME="$s${p:+ $p}"
-  [ -z "$i$m" ] || _HI_PACKAGES_PALETTE="$i $m"
+  _HI_COLOR_SCHEME="$s${s:+${p:+ }}$p"
+  _HI_PACKAGES_PALETTE="$i${i:+${m:+ }}$m"
 }
 _hi_color_tables
 

@@ -615,9 +615,9 @@ function test_header_edit_preset_turns_on_its_words_in_order() {
     _HI_SETTING_PENDING=()
     _hi_header_edit_preset quiet || _hi_why || exit 1
     got="$(_hi_hdr_on_count)"
-    [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=utc localtime gitid" ] &&
-      [ "${_HI_HDR_WORDS[*]:0:3}" = "utc localtime gitid" ] &&
-      [ "$got" = 3 ] &&
+    [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=banner utc localtime gitid greeting" ] &&
+      [ "${_HI_HDR_WORDS[*]:0:5}" = "banner utc localtime gitid greeting" ] &&
+      [ "$got" = 5 ] &&
       [[ "$_HI_MENU_NOTE" == *"the 'quiet' preset"* ]] ||
       _hi_because "quiet: pending [${_HI_SETTING_PENDING[*]}], words [${_HI_HDR_WORDS[*]}]" || exit 1
     _hi_header_edit_preset full || _hi_why || exit 1

@@ -60,6 +60,30 @@ _HI_TEST_SCHEME48="$_HI_TEST_SCHEME24 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd 
 # from "fell back". Shared by common/header_test.sh and scripts/preview_test.sh.
 _HI_TEST_RAMP='yellow bryellow green brgreen magenta brmagenta red brred'
 
+# _hi_color_overlay <dir> <base> [scheme] [ramp] - <dir>/colors: <base>'s rows
+# (empty for none), then a [scheme] of [scheme]'s words, the first 24 as
+# `colors` and the rest as `packages`, and a [palette] of [ramp]'s names, the
+# first four `installed` and the rest `missing` - how a scheme or a ramp
+# reaches a child, since core.sh loads both from the colors file it resolves
+function _hi_color_overlay() {
+  local dir="$1" base="$2" s="${3:-}" r="${4:-}" f="$1/colors" a
+  local -a w=()
+  mkdir -p "$dir"
+  if [ -n "$base" ]; then cat "$base"; fi >"$f"
+  if [ -n "$s" ]; then
+    read -r -a w <<<"$s"
+    printf '\n[scheme]\ncolors = "%s"\n' "${w[*]:0:24}" >>"$f"
+    [ "${#w[@]}" -le 24 ] || printf 'packages = "%s"\n' "${w[*]:24}" >>"$f"
+  fi
+  [ -n "$r" ] || return 0
+  read -r -a w <<<"$r"
+  printf -v a '"%s", ' "${w[@]:0:4}"
+  printf '\n[palette]\ninstalled = [%s]\n' "${a%, }" >>"$f"
+  [ "${#w[@]}" -gt 4 ] || return 0
+  printf -v a '"%s", ' "${w[@]:4}"
+  printf 'missing = [%s]\n' "${a%, }" >>"$f"
+}
+
 # _hi_table_is_rectangular <text> - every line of every boxed table in <text>
 # is the same printed width. Both preview suites assert it through this one
 # function, so they cannot segment tables differently. A table is a run of

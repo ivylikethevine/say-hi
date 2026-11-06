@@ -272,7 +272,7 @@ function test_marks_table_renders_the_glyph_set() {
 # on a scratch tree below. Arguments ride after the subject.
 function _hi_render_packages() {
   PATH="$_HI_PKG_PATH" HOME="$_HI_SUITE_WORKDIR/tree" \
-    _HI_CONFIG_DIR="$_HI_SUITE_WORKDIR/cfg" _HI_PACKAGES_GROUPS="${_HI_PACKAGES_GROUPS:-$_HI_PREVIEW_GROUPS}" \
+    _HI_CONFIG_DIR="${_HI_PKG_CFG:-$_HI_SUITE_WORKDIR/cfg}" _HI_PACKAGES_GROUPS="${_HI_PACKAGES_GROUPS:-$_HI_PREVIEW_GROUPS}" \
     "$_HI_ROOT/scripts/preview.sh" packages "$@" 2>&1
 }
 
@@ -328,9 +328,11 @@ function test_preview_names_the_active_palette() {
   _hi_packages_out || _hi_why || return 1
   local out
   [[ "$_HI_PACKAGES_OUT" == *"palette: default"* && "$_HI_PACKAGES_OUT" == *"scheme: default"* ]] || _hi_why _HI_PACKAGES_OUT || return 1
-  out="$(_HI_PACKAGES_PALETTE="$_HI_TEST_RAMP" _hi_render_packages)" || _hi_why || return 1
+  _hi_color_overlay "$_HI_WORKDIR/ramp" "$_HI_ROOT/config/colors" "" "$_HI_TEST_RAMP"
+  out="$(_HI_PKG_CFG="$_HI_WORKDIR/ramp" _hi_render_packages)" || _hi_why || return 1
   [[ "$out" == *"palette: custom"* ]] || _hi_why out || return 1
-  out="$(_HI_PACKAGES_PALETTE=mono _hi_render_packages)" || _hi_why || return 1
+  _hi_color_overlay "$_HI_WORKDIR/mono" "$_HI_ROOT/config/colors" "" mono
+  out="$(_HI_PKG_CFG="$_HI_WORKDIR/mono" _hi_render_packages)" || _hi_why || return 1
   [[ "$out" == *"palette: mono (ignored - not eight color names)"* ]] || _hi_why out
 }
 
@@ -339,12 +341,14 @@ function test_preview_names_the_active_palette() {
 # the name is the 16-color half (HI.50)
 function test_preview_names_a_custom_scheme_and_its_bank() {
   local out row
-  out="$(_HI_COLOR_SCHEME="$_HI_TEST_SCHEME48" _HI_TRUECOLOR=1 _hi_render_packages)" || _hi_why || return 1
+  _hi_color_overlay "$_HI_WORKDIR/s48" "$_HI_ROOT/config/colors" "$_HI_TEST_SCHEME48"
+  out="$(_HI_PKG_CFG="$_HI_WORKDIR/s48" _HI_TRUECOLOR=1 _hi_render_packages)" || _hi_why || return 1
   [[ "$out" == *"scheme: custom (48)"* ]] || _hi_why out || return 1
   row="$(printf '%s\n' "$out" | grep '^| core ')"
   # bank 2's brgreen (23d18b) and brred (f14c4c), named as such
   [[ "$row" == *";38;2;35;209;139m"*brgreen* && "$row" == *";38;2;241;76;76m"*brred* ]] || _hi_why row || return 1
-  out="$(_HI_COLOR_SCHEME="not a scheme" _HI_TRUECOLOR=1 _hi_render_packages)" || _hi_why || return 1
+  _hi_color_overlay "$_HI_WORKDIR/bad" "$_HI_ROOT/config/colors" "not a scheme"
+  out="$(_HI_PKG_CFG="$_HI_WORKDIR/bad" _HI_TRUECOLOR=1 _hi_render_packages)" || _hi_why || return 1
   [[ "$out" == *"scheme: not a scheme (ignored - not a scheme)"* ]] || _hi_why out
 }
 

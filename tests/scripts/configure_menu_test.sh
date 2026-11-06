@@ -48,7 +48,7 @@ function _hi_menu_grid_at() {
   cells=$(($(_hi_item 'group|core') - $(_hi_item 'word|0')))
   _HI_TERM_COLS="$w" _hi_cfg_pty "$label" 'e\ns\n' '' run_configure "" || return 1
   page="$(_hi_cfg_screen "$label" 1)"
-  first="$(printf '%s\n' "$page" | grep -F " $(_hi_item 'word|0')) [x] utc" | grep -o ') \[[x ]\] ' | wc -l)"
+  first="$(printf '%s\n' "$page" | grep -F " $(_hi_item 'word|0')) [x] banner" | grep -o ') \[[x ]\] ' | wc -l)"
   page="$(printf '%s\n' "$page" | grep -o ') \[[x ]\] ' | wc -l)"
   ((first == want)) || _hi_because "the grid's first line at $w holds $first cells" || return 1
   ((page == cells)) || _hi_because "the grid at $w holds $page cells, not $cells"

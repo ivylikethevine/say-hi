@@ -293,7 +293,7 @@ function test_settings_fold_the_banner_and_greeting_into_the_order() {
     "$s\nexport _HI_HEADER_ORDER='${_HI_HEADER_ORDER_DEFAULT% greeting}'\nexport _HI_KEEP=1" || return 1
   _hi_conv_is _hi_convert_settings "#!/bin/sh\nexport _HI_HEADER_ORDER=utc\n" \
     "#!/bin/sh\n$s\nexport _HI_HEADER_ORDER='banner utc greeting'" || return 1
-  _hi_conv_is _hi_convert_settings "export _HI_HEADER_ORDER='${_HI_HEADER_ORDER_DEFAULT#banner }'\nexport _HI_DISABLE_BANNER=0\n" "$s"
+  _hi_conv_is _hi_convert_settings "export _HI_HEADER_ORDER='${_HI_HEADER_ORDER_DEFAULT#banner }'\nexport _HI_DISABLE_BANNER=0\n" "$s" || _hi_why
 }
 
 # an editor's or a multiplexer's toggle at 1 is its word in the list, vim's

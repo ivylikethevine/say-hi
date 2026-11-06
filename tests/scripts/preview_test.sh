@@ -506,10 +506,11 @@ function test_tables_render_without_error() {
 # a scheme paints the swatches with the 24-bit tail, and the header line
 # says which scheme it is (HI.50)
 function test_tables_render_under_a_scheme() {
-  local out
-  out="$(_HI_COLOR_SCHEME="$_HI_TEST_SCHEME24" _HI_TRUECOLOR=1 _hi_render_colors)" || _hi_why || return 1
+  local out cfg="$_HI_WORKDIR/scheme-cfg"
+  _hi_color_overlay "$cfg" "$_HI_SUITE_WORKDIR/colors" "$_HI_TEST_SCHEME24"
+  out="$(_HI_CONFIG_DIR="$cfg" _HI_TRUECOLOR=1 _hi_render_colors)" || _hi_why || return 1
   [[ "$out" == *"scheme: custom (24)"* && "$out" == *";38;2;"* ]] || _hi_why out || return 1
-  out="$(_HI_COLOR_SCHEME="" _HI_TRUECOLOR=0 _hi_render_colors)" || _hi_why || return 1
+  out="$(_HI_TRUECOLOR=0 _hi_render_colors)" || _hi_why || return 1
   [[ "$out" == *"scheme: default"* && "$out" != *";38;2;"* ]] || _hi_why out
 }
 

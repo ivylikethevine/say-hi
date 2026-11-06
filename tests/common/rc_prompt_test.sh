@@ -462,7 +462,8 @@ function test_fish_target_symbols() {
 
 # _hi_greet <shell> <i|c|s> [NAME=VALUE...] - how many times <shell> prints
 # the Online header sourcing hi's rc: typed in (i, from stdin), `-i -c` (c),
-# or as a script (s); settings.sh trims the header to one cell, no probes
+# or as a script (s); settings.sh trims the header to the banner and one
+# cell, no probes
 function _hi_greet() {
   local shell="$1" cfg="$_HI_WORKDIR/greet" src
   local -a args=(--norc)
@@ -470,7 +471,7 @@ function _hi_greet() {
   src="source \"\$_HI_HOME/say-hi/common/$(_hi_rc_of "$shell")\""
   case "$2" in i) args+=(-i) ;; c) args+=(-i -c "$src") ;; esac
   shift 2
-  mkdir -p "$cfg" && printf 'export _HI_HEADER_ORDER=utc\n' >"$cfg/settings.sh"
+  mkdir -p "$cfg" && printf "export _HI_HEADER_ORDER='banner utc'\n" >"$cfg/settings.sh"
   printf '%s\n' "$src" | env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" \
     _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$cfg" "$@" "$shell" "${args[@]}" 2>/dev/null |
     grep -c Online || true

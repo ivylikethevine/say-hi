@@ -356,7 +356,7 @@ function test_header_omits_the_ip_cell_when_hidden() {
   _hi_script "$dir/uname" '#!/bin/sh' 'echo "Darwin arm64"'
   _hi_script "$dir/ifconfig" '#!/bin/sh' 'printf "\tinet 127.0.0.1 netmask 0xff000000\n\tinet 10.0.0.5 netmask 0xffffff00\n"'
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$dir" 'hi_header Connected' _HI_HEADER_ORDER='utc ip' _HI_IP_HIDE='*')"
+  out="$(_hi_platform_header "$dir" 'hi_header Connected' _HI_HEADER_ORDER='banner utc ip' _HI_IP_HIDE='*')"
   [[ "$out" == *"Connected"* && "$out" == *" UTC"* && "$out" != *"IP:"* ]] || _hi_because "got: $out"
 }
 

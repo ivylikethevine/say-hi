@@ -26,36 +26,10 @@ an entry leaves as one sentence for the top list of
       shape. Medium. **Ticks when:** the shipped file and the example use
       the new shape and the header and configure suites pass.
 
-- [ ] **Every default and preset audited before the tag** —
-      [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
-      freezes the name and default of all 35 rows of
-      [SETTINGS.md's _Every setting_](SETTINGS.md#every-setting) and the
-      four presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
-      stranger's first run, every row's default agreeing with its code, and
-      no default has moved since, through e89eb83c. The
-      known changes, both shipped in 0.8.0, are the `balanced` first-install
-      default and `hi --update`'s verification. Moved since fe63e85e:
-      `_HI_IP_HIDE` from `172.*`, which hid public addresses and missed
-      rootful podman's bridge, to the bridges' interface names;
-      `_HI_PROMPT_END_ZSH` from `>` to `%(!.#.>)`, which marks root as bash
-      and fish do; `_HI_PACKAGES_GROUPS` from `core useful deprecated`
-      to `core deprecated`, with `useful` under the `everything` preset;
-      and `_HI_HEADER_ORDER` gaining `banner` first and `greeting` last.
-      **Ticks when:** the 1.0.0 release note lists those moves, the known
-      changes, and any others that move.
-
-- [ ] **The pre-1.0 conversions go at the tag** —
-      `scripts/convert_settings.sh` (21 KB, 11 functions) rewrites overlay
-      shapes nothing after the tag has a contract for. **Do:** keep the entry
-      point, which `--install`, `--configure` and `--update` call, and drop
-      the pre-1.0 arms and their fixtures. Small. **Ticks when:** the script
-      converts only shapes a 1.x release wrote.
-
 - [ ] **A smaller wizard** — `scripts/configure.sh`, `configure_menu.sh` and
-      `configure_preview.sh` are 90 KB for the settings rows, and the doctor
-      53 KB. The settings cuts above shrink the pages for free; the larger
-      option is presets plus `hi --edit` in place of the paged menu. Large.
-      **Ticks when:** decided, and the chosen shape is in.
+      `configure_preview.sh` are 88 KB for the settings rows, and the doctor
+      45 KB. The larger option is presets plus `hi --edit` in place of the
+      paged menu. Large. **Ticks when:** decided, and the chosen shape is in.
 
 - [ ] **One coverage tool** — kcov and bashcov each produce a badge and
       each has cost an incident (the PS4 switch, the SimpleCov root filter).
@@ -74,14 +48,6 @@ an entry leaves as one sentence for the top list of
       the batch, never alone. Small each. **Ticks when:** every workflow left
       has a line in CONTRIBUTING.md's _What CI runs_ saying what it catches.
 
-- [ ] **One introduction** — README, GETTING-STARTED, TOUR and USAGE each
-      walk the flags, and FILES.md's target and package sections repeat
-      HOW-IT-WORKS and PACKAGING. **Do:** fold TOUR into GETTING-STARTED,
-      move FILES.md's sections to their homes, and let the settings cuts
-      shrink SETTINGS.md; `docs/README.md`'s index and every `## Contents`
-      follow. Medium. **Ticks when:** each fact has one home and the link
-      check passes.
-
 - [ ] **The hosted package repository has subscribers** — the apt, rpm and
       apk repository (`packaging/mkrepo.sh`, `release.yml`, `pages.yml`, two
       signing keys) is the heaviest channel to keep honest, and the release
@@ -89,6 +55,38 @@ an entry leaves as one sentence for the top list of
       drop the repository and its keys and keep the files on the release;
       PACKAGING.md and RELEASING.md. Medium. **Ticks when:** decided, and the
       channels shipped are the ones PACKAGING.md lists.
+
+- [ ] **One introduction** — README, GETTING-STARTED, TOUR and USAGE each
+      walk the flags, and FILES.md's target and package sections repeat
+      HOW-IT-WORKS and PACKAGING. **Do:** fold TOUR into GETTING-STARTED and
+      move FILES.md's sections to their homes; `docs/README.md`'s index and
+      every `## Contents` follow. Medium. **Ticks when:** each fact has one
+      home and the link check passes.
+
+- [ ] **Every default and preset audited before the tag** —
+      [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
+      freezes the name and default of all 35 rows of
+      [SETTINGS.md's _Every setting_](SETTINGS.md#every-setting) and the
+      four presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
+      stranger's first run, every row's default agreeing with its code, and
+      no default has moved since, through 8108d7d8. The
+      known changes, both shipped in 0.8.0, are the `balanced` first-install
+      default and `hi --update`'s verification. Moved since fe63e85e:
+      `_HI_IP_HIDE` from `172.*`, which hid public addresses and missed
+      rootful podman's bridge, to the bridges' interface names;
+      `_HI_PROMPT_END_ZSH` from `>` to `%(!.#.>)`, which marks root as bash
+      and fish do; `_HI_PACKAGES_GROUPS` from `core useful deprecated`
+      to `core deprecated`, with `useful` under the `everything` preset;
+      and `_HI_HEADER_ORDER` gaining `banner` first and `greeting` last.
+      **Ticks when:** the 1.0.0 release note lists those moves, the known
+      changes, and any others that move.
+
+- [ ] **The pre-1.0 conversions go at the tag** —
+      `scripts/convert_settings.sh` (23 KB, 11 functions) rewrites overlay
+      shapes nothing after the tag has a contract for. **Do:** keep the entry
+      point, which `--install`, `--configure` and `--update` call, and drop
+      the pre-1.0 arms and their fixtures. Small. **Ticks when:** the script
+      converts only shapes a 1.x release wrote.
 
 ## Release Stages
 

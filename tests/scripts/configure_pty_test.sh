@@ -264,7 +264,7 @@ function test_menu_main_page_is_a_table_of_its_pages() {
   keys="$(printf '%s\n' "$main" | sed -n 's/^ [^ ]* \[\([a-z]\)\] .*/\1/p' | paste -sd, -)"
   [ "$keys" = "l,t,i,e,c,r,g,a,o,m,k,y" ] || _hi_because "the main page's rows: [$keys]" || return 1
   [[ "$main" != *"preview"* && "$main" == *"[l] "*"[x] this machine "*"[t] "*"[x] targets "* ]] &&
-    [[ "$main" == *"[i] "*" Header "*"3 of 3 on, width 80"*"[e] "*" cells "*" utc version "* ]] &&
+    [[ "$main" == *"[i] "*" Header "*"1 of 1 on, width 80"*"[e] "*" cells "*" utc version "* ]] &&
     [[ "$main" == *"[c] "*" package check "*" core deprecated"* && "$main" == *"[g] "*" Plugins "*" ride"* ]] &&
     [[ "$main" == *" g1 "*" cli "*" bat "*" g2 "*" editors "*" nano "* ]] &&
     [[ "$main" == *"[a] "*"[ ] tool aliases "*"[k] "*"[ ] ssh --keep "*"[y] "*" 24-bit color "*" auto"* ]] &&
@@ -279,7 +279,7 @@ function test_menu_keys_open_their_pages() {
   local end core hdr utc bat
   end="$(_hi_item 'end|bash')" && core="$(_hi_item 'group|core')" &&
     hdr="$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')" &&
-    utc="$(_hi_item 'word|0')" && bat="$(_hi_item 'plugin|bat')" || _hi_why end core hdr || return 1
+    utc="$(_hi_item 'word|1')" && bat="$(_hi_item 'plugin|bat')" || _hi_why end core hdr || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_pages "$_HI_MENU_EVERY_PAGE" '' run_configure "" || _hi_why || return 1
   _hi_prints "$_HI_MENU_EVERY_TITLE" _hi_cfg_titles hub_pages || return 1
   _hi_cfg_screen_has hub_pages 1 " [b]ack  [s]ave" &&

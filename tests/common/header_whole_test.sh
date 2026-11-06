@@ -454,8 +454,9 @@ function test_hi_header_order_packs_across_former_group_boundaries() {
   local out lines
   out="$(_HI_HEADER_ORDER="cpu gitid utc" hi_header Connected)"
   lines="$(printf '%s\n' "$out" | grep -c .)"
-  # banner + one packed line (cpu, gitid, and utc all short enough to share it)
-  [ "$lines" -eq 2 ] &&
+  # one packed line (cpu, gitid, and utc all short enough to share it), and
+  # no banner, which the order leaves out
+  [ "$lines" -eq 1 ] &&
     [[ "$out" == *"CPU:"* && "$out" == *"No Git ID"* || "$out" == *"@"* ]] || _hi_why lines out
 }
 
@@ -522,7 +523,9 @@ function test_hi_cell_hue_ignores_a_non_leading_escape() {
 # stay true as header words are added. GLOSSARY: HI.48
 function test_header_word_alt_differs_from_its_own_primary() {
   local words w cell primary_hue alt alt_hue
-  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  # the cells alone: banner and greeting are lines, and check a block
+  words="${_HI_HEADER_ORDER_DEFAULT#banner }"
+  words="${words% check greeting}"
   for w in $words; do
     cell=""
     _hi_header_word_cell "$w" cell
@@ -540,7 +543,9 @@ function test_header_word_alt_differs_from_its_own_primary() {
 
 function test_header_word_alt_is_defined_for_every_order_word() {
   local words w alt
-  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  # the cells alone: banner and greeting are lines, and check a block
+  words="${_HI_HEADER_ORDER_DEFAULT#banner }"
+  words="${words% check greeting}"
   for w in $words; do
     alt=""
     _hi_header_word_alt "$w" alt
@@ -569,7 +574,9 @@ function test_header_default_order_needs_no_alternate() {
   local words w raw want i=0
   local -a _HI_PENDING_CELLS=()
   local _HI_PREV_HUE=""
-  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  # the cells alone: banner and greeting are lines, and check a block
+  words="${_HI_HEADER_ORDER_DEFAULT#banner }"
+  words="${words% check greeting}"
   for w in $words; do _hi_collect_header_word "$w"; done
   for w in $words; do
     raw=""
@@ -585,7 +592,9 @@ function test_header_hues_never_repeat_in_the_default_order() {
   local words w cell hue prev=""
   local -a _HI_PENDING_CELLS=()
   local _HI_PREV_HUE=""
-  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  # the cells alone: banner and greeting are lines, and check a block
+  words="${_HI_HEADER_ORDER_DEFAULT#banner }"
+  words="${words% check greeting}"
   for w in $words; do _hi_collect_header_word "$w"; done
   for cell in "${_HI_PENDING_CELLS[@]}"; do
     hue=""
