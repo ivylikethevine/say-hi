@@ -428,7 +428,7 @@ function test_first_install_falls_back_to_balanced() {
 function test_first_install_without_a_terminal_is_balanced() {
   local home="$_HI_WORKDIR/first-notty" out rc=0
   out="$(_hi_run_install_here first-notty --link none 2>&1)" || rc=$?
-  { [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu - the balanced preset applies"* ]] &&
+  { [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal to ask - the balanced preset applies"* ]] &&
     grep -qF 'export _HI_DISABLE_LOCAL=1' "$home/.config/say-hi/settings.sh"; } || _hi_why rc out home || return 1
   printf '%s\n' 'export _HI_DISABLE_HEADER=1' >>"$home/.config/say-hi/settings.sh"
   rc=0
@@ -446,14 +446,24 @@ function test_a_later_install_asks_nothing() {
   { ! grep -qF 'Start from which' "$out" && grep -qF 'Installed!' "$out"; } || _hi_why out
 }
 
-# hi --configure quit at its menu writes nothing and says so
-function test_features_only_quit_leaves_the_settings() {
-  local home="$_HI_WORKDIR/feat-quit"
-  _hi_run_install_pty feat-quit 'q\n' --configure || _hi_why || return 1
-  grep -qF 'Settings left as they were' "$_HI_WORKDIR/feat-quit.pty.out" &&
-    ! grep -qF 'Features updated!' "$_HI_WORKDIR/feat-quit.pty.out" &&
-    [ ! -e "$home/.config/say-hi/settings.sh" ] ||
-    _hi_because "the run said: $(tail -5 "$_HI_WORKDIR/feat-quit.pty.out")"
+# hi --configure at a terminal: Enter keeps the file's settings, and the run
+# ends in the editor on settings.sh ($VISUAL a stub that writes down its file)
+function test_features_only_keeps_the_settings_and_opens_the_editor() {
+  local home="$_HI_WORKDIR/feat-keep" out="$_HI_WORKDIR/feat-keep.pty.out" got
+  mkdir -p "$home/.config/say-hi"
+  printf '#!/bin/sh\nexport _HI_DISABLE_HEADER=1\n' >"$home/.config/say-hi/settings.sh"
+  # shellcheck disable=SC2016 # the stub's own $1, for it to expand
+  printf '#!/bin/sh\nprintf "%%s\\n" "$1" >"%s/opened"\n' "$home" >"$home/ed"
+  chmod +x "$home/ed"
+  : >"$out"
+  printf '\n' |
+    _hi_login_env "$home" env VISUAL="$home/ed" "${_HI_PTY_FORCED[@]}" bash "$_HI_RUN_TREE/scripts/install.sh" --configure >"$out" 2>&1 &
+  _hi_wait_quiet "$!" "${_HI_CASE_TIMEOUT:-60}" "$out" feat-keep
+  [ "$_HI_WAIT_EXIT" != 124 ] || _hi_because "hi --configure never finished" || return 1
+  got="$(cat "$home/opened" 2>/dev/null)"
+  { grep -qF 'Features updated!' "$out" && [ "$got" = "$home/.config/say-hi/settings.sh" ] &&
+    grep -qF 'export _HI_DISABLE_HEADER=1' "$got"; } ||
+    _hi_because "opened [$got]; the run said: $(tail -5 "$out")"
 }
 
 # hi's own rc lines never read as a framework: a fresh configure over an
@@ -582,15 +592,15 @@ function test_configure_help_is_its_own() {
   _hi_mode_help_is_its_own configure "Usage: hi --configure [--preset <name>]" "Revisit the settings" || _hi_why
 }
 
-# no terminal and no --preset: --configure has nothing to do and says so,
+# no terminal and no --preset: --configure can neither ask nor edit, and says so,
 # exit 1; an --install still completes and only mentions it
 function test_configure_without_a_terminal_says_so() {
   local out rc=0
   out="$(_hi_run_install_here nomenu --configure 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal lean"* ]] || _hi_why rc out || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal to ask or edit at - --preset <name>"* && "$out" == *"everything balanced minimal lean"* ]] || _hi_why rc out || return 1
   rc=0
   out="$(_hi_run_install_here nomenu-install --dry-run --link none 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu"* ]] || _hi_why rc out
+  [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal to ask"* ]] || _hi_why rc out
 }
 
 # the last --link on the line wins, the way --keep/--no-keep do
@@ -698,7 +708,7 @@ function run_install_run_tests() {
   _hi_check "--shell refuses a name that is no shell of hi's" test_shell_flag_refuses_a_stranger
   _hi_check "--purge is refused outside --uninstall" test_purge_is_refused_outside_uninstall
   _hi_check "--configure writes settings and no rc" test_features_only_writes_settings_and_no_rc
-  _hi_check_capable pty "...and quit at its menu, leaves them as they were" test_features_only_quit_leaves_the_settings
+  _hi_check_capable pty "...and Enter keeps them, then opens the editor" test_features_only_keeps_the_settings_and_opens_the_editor
   _hi_check "--configure converts an old overlay first" test_configure_converts_an_old_overlay
   _hi_check "...and under --dry-run only says it would" test_configure_dry_run_converts_nothing
   _hi_check "--preset=<stranger> is refused before anything is written" test_a_stranger_preset_is_refused_before_anything_is_written

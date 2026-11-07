@@ -74,7 +74,7 @@ files = "x"' ] || _hi_why out got
 }
 
 # colors and packages start as copies of the tree's; settings.sh as
-# --configure starts one
+# --configure writes one, its shape line first and every setting a line
 function test_edit_makes_hi_s_other_files_as_their_commands_do() {
   local cfg out n got want
   cfg="$_HI_WORKDIR/own-cfg"
@@ -84,9 +84,12 @@ function test_edit_makes_hi_s_other_files_as_their_commands_do() {
   out="$(EDITOR=rec _hi_edit_run "$cfg" packages)" || _hi_why cfg out || return 1
   cmp -s "$cfg/packages" "$_HI_ROOT/config/packages" || _hi_why cfg out || return 1
   out="$(EDITOR=rec _hi_edit_run "$cfg" settings.sh)" || _hi_why cfg out || return 1
-  got="$(cat "$cfg/settings.sh")"
+  got="$(sed -n '1,2p' "$cfg/settings.sh")"
   want="$(printf '#!/bin/sh\n%-45s %s' "# say-hi settings $n" "$_HI_MARKER")"
-  [ "$got" = "$want" ] || _hi_why got want out
+  [ "$got" = "$want" ] || _hi_why got want out || return 1
+  got="$(grep -c '^# export ' "$cfg/settings.sh")"
+  want="$(grep -c -E '^[a-z]+ [|] ' "$_HI_ROOT/scripts/settings")"
+  [ "$got" = "$want" ] || _hi_why got want
 }
 
 # any other file gets its directory and nothing else: one the editor is
