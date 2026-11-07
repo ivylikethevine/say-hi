@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Unit tests for hi --configure's settings wizard - scripts/configure.sh (the
-# rc.sh and table.sh helpers it shares have their own suites). This half is
-# everything a plain install's second stage, or a later `hi --configure`,
-# touches - every question, its validation, and the one write to
-# $_HI_SETTINGS. tests/scripts/install_test.sh is the other half:
-# install_tree's packaging-mode DESTDIR layout and the
+# Unit tests for hi --configure's settings write - scripts/configure.sh (the
+# rc.sh and table.sh helpers it shares have their own suites): the preset
+# plumbing, the validators, and the one write to $_HI_SETTINGS.
+# tests/scripts/install_test.sh is the other half: install_tree's
+# packaging-mode DESTDIR layout and the
 # --uninstall/strip_marker/strip_settings/unlink_hi teardown path.
 #
 # GLOSSARY: HI.30 + HI.34
@@ -16,12 +15,6 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 # every batch here is plain local processes, no container daemon to spare
 _HI_PAR_LOCAL=1
-# The header preview's backend probe (_hi_backend_probe) runs whatever
-# container CLI the host has: on a CI runner, a rootless podman starting on
-# every case, a pause process left behind each time, and a pty suite past
-# 20 minutes under a tracer. No case here is about a backend.
-export _HI_BACKENDS_OFF=all
-
 set -- # install.sh reads "$@" for its own args; make sure it sees none
 # shellcheck source=../../scripts/install.sh
 source "$_HI_INSTALL"
@@ -45,22 +38,18 @@ function _hi_sources_settings_before_paths() {
 # than sourced, so it's asserted against _hi_fallback_rc's real output over in
 # tests/hi/parse_test.sh instead of by grepping the file.
 
-# The prompt separators, one per shell, all of which have to survive being
-# written to a file four shells source. Every case here reads what the
-# collector writes for a given file (_hi_collected_lines, defined further
-# down with the helpers it serves) - no tty, so nothing is asked and the file
-# is the whole answer. The defaults-write-nothing direction is pinned there
-# too, by test_opt_in_off_writes_nothing.
-
+# What the collector sets for a file: every case reads the uncommented lines
+# it writes (_hi_set_lines, below) - no tty, so nothing is asked and the file
+# is the whole answer; _hi_block_lines is the whole block, comments and all.
 function test_prompt_ends_keeps_an_existing_override() {
-  _hi_says "export _HI_PROMPT_END_ZSH='::'" _hi_collected_lines prompt_keep "export _HI_PROMPT_END_ZSH='::'"
+  _hi_says "export _HI_PROMPT_END_ZSH='::'" _hi_set_lines prompt_keep "export _HI_PROMPT_END_ZSH='::'"
 }
 
 # quoted on the way out: a separator is as likely to be $ or > as a letter, and
 # the file is sourced by sh, bash, zsh, and fish alike
 function test_prompt_ends_quotes_what_it_writes() {
   local out
-  out="$(_hi_collected_lines prompt_quote "export _HI_PROMPT_END_BASH='>'")"
+  out="$(_hi_set_lines prompt_quote "export _HI_PROMPT_END_BASH='>'")"
   [[ "$out" == *"_HI_PROMPT_END_BASH='>'"* ]] || _hi_why out
 }
 
@@ -68,7 +57,7 @@ function test_prompt_ends_quotes_what_it_writes() {
 # turning the prompt back on finds the separator where it was left.
 function test_prompt_ends_kept_when_the_prompt_is_off() {
   local out
-  out="$(_hi_collected_lines prompt_off "export _HI_DISABLE_PROMPT=1" "export _HI_PROMPT_END_ZSH='::'")"
+  out="$(_hi_set_lines prompt_off "export _HI_DISABLE_PROMPT=1" "export _HI_PROMPT_END_ZSH='::'")"
   [[ "$out" == *"export _HI_DISABLE_PROMPT=1"* && "$out" == *"export _HI_PROMPT_END_ZSH='::'"* ]] || _hi_why out
 }
 
@@ -77,44 +66,82 @@ function test_prompt_ends_kept_when_the_prompt_is_off() {
 # holds them; doctor names those lines
 function test_collector_writes_no_color_line() {
   local out
-  out="$(_hi_collected_lines colors_hand \
+  out="$(_hi_set_lines colors_hand \
     "export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'" "export _HI_COLOR_SCHEME='$_HI_TEST_SCHEME48'")"
   [[ "$out" != *_HI_PACKAGES_PALETTE* ]] && [[ "$out" != *_HI_COLOR_SCHEME* ]] || _hi_why out
 }
 
 function test_ip_hide_keeps_an_existing_override() {
-  _hi_says "export _HI_IP_HIDE='none'" _hi_section_lines iphide_keep config_ip_hide "export _HI_IP_HIDE='none'"
+  _hi_says "export _HI_IP_HIDE='none'" _hi_set_lines iphide_keep "export _HI_IP_HIDE='none'"
 }
 
-# the default is core.sh's own, so it is never written out
+# the default is core.sh's own, so it is written commented, even when the
+# file spells it out in full
 function test_ip_hide_does_not_write_the_default() {
-  local out got
-  out="$(_hi_section_lines iphide_default config_ip_hide)"
-  got="$(printf '%s' "$out" | tr -d ' ')"
-  [ -z "$got" ] || _hi_why got out || return 1
-  out="$(_hi_section_lines iphide_default2 config_ip_hide "export _HI_IP_HIDE='$_HI_IP_HIDE_DEFAULT'")"
-  got="$(printf '%s' "$out" | tr -d ' ')"
-  [ -z "$got" ] || _hi_why got out
+  _hi_prints "" _hi_set_lines iphide_default "export _HI_IP_HIDE='$_HI_IP_HIDE_DEFAULT'"
 }
 
 function test_header_order_keeps_an_existing_override() {
-  _hi_says "export _HI_HEADER_ORDER='check gitid'" _hi_collected_lines order_keep "export _HI_HEADER_ORDER='check gitid'"
+  _hi_says "export _HI_HEADER_ORDER='check gitid'" _hi_set_lines order_keep "export _HI_HEADER_ORDER='check gitid'"
 }
 
-# header.sh's own default order, so writing it out would be a line that means
-# nothing - even when the file spells it out in full
 function test_header_order_does_not_write_the_default() {
-  local out got
-  out="$(_hi_collected_lines order_default "export _HI_HEADER_ORDER='$_HI_HEADER_ORDER_DEFAULT'")"
-  got="$(printf '%s' "$out" | tr -d ' ')"
-  [ -z "$got" ] || _hi_why got out
+  _hi_prints "" _hi_set_lines order_default "export _HI_HEADER_ORDER='$_HI_HEADER_ORDER_DEFAULT'"
 }
 
 # the header is off, so its order is moot - and kept, like the separators
 function test_header_order_kept_when_the_header_is_off() {
   local out
-  out="$(_hi_collected_lines order_off "export _HI_DISABLE_HEADER=1" "export _HI_HEADER_ORDER='check gitid'")"
+  out="$(_hi_set_lines order_off "export _HI_DISABLE_HEADER=1" "export _HI_HEADER_ORDER='check gitid'")"
   [[ "$out" == *"export _HI_DISABLE_HEADER=1"* && "$out" == *"export _HI_HEADER_ORDER='check gitid'"* ]] || _hi_why out
+}
+
+# the shipped set writes nothing; no group at all is an answer, spelled `none`
+function test_packages_groups_does_not_write_the_default() {
+  _hi_prints "" _hi_set_lines groups_default "export _HI_PACKAGES_GROUPS='$_HI_PACKAGES_GROUPS_DEFAULT'"
+}
+
+function test_packages_groups_writes_none() {
+  _hi_prints "export _HI_PACKAGES_GROUPS='none'" _hi_set_lines groups_none "export _HI_PACKAGES_GROUPS='none'"
+}
+
+# the check is off, so which groups it runs is moot - the stored value is kept
+# for when 'check' comes back
+function test_packages_groups_kept_when_the_check_is_off() {
+  local out
+  out="$(_hi_set_lines groups_off "export _HI_HEADER_ORDER='gitid'" "export _HI_PACKAGES_GROUPS='core'")"
+  [[ "$out" == *"export _HI_HEADER_ORDER='gitid'"* && "$out" == *"export _HI_PACKAGES_GROUPS='core'"* ]] || _hi_why out
+}
+
+# the block is every scripts/settings row once, in its order, after the one
+# comment saying how to read it: what an edit of the file starts from
+function test_block_lists_every_setting_once() {
+  local want got
+  want="$(awk -F' [|] ' '!/^#/ && NF > 5 { print "# export " $2 "=" }' "$_HI_ROOT/scripts/settings")"
+  got="$(_hi_block_lines every | sed -n '2,$p' | sed 's/=.*/=/')"
+  [ "$got" = "$want" ] || _hi_because "the block's names are not the table's rows, in order: $(diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") | head -5)"
+}
+
+# a default is shown at its value: core.sh's $<name>_DEFAULT, else the row's
+# one code span, a `\|` read as `|`; a default decided at run time is empty
+function test_block_shows_each_default() {
+  local out
+  out="$(_hi_block_lines defaults)"
+  [[ "$out" == *"# export _HI_MAX_WIDTH=80"* && "$out" == *"# export _HI_PROMPT_END_FISH='|'"* &&
+    "$out" == *"# export _HI_HEADER_ORDER='$_HI_HEADER_ORDER_DEFAULT'"* &&
+    "$out" == *"# export _HI_TRUECOLOR="$'\n'* ]] || _hi_why out
+}
+
+# a setting no preset answers is kept like any other, and a ' in a value is
+# written so that sh reads the value back as it was
+function test_block_keeps_a_quoted_value() {
+  local out got
+  out="$(_hi_set_lines quoted "export _HI_KEEP_TIMEOUT=2h" "export _HI_LS_OPTS=\"-F it's\"")"
+  [[ "$out" == *"export _HI_KEEP_TIMEOUT=2h"* ]] || _hi_why out || return 1
+  got="$(printf '%s\n' "$out" | grep _HI_LS_OPTS)"
+  [ "$got" = "export _HI_LS_OPTS='-F it'\\''s'" ] || _hi_why got || return 1
+  got="$(sh -c "$got; printf '%s' \"\$_HI_LS_OPTS\"")"
+  [ "$got" = "-F it's" ] || _hi_why got
 }
 
 # _hi_pending_set replaces an earlier answer for the same var in place - a
@@ -130,22 +157,6 @@ function test_pending_set_replaces_in_place() {
       [ -z "$(pending_answer _HI_A)" ] && pending_answer _HI_A &&
       [ "$(pending_answer _HI_B)" = two ]
   ) || _hi_why _HI_SETTING_PENDING
-}
-
-# every header preset's word list validates, and the empty one is the
-# shipped order by the same spelling $_HI_HEADER_ORDER uses for it
-function test_header_presets_hold_the_vocabulary() {
-  local row words word got
-  for row in "${_HI_HEADER_PRESETS[@]}"; do
-    words="${row##*|}"
-    [ -z "$words" ] && continue
-    # shellcheck disable=SC2086 # the split is the point: one word per feature
-    for word in $words; do
-      _hi_is_header_order "$word" || _hi_why word || return 1
-    done
-  done
-  got="$(preset_names)"
-  [ "$got" != "" ] || _hi_why got
 }
 
 # The input validators guarding what ask_value will write into settings.sh -
@@ -252,19 +263,6 @@ function test_pending_answer_reads_this_runs_answers() {
   ) || _hi_why
 }
 
-# non-interactive ask_value never prompts: it keeps the current value, and an
-# answer equal to the default comes back empty - "write nothing, the default
-# applies" is the contract the settings writer relies on
-function test_ask_value_non_interactive_keeps_current() {
-  local got
-  got="$(ask_value "width?" 100 80 _hi_is_number "not a number" </dev/null)"
-  [ "$got" = 100 ] || _hi_why got || return 1
-  got="$(ask_value "width?" "" 80 _hi_is_number "not a number" </dev/null)"
-  [ -z "$got" ] || _hi_why got || return 1
-  got="$(ask_value "width?" 80 80 _hi_is_number "not a number" </dev/null)"
-  [ -z "$got" ] || _hi_why got
-}
-
 # settings.sh is sourced by sh, bash, zsh, and fish, so line 1 has to be the
 # `#!/bin/sh` all four read as a comment - and has to stay line 1 once
 # config_shell has written the settings block under it.
@@ -321,58 +319,6 @@ function test_shebang_replaces_a_different_one_and_keeps_content() {
   { [ "$got" = "#!/bin/sh" ] && [ "$got2" -eq 1 ] && grep -qF "export _HI_MAX_WIDTH=120" "$f"; } || _hi_why got got2 f
 }
 
-# _hi_groups_flipped <stored value> <group...> - the lines a run writes after
-# _hi_group_flip flips each <group> in turn over a settings.sh holding
-# <stored value>, as the Package check page's numbers do
-function _hi_groups_flipped() {
-  local g dir line="" _HI_SETTINGS _HI_MENU_NOTE=""
-  local -a _HI_SETTING_LINES=() _HI_SETTING_PENDING=()
-  dir="$(mktemp -d "$_HI_WORKDIR/groupsflip.XXXXXX")" || return 1
-  _HI_SETTINGS="$dir/settings.sh"
-  [ -z "$1" ] || line="export _HI_PACKAGES_GROUPS='$1'"
-  printf '#!/bin/sh\n%s\n' "$line" >"$_HI_SETTINGS"
-  shift
-  for g; do _hi_group_flip "$g"; done
-  collect_setting_lines
-  printf '%s\n' ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}
-}
-
-# a group that is off goes on after the ones that run, and one that runs off
-function test_packages_groups_flip_one() {
-  _hi_prints "export _HI_PACKAGES_GROUPS='core deprecated extras'" _hi_groups_flipped '' extras || return 1
-  _hi_prints "export _HI_PACKAGES_GROUPS='core'" _hi_groups_flipped '' deprecated
-}
-
-# a comma-separated value is read as a list and written back space-separated
-function test_packages_groups_normalises_commas() {
-  _hi_prints "export _HI_PACKAGES_GROUPS='core extras useful'" _hi_groups_flipped 'core,extras' useful
-}
-
-# the shipped set is header.sh's own default, so writing it out would be a
-# line that means nothing - in any order, the same rule config_max_width has
-# for 80
-function test_packages_groups_does_not_write_the_default() {
-  local got
-  got="$(_hi_groups_flipped 'deprecated' core | tr -d '[:space:]')"
-  [ -z "$got" ] || _hi_why got
-}
-
-# ...and the other side of that rule: no group at all is an answer, spelled
-# `none`, not an empty value that would read as the default - and one flipped
-# on from there is the whole list
-function test_packages_groups_writes_none() {
-  _hi_prints "export _HI_PACKAGES_GROUPS='none'" _hi_groups_flipped '' core deprecated || return 1
-  _hi_prints "export _HI_PACKAGES_GROUPS='core'" _hi_groups_flipped none core
-}
-
-# the check is off, so which groups it runs is moot - the stored value is kept
-# for when 'check' comes back
-function test_packages_groups_kept_when_the_check_is_off() {
-  local out
-  out="$(_hi_collected_lines groups_off "export _HI_HEADER_ORDER='gitid'" "export _HI_PACKAGES_GROUPS='core'")"
-  [[ "$out" == *"export _HI_HEADER_ORDER='gitid'"* && "$out" == *"export _HI_PACKAGES_GROUPS='core'"* ]] || _hi_why out
-}
-
 # same mode-preservation contract as config_shell, and the same reason its own
 # check compares a file to its earlier self rather than to a separately
 # chmod'd reference: two files that never shared a history can end up with
@@ -421,33 +367,11 @@ function test_settings_are_written_outside_the_tree() {
   [ -f "$got" ] && [ ! -e "$_HI_WORKDIR/outside/config/settings.sh" ] || _hi_why got
 }
 
-# this run's answer wins over the file, which still holds the previous run's
-function test_setting_off_sees_this_runs_answer() {
-  local target="$_HI_WORKDIR/pending"
-  : >"$target"
-  local _HI_SETTING_PENDING=("_HI_DISABLE_HEADER=1")
-  { setting_off _HI_DISABLE_HEADER "$target" &&
-    ! setting_off _HI_DISABLE_PROMPT "$target"; } || _hi_why target
-}
-
-function test_setting_off_false_when_absent() {
-  local target="$_HI_WORKDIR/absent"
-  : >"$target"
-  ! setting_off _HI_DISABLE_FOO "$target" || _hi_why target
-}
-
-function test_setting_off_true_when_off_present() {
-  local target="$_HI_WORKDIR/off"
-  printf 'export _HI_DISABLE_FOO=1\n' >"$target"
-  setting_off _HI_DISABLE_FOO "$target" || _hi_why target
-}
-
 # the line as config_shell really writes it: marker-padded, unquoted - the
 # exact spelling hi.sh's payload trim has to read correctly
-function test_setting_off_reads_marker_padded_line() {
+function test_setting_get_reads_marker_padded_line() {
   local target="$_HI_WORKDIR/padded"
   printf '%-45s %s\n' 'export _HI_DISABLE_FOO=1' "$_HI_MARKER" >"$target"
-  setting_off _HI_DISABLE_FOO "$target" || _hi_why target || return 1
   _hi_prints 1 _hi_setting_get "$target" _HI_DISABLE_FOO
 }
 
@@ -478,39 +402,32 @@ function test_setting_get_leaves_other_variables_ambient() {
   _HI_CONFIG_DIR=/probe-dir _hi_prints /probe-dir/marker _hi_setting_get "$target" _HI_DISABLE_FOO
 }
 
-# _hi_section_lines <name> <fn> [settings-line ...] - what the run would
-# write after <fn>, non-interactively (stdin is /dev/null, so every question
-# keeps what the file holds), as one string: the section's answers land in
-# pending, and the collector turns pending plus the file into lines
-function _hi_section_lines() {
-  local dir="$_HI_WORKDIR/section_$1" fn="$2"
+# _hi_block_lines <name> [settings-line ...] - the block the collector writes
+# for a file holding those lines, a line each
+function _hi_block_lines() {
+  local dir="$_HI_WORKDIR/block_$1"
   local _HI_SETTINGS="$dir/settings.sh"
   local -a _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   mkdir -p "$dir"
-  shift 2
-  [ "$#" -eq 0 ] && : >"$_HI_SETTINGS" || printf '%s\n' "$@" >"$_HI_SETTINGS"
-  "$fn" </dev/null >/dev/null
-  collect_setting_lines
-  printf '%s' "${_HI_SETTING_LINES[*]:-}"
-}
-
-# _hi_collected_lines <name> [settings-line ...] - the same with no section
-# at all: what the collector writes for a file as it stands
-function _hi_collected_lines() {
-  local name="$1"
   shift
-  _hi_section_lines "$name" : "$@"
+  [ "$#" -eq 0 ] && : >"$_HI_SETTINGS" || printf '%s\n' "$@" >"$_HI_SETTINGS"
+  collect_setting_lines
+  printf '%s\n' "${_HI_SETTING_LINES[@]}"
 }
 
-# The interactive arms proper: ask_value's typed answers, the menu,
-# config_preset, and the intro are all `[ -t 0 ]`-gated, and a pty harness
-# reaches them. The child points the settings at a scratch dir, runs the one
+# _hi_set_lines <name> [settings-line ...] - its uncommented lines alone
+function _hi_set_lines() {
+  _hi_block_lines "$@" | sed -n '/^export /p'
+}
+
+# The pty rig (configure_pty): config_pick_preset is `[ -t 0 ]`-gated, and a
+# pty reaches it. The child points the settings at a scratch dir, runs the
 # configure function named on its argv with the pty as stdin, and reports
-# the exit code, the preset-final flag, and the collected lines on one
-# greppable tail line. Feeding a question an extra newline is harmless (it
-# sits unread); feeding one too few hangs the child, which _hi_wait_pid turns
-# into the kill this helper reports.
+# the exit code and the collected lines on one greppable tail line. Feeding
+# a question an extra newline is harmless (it sits unread); feeding one too
+# few hangs the child, which _hi_wait_pid turns into the kill this helper
+# reports.
 # shellcheck disable=SC2016 # single quotes on purpose: every expansion in here
 # is the child shell's to make, after the pty has put it on the other side
 _HI_CFG_CHILD='
@@ -520,167 +437,28 @@ _HI_CFG_CHILD='
   source "$_HI_TEST_LIB"
   set --
   source "$_HI_INSTALL"
-  _HI_ROOT="$_hi_dir"
-  # the packer, with the files it sources, the shipped plugins rows, which
-  # hi.sh reads under $_HI_ROOT, and the settings rows an answer is judged by
-  mkdir -p "$_hi_dir/config" "$_hi_dir/scripts"
-  for _hi_part in "${_HI_LAUNCHER%/*}"/scripts/pack*.sh "${_HI_LAUNCHER%/*}/scripts/zshrc.sh" "${_HI_LAUNCHER%/*}/scripts/settings"; do
-    ln -sfn "$_hi_part" "$_hi_dir/scripts/${_hi_part##*/}"
-  done
-  ln -sfn "${_HI_LAUNCHER%/*}/config/plugins" "$_hi_dir/config/plugins"
-  # the editor rcs an overlay carries, the only ones common/aliases.sh flags
-  mkdir -p "$_hi_dir/overlay"
-  mkdir -p "$_hi_dir/overlay/nano"
-  : >"$_hi_dir/overlay/nano/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
-  # the menu belongs to hi --configure: an install-mode run_configure asks one
-  # question at a terminal and never opens it
   _HI_FEATURES_ONLY=1
   _hi_cfg_rc=0
   "${_hi_cfg_argv[@]}" || _hi_cfg_rc=$?
   collect_setting_lines
-  printf "CFGRC=%s CFGQUIT=%s CFGLINES=%s\n" "$_hi_cfg_rc" "${_HI_CONFIGURE_QUIT:-none}" "${_HI_SETTING_LINES[*]:-}" |
+  _hi_cfg_set=""
+  for _hi_cfg_l in "${_HI_SETTING_LINES[@]}"; do
+    case "$_hi_cfg_l" in export\ *) _hi_cfg_set="$_hi_cfg_set$_hi_cfg_l " ;; esac
+  done
+  printf "CFGRC=%s CFGLINES=%s\n" "$_hi_cfg_rc" "${_hi_cfg_set% }" |
     tee "$_hi_dir/verdict"
 '
-
-_HI_MENU_EVERY_TITLE="hi --configure,hi --configure: Header,hi --configure: Header cells"
-
-_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Package check,hi --configure: Prompt"
-
-_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Plugins,hi --configure: Plugins: cli"
-
-_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure"
-
-# _hi_item <kind> - the number the menu gives an item ("word|0" the first
-# header item, "end|bash", "width", ...), read off the list itself rather
-# than counted by hand, so a row added above it cannot leave a case typing
-# the wrong number. The list is the same for every case, so it is built once,
-# ahead of the batches: a build is some thirty forks, and the case that
-# walks every row paid them per row.
-_HI_ITEM_LIST=()
-
-function _hi_items_load() {
-  # the plugins number by what has a file, so under the overlay the pty
-  # child ($_HI_CFG_CHILD) makes: nano's rc alone
-  _hi_read_lines _HI_ITEM_LIST < <(
-    _HI_SETTINGS=/dev/null
-    _HI_CONFIG_DIR="$_HI_WORKDIR/item-overlay"
-    mkdir -p "$_HI_CONFIG_DIR/nano"
-    : >"$_HI_CONFIG_DIR/nano/nanorc"
-    _HI_SETTING_PENDING=()
-    _hi_header_edit_load
-    _hi_menu_list >/dev/null
-    printf '%s\n' "${_HI_MENU_ITEMS[@]}"
-  )
-}
-
-function _hi_item() {
-  local i
-  ((${#_HI_ITEM_LIST[@]})) || _hi_items_load
-  for i in "${!_HI_ITEM_LIST[@]}"; do
-    [ "${_HI_ITEM_LIST[$i]}" = "$1" ] || continue
-    printf '%d' "$((i + 1))"
-    return 0
-  done
-  return 1
-}
-
-# a name off the preset roster is a non-zero return and no pending write
-function test_header_edit_preset_refuses_a_stranger() {
-  local out
-  out="$(
-    _HI_SETTING_PENDING=()
-    _hi_header_edit_preset nope && exit 1
-    printf '%s' "${_HI_SETTING_PENDING[*]:-}"
-  )" || _hi_why _HI_SETTING_PENDING || return 1
-  [ -z "$out" ] || _hi_why out
-}
-
-# a header preset: its words on and first, in its order, the rest off after,
-# as one pending _HI_HEADER_ORDER - and `full`, whose word list is empty,
-# lands back on the shipped order, which writes nothing
-function _hi_hdr_on_count() {
-  local v n=0
-  for v in "${_HI_HDR_ON[@]}"; do [ "$v" != 1 ] || n=$((n + 1)); done
-  printf '%d' "$n"
-}
-
-function test_header_edit_preset_turns_on_its_words_in_order() {
-  local got
-  (
-    _HI_SETTINGS=/dev/null
-    _HI_SETTING_PENDING=()
-    _hi_header_edit_preset quiet || _hi_why || exit 1
-    got="$(_hi_hdr_on_count)"
-    [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=banner utc localtime gitid greeting" ] &&
-      [ "${_HI_HDR_WORDS[*]:0:5}" = "banner utc localtime gitid greeting" ] &&
-      [ "$got" = 5 ] &&
-      [[ "$_HI_MENU_NOTE" == *"the 'quiet' preset"* ]] ||
-      _hi_because "quiet: pending [${_HI_SETTING_PENDING[*]}], words [${_HI_HDR_WORDS[*]}]" || exit 1
-    _hi_header_edit_preset full || _hi_why || exit 1
-    got="$(_hi_hdr_on_count)"
-    [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=" ] && [ "$got" = "${#_HI_HDR_WORDS[@]}" ] ||
-      _hi_because "full: pending [${_HI_SETTING_PENDING[*]}]"
-  ) || _hi_why _HI_HDR_WORDS _HI_SETTING_PENDING
-}
-
-# a switch's key finds its table row, `row|<table>|<index>`, and its name;
-# a key no switch has, or a switch whose row has left its table, finds none
-function test_menu_switch_keys_find_their_rows() {
-  local item="" name="" i
-  local -a rows=()
-  _hi_menu_switch_item k item name || _hi_why item || return 1
-  _hi_prompt_rows _HI_ADVANCED_PROMPTS rows
-  i="${item##*|}"
-  [ "${item%|*}" = "row|_HI_ADVANCED_PROMPTS" ] && [ "${rows[i]%%|*}" = _HI_KEEP ] && [ "$name" = "ssh --keep" ] ||
-    _hi_why item name || return 1
-  ! _hi_menu_switch_item z item || _hi_because "a key no switch has found $item" || return 1
-  (
-    _HI_MENU_SWITCHES=("q|_HI_ADVANCED_PROMPTS|_HI_NOT_A_ROW|")
-    ! _hi_menu_switch_item q item
-  ) || _hi_because "a switch with no row found one"
-}
-
-# every row of every table gets a number, whichever page draws it
-function test_menu_numbers_every_row() {
-  local t i
-  local -a rows=()
-  for t in _HI_FEATURE_PROMPTS _HI_PROMPT_PROMPTS _HI_ADVANCED_PROMPTS; do
-    _hi_prompt_rows "$t" rows
-    for i in "${!rows[@]}"; do
-      _hi_item "row|$t|$i" >/dev/null || _hi_because "no menu number for $t row $i" || return 1
-    done
-  done
-}
-
-# a name's color is its own wherever it is listed, and a key a line names is
-# painted without a character of the line lost; a checkbox is no key
-function test_menu_paints_names_and_keys() {
-  local a b c out
-  _hi_name_color a core
-  _hi_name_color b core
-  _hi_name_color c useful
-  [ "$a" = "$b" ] && { [ -z "$CYAN" ] || [ "$a" != "$c" ]; } || _hi_why a b c || return 1
-  _hi_menu_keyed out "save with [s] - [x] runs" "$BLUE"
-  _hi_prints "save with [s] - [x] runs" _hi_strip_ansi "$out" || return 1
-  [ -z "$BRYELLOW" ] || { printf -v a '%b[s]' "$BRYELLOW" && [[ "$out" == *"$a"* && "$out" != *"m[x]"* ]]; } || _hi_why out
-}
 
 # _hi_configure_begin - what every part of this suite starts from, and the tally
 function _hi_configure_begin() {
   _hi_workdir configuretest
-  # the editor configs an overlay carries: without them no editor has an alias
-  # for the previews to read back
-  local _hi_f
-  for _hi_f in vim/vimrc nvim/init.lua helix/config.toml nano/nanorc emacs/init.el micro/settings.json micro/bindings.json; do
-    mkdir -p "$_HI_CONFIG_DIR/${_hi_f%/*}"
-    : >"$_HI_CONFIG_DIR/$_hi_f"
-  done
-  _hi_load_preview_sources
-  _hi_items_load
+  # the header validator reads header.sh's vocabulary, as doctor has it loaded
+  # shellcheck source=../../common/header.sh
+  source "$_HI_HEADER"
   _hi_suite_begin
 }
 
@@ -693,55 +471,42 @@ function run_configure_tests() {
   _hi_check "common/core.sh" _hi_sources_settings_before_paths "$_HI_ROOT/common/core.sh"
   _hi_check "common/config.fish" _hi_sources_settings_before_paths "$_HI_ROOT/common/config.fish"
 
-  _hi_h2 "Testing: the collector - prompt separators"
-  _hi_check "An existing override is kept" test_prompt_ends_keeps_an_existing_override
-  _hi_check "Written values are quoted" test_prompt_ends_quotes_what_it_writes
-  _hi_check "Kept when the prompt is off" test_prompt_ends_kept_when_the_prompt_is_off
-
-  _hi_h2 "Testing: the collector - colors and header order"
+  _hi_h2 "Testing: the collector"
+  _hi_check "Separators: an existing override is kept" test_prompt_ends_keeps_an_existing_override
+  _hi_check "Separators: written values are quoted" test_prompt_ends_quotes_what_it_writes
+  _hi_check "Separators: kept when the prompt is off" test_prompt_ends_kept_when_the_prompt_is_off
   _hi_check "Colors: no scheme or ramp line is written" test_collector_writes_no_color_line
   _hi_check "Hidden addresses: an existing override is kept" test_ip_hide_keeps_an_existing_override
-  _hi_check "Hidden addresses: the default writes nothing" test_ip_hide_does_not_write_the_default
+  _hi_check "Hidden addresses: the default is commented" test_ip_hide_does_not_write_the_default
   _hi_check "Order: an existing override is kept" test_header_order_keeps_an_existing_override
-  _hi_check "Order: the default writes nothing" test_header_order_does_not_write_the_default
+  _hi_check "Order: the default is commented" test_header_order_does_not_write_the_default
   _hi_check "Order: kept when the header is off" test_header_order_kept_when_the_header_is_off
-  _hi_check "Header presets hold the vocabulary" test_header_presets_hold_the_vocabulary
+  _hi_check "Package groups: the default set is commented" test_packages_groups_does_not_write_the_default
+  _hi_check "Package groups: none is written out" test_packages_groups_writes_none
+  _hi_check "Package groups: kept when the check is off" test_packages_groups_kept_when_the_check_is_off
+  _hi_check "The block lists every setting once, in order" test_block_lists_every_setting_once
+  _hi_check "A commented line shows its default" test_block_shows_each_default
+  _hi_check "Any setting is kept, a quote escaped" test_block_keeps_a_quoted_value
 
   _hi_h2 "Testing: the answer plumbing"
   _hi_check "The input validators hold their grammars" test_validators_hold_their_grammars
   _hi_check "_hi_setting_check gives each kind its verdict" test_setting_check_gives_each_kind_its_verdict
   _hi_check "pending_answer reads this run's answers" test_pending_answer_reads_this_runs_answers
   _hi_check "_hi_pending_set replaces in place" test_pending_set_replaces_in_place
-  _hi_check "ask_value: non-interactive keeps current, blanks defaults" test_ask_value_non_interactive_keeps_current
 
   _hi_h2 "Testing: ensure_settings_shebang"
   _hi_check "Written to a new settings.sh" test_shebang_is_written_to_a_new_settings_file
   _hi_check "Stays first under the settings block" test_shebang_stays_first_under_the_settings_block
   _hi_check "Not duplicated on reruns" test_shebang_is_not_duplicated_on_reruns
-  _hi_check "Package groups: a flip turns one on or off" test_packages_groups_flip_one
-  _hi_check "Package groups: commas are written as spaces" test_packages_groups_normalises_commas
-  _hi_check "Package groups: the default set is not written" test_packages_groups_does_not_write_the_default
-  _hi_check "Package groups: none is written out" test_packages_groups_writes_none
-  _hi_check "Package groups: kept when the check is off" test_packages_groups_kept_when_the_check_is_off
   _hi_check "Replaces a different shebang" test_shebang_replaces_a_different_one_and_keeps_content
-  _hi_check "_hi_header_edit_preset refuses a stranger" test_header_edit_preset_refuses_a_stranger
-  _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
-  _hi_check "Menu: every table row has a number" test_menu_numbers_every_row
-  _hi_check "Menu: a switch's key finds its row, and only a real one" test_menu_switch_keys_find_their_rows
-  _hi_check "Menu: a name keeps its color, and a key a line names is painted" test_menu_paints_names_and_keys
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 
   _hi_h2 "Testing: config_settings"
   _hi_check "Writes every group at once" test_config_settings_writes_every_group_at_once
   _hi_check "Written outside the tree" test_settings_are_written_outside_the_tree
-  _hi_check "setting_off sees this run's answer" test_setting_off_sees_this_runs_answer
-
-  _hi_h2 "Testing: setting_off"
-  _hi_check "Not off when absent" test_setting_off_false_when_absent
-  _hi_check "Off when off-value present" test_setting_off_true_when_off_present
-  _hi_check "Reads the marker-padded line config_shell writes" test_setting_off_reads_marker_padded_line
 
   _hi_h2 "Testing: _hi_setting_get sources the file for real"
+  _hi_check "Reads the marker-padded line config_shell writes" test_setting_get_reads_marker_padded_line
   _hi_check "Reads a computed value" test_setting_get_reads_a_computed_value
   _hi_check "Reads a two-statement assignment" test_setting_get_reads_a_two_statement_assignment
   _hi_check "Leaves other variables ambient" test_setting_get_leaves_other_variables_ambient
@@ -749,7 +514,7 @@ function run_configure_tests() {
   _hi_suite_end "configure.sh logic"
 }
 
-# The pty parts' rig (configure_pty, configure_menu).
+# The pty part's readers (configure_pty).
 
 # _hi_pty_field <label> <tag> [capture] - the field after <tag> on
 # a pty transcript's tail line, CR-normalised first (a pty writes CR-LF) -
@@ -792,30 +557,6 @@ function _hi_cfg_has() { _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | grep -
 function _hi_cfg_rc() { _hi_pty_field "$1" 'CFGRC=' '[0-9]*'; }
 
 function _hi_cfg_lines() { _hi_pty_field "$1" 'CFGLINES='; }
-
-# _hi_cfg_screen <label> <n> - the menu's <n>th draw, 0 the first: the pty
-# echoes no input, so each ` > ` prompt shares its line with the next draw's
-# title, and a draw runs from one prompt line to the line before the next
-function _hi_cfg_screen() {
-  _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
-    awk -v n="$2" 'index($0, " > ") == 1 { s++ } s == n'
-}
-
-function _hi_cfg_screen_has() {
-  _hi_cfg_screen "$1" "$2" | grep -qF -- "$3" || _hi_because "draw $2 of $1 has no \"$3\""
-}
-
-# _hi_cfg_titles <label> - every draw's title, in order, comma-joined
-function _hi_cfg_titles() {
-  _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
-    sed -E -n 's/.*-  (hi --configure(: [A-Za-z: ]+)?|Header( cells)?|Package check|Prompt|Plugins(: [a-z]+)?)  -.*/\1/p' |
-    paste -sd, -
-}
-
-# every page's key in order, g1 the first group of plugins (cli) standing
-# for the groups', then b: the six pages and the main page again, each
-# drawn once
-_HI_MENU_EVERY_PAGE='i\ne\nc\nr\ng\ng1\nb\ns\n'
 
 # a part (configure_*_test.sh) sources this file for what is above and runs its own
 [ -n "${_HI_CONFIGURE_PART:-}" ] || run_configure_tests

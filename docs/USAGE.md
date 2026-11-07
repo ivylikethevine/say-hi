@@ -26,12 +26,8 @@ in a session.
   - [`hi --uninstall`](#hi---uninstall)
   - [`hi --configure`](#hi---configure)
   - [`hi --update`](#hi---update)
-  - [`hi --add-package`](#hi---add-package)
-  - [`hi --remove-package`](#hi---remove-package)
   - [`hi --add-tag`](#hi---add-tag)
   - [`hi --remove-tag`](#hi---remove-tag)
-  - [`hi --add-color`](#hi---add-color)
-  - [`hi --remove-color`](#hi---remove-color)
   - [`hi --plugins`](#hi---plugins)
   - [`hi --disable-plugin`](#hi---disable-plugin)
   - [`hi --enable-plugin`](#hi---enable-plugin)
@@ -73,7 +69,7 @@ No image: what it does shows in a session, not in output of its own.
 
 `hi --keep`: keep the session on the target through a dropped link. Works in a session too.
 
-It changes how a connect runs, which [the tour's story](TOUR.md#survive-a-dropped-link) shows.
+It changes how a connect runs, which [the tour's story](GETTING-STARTED.md#survive-a-dropped-link) shows.
 
 ### `hi --no-keep`
 
@@ -127,18 +123,6 @@ No image: what it does shows in a session, not in output of its own.
 
 No image: what it shows is the network's, a release tag's, or your editor's.
 
-### `hi --add-package`
-
-`hi --add-package <group> <pkg>[,...] [--dry-run]`: add rows to a group in your packages file.
-
-![hi --add-package useful lazygit,tig --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-add-package.svg)
-
-### `hi --remove-package`
-
-`hi --remove-package <pkg>... [--dry-run]`: remove rows from your packages file.
-
-![hi --remove-package kubectl --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-remove-package.svg)
-
 ### `hi --add-tag`
 
 `hi --add-tag <host> <tag> [--dry-run]`: tag an ssh host, for the colors.
@@ -150,18 +134,6 @@ No image: what it shows is the network's, a release tag's, or your editor's.
 `hi --remove-tag <host> [--dry-run]`: take a host's # Tags: line back out.
 
 ![hi --remove-tag web-dev --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-remove-tag.svg)
-
-### `hi --add-color`
-
-`hi --add-color <type> <name> <color> [rrggbb] [--dry-run]`: pin a color in your colors file.
-
-![hi --add-color hosttag prod red --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-add-color.svg)
-
-### `hi --remove-color`
-
-`hi --remove-color <type> <name> [--dry-run]`: remove a pin from your colors file.
-
-![hi --remove-color username root --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-remove-color.svg)
 
 ### `hi --plugins`
 

@@ -118,9 +118,9 @@ Takes no arguments. Reads:
   config/colors      its [palette], the ramp in force - none for the shipped
                      one, or eight color names of your own - printed above the legend
 
-A row's table decides which states speak at all: [group] both ways,
-[group.unwanted] only as a warning when installed, [group.required] only as
-an alarm when missing - the line under the marks says the same. A group whose
+A row's mark decides which states speak at all: none both ways, "-name"
+only as a warning when installed, "+name" only as an alarm when missing -
+the line under the marks says the same. A group whose
 STATE reads "off" prints nothing in the header whatever its colors say; its
 example shows what it would print.
 EOF
@@ -558,14 +558,14 @@ _HI_PKG_LISTED=0 _HI_PKG_SHOWN=0 _HI_PKG_SILENT=0 _HI_PKG_OFF=0
 # nothing for a `-` row that is absent or a `+` row that is installed, which
 # is the point: those rows show nothing.
 function _hi_collect_examples() {
-  local line entry rank width rendered gi=0 on=1 tier=1 group mark="" name alts
+  local line entry rank width rendered gi=0 on=1 tier=1 group name alts
   local -a visible
   _HI_PG_NAME[0]="(no group)" _HI_PG_ON[0]=1 _HI_PG_TIER[0]=1 _HI_PG_ROWS[0]=0
 
   while IFS=$' ' read -r line; do
     # the header's own reading of a line, table or row
-    if _hi_package_table "$line" group mark; then
-      # a group's tables are one group, wherever each sits
+    if _hi_package_table "$line" group; then
+      # a group named twice is one group, wherever each table sits
       [ -n "$group" ] || group="(no group)"
       for ((gi = 0; gi < ${#_HI_PG_NAME[@]}; gi++)); do
         [ "${_HI_PG_NAME[gi]}" != "$group" ] || break
@@ -579,7 +579,7 @@ function _hi_collect_examples() {
       continue
     fi
     _hi_toml_row "$line" name alts || continue
-    line="$mark$name${alts:+,$alts}"
+    line="$name${alts:+,$alts}"
     _HI_PKG_LISTED=$((_HI_PKG_LISTED + 1))
     _HI_PG_ROWS[gi]=$((_HI_PG_ROWS[gi] + 1))
     visible=()
@@ -700,7 +700,7 @@ function _hi_print_marks_table() {
   local -a rows=("$GREEN$_HI_MARK_OK|installed, under the first name the row lists"
     "$YELLOW$_HI_MARK_ALT|installed, but via one of the alternatives after it"
     "$RED$_HI_MARK_NO|not installed - no name on the row resolved"
-    "$YELLOW$_HI_MARK_WARN|installed, under .unwanted: a package you don't want")
+    "$YELLOW$_HI_MARK_WARN|installed, on a row marked -: a package you don't want")
   for entry in "${rows[@]}"; do _hi_widen w2 "${entry#*|}"; done
   _HI_TEXT_SECTION=marks
   _hi_hbar top 4 "$w2"
@@ -713,9 +713,9 @@ function _hi_print_marks_table() {
     _hi_row_end
   done
   _hi_hbar bottom 4 "$w2"
-  # the third axis, the table a row sits in: whether the row speaks at all
-  _hi_pv_note "a row under [group.unwanted] speaks only when installed, one under"
-  _hi_pv_note "[group.required] only when missing; one under [group] both ways"
+  # the third axis, the row's own mark: whether the row speaks at all
+  _hi_pv_note "a row marked - speaks only when installed, one marked + only when"
+  _hi_pv_note "missing; one with no mark both ways"
 }
 
 # same hatch as scripts/install.sh: sourcing this file defines its functions

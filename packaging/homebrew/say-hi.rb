@@ -87,7 +87,7 @@ class SayHi < Formula
       That writes only to your rc files and ~/.config/say-hi - never into the keg,
       and it makes no link of its own: Homebrew's `hi` already runs this tree.
 
-      Re-run it as `hi --configure` any time to revisit the feature toggles.
+      Re-run it as `hi --configure` any time to revisit the settings.
       `hi --update` will tell you to update through Homebrew, which is correct -
       run `brew upgrade say-hi` instead.
     EOS

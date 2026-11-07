@@ -1292,23 +1292,14 @@ function _hi_toml_row() {
   printf -v "$3" '%s' "$_hi_tr_v"
 }
 
-# _hi_package_table <line> <groupvar> <markvar> - a `[group]`,
-# `[group.required]`, or `[group.unwanted]` line of $_HI_PACKAGES: its group,
-# and the mark check_line reads its rows under (+, -, or none). A bare
-# `[required]` or `[unwanted]` marks rows of no group. 1 for any other line.
-# Here, not in header.sh: the scripts that write the file load no header.
+# _hi_package_table <line> <groupvar> - the group a `[group]` line of
+# $_HI_PACKAGES opens, or 1 for any other line. Here, not in header.sh: the
+# scripts that read the file load no header.
 function _hi_package_table() {
-  local _hi_pt="$1" _hi_pt_m=""
+  local _hi_pt="$1"
   case "$_hi_pt" in '['*']'*) ;; *) return 1 ;; esac
   _hi_pt="${_hi_pt#\[}"
-  _hi_pt=".${_hi_pt%%\]*}"
-  case "$_hi_pt" in
-  *.required) _hi_pt_m=+ _hi_pt="${_hi_pt%.*}" ;;
-  *.unwanted) _hi_pt_m=- _hi_pt="${_hi_pt%.*}" ;;
-  esac
-  _hi_pt="${_hi_pt#.}"
-  printf -v "$2" '%s' "$_hi_pt"
-  printf -v "$3" '%s' "$_hi_pt_m"
+  printf -v "$2" '%s' "${_hi_pt%%\]*}"
 }
 
 # _hi_colors_load - $_HI_COLORS' `[<type>]` tables of `<name> = "<color>

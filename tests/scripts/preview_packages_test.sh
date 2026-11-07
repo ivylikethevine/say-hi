@@ -207,10 +207,10 @@ function test_packages_drift_names_groups_and_stray_markers() {
   local out want
   _HI_PACKAGES="$_HI_ROOT/config/packages" _hi_package_groups want
   want="${want#core }"
-  printf '[core]\nhialpha = []\nhibravo = ["-hiecho", "+hidelta"]\n[mine.required]\nhitop = []\n' >"$_HI_WORKDIR/packages.drift"
+  printf '[core]\nhialpha = []\nhibravo = ["-hiecho", "+hidelta"]\n[mine]\n"+hitop" = []\n' >"$_HI_WORKDIR/packages.drift"
   out="$(_HI_PACKAGES="$_HI_WORKDIR/packages.drift" _hi_print_packages_drift)" || _hi_why || return 1
   [[ "$out" == *"never checked: ${want// /, } ("* ]] || _hi_because "groups: $out" || return 1
-  [[ "$out" == *"the row hibravo,-hiecho,+hidelta never matches: a - or + leading a name"* ]] ||
+  [[ "$out" == *"the row hibravo,-hiecho,+hidelta never matches: a - or + leading an alternative"* ]] ||
     _hi_because "marker: $out" || return 1
   out="$(_HI_PACKAGES="$_HI_ROOT/config/packages" _hi_print_packages_drift)" || _hi_why || return 1
   [ -z "$out" ] || _hi_because "the tree's own file: $out"
@@ -223,7 +223,7 @@ function test_marks_table_explains_every_mark() {
     [[ "$out" == *"installed, under the first name the row lists"* ]] &&
     [[ "$out" == *"installed, but via one of the alternatives after it"* ]] &&
     [[ "$out" == *"not installed - no name on the row resolved"* ]] &&
-    [[ "$out" == *"installed, under .unwanted: a package you don't want"* ]] || _hi_why out
+    [[ "$out" == *"installed, on a row marked -: a package you don't want"* ]] || _hi_why out
 }
 
 # each glyph is painted in the color the header paints it - the raw render has
@@ -239,13 +239,13 @@ function test_marks_table_is_rectangular() {
   _hi_table_is_rectangular "$(_hi_print_marks_table)" || _hi_why
 }
 
-# the third axis, the table a row sits in, is two lines under the marks: both
-# kinds and the default, which names none
+# the third axis, the row's own mark, is two lines under the marks: both
+# marks and the default, which has none
 function test_marks_table_explains_the_markers() {
   local out
   out="$(_hi_strip_ansi "$(_hi_print_marks_table)")" || _hi_why || return 1
-  [[ "$out" == *"a row under [group.unwanted] speaks only when installed, one under"* ]] &&
-    [[ "$out" == *"only when missing; one under [group] both ways"* ]] || _hi_why out
+  [[ "$out" == *"a row marked - speaks only when installed, one marked + only when"* ]] &&
+    [[ "$out" == *"missing; one with no mark both ways"* ]] || _hi_why out
 }
 
 # ...and the same table under the glyph set the rest of this suite pins away:
@@ -361,11 +361,11 @@ function test_preview_names_every_group() {
   done
 }
 
-# the lines under the marks are the only place the three tables are
+# the lines under the marks are the only place the three kinds of row are
 # explained, so the render has to carry them
 function test_preview_explains_the_markers() {
   _hi_packages_out || _hi_why || return 1
-  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -qF 'a row under [group.unwanted] speaks only when installed' || _hi_why _HI_PACKAGES_OUT
+  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -qF 'a row marked - speaks only when installed' || _hi_why _HI_PACKAGES_OUT
 }
 
 function test_preview_counts_what_it_read() {

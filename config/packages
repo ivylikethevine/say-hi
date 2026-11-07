@@ -8,15 +8,17 @@
 # or `none`) names the groups that run, and ships as `core deprecated`.
 # Drop `check` from _HI_HEADER_ORDER to turn the check off.
 #
-# `hi --add-package` copies this file to ~/.config/say-hi/packages the first
-# time and edits it there; that copy replaces this one wholesale.
+# `hi --edit packages` copies this file to ~/.config/say-hi/packages and
+# opens it there; that copy replaces this one wholesale.
 # docs/packages.example is a longer list to start one from.
 #
 # package = ["alternative2", ...]
 # alternatives in order of preference: the first one installed is shown.
-# under [group]: shown installed or missing
-# under [group.unwanted]: silent while absent, a warning when installed
-# under [group.required]: silent while installed, an alarm when missing
+# A mark leading the name, which then goes in double quotes, says what the
+# row is for:
+#   package = []     shown installed or missing
+#   "-package" = []  unwanted: silent while absent, a warning when installed
+#   "+package" = []  required: silent while installed, an alarm when missing
 
 # the install checklist, worth adding to a box you visit often
 [core]
@@ -42,55 +44,53 @@ zip = ["unzip"]
 less = ["more"]
 zsh = ["fish"]
 
-[useful.required]
-bash = []
-sudo = ["doas"]
-gpg = []
-tput = []
-ip = ["ifconfig"]
+"+bash" = []
+"+sudo" = ["doas"]
+"+gpg" = []
+"+tput" = []
+"+ip" = ["ifconfig"]
 
 # superseded or unmaintained: installed means a replacement is due
-[deprecated.unwanted]
-exa = []
-neofetch = []
-python2 = []
-xsv = []
+[deprecated]
+"-neofetch" = []
+"-python2" = []
+"-xsv" = []
 
 # the tools hi and a working shell lean on: silent unless one is missing
-[base.required]
-awk = []
-base64 = []
-grep = []
-tr = []
-cut = []
-head = []
-sort = []
-uniq = []
-wc = []
-paste = []
-date = []
-du = []
-mkdir = []
-rm = []
-ln = []
-chmod = []
-mktemp = []
-dirname = []
-readlink = []
-hostname = []
-uname = []
-whoami = []
-ssh = []
-ssh-keygen = []
-gzip = []
-od = []
-stty = []
-tar = []
-git = []
-df = []
-stat = []
-scp = []
-openssl = []
-ping = []
-timeout = ["gtimeout"]
-lscpu = ["nproc", "sysctl"]
+[base]
+"+awk" = []
+"+base64" = []
+"+grep" = []
+"+tr" = []
+"+cut" = []
+"+head" = []
+"+sort" = []
+"+uniq" = []
+"+wc" = []
+"+paste" = []
+"+date" = []
+"+du" = []
+"+mkdir" = []
+"+rm" = []
+"+ln" = []
+"+chmod" = []
+"+mktemp" = []
+"+dirname" = []
+"+readlink" = []
+"+hostname" = []
+"+uname" = []
+"+whoami" = []
+"+ssh" = []
+"+ssh-keygen" = []
+"+gzip" = []
+"+od" = []
+"+stty" = []
+"+tar" = []
+"+git" = []
+"+df" = []
+"+stat" = []
+"+scp" = []
+"+openssl" = []
+"+ping" = []
+"+timeout" = ["gtimeout"]
+"+lscpu" = ["nproc", "sysctl"]

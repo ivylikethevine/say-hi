@@ -675,8 +675,7 @@ up:packages)
   # bridge these containers stand in for a LAN with), and the check as a
   # diagnosis: the overlay below is the homelab toolbox, and the two boxes
   # answer it very differently - the nas has most of it, the pihole almost
-  # none. The overlay holds the core group; the tape's `hi --add-package`
-  # writes the useful one.
+  # none.
   client_rc bash sam laptop ubuntu
   demo_settings <<'EOF'
 export _HI_DISABLE_PROMPT='1'
@@ -690,6 +689,11 @@ git = []
 vim = ["nano"]
 rsync = []
 curl = []
+
+[useful]
+htop = []
+tmux = []
+smartctl = []
 EOF
   up_container docker nas tools admin
   # shellcheck disable=SC2016 # the prompt's own text, never expanded

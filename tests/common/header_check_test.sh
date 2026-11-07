@@ -128,7 +128,7 @@ function test_full_check_skips_comments_and_blanks() {
 # leave the check empty, not a bare line
 function test_full_check_empty_when_everything_is_silent() {
   local out
-  out="$(_HI_PACKAGES="$(_hi_pkg_one silent "[required]\n$_HI_REAL_CMD = []\n[unwanted]\n$_HI_FAKE_CMD = []\n")" full_check)"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one silent "\"+$_HI_REAL_CMD\" = []\n\"-$_HI_FAKE_CMD\" = []\n")" full_check)"
   [ -z "$out" ] || _hi_why out
 }
 
@@ -162,9 +162,9 @@ function test_group_on_reads_the_list() {
 }
 
 # _hi_package_groups: the tables in file order, a group once however many
-# tables it has, a comment behind one read past, and a commented one skipped
+# tables name it, a comment behind one read past, and a commented one skipped
 function test_package_groups_lists_sections_in_file_order() {
-  _HI_PACKAGES="$(_hi_pkg_one list-groups "top = []\n[required]\nneed = []\n[beta.unwanted]\nx = []\n#[gone]\n[alpha] # c\n[beta]\n[alpha.required]\n")" \
+  _HI_PACKAGES="$(_hi_pkg_one list-groups "top = []\n\"+need\" = []\n[beta]\nx = []\n#[gone]\n[alpha] # c\n[beta]\n[alpha]\n")" \
     _hi_var_is "beta alpha" _hi_package_groups
 }
 
@@ -178,11 +178,11 @@ function test_full_check_reads_a_toml_row() {
   return 0
 }
 
-# a group is its three tables, each saying what its rows are, and one switch
-# turns all three off
-function test_full_check_reads_a_group_by_its_tables() {
+# a mark on a row's name says what the row is for, quoted or bare (TOML reads
+# a bare key led by -), and one switch turns the whole group off
+function test_full_check_reads_a_row_by_its_mark() {
   local out body
-  body="[alpha]\nls = []\n[alpha.required]\n$_HI_FAKE_CMD = []\n$_HI_REAL_CMD = []\n[alpha.unwanted]\ncat = []\n$_HI_FAKE_CMD-2 = []\n"
+  body="[alpha]\nls = []\n\"+$_HI_FAKE_CMD\" = []\n\"+$_HI_REAL_CMD\" = []\n\"-cat\" = []\n-$_HI_FAKE_CMD-2 = []\n"
   out="$(_HI_PACKAGES="$(_hi_pkg_one tables "$body")" _HI_PACKAGES_GROUPS=alpha full_check)"
   _hi_contains "$out" " ls " && _hi_contains "$out" " cat " && _hi_contains "$out" " $_HI_FAKE_CMD " || _hi_why out _HI_FAKE_CMD || return 1
   case "$out" in *" $_HI_REAL_CMD "* | *"$_HI_FAKE_CMD-2"*) _hi_why out _HI_REAL_CMD _HI_FAKE_CMD || return 1 ;; esac
@@ -216,7 +216,7 @@ function test_full_check_reads_a_comma_separated_list() {
 function test_full_check_unset_runs_the_default_groups() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one groups-default "[core]\nsh = []\n[useful]\nls = []\n[deprecated.unwanted]\ncat = []\n[extras]\nbash = []\n")"
+    _HI_PACKAGES="$(_hi_pkg_one groups-default "[core]\nsh = []\n[useful]\nls = []\n[deprecated]\n\"-cat\" = []\n[extras]\nbash = []\n")"
     unset _HI_PACKAGES_GROUPS
     full_check
   )"
@@ -333,7 +333,7 @@ function test_full_check_orders_by_tier_then_file_order() {
 # file order between themselves
 function test_full_check_sorts_warnings_and_alarms_first() {
   local out w a c
-  out="$(_HI_PACKAGES="$(_hi_pkg_one warn-first "[core]\nls = []\n[extras.unwanted]\n$_HI_REAL_CMD = []\n[extras.required]\n$_HI_FAKE_CMD = []\n")" _HI_PACKAGES_GROUPS="core extras" full_check)"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one warn-first "[core]\nls = []\n[extras]\n\"-$_HI_REAL_CMD\" = []\n\"+$_HI_FAKE_CMD\" = []\n")" _HI_PACKAGES_GROUPS="core extras" full_check)"
   w="$(_hi_pos "$out" " $_HI_REAL_CMD ")" a="$(_hi_pos "$out" " $_HI_FAKE_CMD ")"
   c="$(_hi_pos "$out" " ls ")"
   { [ -n "$w" ] && [ -n "$a" ] && [ -n "$c" ] && ((w < a && a < c)); } || _hi_why w a c
@@ -473,7 +473,7 @@ function run_header_check_tests() {
   _hi_check "_HI_PACKAGES_GROUPS: unset, lists, none" test_group_on_reads_the_list
   _hi_check "Sections are listed in file order" test_package_groups_lists_sections_in_file_order
   _hi_check "A row is its key and its array" test_full_check_reads_a_toml_row
-  _hi_check "A group is its three tables" test_full_check_reads_a_group_by_its_tables
+  _hi_check "A row's mark says what it is for" test_full_check_reads_a_row_by_its_mark
 
   _hi_h2 "Testing: full_check"
   _hi_check "Skips comment/blank lines" test_full_check_skips_comments_and_blanks

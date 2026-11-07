@@ -3,7 +3,7 @@
 How every color hi paints is chosen: the per-host hash, the pins in
 `~/.config/say-hi/colors`, the 24-bit scheme, and the package check's ramp and
 rows. The scheme and the ramp are tables of that same file, `[scheme]` and
-`[palette]`; the wizard asks about neither.
+`[palette]`; no setting or preset names either.
 
 ## Contents
 
@@ -50,12 +50,9 @@ ssh-config entry needed — the first matching pattern in the file wins.
 Precedence, highest first: an exact pin, then a hosttag, then a pattern, then
 the hash.
 
-`hi --add-color <type> <name> <color> [rrggbb]` writes a pin, replacing one
-the name already has and creating the section when the file has none;
-`hi --remove-color <type> <name>` removes it. Both refuse a name holding a
-space, `#`, or a bracket, a color outside the vocabulary below, and a hex that
-is not six digits. The first write copies the tree's file there, since a copy
-of your own replaces the tree's wholesale.
+`hi --edit colors` opens `~/.config/say-hi/colors` in your editor, copying
+the tree's file there first, since a copy of your own replaces the tree's
+wholesale.
 
 A config split into files (`Include config.d/*` in `~/.ssh/config`) is read
 the way ssh reads it: each `Include` is followed in place - `~` is your home,
@@ -176,23 +173,21 @@ preference, on one line. The shipped file is short;
 [useful]
 curl = ["httpie", "xh"]
 rsync = []
+"+sudo" = ["doas"]
 
-[useful.required]
-sudo = ["doas"]
-
-[deprecated.unwanted]
-exa = []
+[deprecated]
+"-neofetch" = []
 ```
 
 The first name installed is shown, marked `~` when it is not the row's own.
-The table a row sits under sets what the row is for:
+A mark leading the name, which then goes in double quotes, sets what the row
+is for:
 
-- **`[group]`**, wanted: installed (`✓`) and missing (`✗`) both show.
-- **`[group.unwanted]`**: silent while absent, a warning (`!`) when
-  installed — the `deprecated` group's `exa`, `neofetch`, `python2`, and
-  `xsv`.
-- **`[group.required]`**: silent while installed, an alarm (`✗`) when
-  missing — the `base` group's coreutils.
+- **No mark**, wanted: installed (`✓`) and missing (`✗`) both show.
+- **`-`**, unwanted: silent while absent, a warning (`!`) when installed —
+  the `deprecated` group's `neofetch`, `python2`, and `xsv`.
+- **`+`**, required: silent while installed, an alarm (`✗`) when missing —
+  the `base` group's coreutils.
 
 hi reads that much of TOML and no more
 ([the TOML hi reads](SETTINGS.md#the-toml-hi-reads)): a value on a second
@@ -216,22 +211,15 @@ or `none`; unset, it is `core deprecated`
 ([SETTINGS.md](SETTINGS.md#every-setting)). A group that is off is not even
 looked for, and rows above the first table always run.
 
-`hi --add-package core go cargo,rustc` adds rows to that group's table of
-`~/.config/say-hi/packages`, creating the table when the file has none, and a
-leading `+` or `-` on an argument (`+sudo,doas`) lands its row in the group's
-`.required` or `.unwanted` table; a row whose first package is already in the
-file is replaced, and moved when the group differs.
-`hi --remove-package go cargo` takes out the row whose first package each one
-names, from whichever table holds it. The first write of either copies the
-tree's file there: a copy of your own replaces the tree's wholesale, the same
-rule `colors` follows. By hand,
-`cp "$_HI_ROOT/config/packages" ~/.config/say-hi/packages` and edit.
+`hi --edit packages` opens `~/.config/say-hi/packages` in your editor,
+copying the tree's file there first: a copy of your own replaces the tree's
+wholesale, the same rule `colors` follows.
 `hi --preview packages` shows each group — whether it runs, its colors, and a
 real example from your rows — then the marks and the check; to turn the check
 off, drop `check` from `_HI_HEADER_ORDER`. A copy never gains a group the tree
 adds later, so the preview and `hi --doctor` name the tree's groups your file
-lacks, and any row with a `-` or `+` past its first name (`eza,-exa,lsd`), which
-is read as part of a name nothing matches.
+lacks, and any row with a `-` or `+` leading one of its alternatives
+(`eza = ["-exa", "lsd"]`), which is read as part of a name nothing matches.
 
 ## Using the hash in your own prompt
 

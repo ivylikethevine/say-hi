@@ -356,100 +356,16 @@ function test_word_flags_match_the_words_roster() {
   local arms want got
   # the arm labels of the `words` case, one per line; `--a | --b)` gives both.
   # shellcheck disable=SC2016 # the sed script is literal, not an expansion
-  # ...and the flags common/flags gives <flag>=<word> rows, --remove-color
-  # taking --add-color's
+  # ...and the flags common/flags gives <flag>=<word> rows
   arms="$({
     sed -n '/if \[ "\$kind" = words \]/,/^fi$/p' "$_HI_TARGETS" |
       sed -n 's/^  \(--[a-z| -]*\))$/\1/p' | tr -d ' ' | tr '|' '\n'
     sed -n 's/^\(--[a-z-]*\)=.*/\1/p' "$_HI_ROOT/common/flags"
-    echo --remove-color
   } | sort -u | tr '\n' ' ')"
   # shellcheck disable=SC2086 # the split is the roster
   want="$(printf '%s\n' $_HI_WORD_FLAGS | sort | tr '\n' ' ')"
   got="$arms"
   [ "$got" = "$want" ] || _hi_because "targets.sh answers for [$got], _HI_WORD_FLAGS names [$want]"
-}
-
-# --- words --add-package and --remove-package: the packages cascade,
-# reimplemented - the arm resolves $_HI_CONFIG_DIR/packages, else the tree's
-# own config/packages, the same wholesale-replace cascade paths.sh's
-# $_HI_PACKAGES uses. --add-package offers the file's groups, --remove-package
-# each row's first package.
-
-function test_words_add_package_with_no_overlay_lists_the_tree_groups() {
-  local out got
-  out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --add-package)"
-  got="$(printf '\t')"
-  [[ "$out" == *"core${got}a package check group"* && "$out" == *"base$got"* ]] && [[ "$out" != *bat* ]] || _hi_why got out
-}
-
-function test_words_add_package_with_an_overlay_lists_only_its_own() {
-  local dir out got
-  dir="$_HI_WORKDIR/addpkg-overlay"
-  mkdir -p "$dir"
-  printf '[mine]\nfoo = []\n' >"$dir/packages"
-  out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  got="$(printf 'mine\ta package check group')"
-  [ "$out" = "$got" ] || _hi_why got out
-}
-
-# the overlay directory alone is not an override - the guard is on the file,
-# as paths.sh's is, so an overlay without one still offers the tree's groups
-function test_words_add_package_with_an_overlay_but_no_file_lists_the_tree_groups() {
-  local dir out got
-  dir="$_HI_WORKDIR/addpkg-overlay-nofile"
-  mkdir -p "$dir"
-  printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
-  out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  got="$(printf '\t')"
-  [[ "$out" == *"core$got"* ]] || _hi_why got out
-}
-
-# groups only, in file order, each once: rows are not offered, nor a
-# commented table, and a table of required or unwanted rows is its group's
-function test_words_add_package_lists_only_clean_group_headers() {
-  local dir out got
-  dir="$_HI_WORKDIR/addpkg-hash"
-  mkdir -p "$dir"
-  printf '# [commented]\ntop = []\n[b.unwanted]\nx = []\n[required]\nz = []\n[b]\n  [a] # a note\ny = []\n[a.required]\n' >"$dir/packages"
-  out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  got="$(printf 'b\ta package check group\na\ta package check group')"
-  [ "$out" = "$got" ] || _hi_why got out
-}
-
-# --remove-package: each row's key, quoted or bare, whatever table it sits
-# in; tables, comments and blanks are not rows
-function test_words_remove_package_lists_first_packages() {
-  local dir out got
-  dir="$_HI_WORKDIR/rmpkg-words"
-  mkdir -p "$dir"
-  printf '# a note\ntop = []\n[a]\nbat = ["batcat"]\n"g++" = []\n\n[a.unwanted]\nexa = []\n[b.required]\n  bash = [] # a trailing note\n# x = []\n' >"$dir/packages"
-  out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --remove-package)"
-  got="$(printf 'top\ta package check row\nbat\ta package check row\ng++\ta package check row\nexa\ta package check row\nbash\ta package check row')"
-  [ "$out" = "$got" ] || _hi_why got out
-}
-
-# --add-color and --remove-color: the four types, the same list for both, and
-# no overlay read - the types are set_color.sh's, not a file's
-function test_words_set_and_unset_color_list_the_four_types() {
-  local out want got
-  want="$(printf 'hosttag\nusertag\nusername\nhostname')"
-  out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --add-color)"
-  got="$(printf '%s\n' "$out" | cut -f1)"
-  [ "$got" = "$want" ] || _hi_why got out want || return 1
-  out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --remove-color)"
-  got="$(printf '%s\n' "$out" | cut -f1)"
-  [ "$got" = "$want" ] || _hi_why got out want
-}
-
-# ...and they are the types set_color.sh takes, the same common/flags rows,
-# so neither can name a type the script refuses
-function test_words_color_types_match_set_color() {
-  local out said types
-  out="$(sh "$_HI_TARGETS" words --add-color | cut -f1 | tr '\n' ' ')"
-  said="$(NO_COLOR=1 bash "$_HI_ROOT/scripts/set_color.sh" nosuch x red 2>&1)" || true
-  types="${said##*one of }" types="${types%)*}"
-  { [ -n "$types" ] && [ "$out" = "$types " ]; } || _hi_why said types out
 }
 
 # --disable-plugin: every plugin of the tree's plugins file, read as text, then
@@ -533,14 +449,7 @@ function run_targets_complete_tests() {
   _hi_check "words: --preview's subjects agree in all three files" test_preview_subjects_agree_everywhere
   _hi_check "flags: filtered by prefix, never a target" test_complete_flags_filter_by_prefix_and_never_reach_targets
 
-  _hi_h2 "Testing: --add-package, --remove-package, and color completion"
-  _hi_check "--add-package, no overlay: the tree's groups" test_words_add_package_with_no_overlay_lists_the_tree_groups
-  _hi_check "--add-package, an overlay: only its own" test_words_add_package_with_an_overlay_lists_only_its_own
-  _hi_check "--add-package, an overlay with no file: the tree's" test_words_add_package_with_an_overlay_but_no_file_lists_the_tree_groups
-  _hi_check "--add-package lists each group once, by its tables" test_words_add_package_lists_only_clean_group_headers
-  _hi_check "--remove-package lists each row's key" test_words_remove_package_lists_first_packages
-  _hi_check "--add-color and --remove-color list the four types" test_words_set_and_unset_color_list_the_four_types
-  _hi_check "...which are set_color.sh's own" test_words_color_types_match_set_color
+  _hi_h2 "Testing: plugin and overlay completion"
   _hi_check "--disable-plugin lists the plugins, the overlay's too" test_words_plugin_off_lists_the_plugins
   _hi_check "...every word hi.sh's own reading gives" test_words_plugin_off_match_the_table
   _hi_check "--enable-plugin and --edit read the overlay" test_words_plugin_on_and_edit_read_the_overlay

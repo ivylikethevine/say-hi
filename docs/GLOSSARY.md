@@ -561,16 +561,16 @@ payload stages the tree under `say-hi/` whatever it is called
 reaches core.sh through its own path. The files that derive have nothing above
 them to ask through:
 
-| where                                                                          | how                                                                                                                                                                                    |
-| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common/core.sh`                                                               | `${BASH_SOURCE[0]}`, then `cd -P .. && pwd`; answers for every file sourced through it                                                                                                 |
-| `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`                              | the same behind a `readlink` walk, so `~/.local/bin/hi` (a package's `/usr/bin/hi`) answers the tree it links to. Three copies: each must resolve itself before it can source anything |
-| `load.sh`, `tests/test_runner.sh`                                              | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                                          |
-| `tests/test_lib.sh`                                                            | `${BASH_SOURCE[0]}` only, `$_HI_HOME` or not - the harness sits in the tree it tests, and `_hi_host_tree_check` warns when `$_HI_ROOT` names another                                   |
-| `scripts/doctor.sh`, `preview.sh`, `update.sh`, `add_tag.sh`, `add_package.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME`'s `say-hi` or `$_HI_ROOT` by the rule - the standalone-entry form below                                                                          |
-| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it)                | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                                         |
-| fish (`common/config.fish`)                                                    | `sh -c 'cd -P "$1/.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                       |
-| `common/bash.sh`                                                               | the rule, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set a name before this file is sourced                                                     |
+| where                                                           | how                                                                                                                                                                                    |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common/core.sh`                                                | `${BASH_SOURCE[0]}`, then `cd -P .. && pwd`; answers for every file sourced through it                                                                                                 |
+| `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`               | the same behind a `readlink` walk, so `~/.local/bin/hi` (a package's `/usr/bin/hi`) answers the tree it links to. Three copies: each must resolve itself before it can source anything |
+| `load.sh`, `tests/test_runner.sh`                               | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                                          |
+| `tests/test_lib.sh`                                             | `${BASH_SOURCE[0]}` only, `$_HI_HOME` or not - the harness sits in the tree it tests, and `_hi_host_tree_check` warns when `$_HI_ROOT` names another                                   |
+| `scripts/doctor.sh`, `preview.sh`, `update.sh`, `add_tag.sh`    | `${BASH_SOURCE[0]}`, then `$_HI_HOME`'s `say-hi` or `$_HI_ROOT` by the rule - the standalone-entry form below                                                                          |
+| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it) | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                                         |
+| fish (`common/config.fish`)                                     | `sh -c 'cd -P "$1/.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                       |
+| `common/bash.sh`                                                | the rule, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set a name before this file is sourced                                                     |
 
 **The standalone-entry form, and why an exported name wins in it.** A script
 run on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
@@ -1088,8 +1088,7 @@ sourcing `header.sh`) is the one judge: `_hi_packages_palette` falls back to
 `$_HI_PACKAGES_RAMP`, the shipped ramp as one string, whenever it says no,
 and `scripts/lib.sh`'s `_hi_ramp_label` names the same three shapes the
 scheme label does. Like the scheme, there are no named ramps to pick from —
-`hi --configure` does not ask about either, and neither is in a preset's
-vocabulary.
+neither is a setting, and no preset names either.
 
 The gate is `_hi_has_truecolor`: `COLORTERM` (`truecolor` or `24bit`), with
 `_HI_TRUECOLOR` overriding both ways. ssh never forwards `COLORTERM`, so
@@ -1687,8 +1686,8 @@ machine alone, so there `_hi_toggle_on` reads `settings.sh`'s own
 `export NAME=value` lines, the last of a name winning, as text.
 
 `scripts/plugins.sh` and `hi --configure` both write the list, as one
-`_HI_PLUGINS_OFF` line of `settings.sh` in the wizard's padded, marked
-spelling, so each rewrites the line the other left. `load.sh` reads it on a
+`_HI_PLUGINS_OFF` line of `settings.sh` in `hi --configure`'s padded,
+marked spelling, so each rewrites the line the other left. `load.sh` reads it on a
 target, from the `settings.sh` that rode: an editor it names is passed over
 for `$EDITOR`, and `vim` or `nvim` in it sets no `$VIMINIT`.
 

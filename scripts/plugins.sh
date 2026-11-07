@@ -4,7 +4,7 @@
 # rides and what is off. `hi --disable-plugin` and `--enable-plugin` (a leading
 # --off, --on) switch plugins through $_HI_PLUGINS_OFF in settings.sh. A
 # table of your own is written by hand: `hi --edit plugins`.
-# set_color.sh's shape: HI.33 the standalone entry, HI.09 the commit step.
+# add_tag.sh's shape: HI.33 the standalone entry, HI.09 the commit step.
 # GLOSSARY: HI.63, HI.64
 #
 # SC2317/SC2329: shellcheck follows the `source` of hi.sh below into its

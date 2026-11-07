@@ -7,7 +7,7 @@
 # refused with that block named: tagging the pattern is the way to say it. A
 # host the name of its config.d file already tags that way is left alone.
 # `hi --remove-tag` (--remove first) takes the `# Tags:` line back out.
-# add_package.sh's shape: HI.33 the standalone entry, HI.09 the commit step.
+# plugins.sh's shape: HI.33 the standalone entry, HI.09 the commit step.
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"

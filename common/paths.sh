@@ -20,9 +20,7 @@ export _HI_INSTALL="$_HI_ROOT/scripts/install.sh"
 export _HI_PREVIEW="$_HI_ROOT/scripts/preview.sh"
 export _HI_DOCTOR="$_HI_ROOT/scripts/doctor.sh"
 export _HI_UPDATE="$_HI_ROOT/scripts/update.sh"
-export _HI_ADD_PACKAGE="$_HI_ROOT/scripts/add_package.sh"
 export _HI_ADD_TAG="$_HI_ROOT/scripts/add_tag.sh"
-export _HI_COLOR_PIN="$_HI_ROOT/scripts/set_color.sh"
 export _HI_PLUGINS_CMD="$_HI_ROOT/scripts/plugins.sh"
 export _HI_EDIT="$_HI_ROOT/scripts/edit.sh"
 
@@ -40,8 +38,7 @@ export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
 export _HI_COLORS="$_HI_ROOT/config/colors"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_SITE_DIR/colors" ] && export _HI_COLORS="$_HI_SITE_DIR/colors"
 [ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
-# the package check; `hi --add-package` copies the tree's in before its
-# first write, so a copy of your own starts with every stock row
+# the package check
 export _HI_PACKAGES="$_HI_ROOT/config/packages"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_SITE_DIR/packages" ] && export _HI_PACKAGES="$_HI_SITE_DIR/packages"
 [ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
@@ -90,7 +87,7 @@ export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - 
 # shells need it and this is the only file all four read - spelled per shell,
 # a word-taking flag added to targets.sh would never complete. targets.sh keeps the words themselves - it owns the content, and stays
 # standalone POSIX - so this is the membership test and that is the roster.
-export _HI_WORD_FLAGS="--preview --use --update --link --shell --preset --add-package --remove-package --add-tag --remove-tag --add-color --remove-color --disable-plugin --enable-plugin --edit"
+export _HI_WORD_FLAGS="--preview --use --update --link --shell --preset --add-tag --remove-tag --disable-plugin --enable-plugin --edit"
 alias hi="$_HI_LAUNCHER"
 # The one hi_* alias (every other command is a `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.

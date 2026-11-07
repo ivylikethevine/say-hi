@@ -265,10 +265,6 @@ function run_dispatch_tests() {
   # backs three flags and reads that word to tell them apart
   _hi_check "Prepends the row's first argument" _hi_prints $'argv0=hi --uninstall\nargs=--uninstall' _hi_ds_out --uninstall
   _hi_check "Keeps it ahead of the rest" _hi_prints $'argv0=hi --configure\nargs=--configure --preset dev' _hi_ds_out --configure --preset dev
-  _hi_check "--add-package's rows reach the script untouched" _hi_prints $'argv0=hi --add-package\nargs=core bat,batcat -exa --dry-run' _hi_ds_out --add-package core 'bat,batcat' -exa --dry-run
-  _hi_check "--remove-package reaches the same script with --remove" _hi_prints $'argv0=hi --remove-package\nargs=--remove exa --dry-run' _hi_ds_out --remove-package exa --dry-run
-  _hi_check "--add-color's words reach the script untouched" _hi_prints $'argv0=hi --add-color\nargs=hostname web-* orange fd971f --dry-run' _hi_ds_out --add-color hostname 'web-*' orange fd971f --dry-run
-  _hi_check "--remove-color reaches the same script with --unset" _hi_prints $'argv0=hi --remove-color\nargs=--unset username root' _hi_ds_out --remove-color username root
   _hi_check "--plugins reaches its script bare" _hi_prints $'argv0=hi --plugins\nargs=' _hi_ds_out --plugins
   _hi_check "--disable-plugin reaches it behind its word" _hi_prints $'argv0=hi --disable-plugin\nargs=--off vim bat --dry-run' _hi_ds_out --disable-plugin vim bat --dry-run
   _hi_check "--edit's script takes its word as given" _hi_prints $'argv0=hi --edit\nargs=plugins' _hi_ds_out --edit plugins

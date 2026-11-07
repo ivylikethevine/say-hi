@@ -1,24 +1,16 @@
 #!/usr/bin/env bash
-# hi's pre-flight: one command that answers "why is hi slow or failing
-# against this target". Reports the local tree, the config overlay, and every
-# backend probed with the same timeout-bounded calls the header and
-# completion make - and, given a target, walks the same resolution chain and
-# opens the same multiplexed ssh probe a real `hi` would. Read-only
-# throughout: nothing here modifies a thing, locally or remotely.
-# Run via `hi --doctor` or `hi --doctor [target]`. `--json` anywhere in the
-# arguments swaps the report for one JSON document on stdout - the same rows,
-# for a bug report or a script - and the exit status stays 1 on any finding.
-# `--problems` prints only the warn and bad rows, in one box. The target
-# section is doctor_target.sh, sourced below where it sat.
+# `hi --doctor [target]`: why hi is slow or failing. Reports the local tree,
+# the overlay, and every backend through the same bounded probes the header
+# and completion make; given a target, walks a real connect's resolution and
+# ssh probe. Read-only, locally and remotely. The target section is
+# doctor_target.sh.
 #
-# SC2317/SC2329: shellcheck follows the `source "$_HI_LAUNCHER"` below into
-# hi.sh's trailing `_hi "$@"`, decides that call never returns, and marks
-# everything after the source line unreachable - it doesn't model hi.sh's
-# BASH_SOURCE guard (same story as tests/hi/parse_test.sh).
+# SC2317/SC2329: shellcheck follows `source "$_HI_LAUNCHER"` into hi.sh's
+# trailing `_hi "$@"` and marks the rest unreachable; hi.sh's BASH_SOURCE
+# guard says otherwise.
 # shellcheck disable=SC2317,SC2329
 
-# --text, read ahead of core.sh: its palette is set as it is sourced, and
-# $NO_COLOR is how it is asked for none
+# --text ahead of core.sh, which sets its palette as it is sourced
 _HI_TEXT=0
 case " $* " in *" --text "*) _HI_TEXT=1 && export NO_COLOR=1 ;; esac
 
@@ -31,11 +23,8 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 source "$_hi_d/common/core.sh"
 # shellcheck source=./lib.sh
 source "$_hi_d/scripts/lib.sh"
-# the boxed table each section and --problems' findings box are drawn with
 # shellcheck source=./table.sh
 source "$_hi_d/scripts/table.sh"
-# rc.sh for the rc-file roster and the overlay's parser table, which the
-# "Shell configs" section below reads the way install.sh's own pre-flight does
 # shellcheck source=./rc.sh
 source "$_hi_d/scripts/rc.sh"
 unset _hi_d
@@ -44,60 +33,26 @@ function _hi_doctor_help() {
   cat <<EOF
 Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--problems] [--text] [--use <backend>] [ssh-options] [target]
 
-Prints, in order, each section as a table whose rows are marked by severity
-($_HI_MARK_OK ok, ! warn, $_HI_MARK_NO bad, blank for information):
-  the local tree     where say-hi is, git state, payload size, local shells
-  the config overlay what is wrong with a file of it, the non-default
-                     toggles, and the plugins switched off
-  the files          every place each overlay member can come from - the
-                     overlay, each home location, the tree's default - and
-                     which one is used, or why none is; a plugin that is
-                     switched off has no row
-  the shell configs  every rc file and overlay shell file, parsed by the
-                     shell that will read it
-  the install        each shell's rc lines and whether they name this tree,
-                     the hi link and what \`hi\` on PATH runs, and the rc
-                     file a login bash or a ZDOTDIR zsh really reads
-  the backends       ssh config, docker, podman, nerdctl, finch, nomad,
-                     kubectl - each probed with the same timeout the header
-                     and completion use, and timed, so a slow TAB or connect banner names its culprit
-  the target         (with an argument) which backend the name resolves to,
-                     each check timed - and for an ssh target, a BatchMode
-                     connection, what each session ships, and what the
-                     remote end has installed
+A read-only report, a table a section - the local tree, the config overlay,
+the files, the shell configs, the install, the backends, and a target when
+one is named - its rows marked $_HI_MARK_OK ok, ! warn, $_HI_MARK_NO bad, or blank for
+information. Exits 1 on any bad row, 0 otherwise.
 
-A warn or bad row stays in its section; --problems prints only those rows,
-gathered into one box - or, with none, only the closing line - so a long
-report reads as what needs fixing. --text draws no box and no color: one
-row a line, "section / label: text", a warn, bad, or ok row saying so in
-brackets, for a screen reader or a grep; the same rows as the boxes, and
-not --json's form.
-
-ssh options (-p, -i, -J, -o, and the rest) reach the same BatchMode probe a
-real connect authenticates with, so \`hi --doctor -J bastion host\`
-diagnoses the connect that needed the jump host; for a container,
-allocation, or pod target they are reported as ignored. --use <backend>
-names the target's arm outright, as a real \`hi --use <backend> <target>\`
-would, and skips the probe chain. --plain, --keep, --no-keep, and --end
-are accepted and ignored - doctor never opens a session.
-
-Exits 0 with nothing to report and 1 on any finding (--json carries the
-count as "findings").
-
---json prints the same report as one JSON document instead, whether or not
---problems is given - what a bug report should carry:
-  {"version": ..., "target": ... or null, "findings": N,
-   "rows": [{"section", "label", "text", "severity"}, ...]}
-severity is one of info, ok, warn, bad; findings counts the bad rows. The
-exit status is 1 when that count is not 0, never the count itself.
+  --problems       only the warn and bad rows, in one box
+  --text           no box and no color: "section / label: text" a line
+  --json           the report as one JSON document: version, target,
+                   findings (the count of bad rows), and rows of section,
+                   label, text, and severity (info, ok, warn, bad)
+  --use <backend>  the target's backend, as a connect's --use names it
+  ssh-options      -p, -i, -J, -o and the rest reach the target's BatchMode
+                   probe, as a connect's would
+--plain, --keep, --no-keep, and --end are accepted and ignored. man hi has
+what each section checks.
 EOF
 }
 
-# hi.sh's source hatch hands over everything this needs without connecting
-# anywhere: the backend predicates, $_HI_PAYLOAD, and _hi_use_backend. The args are saved before the source line clears "$@" (hi.sh
-# reads it at source time, and must see none) and classified after, so an arm
-# name is recognized through the one place that spells the roster rather than
-# a second list here.
+# hi.sh sourced for its backend predicates, $_HI_PAYLOAD and _hi_use_backend;
+# the args are saved first, since hi.sh must see none, and sorted after it.
 _HI_DOC_TARGET=""
 _HI_DOC_JSON=0
 _HI_DOC_PROBLEMS=0
@@ -111,16 +66,9 @@ source "$_HI_LAUNCHER"
 # shellcheck source=../common/header.sh
 source "$_HI_HEADER"
 
-# --json, --problems, the target, --use, and ssh options come in any order: `hi --doctor
-# host --json` and `hi --doctor -J bastion host` read naturally. An ssh
-# option that takes a value (hi.sh's _hi_ssh_opt) takes the next
-# word with it into $_HI_DOC_SSHARGS; any other `-x` rides along alone. An
-# unknown `--word` is an error, not a target - a target never starts with a
-# dash - and so is a second target. hi.sh's _hi_ssh_opt sorts an ssh option
-# from its value for both.
-# --use twice is refused the way a connect refuses it (hi.sh's _hi_parse),
-# not resolved last-wins: doctor reports the arm a connect would take
-# what this run is called in its messages, as _hi_flag_word_or_die spells it
+# The flags, the target and ssh options in any order. hi.sh's _hi_ssh_opt
+# sorts an ssh option from its value; an unknown `--word` and a second target
+# are errors, and --use twice is refused as a connect refuses it.
 _HI_ME="${_HI_ARGV0:-doctor.sh}"
 _hi_arm=""
 # the guard: no arguments is an empty array (GLOSSARY: HI.01)
@@ -137,15 +85,13 @@ while [ $# -gt 0 ]; do
     [ $? -eq 2 ] && shift
     _HI_DOC_BACKEND="$(_hi_use_backend "$_hi_arm" "$_HI_DOC_BACKEND")" || exit 1
     ;;
-  # doctor never opens a session, so the connect-time flags have nothing to report
-  # and are silently accepted rather than misread as a target name
+  # connect-time flags: accepted, never read as a target
   --plain | --keep | --no-keep | --end) ;;
-  # asked for anywhere on the line, not only first
   -h | --help)
     _hi_doctor_help
     exit 0
     ;;
-  # ssh's own terminator, forwarded as-is like hi.sh does
+  # ssh's own terminator, forwarded as hi.sh does
   --)
     _HI_DOC_SSHARGS+=("$_hi_arg")
     ;;
@@ -153,8 +99,6 @@ while [ $# -gt 0 ]; do
     _hi_die "unknown option $_hi_arg (--json, --problems, --text, --use <backend>, ssh options, a target)"
     ;;
   -*)
-    # doctor does not validate ssh's own vocabulary, only sorts a target from
-    # an option, as a connect does
     _hi_ssh_opt "$@" || shift
     _HI_DOC_SSHARGS+=("${_HI_SSH_OPT[@]}")
     ;;
@@ -169,27 +113,22 @@ unset _hi_arg _hi_arm _hi_doc_args
 [ "$_HI_DOC_JSON" != 1 ] || [ "$_HI_TEXT" != 1 ] || _hi_die "--json and --text are two forms of the report: one at a time"
 
 _HI_DOC_BAD=0
-# the section the rows below belong to, and the JSON rows collected so far -
-# one string, built as the report runs, so the document can be printed whole
-# at the end (a bad row's count is in the header, so nothing streams)
+# the open section, and the JSON rows so far: the document prints whole at
+# the end, since its header carries the bad rows' count
 _HI_DOC_SECTION=""
 _HI_DOC_ROWS=""
-# Every warn and bad row so far, drawn by doctor_findings at the end, as
-# parallel arrays (bash 3.2 has no other kind); a findings label carries its
-# section key. The open section's rows are table.sh's $_HI_ROWS_*.
+# every warn and bad row so far, for doctor_findings, a findings label
+# prefixed with its section key
 _HI_DOC_WARN=0
 _HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
-# 1 while the last row was a finding, so an unlabeled row after it (ssh's own
-# words under a failed connect) follows it into the findings box
+# 1 while the last row was a finding: an unlabeled row after it (ssh's words
+# under a failed connect) follows it into the findings box
 _HI_DOC_IN_FINDING=0
 
-# doctor_section <key> <title> - a report section: the banner in the text
-# report, the "section" field of every row that follows in the JSON one. The
-# key is the stable name a script reads; the title is prose and may change.
-# Each section function ends in doctor_flush, which draws its table.
+# doctor_section <key> <title> - open a section: the key is the stable name
+# --json and --text carry, the title the banner. Each ends in doctor_flush.
 function doctor_section() {
   _HI_DOC_SECTION="$1"
-  # --text's rows open on the key, the stable name, as --json's do
   if [ "$_HI_TEXT" = 1 ]; then
     _HI_TEXT_SECTION="$1"
     return 0
@@ -197,17 +136,14 @@ function doctor_section() {
   [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_section "$2"
 }
 
-# doctor_flush - draw the open section's rows as one table and empty the
-# buffer; nothing at all for a section with no rows, and no table under
-# --problems, whose only box is doctor_findings'.
+# doctor_flush - draw the open section's table, none under --problems
 function doctor_flush() {
   [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_rows_flush
   _HI_ROWS_LABEL=() _HI_ROWS_TEXT=() _HI_ROWS_SEV=() _HI_ROWS_COLOR=()
   _HI_DOC_IN_FINDING=0
 }
 
-# doctor_findings - --problems' one box: every warn and bad row of the
-# report, under a banner that counts them. Nothing when it found nothing.
+# doctor_findings - --problems' one box of every warn and bad row
 function doctor_findings() {
   [ "${#_HI_DOC_F_SEV[@]}" -gt 0 ] || return 0
   _hi_h2 "Findings: $_HI_DOC_BAD bad, $_HI_DOC_WARN warn"
@@ -218,10 +154,8 @@ function doctor_findings() {
   _hi_rows_flush
 }
 
-# _hi_json_str <outvar> <text> - <text> as a JSON string literal, quotes
-# included. Backslash and quote escaped, newline, tab and CR folded to spaces: a row's text is one line of prose,
-# and the one multi-line thing that reaches here (ssh's stderr on a failed
-# connect) reads fine flattened. No fork: a document is three of these a row.
+# _hi_json_str <outvar> <text> - <text> as a JSON string, quotes included:
+# backslash and quote escaped, newline, tab and CR as spaces
 function _hi_json_str() {
   local _hi_js="$2" _hi_js_nl=$'\n' _hi_js_tab=$'\t' _hi_js_cr=$'\r'
   _hi_js="${_hi_js//"$_hi_js_nl"/ }"
@@ -232,13 +166,9 @@ function _hi_json_str() {
   printf -v "$1" '"%s"' "$_hi_js"
 }
 
-# doctor_row <label> <text> [severity] - one row of the open section. Severity
-# picks the mark and color (_hi_glyph) AND decides whether the row counts
-# as a finding: "" plain, ok green, warn yellow, bad red-and-counted. Its own
-# argument rather than inferred from a color, so the palette and the finding
-# counter are separate knobs. Under --json the row is collected into the
-# document, the severity word the one in it with "" spelled info; otherwise
-# it is buffered for doctor_flush, and a warn or bad one for doctor_findings.
+# doctor_row <label> <text> [info|ok|warn|bad] - one row of the open section;
+# a bad one is counted. Under --json it joins the document, else the table,
+# and a warn or bad one the findings.
 function doctor_row() {
   local sev="${3:-info}" section label text
   [ "$sev" != bad ] || _HI_DOC_BAD=$((_HI_DOC_BAD + 1))
@@ -269,14 +199,9 @@ function doctor_row() {
   return 0
 }
 
-# The tools hi needs *here* to ship a payload at all, and the one place the
-# report asks. base64 armors the ssh transport (_say_hi refuses without it,
-# and takes openssl's where it is missing) and tar packs the tree for every
-# transport. gzip is the third, and the one that cannot be answered by name
-# alone: libarchive's tar compresses in-process, so a client with that one is
-# only sending a padded payload, while GNU's and OpenBSD's run gzip off $PATH
-# and have nothing to fall back on. hi.sh's _hi_can_gzip is the question both
-# this and the connect path ask.
+# The local tree, and the tools a payload needs here: base64 (or openssl's)
+# for ssh, tar for every transport, and gzip, which only libarchive's tar can
+# do without (hi.sh's _hi_can_gzip).
 function doctor_local() {
   local branch="" changes=0 wire missing nice_missing line
   doctor_section local "The local tree"
@@ -284,8 +209,7 @@ function doctor_local() {
   _hi_version line
   doctor_row version "$line"
   if [ -d "$_HI_ROOT/.git" ]; then
-    # the branch off HEAD itself, and the changes counted here: a git and a
-    # grep fewer
+    # the branch read off HEAD itself, a git fewer
     line=""
     [ ! -r "$_HI_ROOT/.git/HEAD" ] || IFS= read -r line <"$_HI_ROOT/.git/HEAD" || true
     case "$line" in 'ref: refs/heads/'*) branch="${line#ref: refs/heads/}" ;; esac
@@ -294,16 +218,8 @@ function doctor_local() {
   else
     doctor_row checkout "no .git - a package or tarball install (hi --update names the way forward for each)"
   fi
-  # A machine missing the floor cannot ship a payload, so the size below is
-  # not a number worth printing - computing it anyway would answer
-  # `hi --doctor` with a pair of raw "base64: command not found" lines from
-  # inside _hi_wire_bytes, on the one run whose whole job is to say what is
-  # wrong with this machine. Named here, once, and the size step skipped.
-  # The armor half is re-probed here rather than read off hi.sh's $_HI_ARMOR:
-  # that one is decided when hi.sh is sourced, and this asks about the $PATH
-  # the report is looking at. The difference is the whole of what
-  # doctor_test.sh's floor cases stub, and on a box with no base64(1) at all -
-  # stock OpenBSD - freezing it names openssl in a row about base64.
+  # A missing tool is named once and the size skipped, which would fail with
+  # it. The armor is probed on this $PATH, not read off hi.sh's $_HI_ARMOR.
   local armor=base64
   command -v base64 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1 || armor=openssl
   local -a floor=("$armor" tar)
@@ -312,16 +228,13 @@ function doctor_local() {
   if [ -n "$missing" ]; then
     doctor_row tools "MISSING locally: $missing - hi cannot ship a payload without them" bad
   elif ! _hi_can_gzip; then
-    # set, so the size step below is skipped for the same reason it is above
     missing=gzip
     doctor_row tools "MISSING locally: gzip - this tar runs it for -z, so hi cannot pack a payload without it" bad
   else
     doctor_row tools "${floor[*]} present${nice_missing:+, no gzip (your tar compresses on its own - a padded payload, not a broken one)}" \
       "${nice_missing:+warn}"
   fi
-  # two numbers because they answer two questions: what leaves this machine
-  # (a gzipped tar, base64-armored for the ssh path) and how big the thing is
-  # once it lands. The first is the one people mean by "what does hi cost".
+  # what leaves this machine, and what it unpacks to
   if [ -z "$missing" ]; then
     _hi_wire_bytes wire
     _hi_human_bytes "$wire" wire
@@ -329,9 +242,7 @@ function doctor_local() {
   else
     doctor_row payload "unknown - needs $missing to measure (${_HI_PAYLOAD[*]})" bad
   fi
-  # rc.sh's _HI_RC_TABLE (core.sh's roster) through rc_shell_present, the
-  # same pair doctor_install reads below, so the two sections cannot disagree
-  # about which shells this box has
+  # rc_shell_present, as doctor_install reads it, so the two agree
   local row have=""
   for row in "${_HI_RC_TABLE[@]}"; do
     rc_shell_present "${row%%|*}" && have="$have${row%%|*} "
@@ -340,11 +251,9 @@ function doctor_local() {
   doctor_flush
 }
 
-# doctor_code_dir <member/> <dir> <shell...> - a directory of code, extensions/
-# (GLOSSARY: HI.59) or header/ (HI.58): a row for each entry that never
-# travels, one for each member a <shell> on this machine cannot parse - that
-# shell skips it - and one naming the members in the order they load. Quiet
-# without one.
+# doctor_code_dir <member/> <dir> <shell...> - extensions/ (GLOSSARY: HI.59)
+# or header/ (HI.58): a row for each entry that never loads, each member a
+# <shell> here cannot parse, and the load order
 function doctor_code_dir() {
   local label="$1" dir="$2" f n sh bad order=""
   local -a _hi_members=() _hi_strays=()
@@ -381,14 +290,13 @@ function doctor_bin_dir() {
   done
 }
 
-# The lines of a file that set something secret-shaped, by number: a name
-# holding TOKEN, SECRET, PASSWORD, or an API, ACCESS, or PRIVATE key, given a
-# literal value (not a $variable or an alias's \$variable, and not a path's
-# _FILE or _DIR) where an assignment starts - not inside another's value, as
-# LS_COLORS's `*passwd=0;38` is - fish's `set` form of the same, a token a
-# known issuer prefixes, or a private key's header. A comment is skipped, and
-# so is a line under a `hi-allow` comment or inside a `hi-allow-start`/`-end`
-# pair. toupper(), not IGNORECASE: mawk and busybox awk have only the first.
+# The numbers of a file's lines that set something secret-shaped: a TOKEN,
+# SECRET, PASSWORD, API, ACCESS or PRIVATE key name given a literal value
+# where an assignment starts (not a $variable, a _FILE or _DIR path, or
+# inside another value as LS_COLORS's `*passwd=0;38`), fish's `set` of one, a
+# known issuer's token prefix, or a private key header. Comments and lines
+# under hi-allow are skipped; toupper(), since mawk and busybox lack
+# IGNORECASE.
 # shellcheck disable=SC2016 # awk's own $0
 _HI_SECRET_AWK='
 /hi-allow-start/ { blk = 1 }
@@ -407,15 +315,13 @@ _HI_SECRET_AWK='
   prev = $0
 }'
 
-# _hi_doc_now <outvar> - core.sh's _hi_now, with no fork where bash keeps
-# the clock itself
+# _hi_doc_now <outvar> - core.sh's _hi_now, with no fork on bash 5
 function _hi_doc_now() {
   printf -v "$1" '%s' "${EPOCHREALTIME:-$(_hi_now)}"
 }
 
-# doctor_riding <member...> - what rides that should not: a secret-shaped
-# line in a file that rides reaches every host hi connects to, so it is named
-# by file and line, its value unprinted.
+# doctor_riding <member...> - a secret-shaped line in a file that rides, by
+# file and line, its value unprinted
 function doctor_riding() {
   local member src n
   for member; do
@@ -428,20 +334,16 @@ function doctor_riding() {
 }
 
 function doctor_config() {
-  local f t v label late any=0
+  local f t v label late
   doctor_section config "The config overlay ($_HI_CONFIG_DIR) - what targets get"
-  # Only the absent case here. When the file *is* there, rc.sh's
-  # _HI_OVERLAY_CHECKS carries a row per parser that reads it, and
-  # doctor_configs walks that table below, so settings.sh gets one verdict.
+  # a present settings.sh is doctor_configs' row, a parser each
   [ -f "$_HI_SETTINGS" ] ||
     doctor_row settings.sh "none - defaults apply (hi --configure writes one)"
-  # ...and a shape line a newer hi wrote: this one reads the rows it knows
-  # and no converter of its can bring the rest back
+  # ...and a shape a newer hi wrote, which nothing here converts back
   _hi_settings_shape v "$_HI_SETTINGS"
   [ -z "$v" ] || [ "$v" -le "$_HI_SETTINGS_SHAPE" ] ||
     doctor_row settings.sh "is shape $v, which this hi does not read (it reads $_HI_SETTINGS_SHAPE): a newer hi wrote it - move this one up, or hi --configure rewrites the block in this one's shape" bad
-  # the site tier (HI.61): a team's defaults, under the tree's and over
-  # nothing of the user's
+  # the site tier (HI.61)
   if [ -d "${_HI_SITE_DIR:-}" ]; then
     t=""
     for f in settings.sh colors packages plugins; do
@@ -463,12 +365,9 @@ function doctor_config() {
   [ -z "$tags" ] ||
     doctor_row "tag settings" "$tags - each settings.<tag>.sh is read for a host whose # Tags: or Tag line names it, a container, allocation, or pod for its backend's word, and a pod for its context and namespace, and joined to the settings.sh that target gets"
   doctor_settings_values
-  # a file still under a name hi stopped reading before 1.0: nothing else
-  # would say why the override stopped applying
+  # a file under a name hi stopped reading before 1.0
   for t in $_HI_OVERLAY_RENAMES; do
     [ -e "$_HI_CONFIG_DIR/${t%%:*}" ] || continue
-    # the carry's lines are rewritten, not moved; a name under a directory
-    # needs the directory first
     f=""
     case "$t" in
     carry:*) f="hi --configure converts it" ;;
@@ -479,25 +378,23 @@ function doctor_config() {
     esac
     doctor_row "${t%%:*}" "an old name hi no longer reads - it is ${t#*:} now: $f" bad
   done
-  # a plugins row pack_plugins.sh's _hi_plugins_load turned down: the member it names
-  # rides nowhere, and nothing else says so (GLOSSARY: HI.63)
+  # a plugins row _hi_plugins_load turned down, whose member rides nowhere
+  # (GLOSSARY: HI.63)
   _hi_plugins_load
   for t in ${_HI_PLUGIN_BAD[@]+"${_HI_PLUGIN_BAD[@]}"}; do
     doctor_row "${t%%|*}" "ignored - ${t#*|}" warn
   done
-  # what the files table below cannot say of a member (pack.sh's
-  # _HI_OVERLAY_FILES is the contract, and the plugins rows' members after
-  # it); where each comes from is that table's
+  # what the files table cannot say of a member; where it comes from is that
+  # table's
   for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}; do
     case "$f" in
     extensions/) doctor_code_dir "$f" "$_HI_EXTENSIONS" bash zsh fish ;;
-    # header.sh is bash's, and with the header off no cell loads
+    # cells are bash's, and none loads with the header off
     header/) _hi_plugin_off "$f" || doctor_code_dir "$f" "$_HI_HEADER_CELLS" bash ;;
     ssh_tags)
       ! _hi_overlay_src "$f" t ||
         doctor_row "$f" "the # Tags: and Tag lines of $_HI_SSH_CONFIG ride along - a hop taken from inside a session keeps its tag colors"
       ;;
-    # bin/: what stays home, and why
     bin/) _hi_plugin_off "$f" || doctor_bin_dir ;;
     esac
     case "$f" in settings.sh | ssh_tags | */) continue ;; esac
@@ -505,22 +402,15 @@ function doctor_config() {
     _hi_member_label "$f" label
     t=""
     if ! _hi_overlay_src "$f" t; then
-      # an overlay copy that rides nowhere and was not switched off: a prompt
-      # program's with the program out of the list, or an oh-my-posh format
-      # another overlay copy already stands in for
+      # a copy that rides nowhere and was not switched off
       _hi_plugin_off "$f" || ! _hi_unsent_why "$f" late ||
         doctor_row "$label" "not sent - $late, so targets keep their own" warn
     elif [ "$t" = "$_HI_CONFIG_DIR/$f" ] && [ -f "$_HI_ROOT/config/$f" ] && cmp -s "$t" "$_HI_ROOT/config/$f"; then
-      # a copy of the tree's own file, byte for byte, so not an override yet
       doctor_row "$label" "a copy of the tree's, unchanged - edit it to override"
     fi
   done
-  # Every editor rc and shell file hi packs ships into the target's config/, so
-  # a line naming a path names something no target has. hi.sh's
-  # _hi_include_lint is the one grammar for every dialect - the same rows the
-  # packer acts on, so what is named here is exactly what got dropped on the
-  # way out (GLOSSARY: HI.57). warn, not bad: the session still starts. An
-  # unclosed row is a block marker's start with no end, which dropped nothing.
+  # a line naming a file no target has, as the packer drops it: hi.sh's
+  # _hi_include_lint, the packer's own rows (GLOSSARY: HI.57)
   local member lineno kind text fate said
   fate="dropped on the way out (a # hi-allow line above it keeps it, # hi-quiet drops it without this row; a -start and -end pair of either decides a block)"
   while IFS='|' read -r member lineno kind text; do
@@ -539,14 +429,11 @@ function doctor_config() {
     esac
     doctor_row "$member:$lineno" "$said - $text - $fate" warn
   done < <(_hi_include_lint)
-  # the members that ride, listed once for the two readers below
   local -a members=()
   _hi_read_lines members < <(_hi_overlay_files)
   doctor_riding ${members[@]+"${members[@]}"}
-  # common/aliases.sh sources the overlay's aliases.sh last, so a value its
-  # aliases read, assigned there, lands after they were built and does nothing.
-  # The toggle half of the pattern is read off that file rather than spelled
-  # here, where a list would miss the day's newest.
+  # aliases.sh loads after hi's aliases are built, so a value they read, set
+  # there, does nothing; the toggles are read off common/aliases.sh
   local toggles asrc="" atext=""
   _hi_overlay_src aliases.sh asrc || true
   [ -z "$asrc" ] || atext="$(grep -v '^[[:space:]]*#' "$asrc")" || true
@@ -559,9 +446,7 @@ function doctor_config() {
   fi
   [ -z "$late" ] ||
     doctor_row alias-vars "aliases.sh sets ${late% } - hi's aliases are built before it loads, so it does nothing; move it to settings.sh" bad
-  # ...and an alias it defines replaces a wiring line's of the same name
-  # (GLOSSARY: HI.62) on a target, so that tool starts without the config hi
-  # carried for it. warn: it may be meant.
+  # ...an alias of it replaces a wiring line's of that name (GLOSSARY: HI.62)
   local wired="" shadowed="" re
   _hi_overlay_wiring wired ${members[@]+"${members[@]}"}
   while [ "${wired#* alias }" != "$wired" ]; do
@@ -573,47 +458,18 @@ function doctor_config() {
   done
   [ -z "$shadowed" ] ||
     doctor_row alias-wired "aliases.sh aliases${shadowed} - on a target that replaces hi's alias, so the config hi carries for it goes unused there; drop the alias, or keep that config home with its _HI_DISABLE_ toggle" warn
-  # ...and an $EDITOR or $VISUAL it exports naming another editor replaces the
-  # session's, which holds the flags of the config hi carried (load.sh's
-  # _hi_session_editor); the same editor keeps them. warn: it may be meant.
+  # ...and its $EDITOR or $VISUAL replaces the session's (load.sh's
+  # _hi_session_editor)
   re='(^|[[:space:];&|])(export[[:space:]]+)?(EDITOR|VISUAL)='
   [[ ! "$atext" =~ $re ]] ||
     doctor_row alias-editor "aliases.sh sets \$EDITOR or \$VISUAL - on a target, naming another editor than hi's replaces the one hi exports, so git and sudo -e start it without the config hi carries; _HI_EDITOR in settings.sh names an editor instead" warn
-  # only the non-default settings: a default setup stays one quiet line.
-  # Under _HI_DISABLE_LOCAL=1 paths.sh's gate has set every other toggle
-  # here, so those read as one row and only a toggle settings.sh sets on its
-  # own is a row of its own.
-  local gate=0
-  [ "${_HI_DISABLE_LOCAL:-0}" = 1 ] && gate=1
-  for t in "${_HI_TOGGLES[@]}"; do
-    v="${!t:-0}"
-    [ "$v" = 0 ] && continue
-    if [ "$gate" = 1 ] && [ "$t" != _HI_DISABLE_LOCAL ]; then
-      { _hi_setting_get "$_HI_SETTINGS" "$t" v && [ "$v" != 0 ]; } || continue
-    fi
-    [ "$t" = _HI_DISABLE_LOCAL ] && [ "$gate" = 1 ] && v="1 (every feature off on this machine; targets keep theirs)"
-    doctor_row toggle "$t=$v" warn
-    any=1
-  done
-  # the opt-ins, where on is the non-default
-  for t in _HI_TOOL_ALIASES _HI_SUDO_ALIAS; do
-    v="${!t:-0}"
-    [ "$v" = 1 ] || continue
-    doctor_row toggle "$t=1"
-    any=1
-  done
-  [ "$any" = 1 ] || doctor_row toggles "all defaults (every feature on, nothing written to targets)"
-  # the one row a switched-off plugin gets: the files table lists none of it
+  # a switched-off plugin's one row: the files table lists none of it
   [ -z "${_HI_PLUGINS_OFF:-}" ] || doctor_row "plugins off" "$_HI_PLUGINS_OFF (hi --plugins lists each)"
   doctor_flush
 }
 
-# doctor_settings_values - a hand-written settings.sh line the code would
-# silently fall back from: each value against its scripts/settings row's
-# <check>, the rule the wizard takes an answer by - a scheme nothing renders
-# and a ramp nothing paints (HI.50) among them. settings.sh is already
-# sourced, so the exported values are the ones to judge; unset is the
-# default and no row.
+# doctor_settings_values - each value set (settings.sh is sourced) against
+# its scripts/settings row's <check>, and the colors file's tables (HI.50)
 function doctor_settings_values() {
   local name check why v
   while IFS='|' read -r name check why; do
@@ -621,10 +477,8 @@ function doctor_settings_values() {
     [ -n "$v" ] || continue
     _hi_setting_check "$check" "$v" || doctor_row "$name" "'$v' is ignored - $why" bad
   done < <(_hi_setting_rules)
-  # the package check's old shape, which nothing reads any more
   [ -z "${_HI_PACKAGES_MIN_PRIORITY:-}" ] ||
     doctor_row _HI_PACKAGES_MIN_PRIORITY "is ignored - name the groups to show in _HI_PACKAGES_GROUPS" bad
-  # ...and the editors' and the multiplexers' toggles, now words of a list
   for name in ${_HI_OLD_TOGGLES//|/ }; do
     name="_HI_DISABLE_$name"
     [ -z "${!name:-}" ] ||
@@ -634,6 +488,7 @@ function doctor_settings_values() {
   case "$v" in
   flat) doctor_row packages "$_HI_PACKAGES has name:priority rows, which this hi reads none of - hi --configure converts it" bad ;;
   sections) doctor_row packages "$_HI_PACKAGES has rows that are not TOML's name = [...], which this hi does not read - hi --configure converts it" bad ;;
+  tables) doctor_row packages "$_HI_PACKAGES has [group.required] or [group.unwanted] tables, which this hi reads as groups of those names - a \"+name\" or \"-name\" row says it now, and hi --configure converts it" bad ;;
   *)
     while IFS='|' read -r v why; do
       doctor_row packages "$why" "$v"
@@ -645,19 +500,15 @@ function doctor_settings_values() {
   flat) doctor_row colors "$_HI_COLORS has type,name,color rows, which pin nothing - hi --configure converts it" bad ;;
   sections) doctor_row colors "$_HI_COLORS has rows that are not TOML's name = \"color\", which pin nothing - hi --configure converts it" bad ;;
   *)
-    # a line outside the subset (SETTINGS.md, The TOML hi reads) is skipped
-    # where the file is read, and pins nothing
     while IFS='|' read -r v why; do
       doctor_row colors "line $v is no row, and pins nothing: '$why' - a row is name = \"color\" on one line" warn
     done < <(_hi_toml_strays "${_HI_COLORS:-}")
     ;;
   esac
-  # the file's two tables, which render the default in silence when wrong
   [ -z "${_HI_COLOR_SCHEME:-}" ] || _hi_scheme_ok "$_HI_COLOR_SCHEME" ||
     doctor_row colors "[scheme] '$_HI_COLOR_SCHEME' is ignored - colors is 24 six-digit hex words, and packages 24 more" bad
   [ -z "${_HI_PACKAGES_PALETTE:-}" ] || _hi_ramp_ok "$_HI_PACKAGES_PALETTE" ||
     doctor_row colors "[palette] '$_HI_PACKAGES_PALETTE' is ignored - installed and missing are four color names each" bad
-  # ...and the settings.sh lines they took over, which nothing reads
   for name in _HI_COLOR_SCHEME:scheme _HI_PACKAGES_PALETTE:palette; do
     if [ -f "${_HI_SETTINGS:-}" ] && grep -E "^[[:space:]]*(export[[:space:]]+)?${name%%:*}=" "$_HI_SETTINGS" >/dev/null; then
       doctor_row "${name%%:*}" "is ignored - it is the [${name#*:}] table of $_HI_CONFIG_DIR/colors now" bad
@@ -665,15 +516,13 @@ function doctor_settings_values() {
   done
 }
 
-# doctor_files - every member's row (lib.sh's _hi_member_rows, the rows
-# `hi --plugins` lists too): where it is found, and what a connect sends.
+# doctor_files - every member's row, as `hi --plugins` lists it
 function doctor_files() {
   doctor_section files "The files hi looks for"
   local row _HI_ROW_FN=doctor_row
   local -a members=()
   _hi_plugins_load
-  # settings.sh and extensions/ have rows of their own in the overlay
-  # section, and what is switched off is one row there
+  # settings.sh, extensions/ and what is off are the overlay section's
   for row in "${_HI_OVERLAY_TABLE[@]}" ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
     case "${row%%|*}" in settings.sh | extensions/) continue ;; esac
     _hi_plugin_off "${row%%|*}" || members+=("${row%%|*}")
@@ -682,15 +531,8 @@ function doctor_files() {
   doctor_flush
 }
 
-# The backend roster both halves of this report walk is hi.sh's _HI_BACKENDS
-# (sourced above) - the very rows _hi dispatches on, reading the roster
-# directly rather than a copy of it that could drift from the dispatch.
-# doctor_backends probes column 3, doctor_target times column 4.
-
-# doctor_config_row <label> <file> <check...> - one rc or overlay file through
-# the parser that will read it, as a row; an absent file or an absent parser
-# is no row at all. rc.sh's _hi_config_check is the shared gate (the same
-# rule, so what install.sh would wave through, this waves through).
+# doctor_config_row <label> <file> <check...> - a file through its parser,
+# rc.sh's _hi_config_check as install.sh runs it; no row without either
 function doctor_config_row() {
   local label="$1" target="$2" rc=0
   shift 2
@@ -704,11 +546,8 @@ function doctor_config_row() {
   return 0
 }
 
-# The syntax checks install.sh runs before it writes a line, as report rows:
-# the shell rc files it wires, then the overlay's own shell files against
-# every parser a target may source them with. This is where `hi
-# --check-configs` went - a read-only check is a doctor's row; install.sh
-# keeps the same check as its pre-write gate.
+# install.sh's syntax checks as rows: the rc files, then the overlay's shell
+# files under every parser a target may source them with
 function doctor_configs() {
   local row shell target check file label
   doctor_section configs "Shell configs (the rc files and the overlay's shell files, parsed)"
@@ -717,15 +556,13 @@ function doctor_configs() {
     # shellcheck disable=SC2086 # the check column is a command plus its flag
     doctor_config_row "$shell" "$target" $check
   done
-  # the file as the label (the parser is in the row's text): rc.sh's longer
-  # labels overflow the report's label column
+  # the file as the label: rc.sh's labels overflow the column
   for row in "${_HI_OVERLAY_CHECKS[@]}"; do
     IFS='|' read -r file check <<<"$row"
     # shellcheck disable=SC2086
     doctor_config_row "$file" "$_HI_CONFIG_DIR/$file" $check
   done
-  # a tag's settings are joined to settings.sh, so the same two parsers;
-  # the site's settings.sh too
+  # a tag's and the site's settings.sh, under settings.sh's two parsers
   for target in "$_HI_CONFIG_DIR"/settings.*.sh "${_HI_SITE_DIR:-/nonexistent}/settings.sh"; do
     [ -f "$target" ] || continue
     label="${target##*/}"
@@ -756,11 +593,9 @@ function _hi_rc_names_this_tree() {
   [ "$_hi_rt" -ef "$_HI_ROOT" ] || { [ "${_HI_ROOT##*/}" = say-hi ] && [ "$_hi_rt" -ef "$_HI_HOME" ]; }
 }
 
-# The install's own footprint, as rows: is each shell's rc wired, and to this
-# tree; is there a hi link, and where does `hi` on PATH lead; and the two
-# ways a wired rc file is never read (a macOS login bash, a moved .zshrc). The
-# section a half-finished `hi --install` shows up in - the one thing
-# "something is off, run hi --doctor" could not answer before.
+# The install: each shell's rc wired, and to this tree; the hi link and what
+# `hi` on PATH runs; and the two ways a wired rc is never read (a macOS login
+# bash, a moved .zshrc)
 function doctor_install() {
   local row shell label target tree_rc dialect other found owner bindir profile form home
   doctor_section install "The install (what hi --install wired up)"
@@ -769,18 +604,13 @@ function doctor_install() {
     if ! rc_shell_present "$shell"; then
       doctor_row "$shell" "not installed here, nothing to wire"
     elif ! _hi_has_marker "$target" && ! rc_shell_wanted "$shell" "$target"; then
-      # a shell nobody uses here: the install leaves it alone on purpose
       doctor_row "$shell" "not wired - not your login shell, and no $target (hi --install --shell $shell wires it)"
     elif ! _hi_has_marker "$target"; then
       doctor_row "$shell" "$target has no hi lines (hi --install writes them)" warn
     elif rc_block_form form "$shell" "$tree_rc" "$dialect" "$target" && [ -n "$form" ]; then
       doctor_row "$shell" "$target is wired to this tree" ok
     elif grep -qF "$(tmpdir_line "$dialect")" "$target" || _hi_rc_names_this_tree "$target"; then
-      # an older hi's block names this tree too, but not the lines this one
-      # writes: bash's `return` ends the rc for `ssh host cmd`, fish's bare
-      # is-interactive block is a parse error on every fish 3.0-3.3 start,
-      # a source with no test for its file errors once the tree is gone, and
-      # a Homebrew keg named by its versioned path is gone after an upgrade
+      # an older hi's block for this tree, whose lines this hi has replaced
       doctor_row "$shell" "$target is wired to this tree, but not with the lines this hi writes (hi --install refreshes them)" warn
     else
       other="$(_hi_rc_names_tree "$target")"
@@ -788,18 +618,15 @@ function doctor_install() {
       doctor_row "$shell" "$target names ${other:-another tree}, this is $home (hi --install repairs it)" bad
     fi
   done
-  # zsh reads one .zshrc, under $ZDOTDIR or in ~ (_hi_zshrc_here): lines in
-  # the other are the usual way a working install stops working
+  # zsh reads one .zshrc, under $ZDOTDIR or in ~ (_hi_zshrc_here)
   _hi_zshrc_here target
   for other in "$HOME/.zshrc" "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/.zshrc"; do
     if [ "$other" != "$target" ] && _hi_has_marker "$other" && ! _hi_has_marker "$target"; then
       doctor_row zdotdir "$other has hi's lines, but zsh reads $target (hi --install writes there now)" warn
     fi
   done
-  # macOS: a login bash reads the first of ~/.bash_profile, ~/.bash_login,
-  # and ~/.profile that exists - bash's own order - and never ~/.bashrc, so
-  # the bashrc row above can be green and a Terminal.app shell still see
-  # none of it
+  # macOS: a login bash reads the first of ~/.bash_profile, ~/.bash_login and
+  # ~/.profile, never ~/.bashrc
   if _hi_is_darwin && rc_shell_present bash; then
     _hi_login_bash_profile profile
     if [ -f "$profile" ] && grep -qF '.bashrc' "$profile"; then
@@ -812,7 +639,6 @@ function doctor_install() {
   fi
   local runs=""
   _hi_path_lookup found hi || true
-  # asked once: both rows below read it
   [ -z "$found" ] || ! _hi_link_runs_this_tree "$found" || runs=1
   # shellcheck disable=SC2153 # $_HI_LINK is paths.sh's, exported
   if _hi_link_is_ours "$_HI_LINK"; then
@@ -860,14 +686,12 @@ function doctor_backends() {
   local hosts t0 t1
   doctor_section backends "Backends (probes capped at ${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}s each, like the header)"
   if [ -f "$_HI_SSH_CONFIG" ]; then
-    # counted through targets.sh, whose awk owns the "literal Host" rule for
-    # completion (hi.sh keeps a documented hot-path copy) - not a third copy
+    # counted by targets.sh's own literal-Host rule
     _hi_count_lines hosts < <(_HI_TARGETS_TTL=0 sh "$_HI_TARGETS" ssh 2>/dev/null)
     doctor_row ssh "$hosts literal host(s) in $_HI_SSH_CONFIG"
   else
     doctor_row ssh "no $_HI_SSH_CONFIG - names still reach ssh, just without completion or tags"
   fi
-  # only name and probe here; doctor_target below reads the other two columns
   local row name probe off=""
   for row in "${_HI_BACKENDS[@]}"; do
     IFS='|' read -r name _ probe _ <<<"$row"
@@ -875,8 +699,7 @@ function doctor_backends() {
       off="$off${off:+ }$name"
       continue
     fi
-    # the probe column's word split is the point - it is a command line
-    # shellcheck disable=SC2086
+    # shellcheck disable=SC2086 # the probe column is a command line
     doctor_backend "$name" $probe
   done
   [ -z "$off" ] || doctor_row "switched off" "$off (_HI_BACKENDS_OFF) - never asked; --use still reaches one by name"
@@ -887,18 +710,14 @@ function doctor_backends() {
   doctor_flush
 }
 
-# the target section: doctor_target and what it reads of an ssh or a container target
 # shellcheck source=./doctor_target.sh
 source "$_HI_ROOT/scripts/doctor_target.sh"
 
 # GLOSSARY: HI.06 - executed, it runs the report
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
-# Strict mode for the real run only, from here down: core.sh (sourced above)
-# ends with `set +euo pipefail`, so a `set` line placed before it is silently
-# undone, and a script-wide `set -euo pipefail` above the return guard would
-# leak into every test that sources this file for its functions instead of
-# running it. GLOSSARY: HI.15
+# strict mode for the run alone, after core.sh's `set +euo pipefail`
+# (GLOSSARY: HI.15)
 set -euo pipefail
 
 [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_h1 "hi doctor"
@@ -917,8 +736,7 @@ if [ "$_HI_DOC_JSON" = 1 ]; then
   printf '{\n  "version": %s,\n  "target": %s,\n  "findings": %s,\n  "rows": [\n%s\n  ]\n}\n' \
     "$_hi_version_json" "$_hi_target_json" "$_HI_DOC_BAD" "$_HI_DOC_ROWS"
 else
-  # --problems' box is its whole answer, and the full report has no second
-  # copy of its rows; the closing line stands in for an empty one
+  # --problems' box is its whole answer; the closing line stands in for none
   if [ "$_HI_DOC_PROBLEMS" = 1 ] && [ "${#_HI_DOC_F_SEV[@]}" -gt 0 ]; then
     doctor_findings
   elif [ "$_HI_DOC_BAD" -eq 0 ]; then
@@ -927,8 +745,6 @@ else
     _hi_h1 "$_HI_DOC_BAD finding(s) above in red" "$RED"
   fi
 fi
-# 1 on any finding, never the count: a count is a value, not a status (it
-# would wrap past 255 and read as "something else broke"), and --json carries
-# it as "findings" for the caller that wants the number
+# 1 on any finding, never the count, which would wrap past 255
 [ "$_HI_DOC_BAD" -eq 0 ] || exit 1
 exit 0

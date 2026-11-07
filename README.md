@@ -23,8 +23,8 @@ hi <anything>                  # ssh, with your prompt, aliases, and editors alo
 
 No sudo: the install links `~/.local/bin/hi` and writes only to your rc files
 and `~/.config/say-hi`. `--preset balanced` answers without asking,
-`--dry-run` shows every write first, and `hi --configure` has the settings
-menu.
+`--dry-run` shows every write first, and `hi --configure` opens the settings
+in your editor.
 
 ![hi into a web host whose site answers 502: the site and errs aliases from the overlay find a refused upstream, sudo vim opens on the carried vimrc to fix the port, restart restarts nginx through systemd, and the site answers 200](docs/tapes/demo.gif)
 
@@ -55,25 +55,25 @@ menu.
 
 ## What You Get
 
-A line each here; [the tour](docs/TOUR.md) has each one's story, its GIF, and
-the config it was recorded with.
+A line each here; [the tour](docs/GETTING-STARTED.md#a-tour) has each one's
+story, its GIF, and the config it was recorded with.
 
-- [**Your aliases, in every shell, on every host**](docs/TOUR.md#your-aliases-in-every-shell-on-every-host):
+- [**Your aliases, in every shell, on every host**](docs/GETTING-STARTED.md#your-aliases-in-every-shell-on-every-host):
   `~/.config/say-hi/` rides along on every connect, to a box that does not
   run your shell too.
-- [**Your editors and your git**](docs/TOUR.md#your-editors-and-your-git):
+- [**Your editors and your git**](docs/GETTING-STARTED.md#your-editors-and-your-git):
   your vimrc and nanorc, under `sudo` as well, and your git aliases without
   your keys.
-- [**Know where you are at a glance**](docs/TOUR.md#know-where-you-are-at-a-glance):
+- [**Know where you are at a glance**](docs/GETTING-STARTED.md#know-where-you-are-at-a-glance):
   a color a host and a tag, so prod looks like prod.
-- [**One command, every backend**](docs/TOUR.md#one-command-every-backend):
+- [**One command, every backend**](docs/GETTING-STARTED.md#one-command-every-backend):
   ssh hosts, docker and podman containers, nomad allocations, and kubernetes
   pods, one `hi <target>` for all of them.
-- [**Survive a dropped link**](docs/TOUR.md#survive-a-dropped-link): `hi --keep`
+- [**Survive a dropped link**](docs/GETTING-STARTED.md#survive-a-dropped-link): `hi --keep`
   keeps the session in tmux on the box and reattaches it after a drop.
-- [**The header tells you what's missing**](docs/TOUR.md#the-header-tells-you-whats-missing):
+- [**The header tells you what's missing**](docs/GETTING-STARTED.md#the-header-tells-you-whats-missing):
   a package check on every connect, quiet where the tools are there.
-- [**Every target in one tab**](docs/TOUR.md#every-target-in-one-tab):
+- [**Every target in one tab**](docs/GETTING-STARTED.md#every-target-in-one-tab):
   `hi <TAB>` lists your ssh hosts and every running container, allocation,
   and pod.
 
@@ -166,9 +166,9 @@ row, and everything answered **no**, and why:
   either way). Then reload your shell. zsh completes `hi` through the
   `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
   of its own.
-- `hi --configure` reopens the settings menu: pick a preset, or flip any setting
-  on its pages — Header, its cells and package check, Prompt, Plugins — or
-  by a switch's key on the first, and save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+- `hi --configure` asks which preset to start from, then opens
+  `~/.config/say-hi/settings.sh` in your editor, every setting a line of it
+  ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
   files are wired and where `hi` on your `PATH` leads.
@@ -176,21 +176,18 @@ row, and everything answered **no**, and why:
 - `hi --update` moves a cloned install to the newest release tag, or on the
   `dev` branch fast-forwards it (`--dry-run` says what it would do; a package
   upgrades through its package manager).
-- `hi --add-package core bat,batcat` adds a row to the `core` group of
-  `~/.config/say-hi/packages`, copying the shipped roster there first;
-  `hi --remove-package bat` takes it out again.
 - `hi --add-tag web1 prod` writes the `# Tags: prod` line above `Host web1`
   in `~/.ssh/config`, which a `hosttag` row then colors
   ([docs/COLORS.md](docs/COLORS.md)).
-- `hi --add-color hostname prod-db yellow` pins a color in
-  `~/.config/say-hi/colors`, copying the shipped pins there first;
-  `hi --remove-color hostname prod-db` removes the pin.
+- `hi --edit packages` and `hi --edit colors` open your copy of the package
+  check and the color pins in your editor, copying the shipped file there
+  first.
 - `hi --plugins` lists every config hi carries to a target, and what rides;
   `hi --disable-plugin lazygit vim` keeps a plugin home and
   `hi --enable-plugin` brings it back; `hi --edit plugins` opens your plugins
   file in your editor, for the configs of a tool hi does not know
   ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
-- The whole surface is twenty-four flags: `hi --help` (or bare `hi`) lists them,
+- The whole surface is twenty flags: `hi --help` (or bare `hi`) lists them,
   [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
   form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
@@ -219,11 +216,11 @@ Your config lives in `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` and rides
 along to every host you say `hi` to. `settings.sh` is what `hi --configure`
 writes; the install copies nothing else there, so the shipped `colors` and
 `packages` apply until you copy one out of the tree's `config/` to edit
-(`hi --add-package` and `hi --add-color` do the copying) or add an
+(`hi --edit packages` and `hi --edit colors` do the copying) or add an
 `aliases.sh` of your own. The editor rcs need no copy: hi carries your
 own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
 ([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
-The overlay file table, the settings menu, and every setting are in
+The overlay file table, the presets, and every setting are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
 [How it works](docs/HOW-IT-WORKS.md). The tools hi wires in where a
 target has them — your prompt program, mise, direnv, bat, eza, and more — are
@@ -239,7 +236,7 @@ removed on exit:
 
 Every username and hostname gets a color derived from its name; a line in
 `~/.config/say-hi/colors` (`prod-db = "yellow"` under `[hostname]`, which
-`hi --add-color hostname prod-db yellow` writes) pins one, and
+`hi --edit colors` opens) pins one, and
 `hi --preview colors` shows what every host and your user resolve to. Tags
 (`# Tags:` lines in `~/.ssh/config`, which sshm writes, or ssh's own `Tag`
 keyword), patterns, truecolor

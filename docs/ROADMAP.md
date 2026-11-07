@@ -6,31 +6,6 @@ an entry leaves as one sentence for the top list of
 [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **Two add/remove pairs go the way of `--add-plugin`** —
-      `--add-package`/`--remove-package` and `--add-color`/`--remove-color`
-      do by flag what `hi --edit` does by hand, the choice already made for
-      plugins; `--add-tag` stays, since it edits `~/.ssh/config`, which
-      `--edit` cannot reach. **Do:** drop `scripts/add_package.sh`,
-      `scripts/set_color.sh`, their suites, and their rows in `common/flags`,
-      `docs/hi.1`, USAGE.md, tldr.md and the completions. Medium.
-      **Ticks when:** `hi --help` lists neither pair and the parse, help and
-      drift suites pass.
-
-- [ ] **The packages grammar loses a dimension** — groups, the
-      `.required` and `.unwanted` sub-tables, and a ramp of four installed
-      and four missing tiers are three dials on one check, and the format
-      freezes at 1.0. **Do:** a per-row marker in place of the sub-tables,
-      so group on/off is the only dial; `config/packages`,
-      `docs/packages.example`, `common/header.sh`'s check, COLORS.md's
-      _The package check's rows_, `scripts/convert_settings.sh` for the old
-      shape. Medium. **Ticks when:** the shipped file and the example use
-      the new shape and the header and configure suites pass.
-
-- [ ] **A smaller wizard** — `scripts/configure.sh`, `configure_menu.sh` and
-      `configure_preview.sh` are 88 KB for the settings rows, and the doctor
-      45 KB. The larger option is presets plus `hi --edit` in place of the
-      paged menu. Large. **Ticks when:** decided, and the chosen shape is in.
-
 - [ ] **One coverage tool** — kcov and bashcov each produce a badge and
       each has cost an incident (the PS4 switch, the SimpleCov root filter).
       **Do:** keep bashcov, which credits the staged copies; drop
@@ -56,13 +31,6 @@ an entry leaves as one sentence for the top list of
       PACKAGING.md and RELEASING.md. Medium. **Ticks when:** decided, and the
       channels shipped are the ones PACKAGING.md lists.
 
-- [ ] **One introduction** — README, GETTING-STARTED, TOUR and USAGE each
-      walk the flags, and FILES.md's target and package sections repeat
-      HOW-IT-WORKS and PACKAGING. **Do:** fold TOUR into GETTING-STARTED and
-      move FILES.md's sections to their homes; `docs/README.md`'s index and
-      every `## Contents` follow. Medium. **Ticks when:** each fact has one
-      home and the link check passes.
-
 - [ ] **Every default and preset audited before the tag** —
       [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
       freezes the name and default of all 35 rows of
@@ -85,8 +53,11 @@ an entry leaves as one sentence for the top list of
       `scripts/convert_settings.sh` (23 KB, 11 functions) rewrites overlay
       shapes nothing after the tag has a contract for. **Do:** keep the entry
       point, which `--install`, `--configure` and `--update` call, and drop
-      the pre-1.0 arms and their fixtures. Small. **Ticks when:** the script
-      converts only shapes a 1.x release wrote.
+      the pre-1.0 arms and their fixtures, with `hi --doctor`'s rows for the
+      same shapes (`_HI_PACKAGES_MIN_PRIORITY`, `_HI_OLD_TOGGLES`, the old
+      packages layouts, `_HI_OVERLAY_RENAMES`) and their `lib.sh` tables.
+      Small. **Ticks when:** the script converts only shapes a 1.x release
+      wrote, and the doctor names no older one.
 
 ## Release Stages
 

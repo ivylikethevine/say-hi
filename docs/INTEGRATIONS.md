@@ -99,8 +99,7 @@ them: `"tide starship"` is tide in fish and starship in bash and zsh, `"tide hi"
 tide in fish and hi's prompt elsewhere. An entry written `<shell>:<program>` is
 tried first, by that shell alone: `"bash:starship hi"` is starship in bash and
 hi's prompt in zsh and fish, and `"bash:starship"` alone leaves zsh and fish to
-the programs installed here, as unset does. `hi --configure`'s Prompt page asks
-shell by shell and writes these entries.
+the programs installed here, as unset does.
 `_HI_DISABLE_PROMPT=1` beats all of it: no prompt from hi at all, its own or a
 program's.
 
@@ -164,7 +163,7 @@ on every header hi draws, a local shell's greeting included, so a command it
 starts costs that fork each time; the built-in items' probes are not shared
 with it. A file bash cannot parse is skipped with a yellow line saying so,
 and `hi --doctor` lists the cells in the order they load and flags that one.
-`hi --configure` lists the words that loaded beside hi's own, and a
+`_HI_HEADER_ORDER` takes the words that loaded beside hi's own, and a
 line sourcing a file outside `~/.config/say-hi` goes out disabled, as in
 every overlay file
 ([SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).

@@ -1,9 +1,13 @@
 # Files
 
-Every file say-hi is made of, reads, recognizes, and creates — on your
-machine, on a target, and in a package — with the variable that moves a path
-where one does. Settings are [SETTINGS.md](SETTINGS.md); what a session may
-touch on a target is argued in [SECURITY.md](SECURITY.md).
+Every file say-hi is made of, reads, recognizes, and creates on your
+machine, with the variable that moves a path where one does. What a session
+does on a target is
+[HOW-IT-WORKS.md](HOW-IT-WORKS.md#what-a-session-does-on-a-target), and where a
+package puts its files
+[PACKAGING.md](PACKAGING.md#packaged-installs). Settings are
+[SETTINGS.md](SETTINGS.md); what a session may touch on a target is argued in
+[SECURITY.md](SECURITY.md).
 
 Throughout, `$_HI_HOME` is the directory holding the tree, `$_HI_ROOT` is
 `$_HI_HOME/say-hi`, and `$_HI_CONFIG_DIR` is
@@ -27,12 +31,6 @@ Throughout, `$_HI_HOME` is the directory holding the tree, `$_HI_ROOT` is
   - [Install, configure, update, uninstall](#install-configure-update-uninstall)
   - [Caches and sockets](#caches-and-sockets)
   - [Temporary files](#temporary-files)
-- [What a session does on a target](#what-a-session-does-on-a-target)
-  - [The session tree](#the-session-tree)
-  - [The session rc directory](#the-session-rc-directory)
-  - [What a target's files are read for](#what-a-targets-files-are-read-for)
-  - [Writes outside the session tree](#writes-outside-the-session-tree)
-- [Packaged installs](#packaged-installs)
 - [Build and release artifacts](#build-and-release-artifacts)
 
 ## The tree
@@ -104,16 +102,14 @@ All **package**, never in the payload.
 | `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                                                                                                                                                                                                |
 | `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                                                                                                                                                                                                 |
 | `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag, or fast-forwards `dev`.                                                                                                                                                                                       |
-| `scripts/add_package.sh`          | `hi --add-package` and `--remove-package`: adds rows to a group in `~/.config/say-hi/packages`, or removes them, copying the tree's in first.                                                                                                                     |
 | `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                                                                                                                     |
-| `scripts/set_color.sh`            | `hi --add-color` and `--remove-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                                                                                                         |
 | `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, `plugins`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it.                                                                                |
 | `scripts/plugins.sh`              | `hi --plugins`, `--disable-plugin`, and `--enable-plugin`: lists what rides, and keeps `_HI_PLUGINS_OFF` and `_HI_PLUGINS_ON` in `settings.sh`.                                                                                                                   |
 | `scripts/edit.sh`                 | `hi --edit`: opens the overlay, or one file of it, in your editor, making a `plugins`, `colors`, `packages`, or `settings.sh` that is not there yet.                                                                                                              |
 | `scripts/pack.sh`                 | The packer `hi.sh` sources on a client: the overlay table and the plugins rows, the include scan, the comment strip, and the cached tars a connect sends. A session has none, and relays its tree as it stands ([HI.66](GLOSSARY.md#hi66-the-packer-stays-home)). |
 | `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                                                                                                                      |
 | `scripts/table.sh`                | The display the scripts draw through: column padding, the pieces a line is painted from, the boxed table the previews draw, and the section of rows `hi --doctor` and `hi --plugins` report in.                                                                   |
-| `scripts/settings`                | Every setting, a row each: `docs/SETTINGS.md`'s _Every setting_ table is written from it, and `hi --configure` reads its menu items from it.                                                                                                                      |
+| `scripts/settings`                | Every setting, a row each: `docs/SETTINGS.md`'s _Every setting_ table is written from it, and `hi --configure` writes a `settings.sh` line for each.                                                                                                              |
 
 ### packaging/
 
@@ -350,104 +346,9 @@ All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 | `hi.probes.XXXXXX/`                                           | the header's parallel probes, outside a session's tree                                          |
 | `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                                                   |
 | `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place                                                  |
-| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                                                       |
 | `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                                                                  |
-| `hi.colors.XXXXXX`                                            | `hi --add-color`, `hi --remove-color`                                                           |
 | `hi.plugins.XXXXXX`                                           | `hi --disable-plugin`, `hi --enable-plugin`                                                     |
 | `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                                                   |
-
-## What a session does on a target
-
-hi never writes to a target's own login files, and a say-hi already installed
-there is ignored: the session runs the tree it shipped, even where the
-target's rc files point at another one.
-
-### The session tree
-
-One scratch directory per session under the target's `$TMPDIR`, named for the
-user running `hi`:
-
-| Arm                              | Directory                           |
-| -------------------------------- | ----------------------------------- |
-| ssh, container, nomad alloc, pod | `${TMPDIR:-/tmp}/<user>.hi.XXXXXX/` |
-
-That directory is `$_HI_HOME` and `$_HI_CLEANUP`. Inside it:
-
-| Path                                      | What                                                                              |
-| ----------------------------------------- | --------------------------------------------------------------------------------- |
-| `say-hi/`                                 | `$_HI_ROOT`: the unpacked payload                                                 |
-| `say-hi/config/`                          | `$_HI_CONFIG_DIR`: hi's defaults with the unpacked overlay over them              |
-| `say-hi/hi.bashrc`                        | the bootloader rc: names this tree, then sources `load.sh`                        |
-| `say-hi/.hi_fallback_rc`, `say-hi/.zshrc` | on a target without bash: the aliases-and-prompt rc `$ENV` or `ZDOTDIR` points at |
-| `hi.rc.XXXXXX/`                           | the session rc directory, below                                                   |
-| `hi.probes/`                              | the connect header's parallel probes, left to the tree's removal                  |
-
-Every arm also lands its bootloader, with the tree's and the overlay's
-archives beside it, in `${TMPDIR:-/tmp}/hi.boot.XXXXXX/`,
-the `XXXXXX` 16 hex digits of the client's over ssh, removed when the
-session ends. A read-only root works when `$TMPDIR`
-names a writable mount; with nowhere writable, hi says so and hands over the
-target's own session, as `--plain` does, which writes nothing. How the tree
-goes on exit is
-[SECURITY.md's](SECURITY.md#footprint-and-cleanup-on-the-target).
-
-### The session rc directory
-
-`hi.rc.XXXXXX/`, pointed at by `$_HI_SESSION_RC`. Each shell's rc sources the
-target's own rc first, then re-points `_HI_HOME`, `_HI_ROOT`, and
-`_HI_CONFIG_DIR` at the session tree, then sources hi's:
-
-| File          | For                                                                                                               |
-| ------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `bashrc`      | `bash --rcfile`: `~/.bashrc`, then `common/bash.sh`                                                               |
-| `.zshenv`     | `ZDOTDIR` points here: sources `~/.zshenv` with `ZDOTDIR` unset, keeps where it left it, points it back           |
-| `.zshrc`      | the `.zshrc` in that `ZDOTDIR` (`~/.zshrc` by default), read under it, then `common/zsh.zsh`                      |
-| `fish.config` | `fish -C`: blanks `fish_greeting`, then `common/config.fish` (fish has read `~/.config/fish/config.fish` already) |
-| `shrc`        | `$ENV` for sh, dash, and ash: `common/paths.sh` and `common/aliases.sh`                                           |
-
-### What a target's files are read for
-
-| Path                                                                              | Why                                                                                     |
-| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `/etc/profile`, then `~/.bash_profile`, `~/.bash_login`, or `~/.profile`          | the login chain `bash --rcfile` skips, restored with `_HI_REMOTE_SESSION=1` already set |
-| `~/.bashrc`, `~/.zshenv`, `~/.zshrc`, `~/.config/fish/config.fish`                | the target's own shell setup, under hi's                                                |
-| `/etc/passwd` (through `getent`)                                                  | the login shell, when `$SHELL` is unset                                                 |
-| everything in [Paths hi recognizes](#paths-hi-recognizes) that applies to a shell | the header, prompt, and completion, the same as locally                                 |
-
-The editors never read a target's own rcs: the home lookup is off with
-`_HI_REMOTE_SESSION=1`, and `$VIMINIT` names the session's vimrc.
-
-### Writes outside the session tree
-
-| Path                                                              | When                                                                           |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| fish's universal variable store (`~/.config/fish/fish_variables`) | a fish session caches its two prompt colors there, as it does locally          |
-| the runtime directory's caches                                    | only when `hi` is run again from inside the session, to reach a further target |
-
-The editors are started so they leave nothing behind: neovim with
-`XDG_STATE_HOME`, `XDG_DATA_HOME`, and `XDG_CACHE_HOME` under the session
-tree's `nvim/`, so its shada, swap, undo, log, and `vim.loader` cache go with
-the session; vim with the same three under `vim/`, for a vimrc that keeps its
-undo files there, and no viminfo (`-i NONE`); micro with no backups or
-history.
-
-## Packaged installs
-
-| Channel                      | Tree                                                | `hi`                                        | Also                                                                           |
-| ---------------------------- | --------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------ |
-| `.deb`, `.rpm`, `.apk`       | `/usr/share/say-hi/`                                | `/usr/bin/hi` → `hi.sh`                     | `/etc/profile.d/say-hi.sh` (exports `_HI_HOME`), `/usr/share/man/man1/hi.1.gz` |
-| `install.sh --prefix <dir>`  | `$DESTDIR<dir>/say-hi/` (default `/usr/share`)      | `$DESTDIR/usr/bin/hi`                       | the same profile snippet and man page; no rc files, no sudo                    |
-| AUR (`say-hi`, `say-hi-git`) | `/usr/share/say-hi/`, through `install.sh --prefix` | `/usr/bin/hi`                               | `/usr/share/licenses/<package>/LICENSE.md`                                     |
-| Homebrew                     | `#{libexec}/say-hi/`                                | `#{bin}/hi`, a wrapper exporting `_HI_HOME` | `#{man1}/hi.1`; no profile snippet                                             |
-| nix flake                    | `$out/share/say-hi/`, through `install.sh --prefix` | `$out/bin/hi`, the same wrapper             | `$out/share/man/man1/hi.1.gz`; no profile snippet                              |
-
-A package touches no user's rc files: each user runs `hi --install`, or
-enables the flake's home-manager module, which writes the same lines into
-the rc files home-manager generates. Adding a
-repository places `/etc/apt/keyrings/say-hi.asc` and
-`/etc/apt/sources.list.d/say-hi.list`, `/etc/yum.repos.d/say-hi.repo`, or
-`/etc/apk/keys/say-hi.rsa.pub` and a line in `/etc/apk/repositories`
-([PACKAGING.md](PACKAGING.md)).
 
 ## Build and release artifacts
 

@@ -9,9 +9,14 @@ in the list below, and nothing else is ever done to this file.
 ## Since the last release
 
 - A pull request into `main` takes nine fewer CI runners, and the Debian and Ubuntu test and package-build images move to rebuilt bases that close the fixable high and critical CVEs the scan found in them.
+- The package check no longer warns about `exa`, which eza installs beside itself for compatibility.
 
 From the roadmap:
 
+- `hi --configure` asks which preset to start from, then opens `settings.sh` in your editor, every setting a line of it and one at its default commented, in place of the paged menu; `hi --doctor --help` is a page shorter, and the report no longer lists each non-default toggle
+- `hi --add-package`, `--remove-package`, `--add-color` and `--remove-color` are gone: `hi --edit packages` and `hi --edit colors` open your copy of either file, copying the shipped one in first.
+- A package row says what it is for with a mark on its name, `"+sudo" = ["doas"]` for required and `"-neofetch" = []` for unwanted, in place of the `[group.required]` and `[group.unwanted]` tables; `hi --install`, `--configure` and `--update` convert a file with those tables, and `hi --doctor` names one.
+- The tour's seven stories are a section of [GETTING-STARTED.md](GETTING-STARTED.md#a-tour), and what a session does on a target and where a package puts its files moved from FILES.md to [HOW-IT-WORKS.md](HOW-IT-WORKS.md#what-a-session-does-on-a-target) and [PACKAGING.md](PACKAGING.md#packaged-installs).
 - The 24-bit scheme and the package check's ramp move from `settings.sh` into the colors file, as a `[scheme]` table (`colors`, and an optional `packages` row for the check) and a `[palette]` table (`installed` and `missing`); `_HI_COLOR_SCHEME` and `_HI_PACKAGES_PALETTE` lines in `settings.sh` are no longer read, and `hi --doctor` names them.
 - The `configs` preset is gone, leaving `everything`, `balanced`, `minimal` and `lean`: `minimal` with `_HI_DISABLE_PROMPT=1` and the editors out of `_HI_PLUGINS_OFF` answers what it did.
 - nomad, nerdctl and finch stay as backends: one that fits hi's model this cheaply is kept, since hi's point is the same session on every host ([COMPATIBILITY.md](COMPATIBILITY.md#what-a-yes-costs)).
@@ -20,7 +25,7 @@ From the roadmap:
 - The styled tool aliases take two settings, `_HI_LS_OPTS` and `_HI_BAT_OPTS`: `_HI_EZA_OPTS` folds into `_HI_LS_OPTS`, and `_HI_CAT_BIN`, `_HI_BAT_BIN` and `_HI_LS_BIN` are no longer settings, only values your `aliases.sh` can read.
 - The four `_HI_SYMBOL_*` settings are gone: `hi <TAB>` always shows the shipped backend glyphs, or their ASCII stand-ins.
 - The eleven scratch scripts nothing named are gone from the repository.
-- The README opens with the pitch, the sixty-second install, and a GIF of a 502 fixed on a web host with the aliases and vimrc that ride in; the seven stories moved to [TOUR.md](TOUR.md).
+- The README opens with the pitch, the sixty-second install, and a GIF of a 502 fixed on a web host with the aliases and vimrc that ride in; the seven stories moved to [TOUR.md](GETTING-STARTED.md#a-tour).
 - Every release's source tarball carries `CHANGELOG.md`.
 - A signed tag on `main` is all a release needs: its page's list is built when it publishes, and `CHANGELOG.md` can no longer refuse it.
 - The target side is measured on a Pi-class box, simulated by holding the target to an eighth of one core: a cold connect reaches its prompt in 559 ms there, against 272 ms at a full core, and hi's share of it is 390 ms against 140 ms.

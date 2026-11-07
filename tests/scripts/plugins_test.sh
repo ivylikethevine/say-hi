@@ -5,7 +5,7 @@
 #
 # Driven through `hi.sh --<flag>` rather than by calling the script directly,
 # so the common/flags rows and _hi_dispatch_subcommand are covered with it,
-# as set_color_test.sh drives --add-color. Each case gets its own
+# as add_tag_test.sh drives --add-tag. Each case gets its own
 # $_HI_CONFIG_DIR and $HOME, so one case's files cannot bleed into another's.
 #
 # GLOSSARY: HI.34.

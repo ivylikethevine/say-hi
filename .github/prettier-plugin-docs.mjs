@@ -66,7 +66,7 @@ function writeContents(text) {
 // The table under `## Every setting` whose header starts `| variable`, one
 // line a row of scripts/settings: <section> | <name> | <default> | ... |
 // <what it does>, its section giving the "set by" cell. <what it does> is
-// the eleventh column and the last.
+// the sixth column and the last.
 function writeSettings(text) {
   const lines = text.split("\n");
   const at = lines.indexOf("## Every setting");
@@ -83,10 +83,9 @@ function writeSettings(text) {
   } catch {
     return text;
   }
-  const setBy = { advanced: "`hi --configure` advanced", you: "you" };
   const table = rows.map((c) => {
-      const by = setBy[c[0]] ?? "`hi --configure`";
-      return `| \`${c[1]}\` | ${c[2]} | ${by} | ${c.slice(9).join(" | ")} |`;
+      const by = c[0] === "preset" ? "a preset, or you" : "you";
+      return `| \`${c[1]}\` | ${c[2]} | ${by} | ${c.slice(5).join(" | ")} |`;
   });
   let end = start;
   while (end < lines.length && lines[end].startsWith("|")) end++;
@@ -159,7 +158,7 @@ function writeUsage(text) {
       // `-#<anchor>`: no image, the tour's story at <anchor> instead
       if (example.startsWith("-#")) {
         out.push(
-          `It changes how a connect runs, which [the tour's story](TOUR.md${example.slice(1)}) shows.`,
+          `It changes how a connect runs, which [the tour's story](GETTING-STARTED.md${example.slice(1)}) shows.`,
           "",
         );
         return;

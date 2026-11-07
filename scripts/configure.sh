@@ -1,42 +1,18 @@
 #!/usr/bin/env bash
-# The settings wizard behind `hi --configure` (and the second half of a plain
-# install): one menu of every setting, a page a section under a live preview,
-# and the one write to $_HI_SETTINGS. Sourced by scripts/install.sh after
-# common/core.sh and scripts/table.sh; not an entry point of its own.
-# run_configure at the bottom is the sequence. The live previews are
-# configure_preview.sh and the menu configure_menu.sh, each sourced from here
-# where it sat.
+# `hi --configure` and the second half of a plain install: a preset to start
+# from, then the one write to $_HI_SETTINGS, a line per scripts/settings row.
+# Sourced by scripts/install.sh after common/core.sh, scripts/lib.sh and
+# scripts/table.sh; not an entry point of its own. run_configure at the
+# bottom is the sequence; install.sh opens the file in the editor after it.
 #
-# The shape: every answer taken this run lands in _HI_SETTING_PENDING (as
-# "<var>=<value>", an empty value meaning "the shipped default"), ahead of
-# what the file still says from last time; setting_value is the one reader
-# of both. Nothing accumulates lines as it asks - a setting can be changed
-# twice, so the `export NAME=value` lines are derived once, at save time, by
-# collect_setting_lines walking a fixed roster in a stable order, and
-# config_shell writes them in one call (it rewrites the *whole* marker block
-# in its target, so one call per setting would each wipe the others').
-# Interactively that save is the menu's [s]; [q] writes nothing at all. With
-# no tty, or under --preset, there is no menu: the roster is collected from
-# the file (plus the preset) and written as it stands.
+# A preset's answers land in _HI_SETTING_PENDING ("<var>=<value>", empty for
+# the shipped default), ahead of what the file says; setting_value reads
+# both. collect_setting_lines derives the block from them once, at write
+# time, and config_shell writes it in one call (it rewrites the whole marker
+# block). A setting at its default is written commented, at that default, so
+# the block lists every setting and an edit is removing a `#`.
 
-# The live previews borrow header.sh's hi_header/banner/full_check and
-# git_prompt.sh's segment. Sourced on first use rather than up top:
-# --uninstall and packaging mode never
-# render one, and never need $_HI_HEADER_ORDER_DEFAULT either.
-function _hi_load_preview_sources() {
-  [ -n "${_hi_previews_loaded:-}" ] && return 0
-  _hi_previews_loaded=1
-  # shellcheck source=../common/header.sh
-  source "$_HI_HEADER"
-  # shellcheck source=../common/git_prompt.sh
-  source "$_HI_GIT_PROMPT"
-  # shellcheck source=../common/env_prompt.sh
-  source "$_HI_ENV_PROMPT"
-}
-
-# Answers this run has already taken, as "<var>=<value>" entries. An indexed
-# array rather than `declare -A`: associative arrays are bash 4 and macOS
-# ships 3.2. A linear scan over a few dozen answers costs nothing.
+# Answers this run has taken. An indexed array: `declare -A` is bash 4.
 _HI_SETTING_PENDING=()
 
 # pending_answer <var> [outvar] - this run's answer for <var>, or rc 1
@@ -51,8 +27,6 @@ function pending_answer() {
 }
 
 # _hi_pending_set <var> <value> - record an answer, replacing an earlier one
-# for the same var in place: a section opened twice must not leave two
-# entries for pending_answer's first-match scan to disagree over.
 function _hi_pending_set() {
   local i
   for i in ${_HI_SETTING_PENDING[@]+"${!_HI_SETTING_PENDING[@]}"}; do
@@ -63,296 +37,73 @@ function _hi_pending_set() {
   _HI_SETTING_PENDING+=("$1=$2")
 }
 
-# setting_value <var> <target> [outvar] - what $var is set to right now: this
-# run's answer if it has one, otherwise the line in $2 (a tiny file, re-read
-# per question behind an interactive prompt - not worth a cache that every
-# write path would have to remember to clear). Empty when neither has it.
+# setting_value <var> <target> [outvar] - this run's answer, else what <target>
+# sets it to, else empty
 function setting_value() {
   local _hi_sv_var="$1" _hi_sv_target="$2" _hi_sv_val=""
-  # scripts/lib.sh's reader, which knows config_shell's marker-padded spelling
   pending_answer "$_hi_sv_var" _hi_sv_val ||
     _hi_setting_get "$_hi_sv_target" "$_hi_sv_var" _hi_sv_val || _hi_sv_val=""
   _hi_out "${3:-}" "$_hi_sv_val"
 }
 
-# true if $1 is turned off: hi's own _HI_DISABLE_* vars use 1 for "off"
-function setting_off() {
-  local var="$1" target="$2" answer
-  setting_value "$var" "$target" answer
-  [ "$answer" = 1 ]
-}
-
-# true if $1 is on. Two shapes of setting share this: a default-on toggle is
-# on unless its value is <off> ($3), and an opt-in - one whose on-value <on>
-# ($4) has to be written out, like _HI_DISABLE_LEAD_SPACE=1 - is on only when its
-# value *is* that.
-function setting_on() {
-  local var="$1" target="$2" off="${3:-1}" on="${4:-}" answer
-  setting_value "$var" "$target" answer
-  if [ -n "$on" ]; then
-    [ "$answer" = "$on" ]
-  else
-    [ "$answer" != "$off" ]
-  fi
-}
-
-# _hi_setting_flip <var> <off> <on> <outvar> - turn a setting the other way
-# and record it: a default-on toggle turned off gets its off-value, turned on
-# gets "" (the default, nothing written); an opt-in turned on gets its
-# on-value, turned off gets "". <outvar> gets the new state, on or off - an
-# outvar rather than stdout, since a `$( )` around this would record the
-# answer in a subshell and lose it.
-function _hi_setting_flip() {
-  local var="$1" off="$2" on="$3" want=on
-  setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && want=off
-  if [ "$want" = on ]; then
-    _hi_pending_set "$var" "$on"
-  elif [ -n "$on" ]; then
-    _hi_pending_set "$var" ""
-  else
-    _hi_pending_set "$var" "$off"
-  fi
-  printf -v "$4" '%s' "$want"
-}
-
-# ask_setting_value <var> <question> [default] - ask_value against a setting,
-# recorded. The whole shape of every free-text question here: this run's
-# answer (or the file's) is the current value, the reply goes back into the
-# pending set, and the answer is judged by the setting's scripts/settings row
-# (_hi_setting_rules). The default is core.sh's $<var>_DEFAULT unless given.
-function ask_setting_value() {
-  local _hi_asv_cur="" _hi_asv_n _hi_asv_c _hi_asv_h _hi_asv_d="${1}_DEFAULT"
-  _hi_asv_d="${3-${!_hi_asv_d:-}}"
-  setting_value "$1" "$_HI_SETTINGS" _hi_asv_cur
-  while IFS='|' read -r _hi_asv_n _hi_asv_c _hi_asv_h; do
-    [ "$_hi_asv_n" != "$1" ] || break
-  done < <(_hi_setting_rules)
-  [ "$_hi_asv_n" = "$1" ] || _hi_asv_c=- _hi_asv_h=""
-  _hi_pending_set "$1" "$(ask_value "$2" "$_hi_asv_cur" "$_hi_asv_d" "_hi_setting_check $_hi_asv_c" "$_hi_asv_h")"
-}
-
-# _hi_shell_var <outvar> <shell> - the uppercase half of a $_HI_PROMPT_END_<SHELL>
-# name. _HI_RC_TABLE carries the shell lowercase and the setting is spelled
-# uppercase; bash 3.2 has no ${x^^}, so one `tr` for all three callers.
-function _hi_shell_var() {
-  printf -v "$1" '%s' "$(printf '%s' "$2" | tr '[:lower:]' '[:upper:]')"
-}
-
-# ask_value <question> <current> <default> <validator> <invalid-msg> - one
-# free-text prompt, the validator a command line the answer is added to: printed value on stdout: entering nothing keeps
-# <current> (or the default when there is no override yet), a rejected answer
-# says why and keeps it too, and an answer equal to <default> comes back
-# empty - the caller records nothing rather than restating a shipped default.
-# Non-interactive runs keep what is configured rather than hanging on a
-# prompt nobody can answer. The messages go to stderr: stdout is the
-# captured answer.
-function ask_value() {
-  local question="$1" current="$2" default="$3" validate="$4" invalid_msg="$5"
-  local value reply="" shown
-  value="${current:-$default}"
-  if [ -t 0 ]; then
-    _hi_paint shown "$BRPURPLE" "[$value]"
-    read -r -p " $question $shown " reply || reply=""
-    if [ -n "$reply" ]; then
-      # shellcheck disable=SC2086 # a command line, split on purpose
-      if $validate "$reply"; then
-        value="$reply"
-      else
-        _hi_cecho " $invalid_msg, leaving it at $value" "$YELLOW" >&2
-      fi
-    fi
-  fi
-  [ "$value" = "$default" ] && value=""
-  printf '%s' "$value"
-}
-
-# _hi_preset_list <table> <width> - a presets table as its pick lists it:
-# the name with its hotkey, padded to <width> by its visible length (a
-# printf width would count the key's escapes), then the description
+# _hi_preset_list - the presets as the pick lists them: the name with its
+# hotkey, padded by its visible length (a printf width counts the escapes),
+# then the description
 function _hi_preset_list() {
   local row name desc shown
-  local -a rows
-  _hi_prompt_rows "$1" rows
-  for row in "${rows[@]}"; do
+  for row in "${_HI_PRESETS[@]}"; do
     IFS='|' read -r name desc _ <<<"$row"
     _hi_hotkey "$name" "${name:0:1}" shown
-    _hi_pad_to shown $(($2 - 2)) "$shown"
+    _hi_pad_to shown 13 "$shown"
     printf '   %s %b%s%b\n' "$shown" "$BLUE" "$desc" "$NC"
   done
 }
 
-# menu_read <prompt> <outvar> - one menu answer: trimmed, lower-cased (tr,
-# not ${x,,}: that is bash 4), inner runs of spaces squeezed so "up  3" and
-# "up 3" are the same command. Returns 1 on EOF - a closed pipe, ^D, or a
-# driver that ran out of input - after closing the line `read -p` left the
-# cursor on. EOF is never an answer; each loop decides what it means.
+# menu_read <prompt> <outvar> - one answer, trimmed and lower-cased (tr, not
+# ${x,,}: that is bash 4); 1 on EOF, after closing the line `read -p` left
 function menu_read() {
   local _hi_mr_reply=""
   if ! read -r -p "$1" _hi_mr_reply; then
     printf '\n' >&2
     return 1
   fi
-  _hi_mr_reply="$(printf '%s' "$_hi_mr_reply" | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' ' ')"
-  _hi_mr_reply="${_hi_mr_reply# }"
-  _hi_mr_reply="${_hi_mr_reply% }"
+  _hi_mr_reply="$(printf '%s' "$_hi_mr_reply" | tr '[:upper:]' '[:lower:]')"
+  _hi_mr_reply="${_hi_mr_reply#"${_hi_mr_reply%%[![:space:]]*}"}"
+  _hi_mr_reply="${_hi_mr_reply%"${_hi_mr_reply##*[![:space:]]}"}"
   printf -v "$2" '%s' "$_hi_mr_reply"
 }
 
-# _hi_menu_reject <counter-var> <max> <hint> - increments <counter-var> by
-# name; true, with <hint> printed, while still under <max> - every call site
-# follows it with `continue`. False, nothing printed, at the limit, for the
-# caller's own exceeded-message and exit (`return 0` or `break` differ by
-# site, so that much stays local). This is the one guarantee that no menu can
-# hang on a driver out of sensible input, kept once for every call site.
-function _hi_menu_reject() {
-  printf -v "$1" '%s' "$((${!1} + 1))"
-  [ "${!1}" -lt "$2" ] || return 1
-  _hi_menu_say "$3" "$YELLOW"
-}
-
-# The value validators are scripts/lib.sh's: doctor judges a hand-written settings.sh by the same rules the menu takes
-# an answer by. Only the two that need the menu's own state live here.
-
-function _hi_is_truecolor_choice() {
-  case "$1" in auto | on | off) ;; *) return 1 ;; esac
-}
-
-# the live previews the questions draw
-# shellcheck source=./configure_preview.sh
-source "$_HI_ROOT/scripts/configure_preview.sh"
-
-# Who draws one shell's prompt: auto, hi, or a program that fits it, asked by
-# number or name and written back into $_HI_PROMPT_TOOL as <shell>:<choice>
-# entries - `hi` alone for the shells that share it, nothing for auto
-function config_prompt_tool() {
-  local cur="" sh choice fits="" reply w rejects=0 out="" hi_too=0 auto=0
-  local -a all=() picks=()
-  setting_value _HI_PROMPT_TOOL "$_HI_SETTINGS" cur
-  _hi_prompt_choice "$1" "$cur" choice
-  for w in $_HI_PROMPT_TOOLS; do
-    ! _hi_prompt_fits "$w" "$1" || fits="$fits $w"
-  done
-  # shellcheck disable=SC2206 # space-separated words, no globs
-  all=(auto hi $fits)
-  while [ -t 0 ]; do
-    show_preview _hi_prompt_tool_preview "$1" "$choice"
-    _hi_paint w "$BRPURPLE" "[$choice]"
-    menu_read " Who draws the $1 prompt, by number or name? $w " reply || break
-    [ -n "$reply" ] || break
-    case "$reply" in *[!0-9]* | 0*) ;; *) ((reply > ${#all[@]})) || reply="${all[reply - 1]}" ;; esac
-    if _hi_list_has "${all[*]}" "$reply"; then
-      choice="$reply"
-      break
-    fi
-    _hi_menu_reject rejects 3 "no choice $reply - type a number or a name from the list" && continue
-    break
-  done
-  for r in "${_HI_SHELL_TABLE[@]}"; do
-    sh="${r%%|*}" w="$choice"
-    [ "$sh" = "$1" ] || _hi_prompt_choice "$sh" "$cur" w
-    case "$w" in auto) auto=1 ;; hi) hi_too=1 ;; esac
-    picks+=("$sh:$w")
-  done
-  # plain `hi` stands for every shell that says hi, where no shell is auto
-  for w in "${picks[@]}"; do
-    case "$w" in
-    *:auto) ;;
-    *:hi) if ((auto)); then out="$out $w"; fi ;;
-    *) out="$out $w" ;;
-    esac
-  done
-  ((auto || ! hi_too)) || out="$out hi"
-  out="${out# }"
-  _hi_pending_set _HI_PROMPT_TOOL "$out"
-  _hi_menu_note " $1 prompt: $choice" "$GREEN"
-}
-
-# _hi_package_group_notes - "<group>|<note>" for each group of $_HI_PACKAGES:
-# the first sentence of the comment right above its first table, else the
-# first packages it lists
-function _hi_package_group_notes() {
-  [ -f "${_HI_PACKAGES:-}" ] || return 0
-  awk '
-    function flush() { if (g != "") print g "|" (note != "" ? note : eg); g = "" }
-    /^[ \t]*#/ { c = $0; sub(/^[ \t]*#[ \t]*/, "", c); com = com == "" ? c : com " " c; next }
-    /^[ \t]*\[/ {
-      t = $0; sub(/^[ \t]*\[/, "", t); sub(/\].*/, "", t); sub(/\.(required|unwanted)$/, "", t)
-      flush()
-      if (!(t in seen)) { seen[t] = 1; g = t; eg = ""; note = com; sub(/\. .*/, "", note); sub(/\.$/, "", note) }
-      com = ""; next
-    }
-    { com = "" }
-    g != "" && /=/ && length(eg) < 60 { p = $0; sub(/[ \t]*=.*/, "", p); gsub(/^[ \t]+|"/, "", p); eg = eg == "" ? p : eg ", " p }
-    END { flush() }
-  ' "$_HI_PACKAGES"
-}
-
-# _hi_ask_item <outvar> <n> <1|0> <name> <width> - one numbered checkbox,
-# "NN) [x] name" with the name padded to <width>
-function _hi_ask_item() {
-  local _hi_ai_n _hi_ai_x _hi_ai_w
-  _hi_pad_to _hi_ai_n 2 "$2" right
-  if [ "$3" = 1 ]; then _hi_paint _hi_ai_x "$BRGREEN" "[x]"; else _hi_paint _hi_ai_x "$RED" "[ ]"; fi
-  _hi_pad_to _hi_ai_w "$5" "$4"
-  printf -v "$1" '%b%s)%b %s %s' "$BRYELLOW" "$_hi_ai_n" "$NC" "$_hi_ai_x" "$_hi_ai_w"
-}
-
-# Every line collect_setting_lines decides on, written to $_HI_SETTINGS in
-# one go by run_configure. An ordered array, because config_shell compares
-# what it would write against what is there to decide whether the file is up
-# to date - so the write order has to be stable across runs.
-declare -a _HI_SETTING_LINES=()
-
-# The yes/no settings as tables, one row per setting, in the order they are
-# listed and written: <var>|<off-value>|<on-value>|<preview-fn>|
-# <label>. <on-value> is empty for a default-on toggle (off writes the
-# off-value, on writes nothing) and set for an opt-in (on writes it, off
-# writes nothing) - setting_on has the rule. <preview-fn> is boxed under the
-# menu after the row flips, for what the menu's own preview does not show.
-# <label> is the menu's name for it, and its
-# part before " - " is what the flip reports. The prompt's switch, off
-# altogether, is a feature toggle, and so in every preset's vocabulary. The
-# advanced items are the ones most installs never touch, listed last.
-#
-# _hi_settings_load fills them from scripts/settings, whose rows with a
-# <label> in the feature, prompt, and advanced sections are these items, so
-# adding a setting is one row there.
-_HI_FEATURE_PROMPTS=() _HI_PROMPT_PROMPTS=() _HI_ADVANCED_PROMPTS=()
+# Every row of scripts/settings as <name>, <section>, <check>, <default>, a
+# \x1f between (a default can be `|`), in the table's order, which is the block's. <default> is the value the shipped
+# default stands for: core.sh's $<name>_DEFAULT, else the row's <default>
+# cell when it is one code span, else empty (unset, or decided at run time).
+_HI_SETTING_ROWS=()
 function _hi_settings_load() {
-  local line sec name off on preview label item us=$'\x1f'
+  local line sec name def check dv us=$'\x1f'
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in '' | '#'*) continue ;; esac
-    # <section> | <name> | <default> | <off> | <on> | <preview> | <label> | ...
-    IFS="$us" read -r sec name _ off on preview label _ <<<"${line// | /$us}"
-    [ "$label" != - ] || continue
-    item="$name|${off#-}|${on#-}|${preview#-}|$label"
-    case "$sec" in
-    feature) _HI_FEATURE_PROMPTS+=("$item") ;;
-    prompt) _HI_PROMPT_PROMPTS+=("$item") ;;
-    advanced) _HI_ADVANCED_PROMPTS+=("$item") ;;
-    esac
+    # <section> | <name> | <default> | <check> | <hint> | <what it does>
+    IFS="$us" read -r sec name def check _ <<<"${line// | /$us}"
+    dv="${name}_DEFAULT"
+    if [ -n "${!dv:-}" ]; then
+      def="${!dv}"
+    else
+      case "$def" in
+      \`*\`) def="${def#\`}" def="${def%\`}" def="${def//\\|/|}" ;;
+      *) def="" ;;
+      esac
+    fi
+    _HI_SETTING_ROWS+=("$name$us$sec$us$check$us$def")
   done <"$_HI_ROOT/scripts/settings"
 }
 _hi_settings_load
 
-# _hi_prompt_rows <table-name> <outvar-array> - the table copied out by name
-# through eval rather than `local -n rows="$1"`: namerefs are bash 4.3 and
-# macOS ships bash 3.2. The ${a[@]+"${a[@]}"} guard one eval deeper: an empty
-# table would otherwise be an "unbound variable" on bash 3.2 rather than
-# nothing to ask.
-function _hi_prompt_rows() {
-  eval "$2=(\${$1[@]+\"\${$1[@]}\"})"
-}
-
 # <name>|<one-line description>|<var=value ...>: a starting point for the
-# feature, header, package-check, and prompt settings - the presets say
-# nothing about the header order, the advanced section, the width, or the
-# separators. A var the preset does not name goes back to its shipped
-# default, so a preset is an absolute answer rather than a delta on what the
-# file holds. Applied, its answers are what the menu shows and saves;
-# `--preset <name>` writes them without a hub at all. $_HI_PRESET_DEFAULT is
-# what a first install starts from when nobody picks: everything a target
-# gets, and this machine left as it is.
+# rows of the `preset` section. A preset row the preset does not name goes
+# back to its default, so a preset is an absolute answer, not a delta on the
+# file; a var outside the section (lean's _HI_PROMPT_TOOL) is set, and no
+# other preset changes it back. $_HI_PRESET_DEFAULT is what a first install
+# starts from when nobody picks.
 _HI_PRESET_DEFAULT=balanced
 _HI_PRESETS=(
   "everything|every feature on, here and on every target you hi to|_HI_PACKAGES_GROUPS=core,useful,deprecated"
@@ -361,82 +112,52 @@ _HI_PRESETS=(
   "lean|minimal, and nothing of yours rides: hi's own prompt, no plugin's config, ssh the only backend|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro,aliases,bash,zsh,fish,extensions,bin,env,starship,powerlevel10k,tide,oh-my-posh,oh-my-zsh,oh-my-bash,bash-it,eza,bat,rg,fzf,lazygit,git,readline,tmux,screen,zellij _HI_DISABLE_LOCAL=1 _HI_PROMPT_TOOL=hi _HI_BACKENDS_OFF=all"
 )
 
-# every variable a preset answers for: the feature and header yes/no tables,
-# plus the two lists - so "not named by the preset" can mean "back to the
-# default". _HI_PROMPT_TOOL (hi's prompt) stays out: it is taste, not a
-# feature level, and no preset resets it - as none touches the color scheme
-# or the packages ramp, which are the colors file's (GLOSSARY: HI.50). A
-# preset may still name a variable outside this
-# vocabulary, as `lean` does _HI_PROMPT_TOOL and _HI_BACKENDS_OFF: that one
-# is set, and no other preset changes it back.
-function _hi_preset_vocab() {
-  local row
-  for row in "${_HI_FEATURE_PROMPTS[@]}"; do
-    printf '%s\n' "${row%%|*}"
-  done
-  # the one feature toggle listed under Prompt rather than Features
-  printf '%s\n' _HI_DISABLE_PROMPT _HI_PACKAGES_GROUPS _HI_PLUGINS_OFF
-}
-
 # preset_row <name> - its table row, or failure for a name that is not one
-# The three helpers take an optional table name so the header presets can use
-# them too: _HI_HEADER_PRESETS is the same `name|desc|payload` shape, so
-# config_header_preset shares the listing, the row lookup, and the
-# first-letter match - with its ambiguity guard and exact-name-first order -
-# rather than carrying a third copy.
 function preset_row() {
   local row
-  local -a _hi_pr_rows
-  _hi_prompt_rows "${2:-_HI_PRESETS}" _hi_pr_rows
-  for row in "${_hi_pr_rows[@]}"; do
-    [ "${row%%|*}" = "$1" ] && {
-      printf '%s' "$row"
-      return 0
-    }
+  for row in "${_HI_PRESETS[@]}"; do
+    [ "${row%%|*}" = "$1" ] || continue
+    printf '%s' "$row"
+    return 0
   done
   return 1
 }
 
 function preset_names() {
   local row out=""
-  local -a _hi_names_rows
-  _hi_prompt_rows "${1:-_HI_PRESETS}" _hi_names_rows
-  for row in "${_hi_names_rows[@]}"; do out="$out${out:+ }${row%%|*}"; done
+  for row in "${_HI_PRESETS[@]}"; do out="$out${out:+ }${row%%|*}"; done
   printf '%s' "$out"
 }
 
-# preset_shorthand <letter> - the one preset whose name starts with <letter>,
-# or failure for anything but a single character or a letter two names share.
-# Ambiguous or unknown falls through to preset_row's own "no such preset"
-# error rather than guessing, so a typo still gets the full name list back.
+# preset_shorthand <letter> - the one preset whose name starts with <letter>;
+# failure for anything else, so preset_row's error lists the names
 function preset_shorthand() {
-  local row name hit="" hits=0
-  local -a _hi_ps_rows
+  local row hit="" hits=0
   [ "${#1}" -eq 1 ] || return 1
-  _hi_prompt_rows "${2:-_HI_PRESETS}" _hi_ps_rows
-  for row in "${_hi_ps_rows[@]}"; do
-    name="${row%%|*}"
-    if [ "${name:0:1}" = "$1" ]; then
-      hit="$name"
-      hits=$((hits + 1))
-    fi
+  for row in "${_HI_PRESETS[@]}"; do
+    [ "${row:0:1}" = "$1" ] || continue
+    hit="${row%%|*}"
+    hits=$((hits + 1))
   done
   [ "$hits" -eq 1 ] || return 1
   printf '%s' "$hit"
 }
 
-# apply_preset <name> - seed this run's answers with the preset's, one per
-# vocabulary variable (empty for "the default"), so the menu starts there and
-# a --preset run writes exactly the preset.
+# apply_preset <name> - this run's answers from the preset: every preset row
+# back to its default, then the preset's values
 function apply_preset() {
-  local row values var value pair vocab extra=""
+  local row values name sec pair vocab="" extra=""
   row="$(preset_row "$1")" || {
     _hi_cecho " no such preset: $1 (one of: $(preset_names))" "$RED" >&2
     return 1
   }
   values="${row##*|}"
-  vocab="$(_hi_preset_vocab | tr '\n' ' ')"
-  for var in $vocab; do _hi_pending_set "$var" ""; done
+  for row in "${_HI_SETTING_ROWS[@]}"; do
+    IFS=$'\x1f' read -r name sec _ <<<"$row"
+    [ "$sec" = preset ] || continue
+    vocab="$vocab $name"
+    _hi_pending_set "$name" ""
+  done
   # shellcheck disable=SC2086 # the split is the point: one var=value a word
   for pair in $values; do
     _hi_pending_set "${pair%%=*}" "${pair#*=}"
@@ -446,178 +167,80 @@ function apply_preset() {
   [ -z "$extra" ] || _hi_cecho " it also sets $extra, which no other preset changes back" "$BLUE"
 }
 
-# config_first_install - all an install asks a terminal, and only while
-# there is no settings.sh: which preset to start from, each a plain sentence,
-# $_HI_PRESET_DEFAULT the default; whether hi styles this machine is in the
-# pick (only everything does). The menu is hi --configure's.
-function config_first_install() {
-  local reply="" short
-  if [ -f "$_HI_SETTINGS" ]; then
-    _hi_cecho " your settings stay as they are - hi --configure changes them" "$GREEN"
-    return 0
-  fi
+# config_pick_preset <default> - the one question: which preset, by its
+# letter or name. Enter takes <default>, or keeps the file where it is empty;
+# a name that is no preset keeps it too.
+function config_pick_preset() {
+  local reply="" short enter="Enter keeps your settings" shown=keep
+  [ -z "$1" ] || enter="Enter is $1" shown="$1"
   _hi_cecho " How much of hi rides along? One of:" "$BLUE"
-  _hi_preset_list _HI_PRESETS 13
-  menu_read " Start from which? (the bracketed letter or the name; Enter is $_HI_PRESET_DEFAULT) [$_HI_PRESET_DEFAULT] " reply || reply=""
-  [ -n "$reply" ] || reply="$_HI_PRESET_DEFAULT"
-  short="$(preset_shorthand "$reply")" && reply="$short"
-  apply_preset "$reply" || {
-    _hi_cecho " ...so $_HI_PRESET_DEFAULT, the default, applies" "$YELLOW"
-    apply_preset "$_HI_PRESET_DEFAULT"
-  }
-  _hi_cecho " hi --configure has every other setting" "$BLUE"
-}
-
-# The menu's [p]: pick a preset to start from, or Enter to leave things as
-# they are. One shot, not a loop - a typo gets the name list back and the
-# menu comes round again.
-function config_preset() {
-  [ -t 0 ] || return 0
-  local reply="" short
-  _hi_h2 "Starting point"
-  _hi_cecho " A preset answers the feature and header settings at once; change any of them after." "$BLUE"
-  _hi_preset_list _HI_PRESETS 13
-  menu_read " Start from a preset? (the bracketed letter or the full name; Enter keeps your current settings) [keep] " reply || return 0
+  _hi_preset_list
+  menu_read " Start from which? (the bracketed letter or the name; $enter) [$shown] " reply || reply=""
+  [ -n "$reply" ] || reply="$1"
   [ -n "$reply" ] || return 0
   short="$(preset_shorthand "$reply")" && reply="$short"
-  apply_preset "$reply" || return 0
-  return 0
+  apply_preset "$reply" || {
+    [ -n "$1" ] || return 0
+    _hi_cecho " ...so $1, the default, applies" "$YELLOW"
+    apply_preset "$1"
+  }
 }
 
-# What a run is about to do, said once up front: how the menu works, where
-# the answers go, and that nothing is written until `s` - so ^C or `q` at
-# any point leaves settings.sh exactly as it was. Interactive only; a run
-# with no tty has nobody to orient.
-function configure_intro() {
-  [ -t 0 ] || return 0
-  local state="none yet - defaults apply" file="$_HI_SETTINGS"
-  # no `|| echo 0`: grep -c already prints 0 on no match, then exits 1
-  [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null) setting(s) stored"
-  case "$file" in "$HOME"/*) file="~${file#"$HOME"}" ;; esac
-  _hi_menu_cols _HI_MENU_W
-  _hi_menu_say "A row's key opens or flips it and [b] comes back; a number sets an item." "$BLUE"
-  _hi_menu_say "Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
-  _hi_menu_say "settings: $file ($state)" "$BLUE"
-}
+# Every line of the block, in scripts/settings' order: a setting whose value
+# is set and not its default as `export NAME=value`, every other as that line
+# commented, at the default. Written in one call by run_configure, in a
+# stable order, since config_shell compares the block to decide whether the
+# file is up to date.
+_HI_SETTING_LINES=()
 
-# the menu: its pages, the hub, the header editor, and the group and plugin flips
-# shellcheck source=./configure_menu.sh
-source "$_HI_ROOT/scripts/configure_menu.sh"
-
-# Which addresses the header's ip cell leaves out - header.sh's
-# _hi_ip_filter reads it. The shipped default (core.sh's
-# $_HI_IP_HIDE_DEFAULT, the container and VM bridges) typed clears the
-# override, as config_max_width's does; `none` shows every address.
-function config_ip_hide() {
-  ask_setting_value _HI_IP_HIDE "Hide which addresses from the ip cell (globs over addresses or interface names, space-separated, or none)?"
-}
-
-# Ask for the header/banner's terminal width. Entering the default (core.sh's
-# $_HI_MAX_WIDTH_DEFAULT) clears the override instead of writing it out.
-function config_max_width() {
-  ask_setting_value _HI_MAX_WIDTH "Terminal width for the header/banner (40 or more)?"
-}
-
-# config_prompt_end <shell> - the character <shell>'s prompt ends with. The
-# shipped default comes from core.sh's _hi_prompt_end_default rather than
-# being spelled here a second time; entering it clears the override, as
-# config_max_width does with 80. Values are single-quoted on the way out (a
-# separator is as likely to be `$` as a letter), so `'` itself is refused.
-function config_prompt_end() {
-  local shell
-  _hi_shell_var shell "$1"
-  ask_setting_value "_HI_PROMPT_END_$shell" "Character to end the $1 prompt with?" "$(_hi_prompt_end_default "$shell")"
-}
-
-# The 24-bit color verdict. It keeps its current value on Enter and clears
-# the override when the answer is the shipped default, like config_max_width.
-#
-# $_HI_TRUECOLOR is an unset/1/0 flag asked in words: "1" is a fact about the
-# implementation rather than an answer, so the words map in on the way to the
-# question and back out on the way to the file. `on` is the answer under tmux,
-# which hides COLORTERM. Glyphs are not asked at all - the locale
-# decides, and the client ships its verdict to the session (docs/SETTINGS.md's
-# _Not settings_).
-function config_truecolor() {
-  local current value choice
-  setting_value _HI_TRUECOLOR "$_HI_SETTINGS" current
-  case "$current" in 1) choice=on ;; 0) choice=off ;; *) choice="" ;; esac
-  value="$(ask_value "24-bit color for a scheme's hex: auto (by COLORTERM), on (under tmux, say), or off?" \
-    "$choice" auto _hi_is_truecolor_choice "answer auto, on, or off")"
-  case "$value" in on) value=1 ;; off) value=0 ;; *) value="" ;; esac
-  _hi_pending_set _HI_TRUECOLOR "$value"
-}
-
-# The roster, walked once at save time: every setting the wizard writes, in
-# the order its line lands in settings.sh. A yes/no row writes its off-value
-# when off (a default-on toggle) or its on-value when on (an opt-in) and
-# nothing otherwise; a value writes when it is set and is not the shipped
-# default - ask_value already blanks a typed default, and this applies the
-# same rule to what the file held. Nothing is dropped for being moot: a
-# header order stored while the header is off is there again when it comes
-# back on.
-function _hi_collect_group() {
-  local row var off on rest
-  local -a rows=()
-  _hi_prompt_rows "$1" rows
-  for row in ${rows[@]+"${rows[@]}"}; do
-    IFS='|' read -r var off on rest <<<"$row"
-    if [ -n "$on" ]; then
-      setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && _HI_SETTING_LINES+=("export $var=$on")
-    else
-      setting_on "$var" "$_HI_SETTINGS" "$off" || _HI_SETTING_LINES+=("export $var=$off")
-    fi
-  done
-}
-
-# _hi_collect_value <var> <default> [quoted] - one value line, or none. A
-# value holding whitespace is quoted whether or not the caller asked: the
-# line has to parse as sh and fish both, and a bare word is the only form
-# that does so unquoted.
-function _hi_collect_value() {
-  local var="$1" default="$2" quoted="${3:-}" value=""
-  setting_value "$var" "$_HI_SETTINGS" value
-  [ -n "$value" ] && [ "$value" != "$default" ] || return 0
-  case "$value" in *[[:space:]]*) quoted=1 ;; esac
-  if [ -n "$quoted" ]; then
-    _HI_SETTING_LINES+=("export $var='$value'")
-  else
-    _HI_SETTING_LINES+=("export $var=$value")
+# _hi_setting_line <outvar> <name> <check> <value> - the export line, the
+# value single-quoted where it is a list or free text or holds whitespace,
+# and a ' in it written '\'' (which sh and fish both read)
+function _hi_setting_line() {
+  local _hi_sl_v="$4" _hi_sl_q="'\\''"
+  if [ -z "$_hi_sl_v" ]; then
+    printf -v "$1" 'export %s=' "$2"
+    return 0
   fi
+  case "$3" in
+  toggle | flag | number:* | duration | prompts | editor)
+    case "$_hi_sl_v" in
+    *[[:space:]]* | *\'*) ;;
+    *)
+      printf -v "$1" 'export %s=%s' "$2" "$_hi_sl_v"
+      return 0
+      ;;
+    esac
+    ;;
+  esac
+  printf -v "$1" "export %s='%s'" "$2" "${_hi_sl_v//\'/$_hi_sl_q}"
 }
 
 function collect_setting_lines() {
-  local row name shell
-  _HI_SETTING_LINES=()
-  _hi_collect_value _HI_HEADER_ORDER "$_HI_HEADER_ORDER_DEFAULT" quoted
-  _hi_collect_value _HI_PACKAGES_GROUPS "$_HI_PACKAGES_GROUPS_DEFAULT" quoted
-  _hi_collect_value _HI_IP_HIDE "$_HI_IP_HIDE_DEFAULT" quoted
-  _hi_collect_value _HI_MAX_WIDTH "$_HI_MAX_WIDTH_DEFAULT"
-  _hi_collect_group _HI_FEATURE_PROMPTS
-  _hi_collect_value _HI_PLUGINS_OFF "" quoted
-  _hi_collect_value _HI_PLUGINS_ON "" quoted
-  _hi_collect_group _HI_PROMPT_PROMPTS
-  _hi_collect_value _HI_PROMPT_TOOL ""
-  _hi_collect_value _HI_BACKENDS_OFF "" quoted
-  for row in "${_HI_SHELL_TABLE[@]}"; do
-    name="${row%%|*}"
-    _hi_shell_var shell "$name"
-    _hi_collect_value "_HI_PROMPT_END_$shell" "$(_hi_prompt_end_default "$shell")" quoted
+  local row name check def value line
+  _HI_SETTING_LINES=("# every setting, a line each: a # in front leaves it at its default, and hi --doctor checks the rest")
+  for row in "${_HI_SETTING_ROWS[@]}"; do
+    IFS=$'\x1f' read -r name _ check def <<<"$row"
+    setting_value "$name" "$_HI_SETTINGS" value
+    if [ -n "$value" ] && [ "$value" != "$def" ]; then
+      _hi_setting_line line "$name" "$check" "$value"
+    else
+      _hi_setting_line line "$name" "$check" "$def"
+      line="# $line"
+    fi
+    _HI_SETTING_LINES+=("$line")
   done
-  _hi_collect_group _HI_ADVANCED_PROMPTS
-  _hi_collect_value _HI_TRUECOLOR ""
 }
 
-# A line written by hand - `export _HI_TRUECOLOR=1` with no marker, the
-# way COLORS.md says to force 24-bit color - is read by
-# setting_value (it sources the file) and then written again as a marker
-# line, and the two then survive every later run. Adopted instead: for every
-# name this run writes, the un-marked line goes and the marker line carries
-# its value. A hand line for a name this run does not write stays as it is.
+# A line written by hand outside the block - `export _HI_TRUECOLOR=1`, the
+# way COLORS.md says to force 24-bit color - is read by setting_value and
+# would then be written twice. Adopted instead: for every name the block
+# sets, the un-marked line goes and the block's carries its value.
 function settings_adopt_hand_lines() {
   local line name
   [ -f "$_HI_SETTINGS" ] || return 0
-  for line in ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}; do
+  for line in "${_HI_SETTING_LINES[@]}"; do
+    case "$line" in export\ *) ;; *) continue ;; esac
     name="${line#export }"
     name="${name%%=*}"
     # not `grep -q`: under pipefail its early exit SIGPIPEs the writer (SYNTAX.md)
@@ -630,13 +253,10 @@ function settings_adopt_hand_lines() {
   done
 }
 
-# $_HI_SETTINGS is hi's own file, not one of the user's rc files, and it
-# holds nothing but `export NAME=value` lines - so it gets a real `#!/bin/sh`
-# line 1, which every shell that sources it (sh, bash, zsh, fish) reads as a
-# comment and which lets editors, `file`, and shellcheck see a POSIX sh script
-# rather than an anonymous fragment. Any other shebang is replaced rather than
-# left alongside: dash and fish both source this, so sh is the only correct one.
-# config_shell rewrites only its own marker-tagged block, so this line stays.
+# $_HI_SETTINGS holds only `export NAME=value` lines and comments, so it gets
+# a real `#!/bin/sh` line 1, which every shell that sources it reads as a
+# comment; any other shebang is replaced. config_shell keeps it, outside its
+# block.
 function ensure_settings_shebang() {
   local shebang='#!/bin/sh' first="" tmpfile
   if [ -f "$_HI_SETTINGS" ]; then
@@ -657,11 +277,9 @@ function ensure_settings_shebang() {
   _hi_write_back "$tmpfile" "$_HI_SETTINGS"
 }
 
-# What this run changed, as +/- lines against the block settings.sh held
-# before it: a diff of the two line sets rather than of the file, since
-# config_shell rewrites the block in a stable order and a moved line is not a
-# change. Read before config_shell writes; printed after, so the report sits
-# beside the "updated" line it explains.
+# What this run changed, as +/- lines against the block's export lines
+# before it: a diff of line sets, since a moved line is no change. Read
+# before config_shell writes, printed after.
 function settings_diff_before() {
   local line
   _HI_SETTINGS_BEFORE=()
@@ -669,9 +287,7 @@ function settings_diff_before() {
   while IFS= read -r line; do
     line="${line%"$_HI_MARKER"}"
     line="${line%"${line##*[![:space:]]}"}"
-    # the block's shape line is no setting
-    case "$line" in '' | '# say-hi settings '*) continue ;; esac
-    _HI_SETTINGS_BEFORE+=("$line")
+    case "$line" in export\ *) _HI_SETTINGS_BEFORE+=("$line") ;; esac
   done < <(grep -F "$_HI_MARKER" "$_HI_SETTINGS" || true)
 }
 
@@ -686,65 +302,51 @@ function _hi_in_list() {
 }
 
 function settings_diff_report() {
-  local line other changes=0
-  for line in ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}; do
-    [ -n "$line" ] || continue
-    _hi_in_list "$line" ${_HI_SETTINGS_BEFORE[@]+"${_HI_SETTINGS_BEFORE[@]}"} || {
-      _hi_cecho "   + $line" "$GREEN"
-      changes=$((changes + 1))
-    }
+  local line changes=0
+  for line in "${_HI_SETTING_LINES[@]}"; do
+    case "$line" in export\ *) ;; *) continue ;; esac
+    _hi_in_list "$line" ${_HI_SETTINGS_BEFORE[@]+"${_HI_SETTINGS_BEFORE[@]}"} && continue
+    _hi_cecho "   + $line" "$GREEN"
+    changes=$((changes + 1))
   done
-  for other in ${_HI_SETTINGS_BEFORE[@]+"${_HI_SETTINGS_BEFORE[@]}"}; do
-    _hi_in_list "$other" ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} || {
-      _hi_cecho "   - $other (back to the default)" "$YELLOW"
-      changes=$((changes + 1))
-    }
+  for line in ${_HI_SETTINGS_BEFORE[@]+"${_HI_SETTINGS_BEFORE[@]}"}; do
+    _hi_in_list "$line" "${_HI_SETTING_LINES[@]}" && continue
+    _hi_cecho "   - $line (back to the default)" "$YELLOW"
+    changes=$((changes + 1))
   done
   [ "$changes" = 0 ] && _hi_cecho "   no changes" "$GREEN"
   return 0
 }
 
 # The sequence, then the one write. $1 is a preset name, or empty: with one,
-# its answers are taken as final and the hub never opens - what a run with no
-# tty gets as well, minus the preset. `q` at the hub returns without writing
-# and leaves _HI_CONFIGURE_QUIT set for install.sh's closing line to read.
+# nothing is asked. A terminal is asked for a preset - on a first install
+# with $_HI_PRESET_DEFAULT on Enter, under --configure with Enter keeping the
+# file. With no terminal a first install takes the default preset, and
+# --configure, which has only the question and the editor to offer, refuses.
 function run_configure() {
   local preset="${1:-}"
-  _HI_CONFIGURE_QUIT=""
-  _hi_load_preview_sources
-  # the menu's own instructions, for the runs that can open it
-  [ -z "$preset" ] && [ -z "${_HI_FEATURES_ONLY:-}" ] || configure_intro
   if [ -n "$preset" ]; then
     apply_preset "$preset" || return 1
-  elif [ -t 0 ] && [ -z "${_HI_FEATURES_ONLY:-}" ]; then
-    config_first_install
-  elif [ -t 0 ]; then
-    config_hub
+  elif [ -t 0 ] && [ -n "${_HI_FEATURES_ONLY:-}" ]; then
+    config_pick_preset ""
   elif [ -n "${_HI_FEATURES_ONLY:-}" ]; then
-    # the menu is this run's whole job, and there is nobody to answer it
-    _hi_cecho " ${_HI_ME:-hi --configure}: no terminal for the menu - --preset <name> answers it without one (one of: $(preset_names))" "$RED" >&2
+    _hi_cecho " ${_HI_ME:-hi --configure}: no terminal to ask or edit at - --preset <name> answers without one (one of: $(preset_names)), and hi --edit settings.sh opens the file" "$RED" >&2
     return 1
-  elif [ ! -f "$_HI_SETTINGS" ]; then
-    # a first install with nobody to ask starts where a terminal's Enter would
-    _hi_cecho " no terminal for the settings menu - the $_HI_PRESET_DEFAULT preset applies; hi --configure at a terminal, or --preset <name>, changes it" "$YELLOW"
-    apply_preset "$_HI_PRESET_DEFAULT"
+  elif [ -f "$_HI_SETTINGS" ]; then
+    _hi_cecho " your settings stay as they are - hi --configure changes them" "$GREEN"
+  elif [ -t 0 ]; then
+    config_pick_preset "$_HI_PRESET_DEFAULT"
+    _hi_cecho " hi --configure opens every other setting in your editor" "$BLUE"
   else
-    _hi_cecho " no terminal for the settings menu - your settings stay; hi --configure at a terminal, or --preset <name>, changes them" "$YELLOW"
-  fi
-  if [ -n "$_HI_CONFIGURE_QUIT" ]; then
-    _hi_cecho " nothing written - $_HI_SETTINGS is as it was" "$GREEN"
-    return 0
+    _hi_cecho " no terminal to ask - the $_HI_PRESET_DEFAULT preset applies; hi --configure at a terminal, or --preset <name>, changes it" "$YELLOW"
+    apply_preset "$_HI_PRESET_DEFAULT"
   fi
   collect_setting_lines
   settings_adopt_hand_lines
   ensure_settings_shebang
   settings_diff_before
-  # ${a[@]+"${a[@]}"}, not a plain "${a[@]}": on bash 3.2 (macOS) expanding
-  # an *empty* array under `set -u` is a fatal "unbound variable", and
-  # every setting at its default leaves exactly that - no lines to write.
   # The block opens on its shape line, which convert_settings.sh and
   # hi --doctor read in place of guessing the shape from the rows.
-  config_shell settings "$_HI_SETTINGS" "# say-hi settings $_HI_SETTINGS_SHAPE" \
-    ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} || return 1
+  config_shell settings "$_HI_SETTINGS" "# say-hi settings $_HI_SETTINGS_SHAPE" "${_HI_SETTING_LINES[@]}" || return 1
   settings_diff_report
 }

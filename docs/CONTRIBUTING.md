@@ -199,8 +199,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `--print-rc`, `--preset <name>`, and `-n`/`--dry-run`, `--uninstall --purge`
   and `--uninstall --dry-run`,
   `--configure --preset <name>` and `--configure --dry-run`,
-  `--update --dry-run`, `--add-package --dry-run`, `--remove-package --dry-run`,
-  `--add-tag --dry-run`, `--add-color --dry-run`, `--remove-color --dry-run`,
+  `--update --dry-run`, `--add-tag --dry-run`,
   `--disable-plugin --dry-run`, `--enable-plugin --dry-run`,
   `scripts/install.sh --prefix <dir>` — name and
   meaning (`-n` is the short form of `--dry-run` wherever it appears, `-y` of
