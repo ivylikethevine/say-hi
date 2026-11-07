@@ -316,6 +316,22 @@ function _hi_shell_rows() {
   printf '%s\n' "${_HI_SHELL_TABLE[@]}"
 }
 
+# _hi_editor_cmd <outvar> - the editor hi --edit and hi --configure open:
+# the first of $VISUAL, $EDITOR, $_HI_EDITOR that names a command here (a
+# value may carry flags, so its first word is looked up), else the first of
+# $_HI_EDITORS on PATH; 1 for none
+function _hi_editor_cmd() {
+  local _hi_ec
+  # shellcheck disable=SC2086 # $_HI_EDITORS is a word list
+  for _hi_ec in "${VISUAL:-}" "${EDITOR:-}" "${_HI_EDITOR:-}" $_HI_EDITORS; do
+    [ -n "$_hi_ec" ] || continue
+    command -v "${_hi_ec%% *}" >/dev/null 2>&1 || continue
+    printf -v "$1" '%s' "$_hi_ec"
+    return 0
+  done
+  return 1
+}
+
 # _hi_setting_get <file> <name> [outvar] - what <name> holds after sourcing
 # <file>, or rc 1 when it never gets set. A subshell sources the file for real
 # (only <name> unset) rather than a hand-rolled grammar, so it agrees with
@@ -344,10 +360,9 @@ function _hi_color_escape() {
   _hi_out "${2:-}" "$_hi_ce"
 }
 
-# What a settings.sh value may be, one predicate per shape. The wizard takes
-# an answer by these (scripts/configure.sh), and doctor_config judges a
-# hand-written line by the same ones, so a value the menu would refuse is
-# named rather than silently falling back to the default.
+# What a settings.sh value may be, one predicate per shape: doctor_config
+# judges each line by them, so a value the code would fall back from is
+# named rather than silently ignored.
 function _hi_is_number() { [[ "$1" =~ ^[0-9]+$ ]]; }
 # $_HI_PACKAGES_GROUPS: `none`, or group names separated by spaces or commas
 function _hi_is_package_groups() {
@@ -465,8 +480,8 @@ function _hi_setting_rules() {
   local _hi_sr_l _hi_sr_n _hi_sr_c _hi_sr_us=$'\x1f'
   while IFS= read -r _hi_sr_l || [ -n "$_hi_sr_l" ]; do
     case "$_hi_sr_l" in '' | '#'*) continue ;; esac
-    # <section>, <name>, <default>, <off>, <on>, <preview>, <label>, <check>, <hint>
-    IFS="$_hi_sr_us" read -r _ _hi_sr_n _ _ _ _ _ _hi_sr_c _hi_sr_l _ <<<"${_hi_sr_l// | /$_hi_sr_us}"
+    # <section>, <name>, <default>, <check>, <hint>
+    IFS="$_hi_sr_us" read -r _ _hi_sr_n _ _hi_sr_c _hi_sr_l _ <<<"${_hi_sr_l// | /$_hi_sr_us}"
     [ "$_hi_sr_c" != - ] || continue
     case "$_hi_sr_c" in
     header) _hi_sr_l="$_hi_sr_l $_HI_HEADER_ORDER_DEFAULT" ;;

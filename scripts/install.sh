@@ -3,7 +3,7 @@
 # Safe to re-run: it repairs the lines it owns and leaves everything else alone.
 #
 # The entry point only: flags, the modes, and the hi.sh link and packaging
-# halves. The rc-file ownership is scripts/rc.sh and the settings wizard is
+# halves. The rc-file ownership is scripts/rc.sh and the settings write is
 # scripts/configure.sh, both sourced below. --uninstall is the exact inverse
 # and lives here rather than in a script of its own: both halves own the same
 # marker-tagged lines and the same symlink, and split across two files the
@@ -100,21 +100,17 @@ EOF
     ;;
   configure)
     cat <<EOF
-Revisit the settings, leaving the rc wiring and the hi link alone: a table of
-the pages - Header with its cells and package check, Prompt, Plugins and a
-page a group of them - with l and t for whether this machine and the targets
-are styled, a key each for the alias, leading space, --keep and 24-bit color
-settings, p for a preset, s to save, q to leave the file alone. Answers go to
-\${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/settings.sh.
+Revisit the settings, leaving the rc wiring and the hi link alone: pick a
+preset to start from (Enter keeps what you have), then edit
+\${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/settings.sh in your editor. Every
+setting is a line there, a # in front of one at its default; hi --doctor
+checks what you write.
 
-  --preset <name>  Answer the feature and header settings from a
-                   preset - everything, balanced, minimal, or lean -
-                   without the menu, and write that. The same presets are the menu's
-                   first item. The header order, the width, the prompt
-                   separators, the prompt program, and the advanced
-                   settings keep what they hold.
-  -n, --dry-run    Say what would be written to settings.sh and write
-                   nothing; s in the menu reports instead of saving.
+  --preset <name>  Answer the preset's settings - everything, balanced,
+                   minimal, or lean - write that, and open no editor.
+                   The settings no preset answers keep what they hold.
+  -n, --dry-run    Say what would be written to settings.sh, write
+                   nothing, and open no editor.
 EOF
     ;;
   *)
@@ -122,7 +118,7 @@ EOF
 Wires up your shells to source this say-hi checkout - the login shell, and
 any other with an rc file already - and links hi.sh into ~/.local/bin. A
 first install asks a terminal one thing, which preset to start from
-(--preset answers without asking); hi --configure has the settings menu.
+(--preset answers without asking); hi --configure opens the rest.
 Nothing else is copied into
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi: the tree's colors and packages stay
 in force until you copy one there yourself and edit it
@@ -152,16 +148,15 @@ you don't own.
                    rc file a dotfile manager owns: the block names the tree
                    through \$HOME, so one rc serves every machine, and a later
                    install leaves it alone. Everything else is done as usual.
-  --preset <name>  Answer the feature and header settings from a
-                   preset - everything, balanced, minimal, or lean -
-                   and ask nothing. The same presets are the menu's first item.
+  --preset <name>  Answer the preset's settings - everything, balanced,
+                   minimal, or lean - and ask nothing.
   -n, --dry-run    Say what would be written - rc lines, settings.sh, the
                    link - and write nothing. The question is still asked.
 EOF
     [ -n "${_HI_ARGV0:-}" ] || cat <<EOF
 
 The script-only modes, one per run:
-  --configure      The settings menu alone - what \`hi --configure\` runs.
+  --configure      The settings alone - what \`hi --configure\` runs.
   --uninstall      The inverse of the install - what \`hi --uninstall\` runs.
   --prefix <dir>   Packaging mode (also entered by setting \$DESTDIR): copy
                    the tree to \$DESTDIR<dir>/say-hi, link <dir>/say-hi/hi.sh in
@@ -618,18 +613,23 @@ fi
 # --configure touches no rc file, so it has none to syntax-check
 [ -n "$_HI_FEATURES_ONLY" ] || config_validate_shells
 
-# overlay files an older hi wrote, rewritten before the menu reads them
+# overlay files an older hi wrote, rewritten before the settings are read
 bash "$_HI_ROOT/scripts/convert_settings.sh" ${_HI_DRY_RUN:+--dry-run} || exit 1
 
 run_configure "$_HI_PRESET" || exit 1
 
 if [ -n "$_HI_FEATURES_ONLY" ]; then
-  if [ -n "$_HI_CONFIGURE_QUIT" ]; then
-    _hi_h1 "Settings left as they were"
-  else
-    _hi_done "Features updated!"
-  fi
-  exit 0
+  _hi_done "Features updated!"
+  # the rest is the file's: opened only where a terminal asked for it
+  [ -z "$_HI_PRESET" ] && [ -z "$_HI_DRY_RUN" ] && [ -t 0 ] && [ -t 1 ] || exit 0
+  _hi_editor=""
+  _hi_editor_cmd _hi_editor || {
+    _hi_cecho " no editor found - set \$EDITOR, then hi --edit settings.sh opens $_HI_SETTINGS" "$YELLOW"
+    exit 0
+  }
+  _hi_cecho " opening $_HI_SETTINGS in ${_hi_editor%% *} - hi --doctor checks it after" "$BLUE"
+  # shellcheck disable=SC2086 # the editor's value is a command and its flags, split on purpose
+  exec $_hi_editor "$_HI_SETTINGS"
 fi
 
 _hi_rc_failed=""

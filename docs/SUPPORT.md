@@ -57,10 +57,6 @@ request is written again; what that pass left _open_ is
 [the roadmap](ROADMAP.md). A turned-down entry is not
 permanent - it is the argument to beat.
 
-- **A three-way "prompt: auto / hi / off" menu item.** It needs a cycling
-  item kind the wizard does not have; moving `_HI_DISABLE_PROMPT` under the
-  _Prompt_ heading beside the `hi` toggle, with the toggle saying when it is
-  moot, gets the pair read as one decision without new machinery.
 - **Renaming a user's overlay files for them in `hi --update`.** hi writes
   into `~/.config/say-hi/` only what the user asked it to write, by name, on
   the command line (`settings.sh`, and the `packages`, `colors` or `plugins`

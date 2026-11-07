@@ -65,7 +65,7 @@ function lint_glossary_tags() {
 }
 
 # scripts/settings is every setting, a row each: docs/SETTINGS.md's table is
-# written from it and `hi --configure` reads its items from it, so there is
+# written from it and `hi --configure` writes a line for each, so there is
 # no second roster to hold it to. What is left to check is the rows against
 # what the doc says elsewhere and what the shipped tree reads.
 function lint_settings_table() {
@@ -221,7 +221,7 @@ function lint_setting_checks() {
   local excused=" _HI_DISABLE_LEAD_SPACE _HI_DISABLE_RIGHT_EDGE _HI_DISABLE_KEEP _HI_DISABLE_CONTROLMASTER "
   _hi_h2 "Checking scripts/settings' <check> column"
   kinds=" $(sed -n 's/^_HI_SETTING_CHECKS="\(.*\)"$/\1/p' "$_HI_ROOT/scripts/lib.sh") "
-  rows="$(awk -F' [|] ' '!/^#/ && NF > 9 { print $2 " " $8 }' "$_HI_ROOT/scripts/settings")"
+  rows="$(awk -F' [|] ' '!/^#/ && NF > 5 { print $2 " " $4 }' "$_HI_ROOT/scripts/settings")"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   if [ "$kinds" = "  " ] || [ -z "$rows" ]; then
     _hi_lint_fail " | no \$_HI_SETTING_CHECKS in scripts/lib.sh, or no row with a <check>" "checks: nothing to compare"

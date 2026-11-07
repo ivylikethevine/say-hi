@@ -109,7 +109,7 @@ All **package**, never in the payload.
 | `scripts/pack.sh`                 | The packer `hi.sh` sources on a client: the overlay table and the plugins rows, the include scan, the comment strip, and the cached tars a connect sends. A session has none, and relays its tree as it stands ([HI.66](GLOSSARY.md#hi66-the-packer-stays-home)). |
 | `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                                                                                                                      |
 | `scripts/table.sh`                | The display the scripts draw through: column padding, the pieces a line is painted from, the boxed table the previews draw, and the section of rows `hi --doctor` and `hi --plugins` report in.                                                                   |
-| `scripts/settings`                | Every setting, a row each: `docs/SETTINGS.md`'s _Every setting_ table is written from it, and `hi --configure` reads its menu items from it.                                                                                                                      |
+| `scripts/settings`                | Every setting, a row each: `docs/SETTINGS.md`'s _Every setting_ table is written from it, and `hi --configure` writes a `settings.sh` line for each.                                                                                                              |
 
 ### packaging/
 

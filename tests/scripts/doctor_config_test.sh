@@ -40,7 +40,7 @@ function test_config_leaves_a_members_source_to_the_files_table() {
   printf 'a\nb\n' >"$dir/colors"
   printf 'set number\n' >"$dir/.vimrc"
   out="$(HOME="$dir" _hi_doc_at "$dir" doctor_config)"
-  [[ "$out" == *"toggles"* && "$out" != *colors* && "$out" != *packages* && "$out" != *vimrc* ]] || _hi_why out
+  [[ "$out" == *"defaults apply"* && "$out" != *colors* && "$out" != *packages* && "$out" != *vimrc* ]] || _hi_why out
 }
 
 # an ssh config with a `# Tags:` line is a row saying the tags ride; one
@@ -333,7 +333,7 @@ function test_config_reports_a_settings_file_that_parses() {
     doctor_config
     doctor_configs
   )"
-  [[ "$out" == *"settings.sh"*"parses (sh)"* && "$out" == *"all defaults"* ]] || _hi_why out || return 1
+  [[ "$out" == *"settings.sh"*"parses (sh)"* ]] || _hi_why out || return 1
   # and exactly once per parser, not once more from a hand-written arm
   got="$(printf '%s\n' "$out" | grep -c "settings.sh.*parses (sh)")"
   [ "$got" -eq 1 ] || _hi_why got out
@@ -453,33 +453,6 @@ function test_config_flags_a_settings_file_that_is_not_fish() {
   out="$(_hi_doc_at "$dir" doctor_configs)"
   [[ "$out" == *"settings.sh"*"parses (sh)"* ]] || _hi_why out || return 1
   [[ "$out" == *"settings.sh"*"has issues (fish)"* ]] || _hi_why out
-}
-
-# a non-default toggle is a row of its own - the one thing about a session
-# that a target-side report cannot see, named here so it is not a mystery
-function test_config_lists_a_non_default_toggle() {
-  local dir="$_HI_WORKDIR/toggled" out
-  mkdir "$dir"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_GIT_STATUS=1
-    doctor_config
-  )"
-  [[ "$out" == *"toggle"*"_HI_DISABLE_GIT_STATUS=1"* && "$out" != *"all defaults"* ]] || _hi_why out
-}
-
-# an opt-in turned on is the non-default, so it gets a row; off is silent
-function test_config_lists_an_opt_in_turned_on() {
-  local dir="$_HI_WORKDIR/opt_in" out
-  mkdir "$dir"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=0
-    doctor_config
-  )"
-  [[ "$out" == *"toggle"*"_HI_TOOL_ALIASES=1"* && "$out" != *"_HI_SUDO_ALIAS"* && "$out" != *"all defaults"* ]] || _hi_why out
 }
 
 # an overlay file still under a name renamed before 1.0 is a red row with
@@ -685,22 +658,6 @@ function test_config_flags_an_old_format_colors_file() {
   *'"label": "colors", "text": "'"$dir/sectioned"' has rows that are not TOML'*'hi --configure converts it", "severity": "bad"'*) ;;
   *) _hi_why -3 out || return 1 ;;
   esac
-}
-
-# _HI_DISABLE_LOCAL=1 sets every other toggle through paths.sh's gate: one
-# row says so, and only a toggle settings.sh sets by itself gets another
-function test_config_collapses_the_local_gates_toggles() {
-  local dir="$_HI_WORKDIR/localgate" out
-  mkdir "$dir"
-  printf 'export _HI_DISABLE_LOCAL=1\nexport _HI_DISABLE_GIT_STATUS=1\n' >"$dir/settings.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_LOCAL=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_HEADER=1 _HI_DISABLE_PROMPT=1
-    doctor_config
-  )"
-  [[ "$out" == *"_HI_DISABLE_LOCAL=1 (every feature off"* && "$out" == *"_HI_DISABLE_GIT_STATUS=1"* &&
-    "$out" != *"_HI_DISABLE_HEADER"* && "$out" != *"_HI_DISABLE_PROMPT"* ]] || _hi_because "rows: $(printf '%s' "$out" | grep -c toggle)"
 }
 
 # the overlay's aliases.sh loads after the shipped aliases are built, so a
@@ -934,11 +891,8 @@ function run_doctor_config_tests() {
   _hi_check "Config flags a colors file of either old format" test_config_flags_an_old_format_colors_file
   _hi_check "Config lists the plugins, and flags them" test_config_lists_the_extensions
   _hi_check "...and the header cells, by bash alone" test_config_lists_the_header_cells
-  _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
-  _hi_check "Lists an opt-in turned on" test_config_lists_an_opt_in_turned_on
   _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore
   _hi_check "A file under an old member name is a row" test_config_names_a_file_under_an_old_member_name
-  _hi_check "The local gate's toggles collapse to one row" test_config_collapses_the_local_gates_toggles
   _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
   _hi_check "A secret-shaped line in a riding file is named" test_config_flags_a_secret_in_a_riding_file
   _hi_check "...in the set spelling of fish too" test_secret_awk_reads_a_fish_set

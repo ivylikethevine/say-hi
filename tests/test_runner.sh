@@ -109,7 +109,6 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:load_session:load/load_session_test.sh"
     "fast:preview_packages:scripts/preview_packages_test.sh"
     "fast:install_run:scripts/install_run_test.sh"
-    "fast:configure_menu:scripts/configure_menu_test.sh"
     "ci:packaging_ci:packaging/packaging_ci_test.sh"
     "ci:packaging_ci_release:packaging/packaging_ci_release_test.sh"
     "ci:packaging_ci_workflows:packaging/packaging_ci_workflows_test.sh"
@@ -151,7 +150,7 @@ _HI_TEST_COSTS_KCOV="
   ssh_keep:272 framework:140 kube:112 ssh:60 ssh_relay:45 podman:40
   hi_payload_scan:35 home_prompt:34 test_lib:34 configure_pty:32
   doctor_config:29 test_runner:26 dialects:23 docker:21 install_methods:21
-  plugins:20 configure_menu:19 load_session:19 ssh_wire:18 rc:15
+  plugins:20 load_session:19 ssh_wire:18 rc:15
   doctor_target:14 hi_payload_home:14 hi_payload_overlay:14
   install_location:14 rc_prompt:14 ssh_disconnect:11 configure_wizard:10
   targets:10 doctor_json:9 alias_fallthrough:7 install_run:7 test_runner_ci:7
@@ -184,7 +183,7 @@ _HI_TEST_COSTS_BASHCOV="
   git_prompt:16 hi_helpers:16 packaging_ci_release:16 rc_lines:16 tools:16
   hi_dispatch:15 hi_mux:15 table:15 env_prompt:14 header:14 hi_remote:14
   packaging_ci:14 doctor:13 packaging:13 paths:12 exports:11 edit:11
-  configure_menu:0 configure_pty:0
+  configure_pty:0
 "
 _HI_TEST_COSTS_GITBASH="
   update:187 test_runner:183 doctor_target:181 hi_payload_scan:177
@@ -197,7 +196,7 @@ _HI_TEST_COSTS_GITBASH="
   add_tag:36 install_location:36 targets_complete:35 rc:31 hi:26
   test_lib_par:25 load:24 git_prompt:23 aliases:22 header_bare:22
   preview_packages:22 hi_remote:20 paths:18 install:16 core_identity:15
-  hi_helpers:15 hi_prompt:13 core_target:11 hi_dispatch:11 configure_menu:8
+  hi_helpers:15 hi_prompt:13 core_target:11 hi_dispatch:11
   configure_pty:8 header_check:8 hi_container:8 env_prompt:6 core:5 exports:5
   table:4 hi_mux:2 edit:4
 "

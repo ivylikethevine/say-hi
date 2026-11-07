@@ -4,7 +4,7 @@
 # `chezmoi edit` opens its source. A file of hi's own that is not there yet
 # is made first: plugins from the key reference at the top of config/plugins,
 # colors and packages as copies of the tree's, settings.sh as --configure
-# starts one; any other gets its directory and the editor makes the file on save.
+# writes one; any other gets its directory and the editor makes the file on save.
 # The editor is $VISUAL, else $EDITOR, else $_HI_EDITOR, else the first of
 # $_HI_EDITORS on PATH. add_tag.sh's shape: HI.33 the standalone entry.
 
@@ -17,7 +17,7 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 source "$_hi_d/common/core.sh"
 # shellcheck source=./lib.sh
 source "$_hi_d/scripts/lib.sh"
-# table.sh's pad, for rc.sh's rc_tagged: settings.sh's shape line
+# table.sh's pad and hotkey, for configure.sh's block and rc.sh's rc_tagged
 # shellcheck source=./table.sh
 source "$_hi_d/scripts/table.sh"
 # shellcheck source=./rc.sh
@@ -58,25 +58,10 @@ while [ $# -gt 0 ]; do
 done
 [ "${#args[@]}" -le 1 ] || _hi_die "takes one file at most ($_HI_ME --help)"
 
-# the editor: the first of the three variables that names a command here
-# (a value may carry flags, so its first word is what is looked up), else
-# the first of hi's own list on PATH
-function _hi_edit_editor() {
-  local e
-  for e in "${VISUAL:-}" "${EDITOR:-}" "${_HI_EDITOR:-}" $_HI_EDITORS; do
-    [ -n "$e" ] || continue
-    command -v "${e%% *}" >/dev/null 2>&1 || continue
-    printf '%s' "$e"
-    return 0
-  done
-  return 1
-}
-
 # _hi_edit_seed <file> <path> - <path> made where it is not there yet, for
 # the files hi reads; any other file gets its directory alone, so one the
 # editor is left without saving does not ride empty
 function _hi_edit_seed() {
-  local line
   [ ! -e "$2" ] || return 0
   mkdir -p "${2%/*}"
   case "$1" in
@@ -89,8 +74,12 @@ function _hi_edit_seed() {
     ;;
   colors | packages) cp "$_HI_ROOT/config/$1" "$2" ;;
   settings.sh)
-    rc_tagged line "# say-hi settings $_HI_SETTINGS_SHAPE"
-    printf '#!/bin/sh\n%s' "$line" >"$2"
+    # the block hi --configure writes: every setting a line, at its default
+    # shellcheck source=./configure.sh
+    source "$_HI_ROOT/scripts/configure.sh"
+    collect_setting_lines
+    ensure_settings_shebang
+    config_shell settings "$2" "# say-hi settings $_HI_SETTINGS_SHAPE" "${_HI_SETTING_LINES[@]}" >/dev/null
     ;;
   *) return 0 ;;
   esac
@@ -106,7 +95,8 @@ if [ "${#args[@]}" -eq 1 ]; then
   esac
   path="$_HI_CONFIG_DIR/$file"
 fi
-editor="$(_hi_edit_editor)" ||
+editor=""
+_hi_editor_cmd editor ||
   _hi_die "no editor found: set \$EDITOR, or _HI_EDITOR in settings.sh, or install one of $_HI_EDITORS"
 mkdir -p "$_HI_CONFIG_DIR"
 [ -z "$file" ] || _hi_edit_seed "$file" "$path"

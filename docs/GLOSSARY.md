@@ -1088,8 +1088,7 @@ sourcing `header.sh`) is the one judge: `_hi_packages_palette` falls back to
 `$_HI_PACKAGES_RAMP`, the shipped ramp as one string, whenever it says no,
 and `scripts/lib.sh`'s `_hi_ramp_label` names the same three shapes the
 scheme label does. Like the scheme, there are no named ramps to pick from —
-`hi --configure` does not ask about either, and neither is in a preset's
-vocabulary.
+neither is a setting, and no preset names either.
 
 The gate is `_hi_has_truecolor`: `COLORTERM` (`truecolor` or `24bit`), with
 `_HI_TRUECOLOR` overriding both ways. ssh never forwards `COLORTERM`, so
@@ -1687,8 +1686,8 @@ machine alone, so there `_hi_toggle_on` reads `settings.sh`'s own
 `export NAME=value` lines, the last of a name winning, as text.
 
 `scripts/plugins.sh` and `hi --configure` both write the list, as one
-`_HI_PLUGINS_OFF` line of `settings.sh` in the wizard's padded, marked
-spelling, so each rewrites the line the other left. `load.sh` reads it on a
+`_HI_PLUGINS_OFF` line of `settings.sh` in `hi --configure`'s padded,
+marked spelling, so each rewrites the line the other left. `load.sh` reads it on a
 target, from the `settings.sh` that rode: an editor it names is passed over
 for `$EDITOR`, and `vim` or `nvim` in it sets no `$VIMINIT`.
 

@@ -262,7 +262,7 @@ _HI_PAR_WIDTH=1 tests/test_runner.sh ssh   # serial, same code path - for bisect
 _HI_PAR_WIDTH=8 tests/test_runner.sh ssh   # a big machine, if the daemon can take it
 ```
 
-The pty-driven cases (`configure_pty`, `configure_menu`, `install_run`) kill a
+The pty-driven cases (`configure_pty`, `install_run`) kill a
 child that has written nothing to its transcript for 60s, or has run five times
 that, and count it a failure: a slow host still drawing is not a wedge. A killed case
 prints the host's load and the last lines it drew. `rc_lines`' one pty case
@@ -396,7 +396,7 @@ tables.
   driver runs every one with `_HI_PAR_WIDTH=1`. A suite still running after
   `_HI_COV_SUITE_LIMIT` seconds (600) is stopped, and the drivers print the
   processes running then: a stall names its suite rather than running the job
-  out. It skips `configure_pty` and `configure_menu`, which run near ten times
+  out. It skips `configure_pty`, which runs near ten times
   slower under bashcov on a CI runner than anywhere else measured; kcov's
   figure carries them. It needs `gem install --user-install bashcov` (found
   off the gem bin directory if not on `$PATH`), and writes a `.simplecov` into

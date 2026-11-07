@@ -13,6 +13,7 @@ in the list below, and nothing else is ever done to this file.
 
 From the roadmap:
 
+- `hi --configure` asks which preset to start from, then opens `settings.sh` in your editor, every setting a line of it and one at its default commented, in place of the paged menu; `hi --doctor --help` is a page shorter, and the report no longer lists each non-default toggle
 - `hi --add-package`, `--remove-package`, `--add-color` and `--remove-color` are gone: `hi --edit packages` and `hi --edit colors` open your copy of either file, copying the shipped one in first.
 - A package row says what it is for with a mark on its name, `"+sudo" = ["doas"]` for required and `"-neofetch" = []` for unwanted, in place of the `[group.required]` and `[group.unwanted]` tables; `hi --install`, `--configure` and `--update` convert a file with those tables, and `hi --doctor` names one.
 - The tour's seven stories are a section of [GETTING-STARTED.md](GETTING-STARTED.md#a-tour), and what a session does on a target and where a package puts its files moved from FILES.md to [HOW-IT-WORKS.md](HOW-IT-WORKS.md#what-a-session-does-on-a-target) and [PACKAGING.md](PACKAGING.md#packaged-installs).

@@ -339,6 +339,7 @@ are ignored, so a connect line pastes behind
 prints the same rows as one JSON document on stdout, with the finding count
 as
 .BR findings .
+The report exits 1 when a row is bad, and 0 otherwise.
 .TP
 .B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-link\fR {\fBnone\fR|\fBuser\fR|\fBsystem\fR}] [\fB\-\-shell\fR \fIlist\fR] [\fB\-\-print\-rc\fR] [\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
 add or repair say-hi's lines in your shells' rc files (the login shell's, and
@@ -352,7 +353,7 @@ and link
 Each line tests for the tree before sourcing it. A first install asks a
 terminal which preset to start from, and nothing else:
 .B \-\-configure
-has the menu. An rc file that fails its syntax check stops the install:
+opens the rest. An rc file that fails its syntax check stops the install:
 with a question at a terminal, outright without one;
 .BR \-y / \-\-yes
 installs anyway.
@@ -423,29 +424,20 @@ rc backup goes once the rc matches it again; one that differs stays, and the
 lines that differ are printed.
 .TP
 .B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
-edit the settings alone, leaving the rc wiring and the link be: a numbered
-menu, a table of its pages by what a setting changes: whether this machine
-and the targets are styled at all, Header (its width, hidden addresses, and
-right edge, its cells to toggle and reorder, header presets, and the package
-check's groups, each under a live preview), Prompt, Plugins (a page a group,
-a row a plugin), then a switch each for the tool aliases, the sudo alias, the
-leading space, and the \-\-keep default, and the 24\-bit color.
-.B p
-picks a preset
+edit the settings alone, leaving the rc wiring and the link be: pick a
+preset
 .RB ( everything ,
 .BR balanced ,
 .BR minimal ,
-.BR lean ),
-.B s
-saves, and
-.B q
-quits without writing; nothing is written before either.
+.BR lean ;
+Enter keeps the settings you have), then edit settings.sh in your editor,
+every setting a line of it, one at its default commented.
 .B \-\-preset
 .I name
-applies one without the menu;
+applies one with no question and no editor;
 .B \-\-dry\-run
-prints the settings.sh it would write and writes nothing.
-Before the menu, here and under
+prints the settings.sh it would write, writes nothing, and opens no editor.
+Before the question, here and under
 .BR \-\-install ,
 a packages, colors, or settings.sh file in an older hi's shape is converted
 to the current one, the original kept as

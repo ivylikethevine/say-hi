@@ -35,7 +35,6 @@ eval|common/core.sh|const|eval '_hi_self=${(%):-%x}'
 eval|common/core.sh|const|eval 'case "$name" in ${~pat}) hit=0 ;; esac'
 eval|common/core.sh|tool|eval "$($_hi_ri_c)"
 eval|common/header.sh|name|eval "$1+=(\"\$record\")"
-eval|scripts/configure.sh|name|eval "$2=(\${$1[@]+\"\${$1[@]}\"})"
 
 rm -r|common/header.sh|1
 rm -r|common/keep.sh|1
@@ -62,12 +61,9 @@ source|common/zsh.zsh|7
 source|hi.sh|5
 source|load.sh|8
 source|scripts/add_tag.sh|2
-source|scripts/configure.sh|5
-source|scripts/configure_menu.sh|1
-source|scripts/configure_preview.sh|2
 source|scripts/convert_settings.sh|3
 source|scripts/doctor.sh|7
-source|scripts/edit.sh|4
+source|scripts/edit.sh|5
 source|scripts/install.sh|5
 source|scripts/lib.sh|1
 source|scripts/pack.sh|4

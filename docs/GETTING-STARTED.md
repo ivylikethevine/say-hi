@@ -72,7 +72,7 @@ no other choice for you. Then, in the order they tend to come up:
 
 - `hi --doctor` says what is wired and what would be sent; `hi --doctor <host>`
   adds one host.
-- `hi --configure` is the settings menu, under a preview of each change.
+- `hi --configure` picks a preset, then opens every setting in your editor.
 - `hi <TAB>` lists the hosts of `~/.ssh/config` and every running container.
 - `hi --add-tag <host> prod`, then `prod = "red"` under `[hosttag]` in
   `hi --edit colors`, colors the hosts you should be careful on

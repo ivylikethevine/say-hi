@@ -23,8 +23,8 @@ hi <anything>                  # ssh, with your prompt, aliases, and editors alo
 
 No sudo: the install links `~/.local/bin/hi` and writes only to your rc files
 and `~/.config/say-hi`. `--preset balanced` answers without asking,
-`--dry-run` shows every write first, and `hi --configure` has the settings
-menu.
+`--dry-run` shows every write first, and `hi --configure` opens the settings
+in your editor.
 
 ![hi into a web host whose site answers 502: the site and errs aliases from the overlay find a refused upstream, sudo vim opens on the carried vimrc to fix the port, restart restarts nginx through systemd, and the site answers 200](docs/tapes/demo.gif)
 
@@ -166,9 +166,9 @@ row, and everything answered **no**, and why:
   either way). Then reload your shell. zsh completes `hi` through the
   `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
   of its own.
-- `hi --configure` reopens the settings menu: pick a preset, or flip any setting
-  on its pages — Header, its cells and package check, Prompt, Plugins — or
-  by a switch's key on the first, and save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+- `hi --configure` asks which preset to start from, then opens
+  `~/.config/say-hi/settings.sh` in your editor, every setting a line of it
+  ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
   files are wired and where `hi` on your `PATH` leads.
@@ -220,7 +220,7 @@ writes; the install copies nothing else there, so the shipped `colors` and
 `aliases.sh` of your own. The editor rcs need no copy: hi carries your
 own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
 ([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
-The overlay file table, the settings menu, and every setting are in
+The overlay file table, the presets, and every setting are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
 [How it works](docs/HOW-IT-WORKS.md). The tools hi wires in where a
 target has them — your prompt program, mise, direnv, bat, eza, and more — are

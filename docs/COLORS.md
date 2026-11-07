@@ -3,7 +3,7 @@
 How every color hi paints is chosen: the per-host hash, the pins in
 `~/.config/say-hi/colors`, the 24-bit scheme, and the package check's ramp and
 rows. The scheme and the ramp are tables of that same file, `[scheme]` and
-`[palette]`; the wizard asks about neither.
+`[palette]`; no setting or preset names either.
 
 ## Contents
 

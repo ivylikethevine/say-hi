@@ -144,15 +144,6 @@ are all machine-read by a suite, and `README.md`'s payload badge by
 - A new flag changes what a prefix completes to (`hi --pl` wanted `--plain`
   alone until `--plugins`): grep the tests for a prefix of the new flag's
   name.
-- A new `feature` row in `scripts/settings` shifts every index after it: the
-  wizard's pages and the configure suites name rows by position (0-4: header,
-  git, env, tool aliases, sudo), and a page fits 24. Append after
-  `_HI_PLAIN`'s row; the menu finds `_HI_DISABLE_LOCAL` and `_HI_PLAIN` by
-  name.
-- A plugin's line on the wizard's group page is the comment right above its
-  table in `config/plugins`, to the first full stop, with about 36 columns to
-  show it at 80: keep a new one that short, and a group's comment a blank
-  line away from its first table.
 - An alias body holds no quote: `load.sh`'s `_hi_session_editor` strips the
   outer quotes of `alias <name>` to build `$EDITOR`.
 - A test that starts vim uses `-es`: any other mode waits on "Press ENTER"

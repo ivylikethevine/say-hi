@@ -68,9 +68,9 @@ the lines ending `# added by hi during install` from that rc file.
 ### My own prompt changed, or every new shell prints a header
 
 The `everything` preset styles the client too, and so does a `settings.sh`
-written by hand without the line below. `hi --configure`, _This
-machine_, or `export _HI_DISABLE_LOCAL=1` in `~/.config/say-hi/settings.sh`,
-leaves this machine alone and keeps hi on targets.
+written by hand without the line below. `export _HI_DISABLE_LOCAL=1` in
+`~/.config/say-hi/settings.sh` (`hi --configure` opens it) leaves this
+machine alone and keeps hi on targets.
 
 ### Opening a shell or pressing TAB is slow
 

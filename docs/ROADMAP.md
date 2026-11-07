@@ -6,11 +6,6 @@ an entry leaves as one sentence for the top list of
 [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **A smaller wizard** — `scripts/configure.sh`, `configure_menu.sh` and
-      `configure_preview.sh` are 88 KB for the settings rows, and the doctor
-      45 KB. The larger option is presets plus `hi --edit` in place of the
-      paged menu. Large. **Ticks when:** decided, and the chosen shape is in.
-
 - [ ] **One coverage tool** — kcov and bashcov each produce a badge and
       each has cost an incident (the PS4 switch, the SimpleCov root filter).
       **Do:** keep bashcov, which credits the staged copies; drop
@@ -58,8 +53,11 @@ an entry leaves as one sentence for the top list of
       `scripts/convert_settings.sh` (23 KB, 11 functions) rewrites overlay
       shapes nothing after the tag has a contract for. **Do:** keep the entry
       point, which `--install`, `--configure` and `--update` call, and drop
-      the pre-1.0 arms and their fixtures. Small. **Ticks when:** the script
-      converts only shapes a 1.x release wrote.
+      the pre-1.0 arms and their fixtures, with `hi --doctor`'s rows for the
+      same shapes (`_HI_PACKAGES_MIN_PRIORITY`, `_HI_OLD_TOGGLES`, the old
+      packages layouts, `_HI_OVERLAY_RENAMES`) and their `lib.sh` tables.
+      Small. **Ticks when:** the script converts only shapes a 1.x release
+      wrote, and the doctor names no older one.
 
 ## Release Stages
 
