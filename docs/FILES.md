@@ -31,6 +31,7 @@ Throughout, `$_HI_HOME` is the directory holding the tree, `$_HI_ROOT` is
   - [Install, configure, update, uninstall](#install-configure-update-uninstall)
   - [Caches and sockets](#caches-and-sockets)
   - [Temporary files](#temporary-files)
+- [Variables hi sets](#variables-hi-sets)
 - [Build and release artifacts](#build-and-release-artifacts)
 
 ## The tree
@@ -141,17 +142,17 @@ their fixtures, `generate.sh` to render them, and `demo.gif`, plus
 
 All **dev**; [TESTING.md](TESTING.md) is the full layout.
 
-| Path                                                | What it is                                                                                                                                      |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/test_runner.sh`                              | The runner and its `_HI_TESTS` table of suites and groups.                                                                                      |
-| `tests/test_lib.sh`, `tests/lib/`                   | The harness every suite sources: workdir, reporting, parallel cases, fixtures, ssh and container backends.                                      |
-| `tests/<dir>/*_test.sh`                             | One suite per tested area, in a directory named for what it tests (`common/`, `hi/`, `load/`, `scripts/`, `config/`, `packaging/`, `harness/`). |
-| `tests/<dir>/<suite>/`                              | Data files one suite reads, beside it (`scripts/convert_settings/`: the name:N packages and comma colors files).                                |
-| `tests/lint/`                                       | The lint group: shellcheck, the zsh and fish dialects, formatters and editor rcs, drift checks.                                                 |
-| `tests/bench/`                                      | Hot-path timings and the payload size budget.                                                                                                   |
-| `tests/targets/`                                    | The e2e and backends groups: ssh, docker, podman, nomad, kube, install methods, frameworks.                                                     |
-| `tests/dockerfiles/`                                | Every image those suites build: sshd targets, shell floors, installed-target variants, frameworks.                                              |
-| `tests/coverage.sh`, `coverage_v2.sh`, `profile.sh` | kcov and bashcov coverage, and timep profiles.                                                                                                  |
+| Path                                 | What it is                                                                                                                                      |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/test_runner.sh`               | The runner and its `_HI_TESTS` table of suites and groups.                                                                                      |
+| `tests/test_lib.sh`, `tests/lib/`    | The harness every suite sources: workdir, reporting, parallel cases, fixtures, ssh and container backends.                                      |
+| `tests/<dir>/*_test.sh`              | One suite per tested area, in a directory named for what it tests (`common/`, `hi/`, `load/`, `scripts/`, `config/`, `packaging/`, `harness/`). |
+| `tests/<dir>/<suite>/`               | Data files one suite reads, beside it (`scripts/convert_settings/`: the name:N packages and comma colors files).                                |
+| `tests/lint/`                        | The lint group: shellcheck, the zsh and fish dialects, formatters and editor rcs, drift checks.                                                 |
+| `tests/bench/`                       | Hot-path timings and the payload size budget.                                                                                                   |
+| `tests/targets/`                     | The e2e and backends groups: ssh, docker, podman, nomad, kube, install methods, frameworks.                                                     |
+| `tests/dockerfiles/`                 | Every image those suites build: sshd targets, shell floors, installed-target variants, frameworks.                                              |
+| `tests/coverage_v2.sh`, `profile.sh` | bashcov coverage, and timep profiles.                                                                                                           |
 
 ### .github/
 
@@ -174,14 +175,15 @@ settings table, and USAGE.md's commands as prettier formats them).
 
 Everything in `$_HI_CONFIG_DIR` that hi knows by name (`hi.sh`'s
 `_HI_OVERLAY_FILES`). All of it is optional and, `plugins` aside, rides to
-every target in its own small stream, and lands there in `$_HI_ROOT/config/`,
-over the defaults it replaces. `extensions/`, `bin/`, and zellij's `layouts/` and `themes/`, ride member by
-member; a member name is a letter or digit, then `[A-Za-z0-9_.-]`, never ending
-`.bak`, `.orig`, `.rej`, or `.tmp`.
+every target, landing in `$_HI_ROOT/config/` over the defaults it replaces.
+Directories (`extensions/`, `bin/`, zellij's `layouts/` and `themes/`) ride
+file by file; a file name starts with a letter or digit, then
+`[A-Za-z0-9_.-]`, and never ends `.bak`, `.orig`, `.rej`, or `.tmp`.
 
 | File                                                                                                      | Variable           | Replaces          | Read by                                                                                                                                         |
 | --------------------------------------------------------------------------------------------------------- | ------------------ | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `settings.sh`                                                                                             | `_HI_SETTINGS`     | -                 | every shell, first; written by `hi --configure`                                                                                                 |
+| `settings.<tag>.sh`                                                                                       | -                  | -                 | hi here, joined onto `settings.sh` for targets with that tag ([SETTINGS.md](SETTINGS.md#settings-by-host-tag))                                  |
 | `colors`                                                                                                  | `_HI_COLORS`       | `config/colors`   | prompt and header colors                                                                                                                        |
 | `packages`                                                                                                | `_HI_PACKAGES`     | `config/packages` | the header's package check, wholesale over the tree's                                                                                           |
 | `aliases.sh`                                                                                              | -                  | -                 | `common/aliases.sh`, sourced last                                                                                                               |
@@ -202,40 +204,27 @@ member; a member name is a letter or digit, then `[A-Za-z0-9_.-]`, never ending
 | `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars`               | -                  | -                 | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target                                                                             |
 | `ssh_tags`                                                                                                | -                  | -                 | a `hi` run from inside a session, for the next hop's tag colors                                                                                 |
 
-`wiring.sh` rides beside them, written by hi as the overlay is packed: the
-lines that point each tool at its member on a target
-([HI.62](GLOSSARY.md#hi62-generated-wiring)). It is not a member, and one in
-`$_HI_CONFIG_DIR` is not read.
-
-A member in the _Replaces_ column travels in the tree's place, not beside it:
-the payload leaves out a default your overlay shadows, so the wire holds one
-`colors`, not two - and an editor default whose editor this machine lacks stays
-home too, so a client without emacs sends no `emacs/init.el`. `aliases.sh` is
-the exception by design - yours is sourced on top of the tree's, so both ride.
-The `<file>.old` copies `scripts/convert_settings.sh` keeps are not members and
-stay home. Nor is a `settings.<tag>.sh`: a host carrying the tag is sent a
-`settings.sh` with it joined on
-([SETTINGS.md](SETTINGS.md#settings-by-host-tag)).
-
-What happens to a line in one of these that reads a file no target has is
-[SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)'s.
+- A file with a _Replaces_ entry rides instead of the tree's, so only one
+  `colors` is sent. `aliases.sh` is the exception: yours loads on top of hi's,
+  so both ride.
+- An editor default whose editor is not installed here stays home.
+- `wiring.sh` rides beside them, written by hi as the overlay is packed
+  ([HI.62](GLOSSARY.md#hi62-generated-wiring)); one in `$_HI_CONFIG_DIR` is
+  not read.
+- `<file>.old` copies from `scripts/convert_settings.sh` stay home.
+- A line that reads a file no target has goes out disabled
+  ([SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
 
 ### Configs read from where their tool keeps them
 
-On this machine (never on a target), hi carries the config a tool already reads
-rather than asking for a copy - the middle step of the one order
-([HI.61](GLOSSARY.md#hi61-one-overlay-priority)): the first one found in each
-row wins, an overlay copy wins over all of them - for the prompt programs, eza,
-bat, rg, fzf, lazygit, and your aliases on a target only, since at home each
-already reads its own - and the tree's default, where there is one, applies when
-neither is there. `bashrc`, `zshrc`, and `config.fish` are never looked for
-here: they ride only as an overlay copy. A prompt program's member rides only
-when that program is in the list a target is handed
-([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and an editor's, tmux's,
-screen's, micro's, zellij's, bat's, eza's, rg's, fzf's, or lazygit's only with
-that tool installed here
-([INTEGRATIONS.md's _Which side is asked_](INTEGRATIONS.md#which-side-is-asked)),
-and readline's always; an overlay copy rides either way.
+With no overlay copy, hi carries the config a tool already reads on this
+machine, the first found in each row
+([HI.61](GLOSSARY.md#hi61-one-overlay-priority)); with neither, the tree's
+default applies. `bashrc`, `zshrc`, and `config.fish` ride only as overlay
+copies. A home config rides only when its tool is installed here, or for a
+prompt program, when that program is handed to targets
+([INTEGRATIONS.md](INTEGRATIONS.md#which-side-is-asked)); an overlay copy
+rides either way.
 
 | Member                           | Looked for, in order                                                                                                                                                                                                                                             |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -349,6 +338,23 @@ All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 | `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                                                                  |
 | `hi.plugins.XXXXXX`                                           | `hi --disable-plugin`, `hi --enable-plugin`                                                     |
 | `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                                                   |
+
+## Variables hi sets
+
+State hi sets for itself, not settings: setting one by hand tells a shell
+something untrue about where it is. The settings-shaped names a user can read
+are [SETTINGS.md's _Not settings_](SETTINGS.md#not-settings); everything else
+beginning `_HI_` is internal.
+
+| Variable                                | What it holds                                                                                      |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_NANORC` | on a target, the path of a config that rode ([HI.62](GLOSSARY.md#hi62-generated-wiring))           |
+| `_HI_KEEP_MUX`, `_HI_KEEP_NAME`         | a kept session's multiplexer and name, for its first pane ([HI.65](GLOSSARY.md#hi65-kept-session)) |
+| `_HI_ASCII`                             | the client's verdict on whether its terminal shows multibyte glyphs, sent with `$NO_COLOR`         |
+| `_HI_RELEASE`                           | the version `packaging/stamp.sh` stamps at build time                                              |
+| `_HI_SESSION_RC`                        | a session's per-shell rc directory ([HI.46](GLOSSARY.md#hi46-session-rc-directory))                |
+| `_HI_TARGET_COLOR`, `_HI_TARGET_TAG`    | the color and tag the target resolved to, from the client                                          |
+| `_HI_LOCAL_USER`, `_HI_LOCAL_HOSTNAME`  | the header's "from" half, from the client                                                          |
 
 ## Build and release artifacts
 

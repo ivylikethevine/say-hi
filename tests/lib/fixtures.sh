@@ -6,21 +6,10 @@
 # GLOSSARY: HI.30
 # shellcheck disable=SC2329
 
-# _hi_strip_ansi <text> - the palette taken back out, for suites asserting on
-# geometry or plain content. The inverse of _hi_rendered, and one home for a
-# regex that was hand-written in six suites, where a silent stop-matching is
-# the failure mode. Also takes OSC sequences (BEL- or ST-terminated) with it:
-# an interactive fish -i -c fires its built-in cwd-reporting hook (OSC 7) on
-# some fish builds, unprompted, and it would otherwise land ahead of whatever
-# the case actually asked fish to print.
-#
-# One sed pass, not bash's `${out//pattern/}`: that replacement is quadratic
-# in the string (an extglob `*(...)` is re-tried from every position), and a
-# 2KB colored render took seconds, an 8KB one never finished. The ESC and BEL
-# bytes are spliced in as bytes - BSD sed has no \x1b - and a literal ESC
-# inside a bracket expression is fine on GNU, BSD, and busybox sed alike. sed
-# ends its last line with a newline where bash's printf did not; every caller
-# reads the result through $(...) or a pipe, which does not see it.
+# _hi_strip_ansi <text> - <text> without color escapes or OSC sequences (some
+# fish builds send OSC 7 unasked), the inverse of _hi_rendered. One sed pass,
+# since bash's `${s//pattern/}` is quadratic; ESC and BEL go in as raw bytes,
+# since BSD sed has no \x1b.
 function _hi_strip_ansi() {
   local esc=$'\e' bel=$'\a'
   printf '%s' "$1" | sed \
@@ -32,11 +21,8 @@ function _hi_strip_ansi() {
 }
 
 # _hi_within_percent <got> <want> <pct> - is <got> within <pct>% of <want>?
-# The drift band the wire figures (targets/ssh_wire_test.sh) are held to. The
-# allowance is <pct>% of <want> rounded up and never less than one unit -
-# nothing measured is byte-stable, and a band that rounds to zero would turn
-# jitter into a red gate. 0 (the "no figure at all" case) is never within
-# anything.
+# The band ssh_wire_test.sh holds the wire figures to: rounded up, at least
+# one unit, so jitter never fails it. 0 (no figure) is never within.
 function _hi_within_percent() {
   local got="$1" want="$2" delta slack=$((($2 * $3 + 99) / 100))
   [ "$slack" -gt 0 ] || slack=1
@@ -85,21 +71,10 @@ function _hi_color_overlay() {
 }
 
 # _hi_table_is_rectangular <text> - every line of every boxed table in <text>
-# is the same printed width. Both preview suites assert it through this one
-# function, so they cannot segment tables differently. A table is a run of
-# adjacent lines starting with a left edge - scripts/lib.sh's $_HI_BOX_* set on
-# either side of _hi_use_ascii - so blank lines and prose between two tables
-# separate them without being measured.
-#
-# ${#} counts characters under a UTF-8 locale and bytes otherwise (GLOSSARY:
-# HI.12), so a rule of three-byte box glyphs would measure three times the
-# ASCII row beneath it and a table square on screen would be called crooked -
-# which is what a Windows runner with no locale set saw. The probe below is one
-# multibyte character: where ${#} already answers 1 nothing is subtracted, and
-# where it answers 3 the UTF-8 continuation bytes (0x80-0xBF, which never start
-# a character) come off first and turn the byte count back into a column count.
-# The probe is the literal glyph, not $'\uXXXX': that escape is bash 4.2, and
-# the floor here is 3.2.
+# is the same printed width. A table is a run of lines starting with a left
+# edge ($_HI_BOX_*, either glyph set). Outside a UTF-8 locale ${#} counts
+# bytes (GLOSSARY: HI.12), so continuation bytes (0x80-0xBF) are dropped
+# before counting.
 _HI_RECT_MB='─' # the box glyphs' own fill, so it is never a stranger here
 function _hi_table_is_rectangular() {
   local stripped plain width=0 len seen=0
@@ -166,13 +141,8 @@ function _hi_can_symlink() {
   return "$rc"
 }
 
-# _hi_can_lock_out - whether a mode can actually refuse *us* a write. Root is
-# the case that matters: it bypasses the permission bits outright, so a case
-# that chmods a directory 555 to make the next write fail gets a write that
-# succeeds instead, and reads as a bug in the code under test rather than as
-# a test that cannot run here. CI that runs as root is not exotic - the
-# FreeBSD VM and most container images do - so the answer has to be asked
-# rather than assumed.
+# _hi_can_lock_out - whether a mode can refuse us a write; not as root (the
+# FreeBSD VM, most containers), which ignores the bits.
 function _hi_can_lock_out() {
   local probe rc=1
   probe="$(mktemp -d "$_HI_WORKDIR/cap.lockout.XXXXXX")"
@@ -186,27 +156,9 @@ function _hi_can_lock_out() {
   return "$rc"
 }
 
-# _hi_can_fork_concurrently - whether backgrounded jobs from one shell
-# actually overlap rather than serialize. No on MSYS/Cygwin: a real
-# windows-latest run measured `&`-then-`wait` fan-out taking exactly as long
-# as running the same jobs one at a time, at both 0.3s and 2s per job - not a
-# timing-margin gap a longer sleep could close, a structural one in how the
-# runtime forks. Answered by kernel name rather than by racing something at
-# suite-start: the failure mode is "every job serializes," which a race can
-# only prove by re-triggering the same cost the case under test already pays.
-#
-# mode_bits - whether a file's reported permission string reflects chmod's
-# stored bits alone. No on MSYS/Cygwin: a real windows-latest
-# run showed a file's `ls -l` string change across a rewrite that chmod'd it
-# back to the same mode it started with (_hi_write_back does exactly that) -
-# the one thing that changed was the file gaining a `#!` first line. The
-# runtime appears to OR a shebang/PE-header executable guess into what
-# stat()/`ls` report, independent of anything chmod controls - the same
-# content-derived executable-bit behavior install_test.sh's DESTDIR fixture
-# already works around by giving its stand-in hi.sh a real shebang. Same
-# kernel-name probe as fork_concurrency, a different root cause: that one is
-# about scheduling, this one is about what the permission string even means.
-# _hi_is_msys answers both, off $OSTYPE as hi.sh asks it: no fork.
+# _hi_is_msys - MSYS or Cygwin, by $OSTYPE, answering two capabilities: no
+# fork_concurrency (backgrounded jobs serialize there), and no mode_bits (the
+# runtime adds an executable guess from a `#!` line to what `ls -l` shows).
 function _hi_is_msys() {
   case "${OSTYPE:-}" in msys* | cygwin*) return 0 ;; esac
   return 1
@@ -221,17 +173,9 @@ function _hi_mode_string() {
   ls -l "$1" | awk '{ print $1 }'
 }
 
-# _hi_can_mkdir_mode - whether `mkdir -m <mode>` both creates the directory
-# and exits 0. No on MSYS/Cygwin under a Windows-owned temp tree: a real
-# windows-latest run showed the mkdir half landing and the chmod half refused
-# ("mkdir: cannot change permissions of ...: Permission denied"), so the
-# directory is there and the exit status says it is not. That splits any
-# caller that reads mkdir's status as its verdict from one that re-tests
-# `[ -d ]` - hi.sh does both, deliberately, in _hi_runtime_dir.
-#
-# Probed rather than named by kernel, unlike its two neighbours above: what
-# decides is the filesystem being written to, not the runtime, so a tree where
-# it works would answer yes and still be honest.
+# _hi_can_mkdir_mode - whether `mkdir -m <mode>` creates the directory and
+# exits 0; under a Windows-owned temp tree the chmod half fails after the
+# directory exists. Probed, since the filesystem decides, not the runtime.
 function _hi_can_mkdir_mode() {
   local probe="$_HI_WORKDIR/cap.mkdirmode" rc=0
   mkdir -m 700 "$probe" 2>/dev/null || rc=1
@@ -240,15 +184,10 @@ function _hi_can_mkdir_mode() {
 }
 
 # _hi_gpg_test_key <homedir> <identity> <err-file> <quick-generate-key args...>
-# - one throwaway, passphrase-free GPG key generated into <homedir> (already
-# made and chmod 700 by the caller, since callers differ on whether a homedir
-# holds one key or several). Launched by hand ahead of the key: a gpg that
-# cannot auto-start its agent (Git for Windows' MSYS build) fails
-# --quick-generate-key with "No agent running" otherwise - harmless where
-# auto-start already works. --pinentry-mode loopback: --batch --passphrase ''
-# alone still has some GnuPG builds (Homebrew's, Git for Windows') reach for a
-# pinentry a headless runner has none of. <err-file>'s stderr is dumped on
-# failure so a platform-only red says why.
+# - a throwaway passphrase-free GPG key in <homedir> (the caller's, mode
+# 700). The agent is started first, since Git for Windows' gpg cannot
+# auto-start one, and --pinentry-mode loopback keeps some builds off a
+# pinentry. <err-file> is dumped on failure.
 function _hi_gpg_test_key() {
   local home="$1" identity="$2" err="$3"
   shift 3
@@ -260,14 +199,9 @@ function _hi_gpg_test_key() {
   fi
 }
 
-# Whether gpg is here *and* can reach a gpg-agent from a fresh homedir - what
-# generating or using a throwaway key needs. `command -v gpg` alone is not
-# it: Git for Windows ships the MSYS gpg with no agent it can start (every
-# --quick-gen-key there ends "No agent running"), and a headless macOS with
-# a long $TMPDIR can lose the agent socket to the sockaddr_un cap, which is
-# why the probe's homedir sits under a short base on /tmp, the same place the
-# suites put theirs. Launched explicitly, asked to answer, then killed:
-# nothing this probe starts outlives it.
+# Whether gpg can reach an agent from a fresh homedir: Git for Windows' gpg
+# cannot start one, and macOS's long $TMPDIR can overflow the socket path, so
+# the homedir sits under /tmp as the suites' do. The agent is killed after.
 function _hi_can_reach_gpg_agent() {
   local home rc=1
   command -v gpg >/dev/null 2>&1 && command -v gpgconf >/dev/null 2>&1 &&
@@ -303,39 +237,18 @@ function _hi_can_shim_applets() {
 # _hi_capable <capability> - whether this machine can do <capability> at all.
 # The roster, and the one place either guard below asks:
 #
-#   symlink          - `ln -s` makes a real link. No on Git Bash without
-#                       Developer Mode or administrator, where it fails
-#                       outright or silently copies - which is why the probe
-#                       tests `[ -L ]` and not `ln`'s exit code.
-#   pty              - python3 can allocate one. No on Windows: `pty` is
-#                       Unix-only, so $_HI_PTY_FORCED (tests/lib/process.sh)
-#                       is the honest answer where `command -v python3` is
-#                       not.
-#   lockout          - a mode can refuse us a write. No as root, which
-#                       bypasses the bits, so every case that stages a
-#                       failure by making something unwritable has to ask
-#                       first.
-#   fork_concurrency - backgrounded jobs actually run alongside each other.
-#                       No on MSYS/Cygwin - see _hi_is_msys.
-#   mode_bits        - a permission string reflects only chmod's bits, no
-#                       content-derived guess mixed in. No on MSYS/Cygwin -
-#                       see _hi_is_msys.
-#   mkdir_mode       - `mkdir -m` creates the directory *and* exits 0. No on
-#                       MSYS/Cygwin, where the chmod half is refused and the
-#                       status disagrees with the tree - see
-#                       _hi_can_mkdir_mode.
-#   gpg_agent        - a gpg-agent can be started and asked - see
-#                       _hi_can_reach_gpg_agent.
-#   netem            - the netem qdisc is loadable - see
-#                       _hi_can_shape_netem. No when `modprobe sch_netem`
-#                       has not run on the host; a container cannot load it
-#                       for itself.
-#   applet_shims     - `sh` runs a PATH entry over an applet of the same
-#                       name - see _hi_can_shim_applets. No under a busybox
-#                       that prefers its applets.
+#   symlink           `ln -s` makes a real link (tested by `[ -L ]`: Git Bash
+#                     without Developer Mode may silently copy)
+#   pty               python3 can allocate one ($_HI_PTY_FORCED; not Windows)
+#   lockout           a mode can refuse us a write (not as root)
+#   fork_concurrency  background jobs overlap (not MSYS, _hi_is_msys)
+#   mode_bits         a permission string is chmod's alone (not MSYS)
+#   mkdir_mode        `mkdir -m` succeeds whole (_hi_can_mkdir_mode)
+#   gpg_agent         a gpg-agent answers (_hi_can_reach_gpg_agent)
+#   netem             the netem qdisc loads (the host ran `modprobe sch_netem`)
+#   applet_shims      `sh` runs a PATH entry over a busybox applet
 #
-# Exit 2 for a capability nobody defined, so a typo is a failing case rather
-# than a silently skipped one.
+# Exit 2 for an unknown capability, so a typo fails rather than skips.
 function _hi_capable() {
   case "$1" in
   symlink) _hi_cap_memo _HI_CAP_SYMLINK _hi_can_symlink ;;
@@ -354,11 +267,8 @@ function _hi_capable() {
 }
 
 # _hi_check_capable <capability> <label> <predicate...> - _hi_check, unless this
-# machine cannot do <capability>, in which case the case counts as SKIPPED.
-# _hi_check_requires' twin for a *facility* rather than a binary, because what
-# is missing is not something `command -v` can find. Same reason the guard
-# lives here and not in the case body: a `return 0` there would report a green
-# OK for a case that never ran.
+# machine cannot do <capability>, when the case is SKIPPED (a `return 0` in
+# the case would report OK). _hi_check_requires' twin for a facility.
 function _hi_check_capable() { _hi_par_capable_body "$1" _hi_check "${@:2}"; }
 
 # _hi_script <file> [line...] - <file> written as those lines, or stdin with
@@ -386,25 +296,10 @@ function _hi_fake_path() {
 }
 
 # _hi_real_path <name> <tool...> - the real-binary half of _hi_fake_path, same
-# build-once-per-name contract: a $_HI_SUITE_WORKDIR/<name> directory pointing
-# at the named tools as this machine resolves them, printed. For suites that replace
-# $PATH outright and still need a few real tools on it. A tool the machine
-# doesn't have is skipped, so the caller's cases fail (or skip) on the missing
-# tool itself rather than on the toolbox build.
-#
-# A symlink where the filesystem makes them, a `#!/bin/sh` exec wrapper where it
-# does not: MSYS's `ln -s` wants Developer Mode or administrator, and where
-# that's off it doesn't always fail loudly - a real 2026-08-28 windows-latest
-# run left `ln`'s own exit status and `[ -e ]` both satisfied against an
-# unusable entry (a plain copy standing in for the link, or a link `PATH`-exec
-# can't actually run - either way `_hi_can_symlink`'s dedicated probe, which
-# every other symlink-gated case in this suite already trusts, correctly said
-# no). Gated on that probe rather than re-deriving the answer per tool:
-# `ln -sf` is only attempted where the probe says it works, and its result is
-# checked with `[ -L ]`, not `[ -e ]`, so a copy standing in for the link can't
-# pass as one. A caller that splices a broken toolbox into $PATH has no `sh`,
-# `awk`, or `sed` at all, so its cases would fail in ways that look nothing
-# like the symlink that caused them.
+# build-once contract: a $_HI_SUITE_WORKDIR/<name> directory of the named
+# real tools, printed, for suites that replace $PATH. A missing tool is
+# skipped. Symlinks where _hi_can_symlink says they work (checked with
+# `[ -L ]`), else `#!/bin/sh` exec wrappers, since MSYS can fake a link.
 function _hi_real_path() {
   local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/$1" tool real
   shift
@@ -413,15 +308,8 @@ function _hi_real_path() {
     # printf always: OpenBSD's sh has no printf builtin, so a shim on this PATH
     # would find none; everywhere else the builtin wins and the link is inert
     for tool in "$@" printf; do
-      # `type -P` and not `command -v`: a toolbox holds real binaries, and
-      # `command -v printf` answers "printf" - the builtin, a bare word rather
-      # than a path. Linked as one that made $dir/printf -> printf, a symlink
-      # onto itself: `[ -e ]` said no (ELOOP), and the wrapper written next
-      # could not be written either, because the redirection followed the loop
-      # it was there to replace ("Too many levels of symbolic links", on every
-      # platform - only ever seen where a suite's transcript was replayed).
-      # A tool that is *only* a builtin has no binary to put here, which is
-      # the documented skip.
+      # `type -P`, since `command -v printf` names the builtin, which would
+      # link onto itself. A builtin-only tool is skipped.
       real="$(type -P "$tool" 2>/dev/null)" || continue
       [ -n "$real" ] || continue
       rm -f "$dir/$tool"
@@ -436,12 +324,9 @@ function _hi_real_path() {
 }
 
 # _hi_path_dirs_of <tool...> - the directories of $PATH holding the named tools,
-# in $PATH's order, colon-joined and printed: a short $PATH for a suite whose
-# code under test probes for tools no runner has. Each miss is a stat of every
-# directory, some 45 on a Windows runner and twice over for `.exe`. Real
-# directories, not _hi_real_path's toolbox, whose wrappers where MSYS makes no
-# symlink cost a fork a call. A tool this machine lacks adds nothing, and
-# `type -P` to a file is no fork.
+# in $PATH's order, colon-joined: a short $PATH for code that probes for
+# tools no runner has (each miss stats every directory, ~45 on Windows). Real
+# directories, so no wrapper costs a fork.
 function _hi_path_dirs_of() {
   local real d found=":" out="" IFS
   type -P "$@" >"$_HI_WORKDIR/tool-dirs" 2>/dev/null || :
@@ -458,13 +343,9 @@ function _hi_path_dirs_of() {
 }
 
 # _hi_git_fixture - a fresh one-commit repo on a branch literally named "main"
-# (forced via symbolic-ref, so git's initial-branch config can't decide it),
-# printed. Built once per suite, in $_HI_SUITE_WORKDIR, as a template, then
-# copied per call: every caller wants the identical starting point, and one
-# `cp -r` is one process where building from scratch is six git invocations. Each call still gets its
-# own private directory, so nothing leaks between cases - only the setup cost
-# is shared. The template holds one clean tracked file.txt; cases wanting
-# another branch or a dirty tree arrange that themselves.
+# (forced, whatever git's initial-branch config says), printed: a private
+# `cp -r` of a template built once per suite, saving six git calls. It holds
+# one clean tracked file.txt.
 function _hi_git_fixture() {
   local dir template="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/git-template"
   if [ ! -d "$template" ]; then
@@ -483,13 +364,9 @@ function _hi_git_fixture() {
 }
 
 # _hi_probe_shims <dir> [running-name] - fake docker/podman/nomad/kubectl in
-# <dir>, each answering only the exact invocations hi.sh's backend predicates
-# make (plus docker/podman's bare `ps`, doctor.sh's liveness probe) and
-# failing anything else, so a changed command shape shows up as a failing
-# predicate rather than a silently passing test. The target named
-# <running-name> (default "yes") is running; anything else is not. The argv
-# shapes spelled out here are the suite-side statement of that contract - one
-# home, next to _hi_probe_cmd, rather than a copy per suite.
+# <dir>, answering only the exact calls hi.sh's predicates and doctor.sh's
+# `ps` make and failing anything else, so a changed call fails a test.
+# <running-name> (default "yes") is the one running target.
 function _hi_probe_shims() {
   local dir="$1" running="${2:-yes}"
   mkdir -p "$dir"
@@ -520,15 +397,9 @@ EOF
 }
 
 # _hi_scratch_tree <name> <dir...> - a throwaway say-hi under $_HI_WORKDIR/<name>
-# holding copies of the named top-level directories, and prints the _HI_HOME
-# that points at it. What a "minimal shipped tree" needs is one edit here
-# rather than one per suite that stands one up.
-#
-# A `link:<dir>` entry symlinks the real one instead, for a directory the
-# suite only reads: bashcov files a hit under the script's realpath, so a
-# linked script credits the repo file where a copy's hits are dropped. Never
-# for a directory a case writes into - the write would land in the checkout.
-# Git Bash without symlink rights copies it, which only loses the credit.
+# holding copies of the named top-level directories; prints its _HI_HOME.
+# `link:<dir>` symlinks a read-only directory instead, so bashcov credits the
+# repo file; never for one a case writes into.
 #
 function _hi_scratch_tree() {
   local name="$1" root="$_HI_WORKDIR/$1/say-hi" dir
@@ -544,11 +415,8 @@ function _hi_scratch_tree() {
 }
 
 # _hi_subcmd_run <home> <args...> - runs a _hi_scratch_tree's hi.sh as a
-# process, $_HI_HOME pointed at <home>. tests/hi/parse_test.sh and
-# tests/scripts/update_test.sh both drive hi's local sub-commands
-# (--install, --update, ...) this way, since the case block that answers
-# them is on the far side of hi.sh's BASH_SOURCE hatch and cannot be reached
-# by sourcing.
+# process, $_HI_HOME at <home>, for hi's local sub-commands, which sourcing
+# cannot reach past hi.sh's BASH_SOURCE guard.
 function _hi_subcmd_run() {
   local home="$1"
   shift
@@ -564,22 +432,10 @@ function _hi_wiring_for() {
 }
 
 # _hi_settings_fixture <name> <fn...> - run <fn...> with $_HI_ROOT,
-# $_HI_CONFIG_DIR, and $_HI_SETTINGS pointed at throwaway paths under
-# $_HI_WORKDIR/<name>. scripts/install.sh's writers (config_shell,
-# ensure_settings_shebang) and its uninstall half (strip_settings) all reach for
-# those three, which in a real run are this very checkout and the developer's
-# own overlay - the same shadowing load_test.sh's _hi_clean_all wrapper does
-# before letting clean_all near $_HI_ROOT.
-#
-# The scratch overlay is deliberately a *different* directory from the scratch
-# tree's config/, so "writes land outside the tree" is something the tests can see
-# rather than assume.
-#
-# Shared here rather than living in tests/scripts/install_test.sh, where it was
-# born: tests/scripts/configure_test.sh needs it just as much, for the same
-# reason install.sh's own writers do - GLOSSARY: HI.34 says a suite sources
-# test_lib.sh and nothing else, so a helper more than one suite needs lives in
-# the harness instead of being copied.
+# $_HI_CONFIG_DIR, and $_HI_SETTINGS at throwaway paths under
+# $_HI_WORKDIR/<name>, so install.sh's and configure.sh's writers never touch
+# the checkout or the developer's overlay. The overlay is apart from the
+# tree's config/, so a write outside the tree is visible. GLOSSARY: HI.34
 function _hi_settings_fixture() {
   local dir="$_HI_WORKDIR/$1"
   local _HI_ROOT="$dir" _HI_CONFIG_DIR="$dir/overlay"
@@ -620,15 +476,9 @@ function _hi_kv_get() {
 }
 
 # _hi_transcript_is_clean <label> <transcript-file> - fail if the session
-# printed shell error noise.
-#
-# The assertion the bash 3.2 cases need, because a bash-4-only builtin on an old
-# bash is rarely *fatal*: `mapfile ... && count=${#lines[@]}` just stops that
-# one AND-list, `shopt -s globstar` complains and carries on, and load() has
-# already turned `set -e` back off by the time the header runs. The session
-# still comes up and every marker still lands - it simply spits
-# "mapfile: command not found" at the user on every connect, which is the actual
-# bug reported from macOS and the thing no other check here would notice.
+# printed shell errors. On bash 3.2 a bash-4 builtin is rarely fatal: the
+# session comes up and every marker lands, but each connect prints
+# "mapfile: command not found", which only this catches.
 _HI_SHELL_ERROR_RE='command not found|invalid option|unbound variable|bad substitution|syntax error|not a valid identifier'
 
 function _hi_transcript_is_clean() {
@@ -673,16 +523,14 @@ function _hi_stub_tools() {
   _hi_fake_path "stub-$*" "$@"
 }
 
-# _hi_trace_env - fills the caller's `local -a _hi_trace` with what a coverage
-# tracer follows a bash child through, for an `env -i` to hand on: bashcov's
-# xtrace trio, or kcov's DEBUG-trap one. Stripped, every line the child runs
-# reads as untested. Empty outside a sweep, and no fork either way.
+# _hi_trace_env - fills the caller's `local -a _hi_trace` with what bashcov
+# follows a bash child through, for an `env -i` to hand on: the xtrace trio.
+# Stripped, every line the child runs reads as untested. Empty outside a
+# sweep, and no fork either way.
 function _hi_trace_env() {
   _hi_trace=()
   if [ -n "${BASH_XTRACEFD:-}" ] && [[ $- == *x* ]]; then
     _hi_trace=(SHELLOPTS=xtrace "PS4=$PS4" "BASH_XTRACEFD=$BASH_XTRACEFD")
-  elif [ -n "${KCOV_BASH_USE_DEBUG_TRAP:-}" ] && [ -n "${BASH_ENV:-}" ]; then
-    _hi_trace=("BASH_ENV=$BASH_ENV" "KCOV_BASH_XTRACEFD=${KCOV_BASH_XTRACEFD:-}" KCOV_BASH_USE_DEBUG_TRAP=1)
   fi
 }
 
@@ -690,14 +538,9 @@ function _hi_trace_env() {
 # no _HI_HOME (it would answer what install.sh derives) and no _HI_CONFIG_DIR;
 # $SHELL because install.sh reports ${SHELL##*/} under `set -u`.
 #
-# Bounded by $_HI_LOGIN_TIMEOUT (default 180s: parallel `hi --doctor` shells on
-# emulated Git Bash arm64 are slow, and the bound is for a wedge, not a pace).
-# Unbounded, a login shell that
-# wedges takes the case with it and the suite reports only a frozen case count
-# for as long as the job's own timeout allows - a stall in `hi --doctor` cost 25
-# minutes a shard that way, on six shards, without naming a case. A stall is a
-# failure, so timeout's 124 is what the caller should see. Where there is no GNU
-# `timeout` (stock macOS) the call runs bare, the way core.sh's _hi_probe does.
+# Bounded by $_HI_LOGIN_TIMEOUT (180s, generous for emulated Git Bash arm64),
+# so a wedged shell fails its case with 124 instead of freezing the job.
+# Without `timeout` (stock macOS) it runs bare.
 function _hi_login_env() {
   local home="$1"
   local -a bound=() _hi_trace

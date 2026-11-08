@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# The tooling-side helpers scripts/, packaging/, docs/tapes/, and tests/ share:
-# flag parsing, the heading rules, the sed-rewrite primitive, the settings and
-# scheme readers, and the box glyphs. None of it belongs in common/core.sh -
-# common/ ships in the ssh payload and wears a CI-enforced size budget, and
-# nothing a target runs draws a heading or rewrites a file in place. Source it
-# *after* common/core.sh, whose _hi_repeat, _hi_cecho, and palette it uses;
-# sourcing it does nothing else.
+# Helpers the tooling shares (scripts/, packaging/, docs/tapes/, tests/):
+# flag parsing, headings, in-place rewrites, settings and scheme readers, box
+# glyphs. Kept out of core.sh, which rides under a size budget. Source after
+# core.sh; sourcing does nothing else.
 
 # _hi_flag_word_or_die <outvar> <errmsg> <flag> [next] - _hi_flag_word, but a
 # bare flag with nothing after it _hi_die's with <errmsg> rather than handing
@@ -123,14 +120,10 @@ _HI_FLAT_COLORS='^[a-z]+,[^,#]+,'
 # _HI_PLUGINS_OFF
 _HI_OLD_TOGGLES='EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ'
 
-# _hi_data_shape <outvar> <file> <flat rows' pattern> - which hi wrote the
-# rows of a packages or colors file: `toml`, this one, also of a file with no
-# rows; `tables` for TOML rows under `[group.required]` or `[group.unwanted]`
-# tables, where a mark on each row's name now says what the row is for;
-# `sections` for bare rows under `[section]` lines; `flat` for the rows before
-# those, which <flat rows' pattern> matches. Empty for no file. One TOML row
-# makes the file a TOML one, whatever else it holds: no older shape had one,
-# and a converter would take every row of it for a name.
+# _hi_data_shape <outvar> <file> <flat rows' pattern> - a packages or colors
+# file's shape: `toml` (current, or no rows), `tables` ([group.required] and
+# [group.unwanted]), `sections` (bare rows under [section]), or `flat` (rows
+# matching the pattern); empty for no file. Any TOML row makes it `toml`.
 function _hi_data_shape() {
   local _hi_ds_l _hi_ds_k _hi_ds_v _hi_ds_heads=0 _hi_ds_old=0 _hi_ds_new=0 _hi_ds_sub=0
   printf -v "$1" '%s' ''
@@ -206,13 +199,9 @@ function _hi_package_groups() {
   printf -v "$1" '%s' "$_hi_pg_all"
 }
 
-# _hi_packages_drift <file> <tree's> - what a packages file of the user's own
-# gets wrong unseen, a `<severity>|<sentence>` line each: a row with an
-# alternative led by - or +, which is part of a name nothing matches (only the
-# row's own name takes a mark), and a line that is no row, which is never
-# checked, then the
-# groups the tree's has and <file> lacks, since a copy replaces the tree's and
-# never gains one added later
+# _hi_packages_drift <file> <tree's> - a user's packages file's silent faults,
+# `<severity>|<sentence>` lines: an alternative marked - or + (only the name
+# takes a mark), a line that is no row, and groups the tree's has and it lacks
 function _hi_packages_drift() {
   local _hi_pd_l _hi_pd_g _hi_pd_k _hi_pd_v _hi_pd_have=" " _hi_pd_lack=""
   [ -f "$1" ] || return 0
@@ -529,18 +518,11 @@ function _hi_ramp_label() {
   fi
 }
 
-# Every rule and edge scripts/table.sh and scripts/configure.sh draw with.
-# Here and not in core.sh's _hi_choose_glyphs beside the mark glyphs, for the
-# reason at the top of this file: nothing a target runs draws a box, and
-# common/ ships in the ssh payload under a size budget. One set per session,
-# decided at source time the way the glyphs are - configure.sh is sourced by
-# install.sh after this file and never re-asks.
-#
-# Eleven names rather than three strings to slice: under `_HI_ASCII=0` on a
-# non-UTF-8 locale a ${s:0:1} would cut a byte out of a three-byte glyph
-# (GLOSSARY: HI.12). The junctions (T/B/L/R/X) are what let a rule know
-# whether it is a table's top, its header separator, or its bottom; ASCII
-# spells all nine corners `+`.
+# The box-drawing rules and edges table.sh and configure.sh draw with,
+# chosen once at source time. Separate names rather than a sliced string,
+# since ${s:0:1} cuts a byte off a glyph outside a UTF-8 locale (GLOSSARY:
+# HI.12). The junctions (T/B/L/R/X) mark a table's top, separator, and
+# bottom; ASCII spells every corner `+`.
 if _hi_use_ascii; then
   _HI_BOX_TL="+" _HI_BOX_T="+" _HI_BOX_TR="+"
   _HI_BOX_L="+" _HI_BOX_X="+" _HI_BOX_R="+"
@@ -669,14 +651,10 @@ function _hi_member_label() {
   printf -v "$2" '%s' "$1${_hi_ml_t:+ ($_hi_ml_t)}"
 }
 
-# _hi_member_rows <member...> - a row each, through ${_HI_ROW_FN:-_hi_row}
-# (`hi --doctor` hands in doctor_row): the places its row says it can come
-# from that hold something, in its one order (GLOSSARY: HI.61) - the overlay's
-# copy, each home location, the tree's default - each marked used or passed
-# over (the tree's default only when used), and why nothing is sent when
-# something is there. A member found nowhere joins one closing
-# `none anywhere` row, so a sparse setup stays a short table, unless it is
-# switched off, which is its own row.
+# _hi_member_rows <member...> - rows through ${_HI_ROW_FN:-_hi_row}: each
+# place a member was found, in resolution order (GLOSSARY: HI.61), marked used
+# or passed over, and why nothing is sent. Members found nowhere share one
+# `none anywhere` row; one switched off gets its own.
 function _hi_member_rows() {
   local row m eff site tree p state text label none="" found draw="${_HI_ROW_FN:-_hi_row}"
   local -a locs _hi_paths=()

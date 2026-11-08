@@ -1,23 +1,27 @@
 # Colors
 
-How every color hi paints is chosen: the per-host hash, the pins in
-`~/.config/say-hi/colors`, the 24-bit scheme, and the package check's ramp and
-rows. The scheme and the ramp are tables of that same file, `[scheme]` and
-`[palette]`; no setting or preset names either.
+How hi picks every color it paints: the per-host hash, your pins, tags, the
+24-bit scheme, and the package check's colors. All of them live in one file,
+`~/.config/say-hi/colors` (`hi --edit colors` opens it), which rides to every
+target.
 
 ## Contents
 
+- [Pins](#pins)
+- [Tags](#tags)
+- [Color names](#color-names)
 - [The 24-bit scheme](#the-24-bit-scheme)
 - [The package check's ramp](#the-package-checks-ramp)
 - [The package check's rows](#the-package-checks-rows)
 - [Using the hash in your own prompt](#using-the-hash-in-your-own-prompt)
 
-Every username and hostname resolves to a color derived from its own name, so
-an unpinned host looks the same from every machine you say `hi` from. Pin the
-ones that matter in `~/.config/say-hi/colors`, which is TOML: a `[type]` line
-opens a table, and each row under it is `name = "color"`, on one line. A name
-that is not letters, digits, `_` and `-` alone goes in double quotes
-([the TOML hi reads](SETTINGS.md#the-toml-hi-reads) is the whole grammar).
+## Pins
+
+Every user and host gets a color derived from its name, so an unpinned host
+looks the same from every machine. Pin the ones that matter. The file is TOML
+([the subset hi reads](SETTINGS.md#the-toml-hi-reads)): a `[type]` line opens
+a table, and each row is `name = "color"`, with the name in double quotes if
+it holds anything but letters, digits, `_`, and `-`.
 
 ```toml
 [username]
@@ -34,118 +38,83 @@ prod = "red"
 prod = "red"
 ```
 
-A `hosttag` row colors every host carrying a `# Tags: prod` comment above its
-`Host` or `Match host` line in `~/.ssh/config`, or a `Tag prod` line inside
-that block (ssh's own keyword, OpenSSH 9.4 up, which `Match tagged` reads
-too) — a wildcard block (`Host prod-*`) colors every name it covers. Where a
-block has both, the comment wins; where several blocks match, the first
-answers, as ssh takes the first `Tag` it reads. `hi --add-tag <host> <tag>`
-writes the comment for you, replacing a tag already there and saying so when
-the block carries a `Tag` line; given a name only a wildcard block covers, it
-names the block to tag instead. A `usertag` row colors
-the _username_ on every host that carries that tag, so `you@prod-db` reads as
-prod on both halves. A `hostname` name holding `*` or `?` is a pattern:
-`10.0.1.*` or `*.prod.example.com` colors a whole subnet or domain at once, no
-ssh-config entry needed — the first matching pattern in the file wins.
-Precedence, highest first: an exact pin, then a hosttag, then a pattern, then
-the hash.
+- `[hostname]` and `[username]` pin one name. A hostname with `*` or `?` is a
+  pattern (`10.0.1.*`, `*.prod.example.com`); the first match wins.
+- `[hosttag]` colors every host with that [tag](#tags); `[usertag]` colors
+  the _username_ on those hosts, so `you@prod-db` reads as prod on both
+  halves.
+- Precedence, highest first: an exact pin, a hosttag, a pattern, the hash.
+- A second word is that pin's exact 24-bit color in hex (`"brred ff5f5f"`).
+  The first word is still a [name](#color-names), used on a 16-color
+  terminal, so pick the nearest.
 
-`hi --edit colors` opens `~/.config/say-hi/colors` in your editor, copying
-the tree's file there first, since a copy of your own replaces the tree's
-wholesale.
-
-A config split into files (`Include config.d/*` in `~/.ssh/config`) is read
-the way ssh reads it: each `Include` is followed in place - `~` is your home,
-a relative path is under `~/.ssh`, globs expand in sorted order, nested
-Includes too - so a host and its `# Tags:` line that live in
-`~/.ssh/config.d/01-work` complete, color, and ride like any other.
-
-A file directly in a directory named `config.d` tags the hosts it spells out
-with its own name: a host in `~/.ssh/config.d/acme` under no `# Tags:` line
-carries `acme`, so a file per client or site colors by its `hosttag` and
-`usertag` rows and reads `settings.acme.sh`
-([SETTINGS.md](SETTINGS.md#settings-by-host-tag)) with nothing written. A
-`# Tags:` line above a host, or a `Tag` line in its block, still wins, a
-wildcard block (`Host *.acme`) takes a tag only from a line of its own, and a
-file name that is not letters, digits, `_`, `.` and `-` alone tags nothing;
-one holding a `.` colors and names no settings file. `hi --add-tag` says so
-when the file's name or a `Tag` line is already the tag asked for, and
-`hi --doctor <host>` names the file or the `Tag` line a tag came from.
-
-Tags follow you past the first hop. A `hi` typed inside a session runs on a
-box whose `~/.ssh/config` has none of your `# Tags:` lines, so the tagged
-`Host` and `Match host` lines of yours - those two lines of each block and
-nothing else, no `HostName`, no `User`, no untagged host - ride the overlay as
-`ssh_tags`, a block's `Tag` line or a `config.d` file's name written out as
-the `# Tags:` line it stands for, and the middle box reads them wherever its own config has no tag
-for the name. The host is matched as you type it there, against the patterns
-you wrote here. `hi --doctor` says when the member rides; like `colors`, it
-names hosts to every target you visit, so an empty `ssh_tags` of your own in
-`~/.config/say-hi/` is how to keep them home.
-
-`hi --preview colors` shows every host in your ssh config and every user it
-knows of, drawn in the colors themselves, each row naming the rule it matched
-(`hash` for one nothing pins):
+`hi --preview colors` shows every host in your ssh config and every known
+user in their colors, each naming the rule it matched:
 
 ![hi --preview colors: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
-Any of those strings takes an optional second word, that pin's own 24-bit
-color as six hex digits (a leading `#` is fine; text after it is ignored):
-`prod-db = "brred ff5f5f"` under `[hostname]` renders `prod-db` in exactly
-that red on a truecolor terminal. The first word is still a name from the
-vocabulary below and is what a 16-color terminal gets, so name the nearest
-one. The hex outranks the `[scheme]` for that one pin — the scheme says
-what a _name_ renders as, the hex what this host or user renders as — and
-anything that is not six hex digits is ignored.
+## Tags
 
-The vocabulary is twenty-four names: the terminal's twelve (`red`, `green`,
-`yellow`, `blue`, `magenta`, `cyan`, and their `br` forms) and twelve more -
-`orange`, `pink`, `teal`, `lime`, `violet`, `salmon`, `gold`, `sky`,
-`indigo`, `mint`, `peach`, `lavender` - that a pin may name and the hash
-lands on as readily as the first twelve. A pin, the hash, and
-`hi --preview colors` never see anything else. What each name _renders as_ is
-the [scheme](#the-24-bit-scheme)'s: with none, the terminal's own sixteen
-colors for the first twelve and a built-in 24-bit color for each extra; with
-one, its hex for every name. Each is emitted as one escape carrying a 16-color code first and
-the 24-bit color after it, so a terminal that ignores the second keeps the
-first - an extra name's 16-color half is the nearest of the sixteen (orange
-reads as bright yellow there, teal as cyan).
+A host's tag comes from `~/.ssh/config`, read the way ssh reads it, `Include`
+files included:
 
-The 24-bit half paints everything hi paints - the prompt, the header's cells
-and packages check, the git segment - and only on a terminal that says it
-can: `COLORTERM` set to `truecolor` or `24bit`, which hi reads on the client
-and ships to the session as `_HI_TRUECOLOR` (ssh drops `COLORTERM` itself).
-Inside tmux, or on a terminal that renders 24-bit color without announcing it,
-`export _HI_TRUECOLOR=1` in `settings.sh` forces it; `0` refuses it. zsh
-takes the hex from 5.7 on and keeps the plain name below that; macOS
-Terminal.app never sets `COLORTERM` and so keeps its own sixteen.
+- a `# Tags: prod` comment above its `Host` or `Match host` line, which
+  `hi --add-tag <host> prod` writes for you;
+- a `Tag prod` line inside the block (ssh's own keyword, OpenSSH 9.4+);
+- the name of its file, for a file directly in a `config.d` directory:
+  hosts in `~/.ssh/config.d/acme` carry `acme`.
+
+The comment wins over a `Tag` line, which wins over the file name. A wildcard
+block (`Host prod-*`) tags every name it covers, but takes a tag only from a
+line of its own. A tag holding anything but letters, digits, `_`, `.`, and
+`-` tags nothing; one with a `.` colors but names no
+[settings file](SETTINGS.md#settings-by-host-tag). `hi --doctor <host>` says
+where a host's tag came from.
+
+**Tags follow you past the first hop.** Your tagged `Host` lines (those lines
+and their tags only, no `HostName` or `User`) ride the overlay as
+`ssh_tags`, so a `hi` typed inside a session colors the next host too. Like
+`colors`, it names hosts to every target; an empty `ssh_tags` of your own in
+the overlay keeps them home.
+
+## Color names
+
+There are twenty-four: the terminal's twelve (`red`, `green`, `yellow`,
+`blue`, `magenta`, `cyan`, and their `br` forms) and twelve more (`orange`,
+`pink`, `teal`, `lime`, `violet`, `salmon`, `gold`, `sky`, `indigo`, `mint`,
+`peach`, `lavender`). Pins and the hash use only these.
+
+Each name is sent as a 16-color code followed by a 24-bit color, so a
+terminal that ignores the second still gets the first; the extras fall back
+to the nearest of the sixteen (orange to bright yellow). Without a
+[scheme](#the-24-bit-scheme), the first twelve are the terminal's own colors
+and the extras built-in hex values.
+
+24-bit color is used only where the terminal says it can: `COLORTERM` of
+`truecolor` or `24bit` on the client. `_HI_TRUECOLOR=1` in `settings.sh`
+forces it (inside tmux, say), and `0` refuses it. zsh before 5.7 and macOS
+Terminal.app get the sixteen colors.
 
 ## The 24-bit scheme
 
-hi ships no named schemes: a scheme is the colors file's `[scheme]` table, its
-`colors` row twenty-four six-digit hex words, one space apart, in the order of
-the names above (red, green, yellow, blue, magenta, cyan, the six bright ones,
-then the twelve extras). An optional `packages` row of twenty-four more paints
-the package check alone, so a missing core tool can shout in a different red
-from the one your prompt wears. The colors file rides to every target, so a
-scheme follows you:
+A scheme is the colors file's `[scheme]` table: a `colors` row of
+twenty-four hex values, in the order of the names above (the six, the six
+bright ones, then the twelve extras). An optional `packages` row of
+twenty-four more paints only the package check.
 
 ```toml
 [scheme]
 colors = "f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca fab387 f2cdcd 81c8be c3e88d cba6f7 eba0ac e5c890 89dceb 7287fd 8be9b0 f5a97f b4befe"
 ```
 
-Anything that is not exactly 24 hex words, with 24 more or none in
-`packages`, renders as the default and `hi --doctor` says so.
-`hi --preview colors` and `hi --preview packages` judge a scheme, labelling it
-`custom (24)`, `custom (48)`, or `(ignored - not a scheme)`.
+A pin's own hex outranks the scheme. A scheme that is not exactly 24 hex
+values (plus 24 or none in `packages`) is ignored, and `hi --doctor` and
+`hi --preview colors` say so.
 
 ## The package check's ramp
 
-The `[palette]` table is the same idea one level down: which of the
-twenty-four names the header's package check paints each tier in. Its
-`installed` row is four of those names, rising 0→3, and its `missing` row four
-more:
+The `[palette]` table picks which names the package check paints each tier
+in, rising 0 to 3, for installed and missing tools:
 
 ```toml
 [palette]
@@ -153,21 +122,17 @@ installed = ["cyan", "green", "brcyan", "brgreen"]
 missing   = ["blue", "magenta", "bryellow", "brred"]
 ```
 
-Those rows are the shipped ramp, so writing them changes nothing. A ramp reads
-best when both halves climb in one direction — a missing core tool the loudest
-thing on screen, installed trivia the quietest — and stay legible on light and
-dark terminals alike. Anything that is not four names from the vocabulary in
-each row falls back to the shipped ramp, `hi --doctor` says so, and
-`hi --preview packages` labels the line `default`, `custom`, or
-`(ignored - not eight color names)`.
+Those are the shipped values. A good ramp makes a missing core tool the
+loudest thing on screen and installed trivia the quietest, on light and dark
+terminals alike. Anything but four names per row falls back to the shipped
+ramp, and `hi --doctor` says so.
 
 ## The package check's rows
 
-The check reads one file, `config/packages`, which is TOML: a table per
-group, and a row per tool, its value the alternatives in order of
-preference, on one line. The shipped file is short;
-[packages.example](packages.example) is a longer one, with `extras`,
-`trivia`, and `platform` groups, to copy to `~/.config/say-hi/packages`.
+The check reads `packages`, also TOML: a table per group, and a row per tool
+listing its alternatives in order of preference. The shipped file is short;
+[packages.example](packages.example) is a longer one to copy
+(`hi --edit packages`).
 
 ```toml
 [useful]
@@ -179,25 +144,15 @@ rsync = []
 "-neofetch" = []
 ```
 
-The first name installed is shown, marked `~` when it is not the row's own.
-A mark leading the name, which then goes in double quotes, sets what the row
-is for:
+The first name installed is shown, marked `~` when it is an alternative. A
+mark before the name (then in double quotes) says what the row is for:
 
-- **No mark**, wanted: installed (`✓`) and missing (`✗`) both show.
-- **`-`**, unwanted: silent while absent, a warning (`!`) when installed —
-  the `deprecated` group's `neofetch`, `python2`, and `xsv`.
-- **`+`**, required: silent while installed, an alarm (`✗`) when missing —
-  the `base` group's coreutils.
+- **no mark**, wanted: installed (`✓`) and missing (`✗`) both show;
+- **`-`**, unwanted: silent while absent, a warning (`!`) when installed;
+- **`+`**, required: silent while installed, an alarm (`✗`) when missing.
 
-hi reads that much of TOML and no more
-([the TOML hi reads](SETTINGS.md#the-toml-hi-reads)): a value on a second
-line, a string in single quotes, or an inline table is a row it skips, and
-`hi --doctor` names the line, and says so of a file still in an older
-format.
-
-Warnings and alarms sort first and paint in the loudest missing color.
-Every other row paints in its group's tier of the ramp above; there is no
-per-row color:
+Warnings and alarms sort first, in the loudest missing color. Every other row
+takes its group's tier of the ramp:
 
 | tier | groups                                     |
 | ---- | ------------------------------------------ |
@@ -206,39 +161,28 @@ per-row color:
 | 1    | `extras`, and any group of your own naming |
 | 0    | `trivia`, `platform`                       |
 
-`_HI_PACKAGES_GROUPS` names the groups that run, space- or comma-separated,
-or `none`; unset, it is `core deprecated`
-([SETTINGS.md](SETTINGS.md#every-setting)). A group that is off is not even
-looked for, and rows above the first table always run.
+`_HI_PACKAGES_GROUPS` picks the groups that run (default `core deprecated`,
+or `none`); rows above the first table always run. To turn the check off,
+drop `check` from `_HI_HEADER_ORDER`. `hi --preview packages` shows each
+group and its colors.
 
-`hi --edit packages` opens `~/.config/say-hi/packages` in your editor,
-copying the tree's file there first: a copy of your own replaces the tree's
-wholesale, the same rule `colors` follows.
-`hi --preview packages` shows each group — whether it runs, its colors, and a
-real example from your rows — then the marks and the check; to turn the check
-off, drop `check` from `_HI_HEADER_ORDER`. A copy never gains a group the tree
-adds later, so the preview and `hi --doctor` name the tree's groups your file
-lacks, and any row with a `-` or `+` leading one of its alternatives
-(`eza = ["-exa", "lsd"]`), which is read as part of a name nothing matches.
+Your copy replaces the shipped file whole and never gains a group the tree
+adds later; `hi --preview packages` and `hi --doctor` name the groups yours
+lacks.
 
 ## Using the hash in your own prompt
 
-`_HI_DISABLE_PROMPT=1` turns off hi's own `user@host` prompt; the per-host
-color hashing is still resolved, into variables for your own `bashrc` or
-`zshrc` (sourced at the end of hi's,
-[above](SETTINGS.md#shells-you-drop-into-inside-a-session)) to use:
+With `_HI_DISABLE_PROMPT=1`, hi still resolves the colors into variables for
+your own [`bashrc` or `zshrc`](SETTINGS.md#shells-you-drop-into-inside-a-session):
 
-- `$_HI_HOST_ESC`/`$_HI_USER_ESC` — the raw ANSI escape, for a bash `PS1` to
-  embed directly (wrap it in `\[ \]` so readline doesn't count its width):
-  `PS1="\[$_HI_HOST_ESC\]\h\[$NC\] \w "`.
-- `$_HI_HOST_COLOR`/`$_HI_USER_COLOR` — the color by name, for zsh's own
-  `%F{}`: `PS1='%F{$_HI_HOST_COLOR}%m%f %~ '`. One of the twelve extras is
-  not a name `%F{}` knows: `_hi_color_base b "$_HI_HOST_COLOR"` gives the
-  sixteen-color name behind it, and `_hi_color_hex h "$_HI_HOST_COLOR"` the
-  hex for `%F{#$h}`.
-- fish needs neither: `common/config.fish` sets
-  `$fish_color_host`/`$fish_color_user` unconditionally, for
-  `set_color $fish_color_host` in your own `fish_prompt`.
+- `$_HI_HOST_ESC` and `$_HI_USER_ESC`: the raw escape, for a bash `PS1`
+  (wrapped in `\[ \]`): `PS1="\[$_HI_HOST_ESC\]\h\[$NC\] \w "`.
+- `$_HI_HOST_COLOR` and `$_HI_USER_COLOR`: the name, for zsh's `%F{}`:
+  `PS1='%F{$_HI_HOST_COLOR}%m%f %~ '`. For an extra name `%F{}` does not
+  know, `_hi_color_base b "$_HI_HOST_COLOR"` gives the nearest of the sixteen
+  and `_hi_color_hex h "$_HI_HOST_COLOR"` the hex for `%F{#$h}`.
+- fish: `common/config.fish` sets `$fish_color_host` and `$fish_color_user`
+  for `set_color` in your own `fish_prompt`.
 
-Each shell resolves them once at startup, so a change to the color pins shows
-from the next shell on.
+Each shell resolves them at startup, so a changed pin shows from the next
+shell on.

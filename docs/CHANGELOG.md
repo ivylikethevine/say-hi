@@ -10,9 +10,13 @@ in the list below, and nothing else is ever done to this file.
 
 - A pull request into `main` takes nine fewer CI runners, and the Debian and Ubuntu test and package-build images move to rebuilt bases that close the fixable high and critical CVEs the scan found in them.
 - The package check no longer warns about `exa`, which eza installs beside itself for compatibility.
+- A published release can no longer be changed: its tag and assets are fixed once it is out, and GitHub attests them.
+- CI installs every pinned tool through one action, so each job makes one cache round trip for all of its tools.
 
 From the roadmap:
 
+- Coverage is measured by bashcov alone: kcov's sweep, its badge, and `tests/coverage.sh` are gone, and `tests/coverage_v2.sh --untested` lists a change's unrun lines.
+- Every default and preset 1.0 freezes was checked against its code; the ones that moved during 0.8 are `_HI_IP_HIDE`, from `172.*` to the container and VM bridges' interface names, `_HI_PROMPT_END_ZSH`, from `>` to `%(!.#.>)` so root gets `#`, `_HI_PACKAGES_GROUPS`, from `core useful deprecated` to `core deprecated` with `useful` under the `everything` preset, and `_HI_HEADER_ORDER`, which gains `banner` first and `greeting` last, beside 0.8.0's `balanced` first-install preset and `hi --update`'s signature check.
 - `hi --configure` asks which preset to start from, then opens `settings.sh` in your editor, every setting a line of it and one at its default commented, in place of the paged menu; `hi --doctor --help` is a page shorter, and the report no longer lists each non-default toggle
 - `hi --add-package`, `--remove-package`, `--add-color` and `--remove-color` are gone: `hi --edit packages` and `hi --edit colors` open your copy of either file, copying the shipped one in first.
 - A package row says what it is for with a mark on its name, `"+sudo" = ["doas"]` for required and `"-neofetch" = []` for unwanted, in place of the `[group.required]` and `[group.unwanted]` tables; `hi --install`, `--configure` and `--update` convert a file with those tables, and `hi --doctor` names one.

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Line coverage for the bash suites via bashcov - coverage.yml's shard-bashcov
-# matrix runs it and README's Bashcov badge is its output. Same job and same
-# CLI as tests/coverage.sh, different instrumentation, and that difference is
-# the whole point of the file existing.
+# Line coverage for the bash suites via bashcov - run by hand, and by
+# coverage.yml's shard-bashcov matrix; README's Bashcov badge is its output.
+# The point is finding which arms the cases never touch, not gating on a
+# number.
 #
 # Usage: tests/coverage_v2.sh [outdir] [runner args...]
 #   outdir       where the report is written (default: $TMPDIR/say-hi-coverage-v2)
@@ -12,31 +12,20 @@
 #                it). The `shellcheck` suite is dropped from whatever this
 #                selects, wherever it appears - see tests/lib/coverage.sh -
 #                and so is configure_pty (below).
-# tests/coverage.sh --join sets this sweep's ranking beside kcov's.
+#        tests/coverage_v2.sh --untested <base> [missed]
+#   the lines changed since <base> the sweep never recorded, off the `missed`
+#   it leaves beside `files` (the default is the default outdir's)
 #
 # ---------------------------------------------------------------------------
-# WHY A SECOND COVERAGE SCRIPT
+# WHAT IT MEASURES, AND WHERE IT SKEWS
 #
-# tests/coverage.sh drives kcov. An earlier kcov, tracing bash through a
-# DEBUG trap, lost that trap during tests/test_lib.sh's source-time work,
-# and every line a suite ran *after* the harness finished loading went
-# unrecorded - common/git_prompt.sh reported 2 of 78 lines while its 17 cases
-# passed. coverage.sh's own header keeps that measured record; the current
-# pin lands within a few points of this script's figure and has for many
-# commits: both are reliable, and the average of the two badges is the
-# coverage figure to quote. A massive divergence, not the usual few points,
-# is what would put either in question.
+# bashcov runs the script under `set -x` with a PS4 that names $BASH_SOURCE
+# and $LINENO, and reads the trace off $BASH_XTRACEFD. xtrace follows into
+# functions, subshells, and every child bash (SHELLOPTS carries it), with no
+# trap to lose. A heredoc body counts as covered whether or not it ran.
 #
-# bashcov instruments a different way: it runs the script under `set -x` with
-# a PS4 that names $BASH_SOURCE and $LINENO, and reads the trace off
-# $BASH_XTRACEFD. xtrace follows into functions and subshells without needing
-# a trap to survive, so kcov's failure mode cannot happen here - though this
-# side has skews of its own (heredoc bodies count as covered whether or not
-# they ran; `env -i` children and in-container lines drop out of the trace),
-# which is why both tools ship rather than one replacing the other.
-#
-# More readings here are artifacts, not gaps, and are worth ruling out
-# before writing a test against a number:
+# These readings are artifacts, not gaps, and are worth ruling out before
+# writing a test against a number:
 #   - a script a suite *executes from a scratch-tree copy* under $_HI_WORKDIR
 #     is filed under the copy's path, which the filters drop, so those lines
 #     read 0 (hi.sh's and install.sh's dispatch). bashcov files a hit under
@@ -58,9 +47,9 @@
 #     the lines that ran included (scripts/lib.sh's _hi_setting_get and the other
 #     out-var helpers); a probe calling the function directly still reads 0.
 #   - an arm only zsh, a bash before 4.4, or a tool no sweep has (Arch's
-#     makepkg) runs is invisible to both tools, and sits between a
-#     `# hi-nocov-begin: <why>` and a `# hi-nocov-end` comment, which both
-#     drivers drop from their figures; a new such arm gets the same pair.
+#     makepkg) runs is invisible to the sweep, and sits between a
+#     `# hi-nocov-begin: <why>` and a `# hi-nocov-end` comment, which this
+#     driver drops from its figure; a new such arm gets the same pair.
 #     Another OS's sysinfo arms are no such arm: the suites fake the
 #     platform, and what reads 0 there is a continuation line (above).
 #   - a `#!/bin/sh` file a suite *executes* as `sh <file>` (common/targets.sh)
@@ -72,18 +61,18 @@
 #     This driver puts a bash-as-sh first on PATH for that reason
 #     (_hi_cov_shim_sh_to_bash, tests/lib/coverage.sh).
 #
-# The topology is the one coverage.sh established and is unchanged: one run per
-# suite, with the suite script as the *top-level* process, merged at the end.
+# One run per suite, with the suite script as the *top-level* process, merged
+# at the end.
 # Wrapping test_runner.sh instead would put every suite in a child process.
 # SimpleCov does the merging itself, keyed on --command-name, by accumulating
 # into .resultset.json in the output directory.
 # ---------------------------------------------------------------------------
 #
-# Lives in tests/ for tests/coverage.sh's reason: no target ships it.
+# Lives in tests/ on purpose: tests/ ships in neither the ssh payload
+# ($_HI_PAYLOAD) nor the OS packages ($_HI_PACKAGE_CONTENTS).
 set -euo pipefail
 
-# tree resolution, suite selection, the tally files, and the trace loop are
-# shared with tests/coverage.sh
+# tree resolution, suite selection, the tally files, and the trace loop
 # shellcheck source=lib/coverage.sh
 source "$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/coverage.sh"
 
@@ -125,7 +114,7 @@ function _hi_cov_v2_report() {
       end
     end
     # a region between the hi-nocov-begin and hi-nocov-end comments is no line
-    # either tool can record (kcov drops it by --exclude-region)
+    # the sweep can record
     by_file.each do |path, lines|
       inside = false
       (File.readlines(root + path) rescue []).each_with_index do |text, i|
@@ -162,7 +151,7 @@ function _hi_cov_v2_report() {
 # --merge <dest> <shards-dir> - coverage.yml's gather-bashcov mode: the union
 # of every shard's <shards-dir>/*/.resultset.json into <dest>/.resultset.json,
 # with the ranking and the badge figure in <dest>/coverage-v2-pct. Exits 0
-# either way, as tests/coverage.sh --merge does: a badge is never a gate.
+# either way: a badge is never a gate.
 if [ "${1:-}" = --merge ]; then
   shopt -s nullglob
   _hi_cov_shards=("$3"/*/.resultset.json)
@@ -174,6 +163,12 @@ if [ "${1:-}" = --merge ]; then
   _hi_cov_v2_report "$_HI_HOME/say-hi" "$2/coverage-v2-pct" "$2/.resultset.json" "${_hi_cov_shards[@]}" ||
     echo "::warning::could not read the shards' resultsets - no figure to publish"
   exit 0
+fi
+
+if [ "${1:-}" = --untested ]; then
+  _hi_cov_untested "${2:?--untested needs a revision to compare with}" \
+    "${3:-${TMPDIR:-/tmp}/say-hi-coverage-v2/missed}"
+  exit
 fi
 
 # `gem install --user-install bashcov` puts the binary somewhere not on the
@@ -217,7 +212,7 @@ fi
 # script has a reason to make.
 #
 # The filters keep the HTML report to the subject, as _hi_cov_v2_report does
-# the ranking and coverage.sh's --exclude-path does kcov's. SimpleCov's own
+# the ranking. SimpleCov's own
 # go first: its root filter would drop a script run from a scratch-tree copy
 # before _hi_cov_v2_credit could credit it, and the hidden-directory filter
 # it takes with it comes back.
@@ -237,8 +232,8 @@ _HI_COV_TRASH+=("$_HI_SIMPLECOV")
 _HI_COV_TOOL=bashcov
 # configure's pty suite runs each case near ten times slower under bashcov
 # on a CI runner than anywhere else measured (a container of CI's own ruby
-# and bashcov, any core count, CI's locale), past a shard's budget; kcov
-# traces them in seconds, so its figure carries them
+# and bashcov, any core count, CI's locale), past a shard's budget, so the
+# figure leaves it out
 _HI_COV_SKIP="configure_pty"
 _hi_cov_select_suites "$@"
 _hi_cov_counts_files covv2

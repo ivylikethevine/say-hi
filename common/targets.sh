@@ -12,23 +12,18 @@
 # GLOSSARY: HI.26 - _HI_PROBE_TIMEOUT and _HI_TARGETS_TTL
 # GLOSSARY: HI.51 - the docker-compatible CLI family
 #
-# The backends are probed together, each capped at $_HI_PROBE_TIMEOUT, so N
-# wedged daemons cost the longest ceiling rather than the sum (the trade
-# header.sh's _hi_probe_start makes for the banner). Emission order stays the
-# roster's; a host with no writable scratch directory gets the in-turn sweep.
+# Backends are probed in parallel, each capped at $_HI_PROBE_TIMEOUT, output
+# in roster order; with no writable scratch directory, in turn.
 # shellcheck disable=SC2329 # every function here is reached indirectly, through
 # run_lister's dispatch or as a background job.
 
 # ssh_config_flat config|files <path> | ssh_config_flat include <words> - an ssh config
-# with every `Include` followed in place by the files it names (the line is
-# kept, so a `# Tags:` above it still ends there), the way ssh
-# reads it: `~` is $HOME, a relative path is under ~/.ssh, a glob expands in
-# sorted order, nested Includes too (16 deep, ssh's own limit). A word with
-# anything but path and glob characters is skipped, never handed to sh.
-# `files` prints the path of each file read, in order, instead of its lines.
-# The lines of an Included file follow a `# hi-file: <path>` comment, and its
-# parent's is said again after it: a file's name tags its hosts (core.sh's
-# _hi_ssh_walk_line).
+# with each `Include` followed in place as ssh does (`~` is $HOME, relative
+# under ~/.ssh, globs sorted, 16 deep); the line stays so a `# Tags:` above it
+# still ends there. A word with anything but path and glob characters is
+# skipped. `files` prints the paths read instead. Each Included file's lines
+# follow a `# hi-file: <path>` line, its parent's after, so a file's name can
+# tag its hosts (core.sh's _hi_ssh_walk_line).
 ssh_config_flat() {
   awk -v mode="$1" -v arg="$2" -v home="$HOME" '
     function inc(args, depth,   n, w, i, p, cmd, f, m, list, k) {
@@ -98,32 +93,20 @@ esac
 # file cannot source - the drift suite pins the two together. GLOSSARY: HI.51
 clis="docker podman nerdctl finch"
 
-# hi's own flags, so `hi --<TAB>` completes them like a target: one
-# "<flag>\t<help>" line each, the target lines' shape, so fish shows the
-# purpose beside the flag the way it does for a target's kind (bash and zsh
-# read the first column). Here rather than per shell because this is the one
-# file all three completions read and the only one fish can run. Answered
-# before the cache and the probes: a flag list must never wait on a docker
-# daemon. targets_test.sh drift-checks it against hi.sh's --help.
-# The tree this file sits in, derived from $0 since a completion can reach
-# this file without paths.sh (GLOSSARY: HI.33): the flags table and .git live
-# there.
+# hi's own flags for `hi --<TAB>`, "<flag>\t<help>" lines like a target's,
+# answered before the cache and probes so they never wait on a daemon.
+# targets_test.sh checks them against --help. The tree comes from $0, since
+# a completion may run this without paths.sh (GLOSSARY: HI.33).
 case $0 in
 */*) hi_tree="${0%/*}/.." ;;
 *) hi_tree=".." ;;
 esac
 
 if [ "$kind" = flags ]; then
-  # Out of common/flags, the table hi.sh dispatches from. <needs> is what a
-  # flag wants that is not always on disk: `-` is offered everywhere; the rest
-  # are withheld in a session and then checked against the tree (a package
-  # install ships scripts/ but not .git).
-  # `flags <command>`: the line's first word is a local command (a row whose
-  # needs column is not `-`), so `hi --install --<TAB>` offers that command's
-  # own switches, read off the row's argument column - `--preset <name>` is
-  # one switch, the word it takes is not, and `hi --preview --<TAB>` offers
-  # nothing rather than hi's roster. Anything else first (a connect flag, a
-  # target) falls through to hi's own roster, as before.
+  # From common/flags. A <needs> of `-` is offered everywhere; the rest are
+  # withheld in a session and checked against the tree (a package has no
+  # .git). `flags <command>` for a local command offers its own switches from
+  # the argument column (`hi --install --<TAB>`); otherwise hi's roster.
   if [ -n "${2:-}" ]; then
     while IFS='|' read -r flag arg needs _var _first _help; do
       [ "$flag" = "$2" ] && [ "$needs" != - ] || continue
@@ -147,14 +130,10 @@ if [ "$kind" = flags ]; then
   exit 0
 fi
 
-# The word after a flag that takes one, so `hi --preview <TAB>` and
-# `hi --use <TAB>` complete it the way a flag completes: "<word>\t<help>"
-# lines. A fixed list is common/flags' <flag>=<word> rows; what is computed
-# (a host, a tag, a plugin) is read here. --use's roster is the arms
-# hi.sh dispatches on, in its order - ssh, the docker-compatible family,
-# nomad, kube - spelled here because a completion can reach this file without
-# hi.sh (parse_test.sh pins the two against each other). Answered before the
-# probes, like the flags. The membership test is paths.sh's $_HI_WORD_FLAGS.
+# The word a flag takes (`hi --preview <TAB>`), as "<word>\t<help>" lines:
+# common/flags' <flag>=<word> rows, or computed (a host, a tag, a plugin).
+# --use's arms are spelled again here (parse_test.sh pins them to hi.sh's).
+# Answered before the probes.
 
 if [ "$kind" = words ]; then
   # a fixed list is common/flags' <flag>=<word> rows
@@ -218,13 +197,9 @@ fi
 # pins these to
 ttl="${_HI_TARGETS_TTL:-5}" cap="${_HI_PROBE_TIMEOUT:-2}"
 
-# `timeout` is GNU/busybox, absent on stock macOS - optional. `-k 0.2`: the
-# cap is a SIGTERM, which rootless podman defers while its runtime initialises
-# (longer than the cap on a fresh $HOME); the KILL 200ms later is what makes
-# $_HI_PROBE_TIMEOUT a bound. BusyBox before 1.35 refuses `-k`, and before
-# 1.30 takes the cap only as `-t SECS`, so the first call settles which form
-# works and redefines this; run_lanes calls it once
-# before forking. core.sh's _hi_probe carries the same one.
+# core.sh's _hi_probe, again: optional `timeout`, `-k 0.2` because rootless
+# podman defers the TERM while its runtime starts, and BusyBox's older forms.
+# run_lanes calls it once before forking.
 run_backend() {
   if ! command -v timeout >/dev/null 2>&1; then
     run_backend() { "$@"; }
@@ -351,14 +326,10 @@ emit_targets() {
 
 # The listers, each reached through run_lister's dispatch.
 
-# The family is one call (drop-in CLIs, the kind is the CLI's own name); the
-# tag is appended by the read loop, not a `sed`, on this every-TAB path. Docker
-# and podman also carry the compose service label on the same call: a target
-# one word shorter than the container name, resolved back by hi.sh's
-# _hi_compose_container. Those two alone - both render `{{.Label "..."}}` and
-# both take the matching `label=` filter hi.sh resolves through, while nerdctl
-# and finch are unverified, and a template one of them rejects would empty its
-# lane.
+# One call per family CLI, its kind the CLI's name, tagged by the read loop
+# rather than a `sed`. docker and podman also list compose service names
+# (_hi_compose_container resolves them); nerdctl and finch are unverified for
+# that template.
 list_ps() {
   _hi_fmt='{{.Names}}'
   case "$1" in docker | podman) _hi_fmt='{{.Names}} {{.Label "com.docker.compose.service"}}' ;; esac
@@ -408,12 +379,10 @@ list_nomad() {
   done
 }
 
-# The pod, plus a "pod/container" line per container when it has more than one
-# (the syntax hi takes for picking one). One jsonpath over every namespace: a
-# pod in the current namespace is emitted bare, any other as `namespace:pod`
-# (hi.sh's _hi_kube_split). The namespace comes from the kubeconfig (empty
-# means `default`); still a large exec, so with a scratch dir it runs beside
-# the pod listing rather than ahead of it - this lane is the longest one.
+# Each pod, plus "pod/container" lines for a pod with several, from one
+# jsonpath over every namespace: bare in the current namespace, else
+# `namespace:pod`. The namespace lookup runs beside the listing, the longest
+# lane.
 kube_ns() { run_backend kubectl config view --minify -o jsonpath='{..namespace}'; }
 
 list_kube() {
@@ -468,16 +437,9 @@ if [ -z "$cache_dir" ] || [ ! -d "$cache_dir" ]; then
   # first TAB only; -m 700 on the create so it is never briefly world-readable,
   # and no -p, which would silently adopt a path somebody else made
   [ -d "$cache_dir" ] || mkdir -m 700 "$cache_dir" 2>/dev/null
-  # The name is predictable (the next TAB has to find it), so on a shared /tmp
-  # another user can get there first - and would then be choosing what
-  # `hi <TAB>` offers. A directory that is not ours is not made ours: the cache
-  # is skipped and the backends swept instead, slower and correct.
-  #
-  # Ownership through `ls -ldn`, not `test -O`: -O is a bash/ksh/zsh extension
-  # (SC3067). `-n` is what makes this one comparison rather than two - it
-  # prints the owner as a number always, so the uid we already have answers
-  # for a host with a passwd entry and for one without alike, and no second
-  # `id -un` fork is needed to cover the difference.
+  # The name is predictable, so another user could make it first on a shared
+  # /tmp; a directory not ours means no cache, a slower sweep. Owner by
+  # `ls -ldn` (`test -O` is not POSIX), numeric so no `id -un` fork.
   # shellcheck disable=SC2012,SC2046 # `find -maxdepth` is not POSIX and `find -user`
   # takes a user *name*, which is exactly what a host with no passwd entry for
   # the caller cannot supply. SC2012's hazard is parsing file *names* out of
@@ -501,15 +463,9 @@ write_cache() {
   printf '%s\n' "$now" ${1:+"$1"} 2>/dev/null >"$_hi_tmp" && mv "$_hi_tmp" "$cache" 2>/dev/null || rm -f "$_hi_tmp" 2>/dev/null
 }
 
-# The timestamp is the cache's first line, not the mtime (every portable way
-# to read an mtime in seconds is a GNU extension).
-#
-# Three ages. Inside the TTL the copy is the answer. Past it but within
-# $stale_for, the copy is still the answer, printed now while a refresh runs
-# behind the TAB - a TAB that waits on a daemon is the one cost a user feels.
-# Past $stale_for the shell has been idle long enough that the world has
-# probably moved, and the sweep is waited on like a first TAB. TTL 0 skips
-# the file entirely (above).
+# The cache's first line is its time (no portable mtime in seconds). Inside
+# the TTL the copy answers; up to $stale_for it answers while a refresh runs
+# behind; past that the sweep is waited on. TTL 0 skips the cache.
 stale_for=600
 age=""
 if [ -f "$cache" ] && [ -r "$cache" ]; then
@@ -525,12 +481,9 @@ fi
 if [ -n "$age" ] && { [ "$age" -lt "$ttl" ] || [ "$age" -lt "$stale_for" ]; }; then
   cache_body "$cache"
   [ "$age" -ge "$ttl" ] || exit 0
-  # One refresh at a time, or every TAB in the window a sweep takes would
-  # start another. The lock is a directory (made or not in one call) holding
-  # the time it was taken; one older than any sweep runs (a flat 30s) was left
-  # by a refresher that died, and is taken over. No time yet is a lock taken
-  # a moment ago - its owner writes `at` right after the mkdir - unless the
-  # directory itself is over a minute old, an owner that died in between.
+  # One refresh at a time: a lock directory holding its time. One older than
+  # 30s, or with no time and over a minute old, belongs to a refresher that
+  # died and is taken over.
   lock="$cache.lock"
   if ! mkdir "$lock" 2>/dev/null; then
     if IFS= read -r _hi_at <"$lock/at" 2>/dev/null; then

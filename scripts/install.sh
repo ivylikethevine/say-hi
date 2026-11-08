@@ -2,12 +2,9 @@
 # Points the local shells at say-hi's configs and links hi.sh onto $PATH.
 # Safe to re-run: it repairs the lines it owns and leaves everything else alone.
 #
-# The entry point only: flags, the modes, and the hi.sh link and packaging
-# halves. The rc-file ownership is scripts/rc.sh and the settings write is
-# scripts/configure.sh, both sourced below. --uninstall is the exact inverse
-# and lives here rather than in a script of its own: both halves own the same
-# marker-tagged lines and the same symlink, and split across two files the
-# contract between them is two copies of a string staying identical.
+# Flags, modes, the link, and packaging; rc lines are scripts/rc.sh's and
+# settings scripts/configure.sh's. --uninstall lives here too, owning the
+# same lines and link.
 
 _HI_FEATURES_ONLY=""
 # _MODE, not a bare _HI_UNINSTALL: a sourced file exporting that name as a
@@ -481,24 +478,14 @@ function purge_overlay() {
   fi
 }
 
-# What a package ships. Deliberately spelled out rather than derived from
-# hi.sh's $_HI_PAYLOAD: that list answers "what does a target need for one
-# session", this one answers "what does an installed copy need forever", and the
-# two differ on scripts/ - not in the payload, required here so a user of a
-# packaged install can still run `hi --install`/`hi --uninstall`/`hi --preview colors`
-# against it. tests/ is in neither and has no flag of its own.
-# Every entry is top-level. LICENSE.md is at the root rather than under docs/
-# so github.com and OpenSSF Scorecard's License check can both find it - they
-# look there and nowhere else. It makes no difference to the staged result:
-# install_tree's cp lands file entries flat by basename either way.
+# What a package ships: the payload plus scripts/, which an installed copy
+# needs for `hi --install` and the rest. LICENSE.md stays at the root, where
+# github.com and Scorecard look for it.
 _HI_PACKAGE_CONTENTS=(common scripts config hi.sh load.sh LICENSE.md README.md)
 
-# Packaging mode. say-hi normally installs *in place*, which assumes the tree is
-# somewhere you own; here the tree is copied to a staging root for a package
-# manager to own instead, and every part of the normal install that reaches
-# outside that root - rc files, sudo, the settings the user hasn't chosen yet -
-# is skipped. Each user runs `hi --install` themselves afterwards; their answers
-# go to $_HI_CONFIG_DIR, so that works against a root-owned tree.
+# Packaging mode: copy the tree to a staging root for a package manager,
+# skipping everything outside it (rc files, sudo, settings). Each user runs
+# `hi --install` later; answers go to $_HI_CONFIG_DIR.
 function install_tree() {
   local dest="${DESTDIR:-}$_HI_PREFIX/say-hi" bindir="${DESTDIR:-}/usr/bin"
   local profile="${DESTDIR:-}/etc/profile.d/say-hi.sh" item line
@@ -558,12 +545,8 @@ function install_tree() {
 # calls in particular have no business firing from a test
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
-# Strict mode for the real run only, from here down: core.sh (sourced above)
-# ends with `set +euo pipefail`, so a `set` line placed before it is silently
-# undone, and a script-wide `set -euo pipefail` above the return guard would
-# leak into every test that sources this file for its functions instead of
-# running it - unlink_hi's own callers rely on that staying relaxed.
-# GLOSSARY: HI.15
+# Strict mode from here, for a real run only: core.sh releases it, and the
+# suites that source this file for its functions need it off. GLOSSARY: HI.15
 set -euo pipefail
 
 # the same order the modes run in below

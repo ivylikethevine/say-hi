@@ -539,10 +539,10 @@ EOF
     [[ "$out" == *"apt-get update failed three times"* ]] || _hi_because "three failures, rc $rc: $(cat "$dir/never") | $out"
 }
 
-# resolve writes the pin, its checksum, where the binary will land, and the
-# hosted image ($ImageOS, empty off a hosted runner) for the cache key; an
-# unknown tool, a platform the row has no asset for, and a stray subcommand
-# each fail by name
+# resolve writes the pin, its checksum and where the binary will land (an
+# older install.sh also wrote the hosted image, which setup-tools reads from
+# $ImageOS itself); an unknown tool, a platform the row has no asset for, and
+# a stray subcommand each fail by name
 function test_setup_tool_resolve_names_the_pin() {
   local got2
   local dir out rc=0 a b plat
@@ -553,8 +553,8 @@ function test_setup_tool_resolve_names_the_pin() {
   printf '%s\n' "one|1.2.3|raw|https://x/one-%v||-||$a" "two|2.0|raw|https://x/%a||-||$plat:slug=$b" \
     "far|1|raw|https://x/%a||-||plan9-mips=$a" >"$dir/tools.txt"
   _hi_tool_run "$dir" resolve CI_TOOL=one ImageOS=img1 >/dev/null || _hi_why dir || return 1
-  got2="$(cat "$dir/output")"
-  [ "$got2" = "version=1.2.3"$'\n'"sha256=$a"$'\n'"path=$dir/out/one"$'\n'"image=img1" ] || _hi_because "one: $got2" || return 1
+  got2="$(grep -v '^image=' "$dir/output")"
+  [ "$got2" = "version=1.2.3"$'\n'"sha256=$a"$'\n'"path=$dir/out/one" ] || _hi_because "one: $got2" || return 1
   : >"$dir/output"
   _hi_tool_run "$dir" resolve CI_TOOL=two >/dev/null && grep -qx "sha256=$b" "$dir/output" || _hi_why dir b || return 1
   out="$(_hi_tool_run "$dir" resolve CI_TOOL=nope)" || rc=$?

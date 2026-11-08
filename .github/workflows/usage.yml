@@ -27,7 +27,7 @@ jobs:
       - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: block
-          # The checkout, setup-tool's download of freeze, and the results
+          # The checkout, setup-tools' download of freeze, and the results
           # receiver; every command the render runs is local.
           allowed-endpoints: >
             github.com:443
@@ -43,9 +43,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-tool
+      - uses: ./.github/actions/setup-tools
         with:
-          tool: freeze
+          tools: freeze
 
       - name: Render
         run: docs/tapes/usage.sh

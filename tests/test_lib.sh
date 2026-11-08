@@ -1,51 +1,29 @@
 #!/usr/bin/env bash
-# Shared scaffolding for every suite under tests. The scaffolding itself lives
-# in tests/lib/; this file is the one path a suite sources (it exports itself
-# as $_HI_TEST_LIB), so the parts can be re-cut without touching a
-# single suite. Order below is dependency order - report.sh's assertions print
-# through its own _hi_align, and every part uses core.sh.
+# The one file every suite sources ($_HI_TEST_LIB); the parts live in
+# tests/lib/, sourced in dependency order.
 #
 # GLOSSARY: HI.30 + HI.34
 # shellcheck disable=SC2329
 set -euo pipefail
 
-# Isolation, and it has to happen before bootstrap.sh: that resolves
-# $_HI_SETTINGS/$_HI_COLORS/$_HI_PACKAGES against $_HI_CONFIG_DIR once, so by
-# the time a suite runs it is too late to stop the developer's own
-# ~/.config/say-hi from deciding what those point at. Deliberately a path that
-# does not exist yet, so the baseline every suite starts from is "no overlay,
-# in-tree defaults"; a test wanting an overlay mkdir's this and writes into it,
-# and _hi_test_cleanup takes it away again. Same rule as never touching the
-# real ~/say-hi.
-#
-# The isolated directories live under one root this file makes itself with
-# mktemp -d - a fresh name every time, so nothing stale is ever inherited and
-# nothing needs deleting up front. _hi_test_cleanup removes that root, by the
-# path recorded here, and nothing else on its account: never $XDG_CONFIG_HOME,
-# $XDG_RUNTIME_DIR, or $HOME themselves, which a test or a sourcing shell
-# could have pointed at a real ~/.config, /run/user/<uid>, or ~ by then.
+# Isolation, before paths are resolved: $_HI_CONFIG_DIR is a path that does
+# not exist yet, so every suite starts with no overlay, never the developer's.
+# The isolated directories sit under one fresh `mktemp -d` root, the only
+# thing _hi_test_cleanup removes for them: never $XDG_CONFIG_HOME,
+# $XDG_RUNTIME_DIR, or $HOME, which may point at the real ones by then.
 _HI_TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/hi.testroot.XXXXXX")"
 export XDG_CONFIG_HOME="$_HI_TEST_ROOT/config"
-# Each suite its own runtime dir, too: otherwise every suite running at once
-# shares ${TMPDIR:-/tmp}/hi-<uid> - the payload, overlay, and ssh-tags caches
-# and the ControlMaster sockets - and one suite's scratch tree seeds a cache
-# another reads (or a developer's real sessions, through theirs). Made here,
-# since hi only takes $XDG_RUNTIME_DIR when it exists. A case about the runtime
-# dir itself names its own.
+# Each suite its own runtime dir (made here, since hi only takes one that
+# exists), so suites never share caches and sockets with each other or with
+# the developer's sessions.
 export XDG_RUNTIME_DIR="$_HI_TEST_ROOT/run"
 # no -m 700: mktemp -d made the root 0700 already, and Git Bash refuses a
 # mode it cannot map onto Windows ACLs ("cannot change permissions")
 mkdir "$XDG_RUNTIME_DIR"
-# $HOME too, and ahead of core.sh, which resolves $_HI_LINK and the rc files
-# install.sh writes against it. A home column of pack.sh's table that starts at
-# ~/ (~/.vimrc, ~/.inputrc, ~/.aliases) is read from it, so the developer's
-# own would ride every overlay stream a suite builds, and every shell a case
-# starts would read their ~/.zshenv. The container CLIs keep what they had
-# there, through the variables they take it from: docker its contexts and
-# credentials, podman its storage, which a fresh $HOME would have it build
-# under the root as a subuid no cleanup here can remove.
-# _HI_TEST_KEEP_HOME=1 leaves $HOME alone, for a toolchain that resolves
-# through it.
+# $HOME too, before core.sh, so the developer's ~/.vimrc and the like never
+# ride and no shell reads their ~/.zshenv. docker and podman keep their real
+# config and storage through their own variables (podman would otherwise
+# build storage no cleanup can remove). _HI_TEST_KEEP_HOME=1 skips this.
 if [ "${_HI_TEST_KEEP_HOME:-0}" != 1 ]; then
   [ ! -d "$HOME/.docker" ] || export DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
   export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -59,23 +37,15 @@ fi
 # identity (_hi_git_fixture), so nothing here needs the global file.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
-# ...and the two files that carry a path variable of their own, for the same
-# reason one line later. Each takes an explicit value over the overlay's
-# ("only when unset", common/paths.sh), so a value inherited from the shell
-# that launched the suite - an agent session, a developer's own hi session -
-# would be read as a deliberate choice and outrank the $_HI_CONFIG_DIR above.
-# paths.sh drops a value still equal to the one it recorded resolving, so an
-# ordinary child shell needs no help here - but a shell that predates those
-# companions carries the value without the record, and its tree is not this one.
+# ...and the two files with path variables of their own, since an inherited
+# value (from a hi session that launched the suite) would outrank the
+# overlay above.
 unset _HI_COLORS _HI_PACKAGES
-# The tools' own config variables pack.sh's _hi_overlay_src reads: inherited,
-# they would pack the developer's real configs into every overlay stream a
-# suite builds. ZDOTDIR also moves the .zshrc scripts/rc.sh writes out of a
-# fixture home. The prompt programs are pinned to hi's own for the same
-# reason - unset, whatever this box has installed would draw every prompt -
-# and a case about them names its list. payload_overlay_test.sh pins the list
-# to the plugins file's home columns. The developer's editor goes too: a case
-# that opens one names its own, and an inherited one waits on a terminal.
+# The tools' config variables _hi_overlay_src reads, so the developer's
+# configs never ride (payload_overlay_test.sh pins the list to the plugins'
+# home columns); ZDOTDIR also keeps rc.sh's .zshrc in the fixture home. The
+# prompt is pinned to hi's own, and the developer's editor unset, since an
+# inherited one waits on a terminal.
 unset VISUAL EDITOR SUDO_EDITOR STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME ZELLIJ_CONFIG_DIR KAKOUNE_CONFIG_DIR POSH_CONFIG POSH_THEME INPUTRC SCREENRC \
   RIPGREP_CONFIG_PATH FZF_DEFAULT_OPTS_FILE LG_CONFIG_FILE ATUIN_CONFIG_DIR \
   POWERLEVEL9K_CONFIG_FILE ZDOTDIR ZSH ZSH_CUSTOM ZSH_THEME OSH OSH_CUSTOM OSH_THEME _HI_POWERLINE_GO_OPTS
@@ -89,23 +59,14 @@ export _HI_PROBE_TIMEOUT=10
 # The one place the test side resolves a tree. GLOSSARY: HI.33
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
-# GIT_CONFIG_GLOBAL=/dev/null above also takes the global safe.directory with
-# it, and that is what lets git read a checkout another uid owns: the FreeBSD
-# job's rsync'd tree, tests/profile.sh's bind mount. Without it every git call
-# against this tree dies on "dubious ownership". The tree under test is the one
-# repository a suite has to trust, so it rides in command scope - protected
-# configuration, the only place git reads safe.directory from - and nothing
-# else does: `*` would also trust a .git another user planted above a scratch
-# dir. Appended, so a GIT_CONFIG_COUNT the caller already set survives.
+# GIT_CONFIG_GLOBAL=/dev/null drops the global safe.directory, which a tree
+# another uid owns needs (the FreeBSD job, tests/profile.sh). So this tree,
+# and only it (`*` would trust a planted .git), is trusted in command scope,
+# appended to any GIT_CONFIG_COUNT already set.
 _hi_n="${GIT_CONFIG_COUNT:-0}" _hi_tl_tree="$(cd -P "$_hi_d/.." && pwd)" || :
 export GIT_CONFIG_COUNT=$((_hi_n + 1)) "GIT_CONFIG_KEY_$_hi_n=safe.directory" \
   "GIT_CONFIG_VALUE_$_hi_n=$_hi_tl_tree"
 unset _hi_n
-# Under kcov's PS4 method, a $BASH_ENV whose PS4 a `set -u` child survives
-if [ -n "${KCOV_BASH_XTRACEFD:-}" ] && [ -z "${KCOV_BASH_USE_DEBUG_TRAP:-}" ]; then
-  # shellcheck source=./lib/kcov_env.sh
-  source "$_hi_d/lib/kcov_env.sh"
-fi
 # shellcheck source=../common/core.sh
 source "$_hi_d/../common/core.sh"
 export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
@@ -135,11 +96,8 @@ source "$_hi_d/lib/backend.sh"
 # shellcheck source=./lib/lint.sh
 source "$_hi_d/lib/lint.sh"
 
-# The standalone-run half of the runner's tree check: with an inherited
-# $_HI_TEST_LIB this file can come off a different checkout than the
-# $_HI_ROOT core.sh resolved above, and a suite run on its own then
-# half-succeeds against two trees with nothing saying so. The runner makes
-# this check once per run; a suite reaching here any other way gets the same
-# one yellow line. A warning, not a failure, for _hi_host_tree_check's reason.
+# The runner's tree check, for a suite run alone: an inherited $_HI_TEST_LIB
+# may come from another checkout than $_HI_ROOT. One yellow line, as in
+# _hi_host_tree_check.
 _hi_host_tree_check "$_hi_tl_tree" || true
 unset _hi_d _hi_tl_tree

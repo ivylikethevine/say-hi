@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# Ownership of the lines hi adds to a user's shell rc files - writing them
-# (config_shell), taking them back out (strip_marker) - and the syntax checks
-# run before either. Sourced by scripts/install.sh after common/core.sh and
-# scripts/table.sh, whose pad aligns the tags; not an entry point of its own. $_HI_MARKER comes from common/paths.sh.
-#
-# These own individual lines in a permanent local rc, tagged one by one. A
-# session on a target never writes to its rc files at all - load.sh's session
-# rc directory (GLOSSARY: HI.46) is how a target's shells reach hi's rc.
+# The lines hi adds to local shell rc files, each tagged $_HI_MARKER: writing
+# them (config_shell), removing them (strip_marker), and the syntax checks
+# before either. Sourced by install.sh after core.sh and table.sh. A target's
+# rc files are never written (GLOSSARY: HI.46).
 
 # Rewrite the hi-managed block (tagged with $_HI_MARKER) in $target to be
 # exactly $@, leaving other content untouched - so this both installs on a fresh
@@ -91,14 +87,10 @@ function _hi_rc_unwritable() {
   fi
 }
 
-# The hi link, the other thing an install leaves on disk. Here beside the rc
-# lines because doctor.sh reads both and sources this file, not install.sh.
-#
-# "<package manager>|<query flags>|<transform>": link_owner's roster, one row
-# per manager instead of one near-identical `if` block. <transform> is "dpkg"
-# for pkg:arch's leading "<pkg>:" (%%:* strips it), "apk" for the one manager
-# that answers in a sentence rather than a name, or empty for the output
-# as-is.
+# The hi link, here because doctor.sh sources this file, not install.sh.
+# link_owner's roster, "<package manager>|<query flags>|<transform>":
+# <transform> is "dpkg" (strip "<pkg>:"), "apk" (answers in a sentence), or
+# empty.
 _HI_PKG_QUERY=(
   "pacman|-Qqo|"
   "dpkg|-S|dpkg"
@@ -180,13 +172,10 @@ function strip_marker() {
   config_shell "$name" "$target"
 }
 
-# The rc line that states where say-hi is. Written for every install, not only
-# for one outside $HOME (GLOSSARY: HI.33 - "$HOME is a safe default" is no
-# part of that rule). It is the one place a *new* process can read the
-# answer without a tree to derive it from: a login shell, or tmux's
-# update-environment. $2 overrides which home is meant, for the /etc/profile.d snippet
-# packaging mode writes: there the answer is the package's prefix, not where
-# this script happens to be running from.
+# The rc line stating where say-hi is, written for every install, since a new
+# process (a login shell, tmux's update-environment) has no tree to derive it
+# from (GLOSSARY: HI.33). $2 names the home for packaging's /etc/profile.d
+# snippet.
 function tmpdir_line() {
   local home="${2:-}" var=_HI_HOME
   # a tree called say-hi is named by the directory above it, as every rc
@@ -226,18 +215,10 @@ function rc_home() {
   printf -v "$1" '%s' "$_hi_rh_opt"
 }
 
-# One row per shell hi wires up locally: <shell>|<rc label>|<hi's rc>|<the
-# user's rc>|<syntax check cmd>|<dialect> - _HI_SHELL_TABLE's own column
-# order (core.sh), the fourth column substituted. Validation, install, and
-# uninstall all loop this roster, so adding a shell is one row plus its
-# lines rather than three disjoint edits.
-#
-# The rows come from core.sh's _HI_SHELL_TABLE, so a shell added to the
-# roster cannot miss this half. The substituted rc file
-# is where *this* user's shell reads it: zsh under its $ZDOTDIR, the
-# environment's or ~/.zshenv's (_hi_zshrc_here), and fish under
-# $XDG_CONFIG_HOME when that is set. core.sh's column stays the plain
-# $HOME form.
+# core.sh's _HI_SHELL_TABLE (<shell>|<rc label>|<hi's rc>|<the user's
+# rc>|<syntax check cmd>|<dialect>), with the user's rc replaced by where this
+# user's shell reads it: zsh under $ZDOTDIR (_hi_zshrc_here), fish under
+# $XDG_CONFIG_HOME. Validation, install, and uninstall all loop it.
 # shellcheck source=./zshrc.sh
 source "$_HI_ROOT/scripts/zshrc.sh"
 _HI_RC_TABLE=()
@@ -256,18 +237,11 @@ function rc_shell_present() {
   command -v "$1" >/dev/null 2>&1
 }
 
-# macOS: Terminal.app and iTerm open *login* shells, and a login bash reads
-# ~/.bash_profile and never ~/.bashrc - so the lines above land in a file
-# that shell never opens, and the install reads as "worked, did nothing". The
-# fix is the one line every macOS dotfile guide adds, tagged like the rest so
-# uninstall takes it back: source .bashrc from .bash_profile. A fresh
-# .bash_profile keeps .profile in the chain too, since its existence is what
-# stops bash reading that one. bash reads the first of .bash_profile,
-# .bash_login, and .profile that exists, so with no .bash_profile a
-# ~/.bash_login is the file that counts, and it is nobody's to edit: that
-# case is a warning. Each line holds $_hi_login while it sources, so a
-# ~/.bashrc or ~/.profile that sources ~/.bash_profile back cannot recurse.
-# GLOSSARY: HI.55
+# macOS terminals open login shells, which read ~/.bash_profile, never
+# ~/.bashrc, so a tagged line there sources ~/.bashrc (and ~/.profile, when
+# hi creates the file). An existing ~/.bash_login is the file bash reads
+# instead and is only warned about. $_hi_login guards against an rc that
+# sources ~/.bash_profile back. GLOSSARY: HI.55
 # shellcheck disable=SC2016 # the lines are the login shell's to expand
 _HI_BASH_PROFILE_LINE='[ -z "${_hi_login-}" ] && [ -r "$HOME/.bashrc" ] && { _hi_login=1; . "$HOME/.bashrc"; unset _hi_login; }'
 # shellcheck disable=SC2016
@@ -307,13 +281,9 @@ function install_bash_profile_line() {
   fi
 }
 
-# _hi_config_check <target> <check...> - runs <check...>'s syntax-check flag
-# against <target> (without executing it) and captures its output into
-# $_HI_CONFIG_CHECK_OUT: rc 0 parsed clean, 1 had issues (output in the var),
-# 2 nothing to check (the checker isn't installed, or <target> is
-# missing/empty - "no row at all", as doctor_config_row's comment puts it).
-# The one rule check_one_config and doctor_config_row both render: what
-# install.sh would wave through, hi --doctor waves through too.
+# _hi_config_check <target> <check...> - syntax-checks <target> without
+# running it, output into $_HI_CONFIG_CHECK_OUT: 0 clean, 1 issues, 2 nothing
+# to check (no checker, or no file). install.sh and doctor both judge by it.
 function _hi_config_check() {
   local target="$1"
   shift
@@ -357,14 +327,10 @@ function check_shell_configs() {
   return $bad
 }
 
-# The overlay's shell-dialect files, each against the parser(s) that will read
-# it on a target: <file>|<syntax check cmd>, walked by doctor.sh's
-# doctor_configs. aliases.sh is the one with two rows - it is sourced by bash,
-# zsh *and* fish on every target, in the POSIX+fish subset, and nothing else
-# warns when it steps outside that: an `if` in it works locally and breaks on
-# the first fish target. Rows are skipped silently when the file is not
-# overridden or the parser is not installed, the same way check_one_config
-# treats a missing rc file.
+# The overlay's shell files and the parsers that read them on a target,
+# <file>|<syntax check cmd>, for doctor_configs. aliases.sh has two rows: an
+# `if` that bash accepts breaks every fish target. A missing file or parser
+# skips its row.
 _HI_OVERLAY_CHECKS=(
   "settings.sh|sh -n"
   "settings.sh|fish --no-execute"
@@ -398,22 +364,13 @@ function config_validate_shells() {
   exit 1
 }
 
-# rc_lines <shell> <tree_rc> <dialect> - the rc lines <shell> gets, one per
-# line on stdout, in the row's dialect: where say-hi is, then a source of hi's
-# rc for that shell, interactive shells only. bash is the one shell whose rc
-# runs for non-interactive shells too, hence its condition - a condition, not
-# a `return`, which would end all of ~/.bashrc for `ssh host cmd`, scp, and
-# rsync, lines other installers append below hi's included. doctor_install
-# compares a wired rc against these, so a block an older hi wrote is named.
-#
-# Every source is behind a test for the file, so a tree deleted without
-# `hi --uninstall` costs a shell nothing. A fourth argument of `portable`
-# spells the block for an rc shared between machines: $HOME left for the
-# shell to expand, the tree looked for where an install puts one
-# (rc_probe_lines), and named through the $_HI_HOME that found. Two more
-# are the blocks --print-rc handed out earlier: `prebrew`, which looked in
-# $HOME and the package directories alone, and `legacy`, which did not look -
-# this tree's home alone.
+# rc_lines <shell> <tree_rc> <dialect> [form] - <shell>'s rc lines: where
+# say-hi is, then a source of hi's rc for interactive shells (in bash an `if`,
+# not a `return`, which would end ~/.bashrc for `ssh host cmd` and lines
+# below hi's). Each source tests for its file, so a deleted tree costs
+# nothing. [form] `portable` finds the tree wherever an install puts it
+# (rc_probe_lines), for an rc shared between machines; `prebrew` and `legacy`
+# are older --print-rc blocks, which doctor_install still recognizes.
 function rc_lines() {
   local home rc="$2"
   if [ "${_HI_ROOT##*/}" = say-hi ]; then
@@ -459,12 +416,9 @@ function rc_lines() {
 }
 
 # rc_probe_lines <dialect> <home> <rc under it> [prebrew] - the portable
-# block's first lines: $_HI_HOME is the first directory that holds the tree's
-# rc, of a clone's ($HOME), a package's (/usr/local/share, /usr/share),
-# Homebrew's under each default prefix (opt/say-hi/libexec), and ahead of
-# them <home> where this install is in none. The same lines on every machine
-# with one of those, so one rc serves a clone here and a package there.
-# `prebrew` leaves Homebrew's out: the block as it was before it looked there.
+# block's first lines: $_HI_HOME is the first of <home> (when it is none of
+# these), $HOME, /usr/local/share, /usr/share, and each Homebrew prefix's
+# opt/say-hi/libexec that holds the tree. `prebrew` omits Homebrew.
 function rc_probe_lines() {
   # shellcheck disable=SC2016 # the rc's shell expands them
   local dirs='"$HOME" /usr/local/share /usr/share'

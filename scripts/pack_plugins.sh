@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# The packer's plugins files: the tree's config/plugins and the overlay's
-# plugins read into rows, each table checked as it closes, and the shell
-# hooks among them. Sourced by scripts/pack.sh, never run, and like it
-# nothing here rides in the payload. GLOSSARY: HI.63 + HI.66
+# The packer's plugins files, read into rows and checked table by table,
+# with their shell hooks. Sourced by scripts/pack.sh; nothing here rides.
+# GLOSSARY: HI.63 + HI.66
 #
 # A row's `$var` is its reader's to expand (SC2016).
 # shellcheck disable=SC2016
@@ -30,12 +29,10 @@ function _hi_words_ok() {
   done
 }
 
-# _hi_path_list <list> - a row's home column into the caller's $_hi_paths:
-# candidates a : apart, best first, each a path that starts at /, at ~/ (this
-# $HOME), or at $NAME (that variable, the path dropped while it is unset or
-# empty; $ZDOTDIR is also the one ~/.zshenv sets). A candidate is one path or several a , apart, of which the first
-# not dropped is the one: where a tool looks once its variable is unset.
-# Nothing else expands and nothing runs. GLOSSARY: HI.63
+# _hi_path_list <list> - a home column into the caller's $_hi_paths: `:`-apart
+# candidates, each starting at /, ~/, or $NAME (dropped while unset; $ZDOTDIR
+# also as ~/.zshenv sets it); `,` within one picks the first not dropped.
+# Nothing else expands. GLOSSARY: HI.63
 function _hi_path_list() {
   local _hi_pa_s="$1:" _hi_pa_a _hi_pa_c _hi_pa_n _hi_pa_v
   _hi_paths=()
@@ -69,21 +66,13 @@ function _hi_path_list() {
   done
 }
 
-# _hi_plugins_load - the plugins files into $_HI_PLUGIN_ROWS, a row a member,
-# once per tree and overlay: the tree's config/plugins, then the overlay's
-# plugins, whose plugin of a name the tree's has replaces it whole, less the
-# tree's files where it names none. Each is TOML in the subset core.sh's _hi_toml_row reads. A `[<group>.<name>]` table
-# is a plugin, its keys `files` (the members, a space apart), `tool` (left
-# out, the name), and `wire`, `home`, and `dialect` (left out, -); a
-# `[<group>.<name>."<member>"]` table under it is the wire, home, or dialect
-# one of its files has of its own. `init`, `prompt`, `shells`, and `quiet` are
-# its shell hook (HI.67), and `env` the variables whose values here ride (HI.62). What the table could not hold is left out
-# and noted in $_HI_PLUGIN_BAD: a line that is no table and no key =
-# "value", a key above the first plugin or of no name hi reads, a table of
-# the rows before these, a second plugin of a name, a plugin of no files, a
-# member that is no <name>, <dir>/<name> or <dir>/, or that is hi's own or
-# another plugin's, a tool, a wire, or a dialect that is not the table's, a
-# home naming a function. GLOSSARY: HI.63
+# _hi_plugins_load - the tree's config/plugins, then the overlay's (a plugin
+# of the same name replaces the tree's, keeping its files if it names none),
+# into $_HI_PLUGIN_ROWS, a row per member, once per tree and overlay. Keys
+# are docs/SETTINGS.md's _A tool hi does not know_. Anything invalid (a bad
+# line, unknown key, duplicate plugin, bad or taken member, bad tool, wire,
+# or dialect, a home naming a function) is left out and noted in
+# $_HI_PLUGIN_BAD. GLOSSARY: HI.63
 function _hi_plugins_load() {
   # the memo ahead of the locals: every member asks, a hundred times a connect
   [ "${_HI_PLUGIN_KEY-}" != "$_HI_ROOT|${_HI_SITE_DIR:-}|${_HI_CONFIG_DIR:-}" ] || return 0
@@ -209,12 +198,10 @@ function _hi_plugins_cache_head() {
   _hi_out "${1:-}" "K|$_HI_PLUGIN_KEY|$_hi_ph_s|${_hi_ph_z//$'\n'/;}"
 }
 
-# _hi_plugins_cache_read <outvar> - _hi_plugins_load's reading off the cache
-# a connect before this one left in the runtime dir, the arrays filled from
-# its tagged lines a line at a time, never sourced. Fails, with <outvar>
-# naming the cache to write once parsed, when it is missing or stale: its head
-# differs, or a plugins file or scripts/ (the reader and the tables it checks
-# against) is newer. _HI_PAYLOAD_CACHE=0 turns it off, with the other caches.
+# _hi_plugins_cache_read <outvar> - _hi_plugins_load's result from the
+# runtime dir's cache, read line by line, never sourced. Fails, naming the
+# cache to write in <outvar>, when it is missing or stale (another head, or a
+# plugins file or scripts/ newer); off under _HI_PAYLOAD_CACHE=0.
 function _hi_plugins_cache_read() {
   local _hi_pr_dir _hi_pr_key _hi_pr_c _hi_pr_head _hi_pr_l _hi_pr_f
   local -a _hi_pr_watch=("$_HI_ROOT/config/plugins" "$_HI_ROOT/scripts")
@@ -487,16 +474,12 @@ function _hi_plugin_switched_off() {
   ! _hi_list_has "${_HI_PLUGINS_ON:-}" "$1"
 }
 
-# _hi_wire_read <wire> - one wire of a <wire> column, taken apart into the
-# caller's locals: $_hi_wr_kind (env, envdir, flag, flagdir, xdg) and, for an
-# env or envdir, $_hi_wr_vars; for the rest $_hi_wr_names (what the alias
-# answers to, a , apart: `<names>=` ahead of the command, else the command),
-# $_hi_wr_env (the words ahead of the command that hold a =, a space after
-# each), $_hi_wr_cmd, and $_hi_wr_words (what follows it). An xdg is one
-# word, the command or <names>=<command>, with $XDG_CONFIG_HOME for its
-# environment. 1 for a wire of no kind, or of no command. The one reading of
-# the grammar: _hi_plugin_wire_ok admits what this takes apart, and
-# _hi_overlay_wiring writes it. Builtins only. GLOSSARY: HI.62
+# _hi_wire_read <wire> - one wire into the caller's locals: $_hi_wr_kind
+# (env, envdir, flag, flagdir, xdg); $_hi_wr_vars for env and envdir; else
+# $_hi_wr_names (the alias's names, `<names>=` before the command), $_hi_wr_env
+# (VAR=value words before it), $_hi_wr_cmd, and $_hi_wr_words. 1 for no kind
+# or no command. The one parser: _hi_plugin_wire_ok and _hi_overlay_wiring
+# both use it. Builtins only. GLOSSARY: HI.62
 function _hi_wire_read() {
   local _hi_wr_b="${1#*:} " _hi_wr_x
   _hi_wr_kind="${1%%:*}" _hi_wr_vars="" _hi_wr_names="" _hi_wr_env="" _hi_wr_cmd="" _hi_wr_words=""

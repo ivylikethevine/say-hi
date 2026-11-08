@@ -8,29 +8,16 @@
 # shellcheck disable=SC2031 # fish's `| read` sets the *_BIN values in its own process, not a subshell
 # GLOSSARY: HI.13 - first-installed wins; reorder to taste.
 
-# Backstop defaults for the opt-ins and every value var the guards below read
-# bare under `set -u`, in an eval fish can't parse. The gate is really "no
-# file named shift on PATH" (fish's `command -v` reports no builtins; `getopts`
-# was wrong because macOS ships it as a file in /usr/bin). `-` not `:-`, so
-# intentional empties survive; $FISH_VERSION, which the lookups below test to
-# tell fish apart, stays unexported. GLOSSARY: HI.07
+# Defaults for every variable the guards below read under `set -u`, in an
+# eval fish never runs (fish's `command -v` reports no builtin `shift`). `-`,
+# not `:-`, so set empties survive. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
   eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${_HI_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}"; _HI_ALIAS_GUARD="${_HI_ALIAS_GUARD-true}" FISH_VERSION="${FISH_VERSION-}"' 2>/dev/null || true
 
-# Binaries resolved before any alias exists, the overlay's included:
-# once `alias cat=...` is set, `command -v` returns the alias and poisons the
-# chain. Three rungs a chain, one per dialect. bash and zsh have core.sh's
-# _hi_path_lookup, a PATH walk that sees no alias. sh and the bash-less tier
-# clear aliases first, in a subshell of their own only - the target's
-# `alias ls='ls --color=auto'`, or ours on a re-source, would otherwise become
-# the binary - inside backticks, since fish before 3.4 refuses a `$( )`
-# anywhere in a file it sources and reads a backtick as text. fish pipes
-# `command -v`, which sees no function or alias, into `read`; a leading
-# `[ -n "$FISH_VERSION" ]` keeps each of those two rungs to its own shells.
-# `||` chains, because `zsh -n` fails a file holding a `!`. $_HI_BAT_BIN is
-# the bat-only tier that parses $_HI_BAT_OPTS - cat and ccat reject that
-# syntax, so the options only ever attach behind it.
-# GLOSSARY: HI.13.
+# Binaries resolved before any alias exists, one rung per dialect: bash and
+# zsh through _hi_path_lookup, sh in backticks after `unalias -a`, fish
+# through `command -v | read`. `||` chains, since `zsh -n` fails on `!`.
+# GLOSSARY: HI.13
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_CAT_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_CAT_BIN bat batcat ccat cat && export _HI_CAT_BIN || true
 # shellcheck disable=SC2006,SC2015 # backticks for fish's parser; `|| true` only keeps a failed unalias from ending the chain
 [ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_CAT_BIN" ] || export _HI_CAT_BIN="`type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat || command -v ccat || command -v cat`"
@@ -70,15 +57,10 @@ command -v shift >/dev/null 2>&1 &&
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_CAT_BIN" ] && alias cat="$_HI_CAT_BIN" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias cat="bat" && alias catn="batn" || true
 
-# eza improved ls; time format per
-# https://docs.rs/chrono/latest/chrono/format/strftime/index.html. One alias
-# body, two names for it, and a flag list per rung: the two binaries diverge
-# past `-F -l` (--smart-group and --time-style are eza-only, ls parses
-# neither), so $_HI_LS_OPTS is whichever list the rung that answered takes.
-# Set it yourself and the ladder defers. `eza` answers only where that binary
-# is. ls colors only when asked (coreutils, busybox, newer BSD ls), so its
-# rung asks where the flag is taken; an ls that refuses it colors through
-# CLICOLOR, or not at all.
+# One alias body under `ls` and `eza`, with each binary's own flags
+# ($_HI_LS_OPTS; a set value wins): eza's beyond `-F -l` mean nothing to ls,
+# and ls gets `--color=auto` where it takes it. Time format:
+# https://docs.rs/chrono/latest/chrono/format/strftime/index.html
 [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" eza && export _HI_LS_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 # shellcheck disable=SC2006,SC2015
 [ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "`type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza`" ] || export _HI_LS_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"'
@@ -87,13 +69,9 @@ command -v shift >/dev/null 2>&1 &&
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
 
-# Drop into another shell inside a session and hi comes with you. load.sh's
-# _hi_session_rc_setup writes one rc per shell into $_HI_SESSION_RC; zsh and
-# the POSIX shells read theirs via $ZDOTDIR/$ENV, but bash and fish have no
-# such variable, so each gets a wrapper. `command` leads both bodies, or
-# fish's alias-function would call itself forever. Guarded on
-# _HI_REMOTE_SESSION (never rebinds `bash` on the install machine) and on the
-# file (absent in the container fallback). GLOSSARY: HI.46
+# A bash or fish started in a session gets hi's rc through these wrappers
+# (zsh and sh find theirs by $ZDOTDIR and $ENV). `command` stops fish's alias
+# calling itself. Sessions only, and only with the rc there. GLOSSARY: HI.46
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_SESSION_RC/bashrc" ] &&
   alias bash="command bash --rcfile $_HI_SESSION_RC/bashrc" || true
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_SESSION_RC/fish.config" ] &&
@@ -111,22 +89,13 @@ command -v shift >/dev/null 2>&1 &&
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_ROOT/common/mux.sh" ] && command -v screen >/dev/null 2>&1 &&
   alias screen="sh $_HI_ROOT/common/mux.sh screen" || true
 
-# Your own aliases.sh (~/.config/say-hi/aliases.sh, or the overlay's copy on a
-# target), sourced LAST: an `alias` there replaces the same name above, can
-# build on what this file resolved (`alias ls="$_HI_LS_BIN $_HI_LS_OPTS
-# --icons"`), and `alias cat=cat` takes one back. The values the aliases above
-# read (_HI_LS_OPTS, _HI_BAT_OPTS, the two opt-ins) belong in
-# settings.sh, which every shell sources first; set here they arrive too late,
-# and `hi --doctor` says so. Same POSIX+fish subset as this file: bash, zsh,
-# and fish parse it first, and one that cannot skips it with a line saying so
-# rather than half-running it. $_HI_ALIAS_GUARD is that check's command, each
-# of the three's own _hi_parses, and `true` where this file is sourced with
-# no rc of hi's around it: the backstop above for a plain sh, the line below
-# for a fish, which that backstop's gate keeps out. GLOSSARY: HI.59
+# Your own aliases.sh, sourced last so its aliases win
+# (docs/SETTINGS.md's _Shells you drop into_). Each shell parses it first
+# ($_HI_ALIAS_GUARD, `true` with no hi rc around) and skips it with a
+# warning if it cannot. GLOSSARY: HI.59
 #
-# The path test stops $_HI_CONFIG_DIR pointed at config/ from sourcing this
-# file forever; the shellcheck directive is the static half of the same hazard
-# (see common/bash.sh).
+# The path test stops a $_HI_CONFIG_DIR pointed at config/ from sourcing this
+# file forever (see common/bash.sh).
 command -v shift >/dev/null 2>&1 || [ -n "$_HI_ALIAS_GUARD" ] || export _HI_ALIAS_GUARD=true
 # shellcheck source=/dev/null # user config, may not exist
 [ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/common/aliases.sh" ] &&

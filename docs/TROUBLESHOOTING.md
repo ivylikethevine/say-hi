@@ -115,11 +115,8 @@ the key), so nothing hi sends is run. That is the host's policy, not a fault
 
 ### The session is gone after the connection dropped
 
-A session lasts as long as its connection, and its files go with it.
-`hi --keep <host>` runs it in a multiplexer on the host, where the next
-`hi <host>` reattaches; on a host with none, its files and directory wait
-fifteen minutes for you
-([INTEGRATIONS.md](INTEGRATIONS.md#terminal-multiplexers)).
+A session lasts as long as its connection. To survive a drop, use
+[`hi --keep <host>`](INTEGRATIONS.md#terminal-multiplexers).
 
 ## In a session
 

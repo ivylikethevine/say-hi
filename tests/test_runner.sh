@@ -20,35 +20,17 @@ fi
 export _HI_HOME
 # the tree, whatever it is called, where $_HI_HOME names its parent
 [ "${_HI_RUNNER_TREE%/*}" != "$_HI_HOME" ] || export _HI_ROOT="$_HI_RUNNER_TREE"
-# The scaffolding every suite sources; the runner wants the host report out of
-# it (and the tree check it prints on every run). It is also what puts the
-# runner behind the config isolation - $XDG_CONFIG_HOME moves to a path that
-# does not exist *before* core.sh is sourced, so nothing here can read the
-# developer's real ~/.config/say-hi. core.sh is deliberately not sourced ahead
-# of this line: it reads settings.sh from the real overlay, and every value it
-# exported (a palette, a package group list) would ride into each suite's
-# environment, where an explicit value outranks the isolated directory. Each
-# suite re-sources the file and re-derives that path from its own $$, so what
-# the suites see is unchanged.
+# The suites' harness, for the host report and tree check, and for its
+# config isolation. core.sh must not be sourced before it: it would read the
+# real overlay's settings.sh and export them into every suite.
 # shellcheck source=./test_lib.sh
 source "${_HI_ROOT:-$_HI_HOME/say-hi}/tests/test_lib.sh"
 
-# group:name:path (relative to this directory), in the order they run - fast
-# local checks first, the docker/kind/nomad-backed end-to-end tests after.
-# The fast section is listed slowest first, so the parallel runner starts
-# the heavy suites first. windows-client.yml's shards are dealt by cost
-# ($_HI_TEST_COSTS_GITBASH below), not by this order; refresh that table
-# from a Windows arm64 run (scratch/shard_costs.sh) when a suite's weight
-# changes.
-#
-# `ci` is what a second platform could only repeat: suites that read repo
-# text (workflows, manifests) or run tooling only ubuntu CI ever runs.
-# ubuntu's fast job runs it beside fast; every other platform, fast alone.
-#
-# The group is here rather than in .github/workflows/ci.yml: with CI spelling
-# out which suites are fast and which are e2e, a suite added to this table but
-# missed there would silently never run on a push. `--group fast` is the only
-# list, so the two cannot disagree.
+# group:name:path, in run order: local checks first (slowest first, so the
+# parallel runner starts them early), then the container-backed e2e suites.
+# `ci` holds suites another platform would only repeat (repo text, tooling
+# only ubuntu runs); ubuntu runs it beside fast. CI reads the groups from
+# here, never its own list.
 if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   _HI_TESTS=(
     "fast:doctor_json:scripts/doctor_json_test.sh"
@@ -138,33 +120,10 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   )
 fi
 
-# What each suite costs, in seconds, one table a way of dealing shards:
-# --shard deals the suites by one when $_HI_SHARD_BY names it, and a suite
-# not named costs 5. kcov and bashcov are a coverage sweep's, the time CI
-# took tracing each (scratch/shard_costs.sh --coverage reads them off a coverage
-# run), as tests/lib/coverage.sh asks; a suite a tracer skips costs it 0.
-# gitbash is the Windows client's, the time each took under Git Bash on
-# arm64, and e2e and backends ci.yml's shards of those groups
-# (scratch/shard_costs.sh reads them off a CI run's summaries).
-_HI_TEST_COSTS_KCOV="
-  ssh_keep:272 framework:140 kube:112 ssh:60 ssh_relay:45 podman:40
-  hi_payload_scan:35 home_prompt:34 test_lib:34 configure_pty:32
-  doctor_config:29 test_runner:26 dialects:23 docker:21 install_methods:21
-  plugins:20 load_session:19 ssh_wire:18 rc:15
-  doctor_target:14 hi_payload_home:14 hi_payload_overlay:14
-  install_location:14 rc_prompt:14 ssh_disconnect:11 configure_wizard:10
-  targets:10 doctor_json:9 alias_fallthrough:7 install_run:7 test_runner_ci:7
-  doctor_report:6 packaging_ci_scripts:6 test_lib_par:6 update:6 header:5
-  hi_cache:5 hi_keep:4 packaging_ci_mkpkg:4 rc_lines:4 test_lib_report:4
-  aliases:3 configure:3 hi_help:3 hi_payload:3
-  packaging_ci_release:3 preview:3 add_tag:2 bench:2 core_identity:2 drift:2 edit:2
-  drift_docs:2 hi:2 hi_container:2 load:2 packaging:2
-  packaging_ci_workflows:2 preview_packages:2 convert_settings:1
-  core:1 core_target:1 doctor:1 exports:1 git_prompt:1 header_bare:1
-  header_check:1 header_whole:1 hi_helpers:1 hi_prompt:1 hi_remote:1
-  install:1 packaging_ci:1 paths:1 targets_complete:1 tools:1 env_prompt:0
-  hi_dispatch:0 hi_mux:0 nerdctl:0 nomad:0 repo:0 table:0
-"
+# Each suite's cost in seconds, per sharding table ($_HI_SHARD_BY): bashcov
+# (the coverage sweep; 0 for a suite it skips), gitbash (Windows arm64), e2e
+# and backends (ci.yml's shards). An unlisted suite costs 5. Refresh with
+# scratch/shard_costs.sh (--coverage for bashcov).
 _HI_TEST_COSTS_BASHCOV="
   ssh_keep:323 framework:227 hi_payload_scan:181 kube:122
   hi_payload_overlay:107 doctor_config:106 ssh:100 doctor_target:93
@@ -343,7 +302,7 @@ EOF
   --host-report) _HI_HOST_REPORT=1 ;;
   # a third column would land in $name for every `read -r group name` consumer
   # (runner_test.sh has two), so the path gets its own flag rather than widening
-  # --list. tests/coverage.sh is the caller: it traces each suite script as the
+  # --list. tests/coverage_v2.sh is the caller: it traces each suite script as the
   # top-level process, which needs the path, not the name.
   --list-paths)
     _HI_LIST=1
@@ -392,18 +351,11 @@ else
   fi
 fi
 
-# --shard i/n keeps every n-th selected suite from the i-th on, in table order:
-# the n slices are disjoint and together are the selection, and interleaving
-# the table - dealt out for it, see the table's header - spreads the slow suites
-# across them rather than handing one runner all of them. Applied after the
-# group/name selection and before --list, so `--group fast --shard 2/4 --list`
-# shows what a CI shard will run. Slices of different n compose: 2/8 and
-# 6/8 are 2/4. With $_HI_SHARD_BY naming a table above the slices are dealt
-# by it instead: the costliest suite first, each to the slice that costs
-# least so far, the first of equals - the same partition on every runner,
-# and slices that take about as long, but slices of different n do not
-# compose. The Windows client's and ci.yml's e2e and backends shards are dealt so, and
-# coverage.yml's by their tracer.
+# --shard i/n keeps every n-th selected suite from the i-th, after selection
+# and before --list (`--group fast --shard 2/4 --list` shows a CI shard).
+# With $_HI_SHARD_BY naming a cost table, suites are dealt costliest first to
+# the cheapest slice instead, for even slices (the Windows client's, ci.yml's
+# e2e and backends, and coverage.yml's shards).
 if [ -n "$_HI_SHARD" ]; then
   _hi_shard_i="${_HI_SHARD%%/*}"
   _hi_shard_n="${_HI_SHARD#*/}"
@@ -427,7 +379,6 @@ if [ -n "$_HI_SHARD" ]; then
   _hi_mine=" " _hi_costs=""
   # the table $_HI_SHARD_BY names, if any
   case "${_HI_SHARD_BY:-}" in
-  kcov) _hi_costs=" ${_HI_TEST_COSTS_KCOV//$'\n'/ } " ;;
   bashcov) _hi_costs=" ${_HI_TEST_COSTS_BASHCOV//$'\n'/ } " ;;
   gitbash) _hi_costs=" ${_HI_TEST_COSTS_GITBASH//$'\n'/ } " ;;
   e2e) _hi_costs=" ${_HI_TEST_COSTS_E2E//$'\n'/ } " ;;
@@ -505,27 +456,19 @@ function _hi_restore_tty() {
   stty "$_HI_TTY_STATE" </dev/tty 2>/dev/null || true
 }
 
-# Each suite runs as its own process, so its case tally can't come back in a
-# variable - _hi_suite_end writes "<total> <failed>" to $_HI_COUNTS_FILE, the
-# failing labels ride $_HI_FAILS_FILE, and a collapsed transcript lands in a
-# log; all three are per suite, under one directory, so suites can run side by
-# side. $_HI_REQUIRE_RUN travels the same way, in the other direction: a suite
-# has to know before it stands a case down, since that is where the label the
-# recap needs is still in hand. Assigned unconditionally (never defaulted from the environment) so a
-# runner nested inside another run - which is exactly what
-# harness/runner_test.sh does - gets its own and can't clobber its parent's.
+# Each suite reports through per-suite files under one directory: its tally
+# ($_HI_COUNTS_FILE), failing labels ($_HI_FAILS_FILE), and transcript.
+# $_HI_REQUIRE_RUN goes the other way. Always assigned, so a nested runner
+# (runner_test.sh) never shares its parent's.
 _HI_RUN_DIR="$(mktemp -d -t hi.run.XXXXXX)"
 
 # shellcheck disable=SC2064 # the path is fixed by now; expand it here
 trap "_hi_restore_tty; rm -rf '$_HI_RUN_DIR'" EXIT
 
-# Output modes. Default: a passing suite's transcript collapses to one status
-# line and the full text replays only on failure or skip, so a green run fits
-# on a screen. --verbose (which sets $_HI_VERBOSE during argument parsing
-# above) or _HI_VERBOSE=1 streams everything live. Under
-# GitHub Actions a passing transcript is kept but folded into a ::group::
-# block (complete logs, bench numbers included, failures never the thing
-# folded), and every failing case gets an ::error annotation under the summary.
+# Output: a passing suite collapses to one line, its transcript replayed only
+# on failure or skip. --verbose (_HI_VERBOSE=1) streams everything. On GitHub
+# Actions a passing transcript is folded into a ::group::, and each failing
+# case gets an ::error annotation.
 _HI_VERBOSE="${_HI_VERBOSE:-0}"
 _HI_CI="${GITHUB_ACTIONS:-}"
 
@@ -682,16 +625,11 @@ function _hi_collect_suite() {
   fi
 }
 
-# How many suites run at once. Every suite isolates itself (its own workdir,
-# its own $XDG_CONFIG_HOME, per-suite tally files above), so the unit groups
-# run side by side and the wall clock collapses toward the slowest suite.
-# Serial where it has to be: --verbose streams transcripts live and two at
-# once would interleave, and bench measures timings. e2e and backends share
-# one container daemon, so they run one at a time unless _HI_E2E_WIDTH asks
-# for more. The width is the CPU count: the unit suites are plain processes.
-# $_HI_RUNNER_WIDTH overrides (1 is a plain serial run) - both phases below,
-# since a bench/e2e/backends suite in the selection pins only its own phase
-# to width 1, not the whole run.
+# Suites at once: the CPU count, since each isolates itself. Serial under
+# --verbose (live output would interleave) and for bench (timings); e2e and
+# backends share one daemon, so one at a time unless _HI_E2E_WIDTH says.
+# $_HI_RUNNER_WIDTH overrides (1 is serial); a serial suite pins only its own
+# phase.
 # parallel.sh's width rule, uncapped as a local-process suite gets it
 _HI_RUNNER_WIDTH="${_HI_RUNNER_WIDTH:-$(_HI_PAR_WIDTH='' _HI_PAR_LOCAL=1 _hi_par_width)}"
 [ "$_HI_RUNNER_WIDTH" -ge 1 ] || _HI_RUNNER_WIDTH=1
@@ -732,16 +670,11 @@ function _hi_suite_procs() {
   _hi_proc_table "$1" | sed 's/^/ |   /'
 }
 
-# _hi_run_suite_watched <stall> - _hi_run_suite, ended where it hangs: a
-# suite that neither starts nor finishes a case for <stall> seconds is
-# killed, with every process it started, and exits 124 with the case it was
-# in named for the recap - a hung case otherwise costs the whole job its
-# timeout and leaves no name. Past $_HI_RUN_DEADLINE it is ended the same
-# way and exits 125. Either way the processes it left are listed first. The
-# suite is started under job control, and only it: a process group of its
-# own is what lets the kill reach its children, and costs it the terminal's
-# input and its interrupt, which the trap hands on. A stall of 0 and no
-# deadline run it unwatched.
+# _hi_run_suite_watched <stall> - _hi_run_suite, killed with its process
+# group when no case starts or ends for <stall> seconds (exit 124, naming the
+# case) or past $_HI_RUN_DEADLINE (125), its processes listed first. Its own
+# group (job control) lets the kill reach children; the trap passes on ^C.
+# A stall of 0 with no deadline runs it unwatched.
 function _hi_run_suite_watched() {
   local stall="$1"
   case "$stall" in '' | *[!0-9]*) stall=0 ;; esac
@@ -849,12 +782,9 @@ function _hi_progress_line() {
 }
 
 # _hi_progress_tick <index-before-batch> <suite-entry...> - run in the
-# background for a parallel batch. At a terminal it redraws one bar in place
-# every second; anywhere else (a CI log) it prints a line when a suite
-# finishes, plus one every 30s so a long suite still shows the job is alive.
-# It exits once every suite has its .rc or the batch drops <index>.stop (a
-# suite killed before writing one), clearing the bar for the replay. The stop
-# file is looked for every 0.2s, so a batch never waits a whole tick on it.
+# background for a parallel batch: a bar redrawn each second at a terminal,
+# else a line per finished suite and one every 30s. Ends when every suite
+# has its .rc or <index>.stop appears (checked every 0.2s).
 function _hi_progress_tick() {
   local suites=$(($# - 1)) stop="$_HI_RUN_DIR/$1.stop" last=0 beat=-30 tick=0 color
   SECONDS=0
@@ -881,14 +811,9 @@ function _hi_progress_tick() {
 
 # _hi_usage_watch <file> - a line every $_HI_USAGE_STEP seconds (2) while
 # this run lasts: <seconds> <CPU busy %> <memory in use, kB> <suites
-# running>. Off /proc where there is one (Linux, WSL, MSYS), read with the
-# builtin - forks are what Git Bash is slow at - the CPU from /proc/stat's
-# deltas and the memory as MemTotal less MemAvailable (MemFree where that is
-# missing). On the BSDs the CPU is kern.cp_time's deltas the same way (idle
-# its last field, comma-separated on OpenBSD), a sysctl fork a sample; on
-# macOS, which has neither, ps's summed %cpu over the cores, which misses
-# short-lived processes and so reads low. Memory there is "-". A suite is running while its .running marker
-# is there (_hi_run_batch).
+# running>. From /proc with builtins where there is one (Linux, WSL, MSYS);
+# kern.cp_time on the BSDs; summed `ps` %cpu on macOS, which reads low and
+# has no memory figure ("-"). A suite runs while its .running marker exists.
 function _hi_usage_watch() {
   local out="$1" step="${_HI_USAGE_STEP:-2}" cores t0=$SECONDS
   local u n s i w q sq st busy total pb=0 pt=0 pct mem key v mt ma mf running f

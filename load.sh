@@ -1,23 +1,12 @@
 #!/usr/bin/env bash
 # The target half (forked from sshrc): header, session rc, shell handoff, undo.
 
-# `bash --rcfile` skips the startup chain; restore it before strict mode
-# (profile scripts aren't -e/-u safe), at source time ($CMDARG needs PATH too).
-#
-# $_HI_HOME and $_HI_ROOT are taken back afterwards: a target with a say-hi of
-# its own exports them in this very chain (a package's
-# /etc/profile.d/say-hi.sh sets `_HI_HOME=/usr/share`), and every path below
-# derives from $_HI_HOME, so the session would unpack one tree, load another,
-# and still remove the one it unpacked. Nothing else the profile sets is
-# touched.
-#
-# $_HI_ROOT is deliberately *not* put on $PATH: on a disposable session it is
-# under /tmp, which every hardening baseline greps for, and paths.sh already
-# aliases `hi` to $_HI_LAUNCHER in all four shells. An overlay's bin/ is the
-# one directory of it that is, where the user put scripts there (below).
-#
-# Nobody types at this shell, so it runs no shell hooks (GLOSSARY: HI.67): a
-# wired rc in the chain that loads a tree's _hi_run_hooks finds them run.
+# `bash --rcfile` skips the login chain; restore it before strict mode, which
+# profile scripts are not safe under. $_HI_HOME and $_HI_ROOT are restored
+# after, since a target's own say-hi exports them in that chain. $_HI_ROOT is
+# not put on $PATH (a /tmp path there fails hardening scans); `hi` is an
+# alias, and only an overlay bin/ joins $PATH. This shell runs no shell hooks
+# (GLOSSARY: HI.67).
 function _hi_restore_profile() {
   local _hi_rp_home="${_HI_HOME:-}" _hi_rp_root="${_HI_ROOT:-}"
   _hi_hooks_ran=1
@@ -79,12 +68,9 @@ else
   function _hi_keep_stays() { return 1; }
 fi
 
-# The bootloader shell: `hi <target> <cmd>` runs <cmd> here and load() starts
-# the session shell from here, so what is exported now is what both inherit:
-# children get _HI_CHILD_ENV, and _hi_session_rc_setup exports the session's
-# own pointers later. Not under _HI_LOAD_NO_INIT: install.sh and the suites
-# source this file for its functions and keep their environment.
-# GLOSSARY: HI.47
+# The bootloader shell runs `hi <target> <cmd>` and starts the session shell,
+# so both inherit only _HI_CHILD_ENV from here. Skipped under
+# _HI_LOAD_NO_INIT, for install.sh and the suites. GLOSSARY: HI.47
 [ "${_HI_LOAD_NO_INIT:-0}" = 1 ] || _hi_unexport
 
 # The overlay's bin/ (GLOSSARY: HI.58), last on $PATH so nothing in it stands
@@ -236,18 +222,10 @@ function _hi_session_sh_rc() {
   } >"$3"
 }
 
-# _hi_session_rc_setup - write every shell's rc into one directory and export
-# the three variables that point the session, and anything started inside it,
-# at them. Idempotent.
-#
-# `bash --rcfile` in hi.sh starts the *bootloader*; a bare `bash -i` for the
-# shell the user types at would read ~/.bashrc, so it is pointed here by what
-# a bash-less target already relies on: --rcfile, ZDOTDIR, $ENV, and fish's
-# -C. Each file sources the target's own rc *first*, then hi's on top.
-#
-# mktemp rather than a path under $_HI_ROOT: a *permanent* say-hi tree is
-# often root-owned and read-only. %q on every interpolated path, since
-# $TMPDIR is the target's to choose.
+# _hi_session_rc_setup - writes every shell's rc into one mktemp directory
+# and exports the variables that point shells at them (--rcfile, ZDOTDIR,
+# $ENV, fish's -C). Each sources the target's own rc first, then hi's.
+# Idempotent; %q on every path, since $TMPDIR is the target's.
 #
 # shellcheck disable=SC2016 # the single quotes are the point: $HOME and
 # $ZDOTDIR are the *target's* to expand when it reads these files, not this
@@ -372,15 +350,11 @@ function _hi_session_shell_cmd() {
   esac
 }
 
-# _hi_session_editor [name...] - the editor a session exports, with hi's
-# config flags: the first installed here of $_HI_EDITOR, the names given (the
-# client's own $EDITOR and $VISUAL), and the ladder, less any $_HI_PLUGINS_OFF
-# names (the settings.sh that rode says so): with every editor off, $EDITOR
-# stays the target's own. The flags are read off
-# the alias wiring.sh or the overlay's aliases.sh gave it (sourced here, in
-# the caller's $( ) subshell, so nothing leaks into load()), so an overlay's
-# `alias vim=...` reaches $EDITOR too. An editor with no alias goes bare,
-# hence the ${body:-$e} tail.
+# _hi_session_editor [name...] - the session's $EDITOR, with hi's flags: the
+# first installed of $_HI_EDITOR, the names given (the client's $EDITOR and
+# $VISUAL), and the ladder, less editors switched off (all off: the target's
+# own). Flags come from the editor's alias (wiring.sh or aliases.sh, sourced
+# in the caller's subshell); one with no alias goes bare.
 function _hi_session_editor() {
   local e body
   # no parse of the overlay's aliases.sh first: the session's shell does
@@ -420,17 +394,11 @@ function _hi_nano_glob() {
   [[ "${#_hi_files[@]}" -gt "$n" ]]
 }
 
-# _hi_nano_fallback - a syntax include outside /usr/share/nano was dropped on
-# the client (its comment survives the strip for this), so the carried
-# nanorc highlights nothing. Under each such comment goes its include again
-# where an absolute path matches files here, else, under the first, the
-# target's stock set. nano resolves an `extendsyntax` as it reads it, so
-# placement matters, and so does the name: each takes the spelling of a
-# syntax those files define, compared without case (nano-syntax-highlighting
-# spells `GO` what the stock set spells `go`), and one naming no syntax here
-# is dropped. Rewritten each session from the comments, since the copy rides
-# on to a next hop's target. Only a nanorc inside the disposable tree is
-# touched.
+# _hi_nano_fallback - restores the syntax includes the client dropped (their
+# comments survive the strip): each again where its path matches files here,
+# else the target's stock set under the first. Each `extendsyntax` stays in
+# place, renamed to the case of a syntax defined here, or dropped. Rewritten
+# from the comments each session, in the disposable tree only.
 function _hi_nano_fallback() {
   local rc="${_HI_NANORC:-}" tag='# hi dropped: ' fb='include "/usr/share/nano/*.nanorc"'
   local l r p f adds="" own=$'\n' hit=""
@@ -472,19 +440,12 @@ $1 == "extendsyntax" && !($2 in have) {
   mv -f "$rc.hi" "$rc"
 }
 
-# _hi_tree_watch [step [poll]] - the tree's last resort: a job apart from this
-# shell that waits it out and, should the tree still be there, does what its
-# exit hook would have. The hook and the bootstrap's trap remove the tree on
-# every exit a shell can see; this is for the one neither sees, both killed
-# outright. It ignores the hangup that ends a session, holds no terminal, and
-# is killed by the hook on the way out.
-#
-# It is also a held tree's timer. While hi.held names the shell it waited out,
-# it waits the session's window more (_hi_keep_holds), or until `hi --end`
-# leaves hi.end. A connect that takes the tree rewrites hi.pid first, and a
-# tree whose hi.pid is no longer that shell's is left to its new session.
-# <step> and <poll> are the two waits, a test's to shorten; a session's step
-# is $_HI_WATCH_STEP's, a test lever, else 60. GLOSSARY: HI.65
+# _hi_tree_watch [step [poll]] - the tree's last resort: a detached job that
+# outlives this shell and removes the tree if both the exit hook and the
+# bootstrap's trap were killed. It ignores the hangup and is killed by the
+# hook. It is also a held tree's timer: it waits the hold window
+# (_hi_keep_holds) or for hi.end, and leaves a tree a new session took (hi.pid
+# changed). <step> defaults to $_HI_WATCH_STEP, else 60. GLOSSARY: HI.65
 function _hi_tree_watch() {
   local pid="$$" step="${1:-${_HI_WATCH_STEP:-$_HI_WATCH_STEP_DEFAULT}}" poll="${2:-5}" limit=0 t0
   case "$step" in '' | 0* | *[!0-9]*) step="$_HI_WATCH_STEP_DEFAULT" ;; esac
@@ -554,12 +515,9 @@ function load() {
   [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || hi_header "$banner" "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
 
   _hi_nano_fallback
-  # vim only: VIMINIT breaks a target that has just vi. Only with the rc
-  # here, and its plugin on in the settings.sh that rode: a client without
-  # the editor, or with vim switched off, sends none. nvim reads $VIMINIT
-  # too and `:source` runs a .lua file as lua, so a box with nvim and no vim
-  # gets init.lua, and one with both has each read its own: an $EDITOR an
-  # overlay file set bare, with no `-u`, still opens on the right rc.
+  # Only where vim or nvim is (VIMINIT breaks a bare vi) and the rc rode with
+  # its plugin on. nvim reads $VIMINIT too and sources .lua as lua, so each
+  # editor opens its own rc even from a bare $EDITOR.
   local vimrc="" nvimrc=""
   ! _hi_list_has "${_HI_PLUGINS_OFF:-}" vim && [[ -f "${_HI_VIMRC:-}" ]] && command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
   ! _hi_list_has "${_HI_PLUGINS_OFF:-}" nvim && [[ -f "${_HI_NVIMRC:-}" ]] && command -v nvim &>/dev/null && nvimrc="$_HI_NVIMRC"

@@ -6,9 +6,8 @@
 # Bump the home; this file follows.
 #
 # Not here, since mise has no package for them: install from apt (or brew)
-#   apt: checkbashisms kcov mandoc
-# checkbashisms is in devscripts; kcov builds from source the way tools.txt's
-# row says. zsh, fish, docker, and podman float for the reasons tools.txt
+#   apt: checkbashisms mandoc
+# checkbashisms is in devscripts. zsh, fish, docker, and podman float for the reasons tools.txt
 # gives, and the suites skip yellow where one is missing.
 
 [tools]
@@ -61,12 +60,10 @@ _HI_HOME="$(dirname "$PWD")" tests/test_runner.sh --group lint
 '''
 
 [tasks.coverage]
-description = "Both coverage sweeps, then their rankings side by side"
+description = "The bashcov coverage sweep, worst-covered files first"
 shell = "bash -c"
 run = '''
 unset $(env | sed -n 's/^\(_HI_[A-Za-z0-9_]*\)=.*/\1/p')
 export _HI_HOME="$(dirname "$PWD")"
-tests/coverage.sh
 tests/coverage_v2.sh
-tests/coverage.sh --join
 '''

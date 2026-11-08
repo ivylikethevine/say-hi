@@ -53,9 +53,9 @@ jobs:
 
       # the tools.txt pin (sha256-verified, drift-checked), the same binary
       # ci.yml's offline check runs
-      - uses: ./.github/actions/setup-tool
+      - uses: ./.github/actions/setup-tools
         with:
-          tool: lychee
+          tools: lychee
 
       # lychee exits 2 for broken links, which is the finding, not a failure;
       # any other non-zero exit (bad input, a crash) still fails the job.

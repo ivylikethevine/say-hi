@@ -6,28 +6,20 @@
 # GLOSSARY: HI.30
 # shellcheck disable=SC2329
 
-# The command each e2e suite runs *on the target* to prove hi landed there: it
-# echoes $1 (the marker) only if the assertion holds, and the suite greps the
-# transcript for it. $2 picks the shape, which differs by what each branch has
-# in scope:
+# The command an e2e suite runs on the target: it echoes $1 (the marker) only
+# if hi landed, by the shape $2 names:
 #
-#   bash              the main branch: asserts the copy landed and sources
-#                     aliases.sh itself, which that branch does not
-#   fallback          the container fallback copies only aliases.sh - no
-#                     paths.sh, so hi_info isn't in scope, and every alias
-#                     it could make there is opt-in or wants a file the
-#                     fallback does not carry; check $_HI_BAT_OPTS, a
-#                     default nothing but aliases.sh exports
-#   fallback_fish     the same, in fish's dialect
-#   ssh_fallback      the ssh fallback rc *does* source paths.sh, so hi_info is
-#   ssh_fallback_fish ssh_fallback in fish's dialect
-#   rooted_under      $3 is a directory the session's tree must sit under
-#   rooted_elsewhere  the inverse: $3 is a say-hi the target already has, and
-#                     the session must be running out of its own tree instead.
-#                     What ssh_test.sh and install_methods_test.sh assert on a
-#                     target that carries an install of its own
+#   bash               the copy landed (sourcing aliases.sh itself)
+#   fallback           the container fallback: $_HI_BAT_OPTS, which only
+#                      aliases.sh exports (no paths.sh there)
+#   fallback_fish      the same, in fish
+#   ssh_fallback       the ssh fallback rc, which has paths.sh's hi_info
+#   ssh_fallback_fish  the same, in fish
+#   rooted_under       the session's tree is under $3
+#   rooted_elsewhere   the session runs its own tree, not the target's
+#                      install at $3
 #
-# Every string stays single-quoted: the variables expand on the target.
+# Single-quoted: the variables expand on the target.
 # shellcheck disable=SC2016 # these expand later, on the target
 function _hi_probe_cmd() {
   local marker="$1"
@@ -53,22 +45,14 @@ function _hi_probe_cmd() {
 
 _HI_PTY_SPAWN='import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))'
 
-# Whether python3 can actually build one, which is a different question from
-# whether python3 exists: `pty` and `tty` are Unix-only modules, so on Windows
-# `command -v python3` succeeds and the import does not - and a case gated on
-# the binary runs and fails where it should have stood down. Probed once by the
-# runner, which its suites inherit, so every consumer below asks the capability
-# instead; a suite run alone probes for itself.
+# Whether python3 can build a pty, not just exist (`pty` is Unix-only, so
+# Windows has python3 and no pty). Probed once by the runner and inherited.
 : "${_HI_PTY_OK:=$(python3 -c 'import pty, tty' >/dev/null 2>&1 && echo 1 || echo 0)}"
 export _HI_PTY_OK
 
-# Sets the global array _HI_PTY_WRAP to a python3-based pty-spawn prefix
-# whenever it's needed, empty otherwise. $1 is the fd to check for tty-ness,
-# $2 is "auto" (only wrap if fd $1 isn't a real tty) or "force" (always
-# wrap - for callers where the fd being checked is never the right proxy for
-# whether the *launcher* ends up with a real tty), $3 is the warning printed
-# when there is no usable pty to build the fake with - optional, for a backend
-# whose failure shape is worth naming; the default says what the mode means.
+# Sets _HI_PTY_WRAP to a python3 pty-spawn prefix when needed, else empty.
+# $1 the fd to check, $2 "auto" (wrap unless $1 is a tty) or "force", $3 an
+# optional warning for when no pty can be made.
 function _hi_pty_wrap() {
   local fd="$1" mode="$2" warning="${3:-}"
   _HI_PTY_WRAP=()
@@ -88,28 +72,15 @@ function _hi_pty_wrap() {
   fi
 }
 
-# The same prefix in its own array, always built, alongside whatever
-# _hi_pty_wrap decided. _hi_interactive_case needs one even when the suite is
-# running on a real terminal: it drives the session by *writing* to the
-# launcher's stdin, so that stdin is a pipe from us rather than the terminal,
-# and both `ssh -t` and `<backend> exec -it` want a tty there. Left empty when
-# there is no usable pty, which is what makes those cases skip rather than
-# fail, and what `_hi_check_capable pty` reads. Filled here rather than by a
-# function every suite would have to remember to call first: it takes no arguments
-# and reads nothing that varies between cases.
+# The prefix always built, for _hi_interactive_case, whose launcher's stdin
+# is our pipe yet must look like a tty. Empty with no pty, which makes those
+# cases skip (`_hi_check_capable pty`). Filled at source time.
 _HI_PTY_FORCED=()
 [ "$_HI_PTY_OK" -eq 1 ] && _HI_PTY_FORCED=(python3 -c "$_HI_PTY_SPAWN")
 
-# The _hi_pty_wrap preamble every suite that backgrounds the launcher needs:
-# stash our real stdin on fd 3 and decide the pty wrap from *that*. $1 is the
-# mode, $2 the optional warning. `exec -it` refuses a remote tty unless our stdin is one,
-# which it isn't in CI, so the local fake is what makes these suites reliable
-# off an interactive terminal.
-#
-# The check must use the duplicated fd: bash rewires a backgrounded job's stdin
-# to /dev/null with job control off, so testing `-t 0` here and handing the job
-# fd 0 later would report a terminal and still fail. fd 3 plus `<&3` in
-# _hi_exec_case keeps the original tty-ness - which is why they go together.
+# Saves our stdin on fd 3 and decides the pty wrap from it ($1 mode, $2
+# warning), since `exec -it` wants a tty CI lacks. fd 3 (with `<&3` in
+# _hi_exec_case), because a backgrounded job's fd 0 becomes /dev/null.
 function _hi_pty_stdin() {
   exec 3<&0
   _hi_pty_wrap 3 "$1" "${2:-}"
@@ -120,15 +91,9 @@ function _hi_poll_budget() {
     'BEGIN { b = t * i; b = (b == int(b) ? b : int(b) + 1); printf "%d", (b < 1 ? 1 : b) }'
 }
 
-# Both pollers take (tries, interval) - the shape every call site speaks -
-# but tries*interval only sizes the wall-clock budget: the deadline is the
-# one bound, for _hi_wait_pid's reason (an iteration counter stretches
-# without bound exactly when the machine is busiest). The trailing +1 covers
-# $SECONDS itself: it counts whole seconds and is already truncated by an
-# unknown fraction when read, so a bare `SECONDS + budget` deadline delivers
-# somewhere between budget-1 and budget seconds, never a guaranteed budget -
-# at the 1-second floor, sometimes nothing at all. The tick makes the asked-for
-# budget the floor rather than the ceiling.
+# Both pollers take (tries, interval), but only as a wall-clock budget: a
+# counted loop stretches when the machine is busy. +1 because $SECONDS is
+# already truncated when read, so the budget is a floor, not a ceiling.
 function _hi_poll_bool() {
   local abort=""
   if [ "$1" = -a ]; then
@@ -163,14 +128,8 @@ function _hi_poll_value() {
   done
 }
 
-# Wall-clock, not iteration count: `for ((i = 0; i < timeout_s * N))` at a
-# fixed sleep only equals timeout_s when nothing else is competing for the
-# machine, and stretches without bound when something is - which is exactly
-# when an e2e suite is most likely to need the timeout. _hi_poll_bool and
-# _hi_poll_value use the same deadline; this matches them, +1 included. The
-# poll is 50ms: a coarser one makes a pty case that finishes in under a
-# second pay up to a quarter of it again just waiting to be noticed, and
-# configure's thirty-odd of them add up.
+# A wall-clock deadline, as the pollers use (+1 included), polled every 50ms
+# so a fast pty case is noticed quickly.
 function _hi_wait_pid() {
   local pid="$1" timeout_s="$2" deadline
   shift 2
@@ -190,12 +149,10 @@ function _hi_wait_pid() {
   fi
 }
 
-# _hi_wait_quiet <pid> <quiet_s> <transcript> <label> - _hi_wait_pid for a
-# child that writes <transcript> as it goes, as every pty case does. The
-# deadline is <quiet_s> with nothing new written, so a slow host that is
-# still drawing is not taken for a wedge, under a cap of five times that for
-# a child that never stops. Killed, it is named with how long it ran, and
-# _hi_wedge_report says what it was left at.
+# _hi_wait_quiet <pid> <quiet_s> <transcript> <label> - _hi_wait_pid for a pty
+# case: the deadline is <quiet_s> without new output (capped at five times
+# that), so a slow host still drawing is not a wedge. A killed child is named
+# with its run time and _hi_wedge_report's view.
 function _hi_wait_quiet() {
   local pid="$1" quiet_s="$2" file="$3" label="$4" t0=$SECONDS last=$SECONDS tick="" size="" now
   _HI_WAIT_EXIT=0
@@ -248,18 +205,10 @@ function _hi_timed_out() {
 }
 
 # _hi_case_result <label> <what> <exit> <t0> <t1> <out_file> <marker...> - the
-# verdict both case runners reach: OK with a timing, or FAILED with the
-# transcript indented under it. Every marker given must be present.
-#
-# The exit code is read for exactly one value. 124 is _hi_wait_pid's timeout
-# (the process was SIGKILLed at the deadline), and that is a failure whatever
-# the transcript holds: a case that echoes its marker and then sits at a
-# prompt would otherwise read OK - a green run hiding a session that never
-# exited.
-# Any other non-zero status stays OK once the markers are there, because
-# `docker exec -it`, `nomad alloc exec`, and `kubectl exec` hand back statuses
-# of their own that nothing here asserts on - but it is printed on the OK
-# line rather than swallowed, so a case that starts exiting oddly is seen.
+# verdict: OK with a timing when every marker is present, else FAILED with
+# the transcript. 124 (_hi_wait_pid's timeout) always fails, since a session
+# can print its marker and then hang. Other non-zero statuses (the execs
+# return their own) pass but are shown on the OK line.
 function _hi_case_result() {
   local label="$1" what="$2" exit_code="$3" t0="$4" t1="$5" out_file="$6" marker ok=1
   shift 6
@@ -288,21 +237,10 @@ function _hi_case_result() {
   return 1
 }
 
-# <attempts> (last, default 1) - how many times to run the command before
-# handing the transcript to _hi_case_result; a caller's own argument, not a
-# global, since it is one caller's transient (tests/targets/kube_test.sh's
-# _hi_run_case). A kube CI run once saw the [sh] shape (alpine, ash, the
-# no-bash fallback) fail with no ash startup banner and no marker, just
-# kubectl's own "command terminated with exit code 1" - a transient no local
-# run could reproduce, including under sustained CPU saturation against a
-# real kind cluster, on a pod _hi_pod_running had already polled Running. A
-# timeout (124) breaks instead of retrying: that is a slow, real failure (or
-# the podman/fish shape _hi_case_result's own comment describes - a session
-# that echoed the marker and then sat at a prompt), not the fast, markerless
-# failure the retry exists for. $out_file is truncated fresh each attempt, so
-# only the final attempt's transcript is dumped on a failure, and
-# _hi_case_result is reached once, so a retried failure never prints as two
-# separate results.
+# <attempts> (last, default 1) - tries before _hi_case_result, for
+# kube_test.sh's transient markerless kubectl failure. A timeout (124) is
+# never retried. Each try truncates $out_file, so one transcript and one
+# result print.
 function _hi_exec_case() {
   local label="$1" what="$2" marker="$3" timeout_s="$4" target="$5" cmd="$6" hook="${7:-}"
   local out_file="$_HI_WORKDIR/$label.out" exit_code t0 t1
@@ -328,44 +266,23 @@ function _hi_exec_case() {
   _hi_case_result "$label" "$what" "$exit_code" "$t0" "$t1" "$out_file" "$marker"
 }
 
-# True once the target's session has actually reached a shell, so
-# _hi_interactive_case knows when its input will be read rather than guessing.
-# Both shapes count: load()'s full path announces the shell it picked, and the
-# no-bash fallback says so instead - a readiness check that only knew about
-# the first would hang out the full timeout on any target without bash.
-# The full-load banner is a named constant because ssh_relay_test.sh counts
-# sessions by it too: a reword of load()'s banner has to move this one string,
-# not this grep plus a stray one in a suite.
+# True once the session reached a shell: load()'s banner (a constant, which
+# ssh_relay_test.sh also counts) or the no-bash fallback's notice.
 _HI_SESSION_LOADED_RE='hi loaded:'
 function _hi_session_ready() {
   grep -qE "$_HI_SESSION_LOADED_RE|aliases only" "$1" 2>/dev/null
 }
 
-# Like _hi_exec_case, but drives a real *interactive* session instead of a
-# one-off command - the only shape that reaches load.sh's load(). hi.sh's
-# $CMDARG replaces `load` outright in the bootloader (see _hi_bootloader), so a
-# command-shaped case never exercises the header, the session rc, the shell
-# handoff, or clean_all; this one does. The session is driven by piping a
-# printf and an `exit` into it after a settle, and it asserts both the marker
-# (an interactive shell really came up and ran our line) and load()'s closing
-# line (its exit path ran, rather than the session dying early).
-#
 # _hi_interactive_case [-c <closing>] [-m <marker>]... [-f <fn>] \
-#   <label> <what> <marker> <timeout_s> <launcher...> -
-# where <launcher...> is the *bare* command, with no pty prefix of its own:
-# _HI_PTY_FORCED is prepended here; it is filled at source time, so no suite
-# has to remember to ask for it. The options are what let every pty-driven
-# suite share this one driver instead of forking it:
-#   -c <closing>  the line whose appearance means the session is over - the
-#                 feeder holds the pipe open until it lands, and it is
-#                 asserted as a marker. Default: load()'s own last line, the
-#                 "| session: <duration>" it prints whatever the header
-#                 toggle says; a tier that never reaches load.sh names its
-#                 own.
-#   -m <marker>   a further must-appear transcript marker (repeatable)
-#   -f <fn>       runs inside the feeder between the marker line and the
-#                 `exit`: its stdout is typed into the live session, and it
-#                 may also do host-side work mid-session
+#   <label> <what> <marker> <timeout_s> <launcher...> - an interactive session,
+# the only shape that reaches load(): types a line and `exit` once the shell
+# is ready, and asserts the marker and the closing line. <launcher...> is
+# bare; _HI_PTY_FORCED is prepended.
+#   -c <closing>  the line that ends the session, held for and asserted
+#                 (default load()'s "| session: <duration>")
+#   -m <marker>   another required marker (repeatable)
+#   -f <fn>       runs before the `exit`; its stdout is typed into the
+#                 session
 # the interactive case is still waiting on its session ($out_file is the
 # case's, through dynamic scoping)
 function _hi_interactive_live() { [ ! -e "$out_file.over" ]; }
@@ -408,17 +325,10 @@ function _hi_interactive_case() {
   t0="$(_hi_now)"
   : >"$out_file"
   rm -f "$out_file.over"
-  # The left side of the pipe runs alongside the session, so it can watch the
-  # transcript the session is writing rather than guessing how long it needs.
-  # Nothing is typed before the shell is ready - input that lands earlier is
-  # lost on a loaded runner - and a shell never ready is the case's timeout,
-  # reported as one. The pipe is held until the closing line lands, or the
-  # case is over.
-  #
-  # Reading $out_file on the left while the right writes it is the whole
-  # mechanism, not the accident SC2094 warns about: the two sides are separate
-  # processes and the reader only ever polls, so there is no truncate-then-read
-  # race to hit.
+  # The pipe's left side watches the transcript, types nothing before the
+  # shell is ready (earlier input is lost on a loaded runner), and holds the
+  # pipe until the closing line. It only polls $out_file, so SC2094's race
+  # does not apply.
   # shellcheck disable=SC2094
   {
     if _hi_poll_bool -a _hi_interactive_live "$((timeout_s * 4))" 0.25 _hi_session_ready "$out_file"; then

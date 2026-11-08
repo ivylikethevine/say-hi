@@ -2,15 +2,10 @@
 # `hi --preview <subject>`: what a setting resolves to, rendered the way a
 # connect will render it, plus why.
 #
-#   colors     every ssh host and every known user in the color it lands in
-#              (override/hosttag/pattern/hash) - for tuning config/colors
-#   packages   the header's packages check: each group, whether it runs, the
-#              colors it paints an installed and a missing package, a real
-#              example of each from your own packages file, then the check
+#   colors     every ssh host and known user in its color, and the rule
+#   packages   each package group, whether it runs, its colors, and an
+#              example from your file, then the check
 #   header     the connect header itself
-#
-# One script for the three subjects: they share the boxed table (table.sh),
-# the palette they paint with, and the scheme line above every table.
 
 # --text, read ahead of core.sh: its palette is set as it is sourced, and
 # $NO_COLOR is how it is asked for none
@@ -274,12 +269,9 @@ function _hi_user_row() {
   _hi_row_end
 }
 
-# _hi_user_color_memo <user> <tag> <escape-outvar> - most groups share the same
-# (user, tag) pair (usually the empty tag), and _hi_resolve_color walks
-# config/colors and ~/.ssh/config to answer one. Reads/writes
-# _hi_print_hosts_table's own parallel arrays through bash's dynamic scoping,
-# the same as _hi_group_index above. Prefixed locals: _hi_colors_scan assigns a
-# plain `color` (GLOSSARY: HI.04).
+# _hi_user_color_memo <user> <tag> <escape-outvar> - memoized in
+# _hi_print_hosts_table's arrays, since most groups share a (user, tag) and
+# resolving one walks two files. Prefixed locals (GLOSSARY: HI.04).
 function _hi_user_color_memo() {
   local _hi_um_i _hi_um_c="" _hi_um_e
   for _hi_um_i in "${!_hi_upc_keys[@]}"; do
@@ -311,13 +303,9 @@ function _hi_print_users_table() {
   # to "<name>#<rrggbb>", which does not - so the widths below are taken from
   # the colors these rows actually resolve to as well as from the names
   _hi_widen w_color "${_HI_COLOR_NAMES[@]}"
-  # ${a[@]+"${a[@]}"} throughout this file, not a plain "${a[@]}": on bash 3.2
-  # (macOS) expanding an *empty* array under `set -u` is a fatal "unbound
-  # variable", and a colors file with no usertag pins - or an ssh config with no
-  # interesting hosts - leaves exactly that. The *index* form "${!a[@]}" needs no
-  # such guard (it is already empty-safe), and must not be given one: bash 3.2
-  # reads ${!a[@]+...} as expanding to nothing whatever the array holds, and
-  # bash 5 reads it as an indirect reference and errors outright.
+  # ${a[@]+"${a[@]}"}: an empty array is unbound under `set -u` on bash 3.2.
+  # Never guard "${!a[@]}", which is already safe and breaks guarded.
+  # GLOSSARY: HI.01
   _hi_widen w_item "${users[@]}" LOCALUSER ${usertags[@]+"${usertags[@]}"}
   # _hi_color_source forks and walks ~/.ssh/config, so the render loop below reads what this one worked out rather than asking
   # a second time for every user.
@@ -541,22 +529,16 @@ function _hi_print_hosts_table() {
 # packages
 #
 
-# Filled by _hi_collect_examples, read by the table: per-group names, state,
-# tier, example rows and their printed widths, plus the totals under the
-# table. Indexed by group, in file order, index 0 being the rows above the
-# first `[group]` line (a plain indexed array - bash 3.2 has no associative
-# ones), and global rather than local because the collector cannot return
-# them all.
+# Per-group results of _hi_collect_examples, indexed in file order (0: rows
+# above the first group; bash 3.2 has no associative arrays), global because
+# the collector cannot return them all.
 _HI_PG_NAME=() _HI_PG_ON=() _HI_PG_TIER=() _HI_PG_ROWS=()
 _HI_EX_OK=() _HI_EX_OK_W=() _HI_EX_NO=() _HI_EX_NO_W=()
 _HI_PKG_LISTED=0 _HI_PKG_SHOWN=0 _HI_PKG_SILENT=0 _HI_PKG_OFF=0
 
-# Run the real check over every row of the real packages file, groups that
-# are off included, and keep the first installed and the first missing (or
-# warned) row per group. check_line appends what it would print to `visible`
-# (bash's dynamic scoping - full_check calls it exactly this way) and appends
-# nothing for a `-` row that is absent or a `+` row that is installed, which
-# is the point: those rows show nothing.
+# Runs the real check over every row, groups that are off included, keeping
+# the first installed and first missing (or warned) row per group. check_line
+# appends to `visible` as in full_check, nothing for a silent row.
 function _hi_collect_examples() {
   local line entry rank width rendered gi=0 on=1 tier=1 group name alts
   local -a visible

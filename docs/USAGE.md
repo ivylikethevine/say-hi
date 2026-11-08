@@ -1,13 +1,9 @@
 # Usage
 
-Every `hi --flag`, with an example of each and what it prints. The flags,
-their shapes, and the one-line help come from `common/flags`, the table
-`hi --help` prints from; the examples come from `docs/tapes/usage`, and CI
-renders each in a throwaway home with a tagged ssh host and a vimrc. What a
-flag does in full is the [man page](https://github.com/ivylikethevine/say-hi/blob/main/docs/hi.1);
-a connect itself is the [README's demos](../README.md). A command needs the
-checkout's `scripts/`, which a session does not carry, unless it says it works
-in a session.
+Every `hi --flag`, with what it prints. Each line is `hi --help`'s, from
+`common/flags`; the images are rendered by CI from `docs/tapes/usage`. The
+full detail is the [man page](https://github.com/ivylikethevine/say-hi/blob/main/docs/hi.1),
+and a connect itself is in [the tour](GETTING-STARTED.md#a-tour).
 
 ## Contents
 
@@ -35,53 +31,45 @@ in a session.
 
 ## Every command
 
+These work inside a session too: `--help`, `--version`, `--use`, `--plain`, `--no-plain`, `--keep`, `--no-keep`, `--end`. The rest need the checkout's `scripts/`.
+
 ### `hi --help`
 
-`hi --help`: this text. Works in a session too.
+`hi --help`: this text.
 
 ![hi --help](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-help.svg)
 
 ### `hi --version`
 
-`hi --version`: hi's version: the packaging stamp, or git describe. Works in a session too.
+`hi --version`: hi's version: the packaging stamp, or git describe.
 
 ![hi --version](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-version.svg)
 
 ### `hi --use`
 
-`hi --use <backend>`: skip probing and force that backend (ssh counts as one). Works in a session too.
-
-No image: what it does shows in a session, not in output of its own.
+`hi --use <backend>`: skip probing and force that backend (ssh counts as one).
 
 ### `hi --plain`
 
-`hi --plain`: a bare shell, nothing copied: no tar or /tmp needed. Works in a session too.
-
-No image: what it does shows in a session, not in output of its own.
+`hi --plain`: a bare shell, nothing copied: no tar or /tmp needed.
 
 ### `hi --no-plain`
 
-`hi --no-plain`: hi's own session this once, past \_HI\_PLAIN=1. Works in a session too.
-
-No image: what it does shows in a session, not in output of its own.
+`hi --no-plain`: hi's own session this once, past \_HI\_PLAIN=1.
 
 ### `hi --keep`
 
-`hi --keep`: keep the session on the target through a dropped link. Works in a session too.
+`hi --keep`: keep the session on the target through a dropped link.
 
 It changes how a connect runs, which [the tour's story](GETTING-STARTED.md#survive-a-dropped-link) shows.
 
 ### `hi --no-keep`
 
-`hi --no-keep`: an ordinary session, past \_HI\_KEEP=1 or a kept one. Works in a session too.
-
-No image: what it does shows in a session, not in output of its own.
+`hi --no-keep`: an ordinary session, past \_HI\_KEEP=1 or a kept one.
 
 ### `hi --end`
 
-`hi --end`: close the session \<target\> is keeping. Works in a session too.
-
-No image: what it does shows in a session, not in output of its own.
+`hi --end`: close the session \<target\> is keeping.
 
 ### `hi --preview`
 
@@ -121,8 +109,6 @@ No image: what it does shows in a session, not in output of its own.
 
 `hi --update [<tag>] [--dry-run]`: move the checkout to the newest release tag, or \<tag\>. Needs a git checkout, which a package is not.
 
-No image: what it shows is the network's, a release tag's, or your editor's.
-
 ### `hi --add-tag`
 
 `hi --add-tag <host> <tag> [--dry-run]`: tag an ssh host, for the colors.
@@ -158,5 +144,3 @@ No image: what it shows is the network's, a release tag's, or your editor's.
 ### `hi --edit`
 
 `hi --edit [<file>]`: open your overlay, or one file of it, in your editor.
-
-No image: what it shows is the network's, a release tag's, or your editor's.

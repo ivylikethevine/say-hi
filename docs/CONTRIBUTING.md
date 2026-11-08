@@ -90,7 +90,7 @@ reports. All but the last four rows are `ci.yml`'s.
 | `release note (pr body)` (`release-note.yml`)                                     | Every body edit and push; Dependabot's PRs skip                            | Gate                                                             |
 | `dependency review` (`dependency-review.yml`)                                     | Always; fails on a new dependency with a high or critical advisory         | Gate                                                             |
 | `CodeQL (actions)` (`codeql.yml`)                                                 | Always                                                                     | Blocks a merge on a high alert (`main`'s ruleset)                |
-| `coverage.yml`'s kcov and bashcov sweep                                           | bashcov on same-repo PRs, as a comment; kcov on `main`                     | Advisory — never blocks a PR; a failed suite publishes no figure |
+| `coverage.yml`'s bashcov sweep                                                    | Same-repo PRs, as a comment, and `main`                                    | Advisory — never blocks a PR; a failed suite publishes no figure |
 
 Nothing runs on a draft: every job skips until the PR is marked ready, which
 fires a full run. "Skipped on a workflow- or docs-only diff" is `ci.yml`'s
@@ -270,6 +270,7 @@ under `tests/` or `scripts/` a package does not ship.
 | a flag, or `_hi_parse`                                 | `docs/hi.1` (and `docs/tldr.md` when one of its eight examples shows it) |
 | a new flag                                             | its `docs/tapes/usage` row, which writes `docs/USAGE.md` (enforced)      |
 | an environment variable or toggle                      | a row of `scripts/settings`, which writes `docs/SETTINGS.md`'s table     |
+| a file the overlay carries, or a variable hi sets      | `docs/FILES.md`                                                          |
 | what hi leaves on a target                             | `docs/SECURITY.md`                                                       |
 | a target hi does or doesn't answer to                  | `docs/COMPATIBILITY.md`                                                  |
 | a tool hi wires in, or its hook                        | `docs/INTEGRATIONS.md`                                                   |

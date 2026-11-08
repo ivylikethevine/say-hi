@@ -84,8 +84,8 @@ function writeSettings(text) {
     return text;
   }
   const table = rows.map((c) => {
-      const by = c[0] === "preset" ? "a preset, or you" : "you";
-      return `| \`${c[1]}\` | ${c[2]} | ${by} | ${c.slice(5).join(" | ")} |`;
+    const by = c[0] === "preset" ? "a preset, or you" : "you";
+    return `| \`${c[1]}\` | ${c[2]} | ${by} | ${c.slice(5).join(" | ")} |`;
   });
   let end = start;
   while (end < lines.length && lines[end].startsWith("|")) end++;
@@ -113,9 +113,9 @@ function plain(text) {
 }
 
 const usageImages = "https://ivylikethevine.github.io/say-hi/docs/tapes";
-// what a row's <needs> adds to its section; `scripts` is USAGE.md's rule
+// what a row's <needs> adds to its section; `scripts` is USAGE.md's rule, and
+// `-` (works in a session too) is listed once above the sections
 const usageNeeds = {
-  "-": "Works in a session too.",
   git: "Needs a git checkout, which a package is not.",
 };
 
@@ -143,7 +143,12 @@ function writeUsage(text) {
     examples.get(flag).push(example);
     last = flag;
   }
-  const out = [""];
+  const anywhere = flags.filter((f) => f[2] === "-").map((f) => `\`${f[0]}\``);
+  const out = [
+    "",
+    `These work inside a session too: ${anywhere.join(", ")}. The rest need the checkout's \`scripts/\`.`,
+    "",
+  ];
   for (const [flag, arg, needs, , , help] of flags) {
     const rows = examples.get(flag);
     if (!rows)
@@ -163,15 +168,8 @@ function writeUsage(text) {
         );
         return;
       }
-      if (example === "-") {
-        out.push(
-          needs === "-"
-            ? "No image: what it does shows in a session, not in output of its own."
-            : "No image: what it shows is the network's, a release tag's, or your editor's.",
-          "",
-        );
-        return;
-      }
+      // `-`: nothing of its own to show
+      if (example === "-") return;
       const cmd = `hi ${flag}${example ? ` ${example}` : ""}`;
       const slug = flag.slice(2) + (i ? `-${i + 1}` : "");
       out.push(`![${plain(cmd)}](${usageImages}/usage-${slug}.svg)`, "");

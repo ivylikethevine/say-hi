@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# The connect/disconnect banner, one implementation for every shell (fish
-# shells out here); the packages check (full_check) lives at the bottom too.
-#
-# No strict-mode bracket of its own: core.sh's tail releases `set -euo
-# pipefail` on every source (an error must not close an interactive shell),
-# so a bracket opened here was dead the moment core.sh below loaded. The
-# `|| true` guards through this file protect a *caller* running under its own
-# strict mode (scripts/configure.sh's previews do).
+# The connect/disconnect banner and header for every shell (fish shells out
+# here), and the package check (full_check) at the bottom. No strict mode of
+# its own, since core.sh releases it; the `|| true` guards protect a caller
+# under strict mode (configure.sh's previews).
 
 # core.sh through this file's own path; it derives the tree. GLOSSARY: HI.33
 _hi_d="${BASH_SOURCE[0]}"
@@ -15,12 +11,9 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
 source "$_hi_d/core.sh"
 unset _hi_d
 
-# <var> gets $2's visible column width - every color var in it stripped
-# first: most cells open with one, load()'s greeting changes color midway. The
-# color vars hold the literal two characters `\e`, not a real escape byte
-# (core.sh assigns them single-quoted; only header_row's own final
-# `printf '%b'` interprets it), so the pattern matches that literal rather
-# than $'\e'.
+# <var> gets $2's visible column width, color vars stripped. They hold a
+# literal `\e` (only header_row's final `printf '%b'` interprets it), so the
+# pattern matches that, not $'\e'.
 function _hi_visible_width() {
   local s="$2" re='^(.*)\\e\[[0-9;]*m(.*)$'
   while [[ "$s" =~ $re ]]; do s="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
@@ -31,42 +24,22 @@ function _hi_visible_width() {
   printf -v "$1" '%d' "${#s}"
 }
 
-# <var> gets $2's hue - the final digit of its leading `\e[<bold>;3<n>m`
-# escape (1 red, 2 green, 3 yellow, 4 blue, 5 purple, 6 cyan), ignoring the
-# bold bit, so CYAN and BRCYAN read as the same hue and BLUE/CYAN don't.
-# Under a color scheme the same escape carries on `;38;2;r;g;b` after the
-# slot digit (GLOSSARY: HI.50), so the digit is followed by `;` or `m` and
-# is the hue either way. Empty when there is no leading escape - NO_COLOR
-# blanks the whole palette (core.sh), and a cell like $_HI_SI_OS is then
-# bare text. Anchored and validated the same way _hi_visible_width's own
-# prefix match is, rather than an unanchored `${cell%%m*}`: an unvalidated
-# cut would read a stray "m" out of plain text (an OS name, "GHz") as if it
-# were a color.
+# <var> gets $2's hue: the digit of its leading `\e[<bold>;3<n>m` escape,
+# ignoring bold, so CYAN and BRCYAN match. A scheme's escape continues with
+# `;38;2;...` after the digit (GLOSSARY: HI.50). Empty with no leading escape
+# (NO_COLOR). Anchored, so an "m" in plain text ("GHz") is never read as one.
 function _hi_cell_hue() {
   local s="$2" re='^\\e\[[01];3([1-6])[;m]'
   printf -v "$1" '%s' ""
   [[ "$s" =~ $re ]] && printf -v "$1" '%s' "${BASH_REMATCH[1]}"
 }
 
-# <var> gets the width the header actually draws to: $_HI_MAX_WIDTH, never
-# wider than the window. A row left to overrun the real terminal gets broken
-# by the terminal mid-cell, which is the one break header_row/full_check/
-# banner exist to prevent.
-#
-# $_HI_TERM_COLS set (by a caller, or a previous call's own tput fallback)
-# always wins, tty or not - the one deliberate override, and what lets a
-# suite pin a narrow width the same way it already pins $_HI_MAX_WIDTH.
-# Otherwise, only when stdout is a tty: a captured header (the suites that
-# never touch $_HI_TERM_COLS, configure.sh's previews, `hi --doctor`) keeps
-# drawing to $_HI_MAX_WIDTH exactly. $COLUMNS first, read fresh every call -
-# bash's checkwinsize keeps it current across a resize, and reading it is
-# free. `tput` is the fallback and the fork, so its answer is memoized into
-# $_HI_TERM_COLS for every call after the first.
-#
-# Locals prefixed _hi_dw_, not the generic "max"/"cols" every caller uses for
-# its own budget - `printf -v "$1"` resolves the name in the nearest scope,
-# so a same-named local declared here would shadow the caller's variable
-# instead of writing into it.
+# <var> gets the width the header draws to: $_HI_MAX_WIDTH, narrowed to the
+# window so the terminal never breaks a cell. A set $_HI_TERM_COLS always
+# wins (the suites pin it). Otherwise only a tty narrows: $COLUMNS, read fresh
+# each call, else `tput`, memoized into $_HI_TERM_COLS. Captured output (the
+# previews, `hi --doctor`) keeps $_HI_MAX_WIDTH. Locals are prefixed so
+# `printf -v "$1"` cannot hit a same-named local.
 function _hi_draw_width() {
   local _hi_dw_max=${_HI_MAX_WIDTH:-$_HI_MAX_WIDTH_DEFAULT} _hi_dw_cols=""
   _hi_term_cols _hi_dw_cols
@@ -76,13 +49,9 @@ function _hi_draw_width() {
   printf -v "$1" '%d' "$_hi_dw_max"
 }
 
-# A row's overflow cells, handed to the next row instead of costing a line of
-# their own - the point of this whole cascade. Armed only for the span of
-# hi_header's row loop, the one caller with a "next row" to hand cells to;
-# every other caller (configure.sh's previews, `hi --doctor`, a suite calling
-# header_row directly) stays unarmed, and unarmed
-# header_row drains its own carry before returning - so standalone output
-# carries no cascade.
+# A row's overflow cells, handed to the next row instead of costing a line.
+# Armed only inside hi_header's row loop; elsewhere header_row drains its own
+# carry before returning.
 _HI_ROW_CARRY_ARMED=0
 declare -a _HI_ROW_CARRY=()
 
@@ -93,15 +62,10 @@ declare -a _HI_ROW_CARRY=()
 # not a silently-empty read.
 _HI_PREV_HUE=""
 
-# Fills exactly one line at _hi_draw_width from <cells...>, prints it, and
-# leaves whatever didn't fit in $_HI_ROW_CARRY (reset on entry) for a caller
-# to hand to the next row. The first cell is always placed, even when it
-# alone exceeds the width. Stops at the first cell that
-# doesn't fit and carries the rest wholesale, rather than scanning for a
-# smaller cell further along that would still fit - that would reorder the
-# header. Every cell keeps its own trailing reset before a line break, since
-# a color left open would otherwise bleed onto the next physical line.
-# Returns 1 and prints nothing for zero cells.
+# Prints one line at _hi_draw_width from <cells...> and leaves the rest in
+# $_HI_ROW_CARRY. The first cell is always placed; it stops at the first cell
+# that does not fit rather than reorder the header. Each cell ends with a
+# reset so no color bleeds past a line break. Returns 1 for zero cells.
 function _hi_row_line() {
   local cell out="" max vislen width=0 i close=1 pad=""
   _hi_draw_width max
@@ -164,13 +128,9 @@ function header_row() {
   ((_HI_ROW_CARRY_ARMED)) || _hi_header_flush
 }
 
-# The header's version cell is a glance value, not a lookup key, capped at 10
-# columns with `-dirty` dropped: a tag or stamp as-is, a checkout past a tag
-# as <tag>+N (_hi_git_version's form), a bare hash cut to 6. A <tag>+N too
-# long for the cap keeps the tag and a bare `+` rather than a cut-off count.
-# Never `hi --version`'s own answer (hi.sh's _hi_version calls
-# _hi_release_or_describe directly) - this is a display-only shortening of the
-# header's copy. [outvar]: GLOSSARY: HI.05.
+# The header's version cell, display only (`hi --version` has the full one):
+# at most 10 columns, `-dirty` dropped, a tag as is, <tag>+N past a tag (a
+# bare `+` when N does not fit), a bare hash cut to 6. GLOSSARY: HI.05
 function _hi_shorten_describe() {
   local _hi_sd_v="${1%-dirty}"
   if ((${#_hi_sd_v} > 6)) && [[ "$_hi_sd_v" != *[!0-9a-f]* ]]; then
@@ -242,12 +202,9 @@ function _hi_ghz() {
   printf -v "$1" '%d.%d' "$((t / 10))" "$((t % 10))"
 }
 
-# _hi_linux_ram <var> <meminfo> - "<used>/<total>G" straight off the file
-# free(1) reads: used is MemTotal - MemAvailable (the "how much could a new
-# process actually get" figure free -h reports, not the naive MemTotal -
-# MemFree); a pre-3.14 kernel has no MemAvailable and still gets its total;
-# no file, empty. kB to GiB, rounded half up. A `read` loop, not an awk fork
-# per shell start.
+# _hi_linux_ram <var> <meminfo> - "<used>/<total>G", used being MemTotal -
+# MemAvailable as free(1) reports it (a pre-3.14 kernel gets its total only).
+# GiB rounded half up; a `read` loop, not an awk fork.
 function _hi_linux_ram() {
   local k v total="" avail=""
   printf -v "$1" '%s' ''
@@ -298,12 +255,9 @@ function _hi_linux_base_mhz() {
   printf -v "$1" '%s' "$mhz"
 }
 
-# _hi_load_pct <var> <load> <cpus> - the 1-minute load average as a percentage
-# of this box's own core count ("2.34" on 8 cores -> "29"): the number that
-# actually answers "is this box busy", where the bare load figure needed the
-# core count to mean anything and never carried it along. Empty <var> when
-# either input is missing, or <cpus> isn't a plain positive integer - the
-# Windows fallback's own unresolved "?" among them.
+# _hi_load_pct <var> <load> <cpus> - the 1-minute load as a percentage of the
+# core count ("2.34" on 8 cores -> "29"). Empty when an input is missing or
+# <cpus> is not a positive integer (Windows' "?").
 function _hi_load_pct() {
   local load="$2" cpus="$3" whole frac
   case "$cpus" in '' | *[!0-9]*) return 0 ;; esac
@@ -315,15 +269,9 @@ function _hi_load_pct() {
   printf -v "$1" '%d' $(((2 * (10#${whole:-0} * 100 + 10#${frac:0:2}) + cpus) / (2 * cpus)))
 }
 
-# _hi_platform <outvar> - linux, windows, bsd, or unknown: the one question
-# the three probes below all ask, spelled once so they cannot drift apart.
-# Every platform test in
-# the shipped tree is in this file, so it lives here and not in core.sh.
-#
-# The verdict is not memoized: $_HI_LINUX_RELEASE stays first in the chain
-# and is re-tested on every call, because header_test.sh points it at a
-# fixture after sourcing to choose an arm - a remembered verdict would ignore
-# that. Linux needs no `uname` for it.
+# _hi_platform <outvar> - linux, windows, bsd, or unknown, for the probes
+# below. Not memoized: header_test.sh points $_HI_LINUX_RELEASE at a fixture
+# after sourcing. Linux needs no `uname`.
 function _hi_platform() {
   if [ -f "$_HI_LINUX_RELEASE" ]; then
     printf -v "$1" '%s' linux
@@ -387,12 +335,8 @@ function _hi_system_info_probe() {
   _hi_platform plat
   _hi_uname
   if [ "$plat" = linux ]; then
-    # also covers WSL - a real Linux kernel with its own /etc/os-release.
-    # Every probe ends in `|| true`: a stripped-down target falls through to
-    # "?" - and a caller under its own `set -e` (see the top of the file)
-    # must not abort on a missing probe.
-    # the files themselves, a `read` loop each rather than an awk fork per
-    # shell start
+    # WSL too. Every probe ends `|| true`, so a stripped target shows "?"; a
+    # `read` loop each, not an awk fork.
     local k v
     while IFS='=' read -r k v; do
       [ "$k" != PRETTY_NAME ] || os="${v//\"/}"
@@ -466,12 +410,8 @@ function _hi_cell_cores() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_CO
 function _hi_cell_cpu() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_CPU; }
 function _hi_cell_ram() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_RAM; }
 
-# <var> gets the uptime cell, one of the identity-group words rather than a
-# row of its own so it rides the wrap instead of always costing a line. Its
-# own probe rather than sharing the sysinfo cells' state - only "which command
-# answers how long this box has been up" is common to the two - but the platform question
-# itself is _hi_platform's, so the `uname` behind it is paid once per session
-# rather than once per probe.
+# <var> gets the uptime cell, its platform from _hi_platform so `uname` runs
+# once per session.
 function _hi_cell_uptime() {
   local uptime_s="" up="" plat
   _hi_platform plat
@@ -521,12 +461,8 @@ function _hi_cell_ip() {
 function _hi_ip_list() {
   local ips="" plat
   _hi_platform plat
-  # One possibly-absent tool per branch, piped straight into awk for every
-  # further step (splitting, filtering, joining) - awk is the one thing
-  # besides bash a stripped target is guaranteed to have (GLOSSARY: HI.30
-  # territory), so `cut`/`paste`/`tr`/`grep` chained after it would be one
-  # more absent-tool roll of the dice apiece, each needing its own
-  # `2>/dev/null` to stay quiet under _hi_stripped_header.
+  # One possibly-absent tool per branch, piped into awk for the rest: awk is
+  # on every target, `cut`/`tr`/`grep` may not be. GLOSSARY: HI.30
   if [ "$plat" = linux ]; then
     # SGR stripped first: an `ip` that colors (an alias or wrapper the shell
     # brought along, or `ip -c`) wraps each address, which shifts nothing in
@@ -559,15 +495,10 @@ function _hi_ip_list() {
   printf '%s' "$ips"
 }
 
-# _hi_ip_filter <outvar> <comma-joined addresses> - the same list, each
-# address without its %<interface>, minus every one where a $_HI_IP_HIDE glob
-# matches the address or the interface. The setting is space-separated globs,
-# unset or empty meaning the container and VM bridges' interfaces (noise on
-# any box that runs them - empty is unset, as every other setting reads it);
-# the word `none` hides nothing. An address with no interface answers to the
-# address globs alone. The words are peeled off the string one at a time
-# rather than word-split in a `for`, which would also pathname-expand a glob
-# against the cwd.
+# _hi_ip_filter <outvar> <comma-joined addresses> - the list without each
+# %<interface>, minus every address a $_HI_IP_HIDE glob matches by address or
+# interface (unset or empty: the bridge defaults; `none`: nothing). Words are
+# peeled one at a time, since a `for` would expand a glob against the cwd.
 function _hi_ip_filter() {
   local _hi_if_hide="${_HI_IP_HIDE:-$_HI_IP_HIDE_DEFAULT}" _hi_if_rest="${2:+$2,}" _hi_if_kept="" _hi_if_ip _hi_if_dev
   while [ -n "$_hi_if_rest" ]; do
@@ -871,14 +802,11 @@ function banner() {
   printf '%b\n' "$lead$changes$color$thin$start_fill $color$label ${NC}[$host_esc$host$NC]$color$thin $end_fill$NC"
 }
 
-# The header/ overlay member's cells (GLOSSARY: HI.58, HI.48): a file each,
-# its word the name up to the first `.`, defining _hi_cell_<word> the way the
-# built-ins below do. Sourced in name order on the header's first word, not
-# with this file, so a caller that never draws one runs none of them; one
-# bash cannot parse is skipped with a line on stderr, as an extension is, and
-# a file whose function did not come out of it adds no word. A word already
-# the default's replaces that built-in. $_HI_HEADER_WORDS is the words that
-# loaded, space-bounded, and set once this has run.
+# The overlay's header/ cells, a file each defining _hi_cell_<word>, sourced
+# in name order when the header first draws. One bash cannot parse is skipped
+# with a warning; one that defines no function adds no word; a built-in's
+# word replaces it. $_HI_HEADER_WORDS is the words that loaded, space-bounded.
+# GLOSSARY: HI.58
 function _hi_header_cells_load() {
   local _hi_hc_f _hi_hc_w
   local -a _hi_members=() _hi_strays=()
@@ -909,28 +837,19 @@ function _hi_header_vocab() {
 function _hi_header_word_cell() {
   local _hi_hw_v
   printf -v "$2" '%s' ""
-  # Each word's getter is named _hi_cell_<word>, so the convention *is* the
-  # mapping. The roster
-  # gate is what keeps it safe: $_HI_HEADER_ORDER is the user's own string, so
-  # only a word the shipped default or a loaded header/ file names may reach
-  # a function here. `check` is in that roster and has no getter - it is
-  # full_check's own row - hence the declare -F.
+  # A word's getter is _hi_cell_<word>, reached only for a word on the roster,
+  # since $_HI_HEADER_ORDER is user text. `check` has no getter (it is
+  # full_check's row), hence the declare -F.
   _hi_header_vocab _hi_hw_v
   ! _hi_list_has "$_hi_hw_v" "$1" || ! declare -F "_hi_cell_$1" >/dev/null || "_hi_cell_$1" "$2"
   return 0
 }
 
-# <var> gets $1's alternate color - a bright variant of a hue other than the
-# word's own primary, used only when that primary would collide with the
-# previous cell's hue (_hi_collect_header_word below). GLOSSARY: HI.48 - no
-# ring walk or iteration is needed to pick it: a substitution only fires when
-# prev_hue == primary_hue, and every alternate below has a hue that differs
-# from its own word's primary, so alt_hue != primary_hue == prev_hue always
-# holds - the substitution can never itself collide. That property is
-# load-bearing and not enforced by the shell; a new header word's entry here
-# must keep it (tests/common/header_test.sh checks it mechanically).
-# "<word>:<bright palette variable>", one row per header word; the variable
-# *name* is stored, not its value.
+# <var> gets $1's alternate color, used when its primary would repeat the
+# previous cell's hue. Every alternate's hue differs from its word's primary,
+# so a swap can never collide; a new word's row must keep that
+# (header_test.sh checks). Rows are "<word>:<palette variable name>".
+# GLOSSARY: HI.48
 _HI_HEADER_ALTS="utc:BRCYAN version:BRCYAN localtime:BRRED os:BRPURPLE\
  arch:BRCYAN cores:BRGREEN cpu:BRPURPLE ram:BRGREEN ip:BRCYAN gitid:BRRED\
  containers:BRYELLOW jobs:BRYELLOW pods:BRCYAN auth:BRYELLOW pub:BRRED\
@@ -959,18 +878,10 @@ function _hi_header_word_alt() {
   printf -v "$2" '%s' "${!_hi_wa}"
 }
 
-# One $_HI_HEADER_ORDER word: "check" flushes whatever cells are pending as
-# one header_row call (so full_check's own carry-absorption at its top sees
-# the right leftover), then runs it; every other word gets its cell text and
-# appends it to $_HI_PENDING_CELLS (bash's dynamic scoping reaches into the
-# caller's local array, the same trick $_HI_ROW_CARRY's callers use) rather
-# than calling header_row itself - header_row always ends its own call with a
-# newline, so a call per feature would put one cell per line instead of
-# letting consecutive features pack onto one, the very thing this flattening
-# is supposed to stop being a fixed row rather than reintroduce one at a
-# time. An unknown word is silently skipped: a reorder, not a second way to
-# spell a typo into an error. banner and greeting are lines of their own,
-# drawn by banner() and load.sh, never cells.
+# One $_HI_HEADER_ORDER word. "check" flushes the pending cells as one
+# header_row, then runs full_check; any other word appends its cell to the
+# caller's $_HI_PENDING_CELLS, so consecutive cells pack onto one line. An
+# unknown word is skipped. banner and greeting are lines, never cells.
 function _hi_collect_header_word() {
   case "$1" in banner | greeting) return 0 ;; esac
   if [ "$1" = check ]; then
@@ -1058,45 +969,17 @@ function hi_footer() {
   fi
 }
 
-# The package check reads config/packages as `[group]` tables of rows.
-# $_HI_PACKAGES_GROUPS names the groups that run (space- or comma-separated,
-# `none` for none); unset is $_HI_PACKAGES_GROUPS_DEFAULT. Rows above the first
-# `[group]` line always run. A row lists alternatives in order of preference,
-# and the first one installed is the one shown. One character leading the
-# row's name sets what the row is for:
-#   (none)  wanted: installed and missing both show
-#   `-`     unwanted: silent while absent, a warning when installed
-#   `+`     required: silent while installed, an alarm when missing
-# Warnings and alarms sort ahead of everything else.
-#
-# A group paints in one tier of the ramp below (_hi_group_tier): core, base
-# and deprecated 3, useful 2, trivia and platform 0, any other group 1.
-# Warnings and alarms paint in the loudest missing color.
-#
-# Each ramp is ordered intensity-major, not hue-major: both normal
-# intensities first, then both bright, so the loudness step from one
-# tier to the next never reverses direction. A ramp that alternates
-# normal/bright/normal/bright reads a lower tier as louder than the one
-# above it - what "monotonic in both directions" below is guarding against.
-# The shipped ramp, in the eight-name shape $_HI_PACKAGES_PALETTE takes: four
-# installed colors then four missing, tier 0 first. _hi_packages_palette
-# below splits it into the _HI_YES_NAMES/_HI_NO_NAMES arrays its callers index
-# by tier - the one spelling of the eight names, not two kept in step.
+# The package check: config/packages' rows, marks, groups, and tiers are
+# docs/COLORS.md's _The package check's rows_. The shipped ramp: four
+# installed colors, then four missing, tier 0 first, both normal intensities
+# before both bright so loudness never steps backwards.
+# _hi_packages_palette splits it into _HI_YES_NAMES and _HI_NO_NAMES.
 _HI_PACKAGES_RAMP="cyan green brcyan brgreen blue magenta bryellow brred"
 
-# Palette *names*, not escapes: these are configuration - which of
-# _HI_COLOR_NAMES each tier paints in - so a consumer that wants the name
-# never has to invert an escape. The escapes _hi_packages_palette derives
-# below are what check_line actually reads.
-#
-# $_HI_PACKAGES_PALETTE is the ramp itself: eight _HI_COLOR_NAMES words
-# (core.sh's vocabulary, the one config/colors and fish's set_color both
-# use), four for installed then four for missing, from the colors file's
-# [palette]. Anything else - none, a typo, the wrong count - is the shipped
-# ramp. A ramp is meant to read monotonic 0->3 in both directions - a missing
-# core tool the loudest thing on screen, installed trivia the quietest - and
-# legible on light and dark terminals alike; judge one with
-# `hi --preview packages`.
+# Names, not escapes, so a consumer never inverts one; check_line reads the
+# escapes _hi_packages_palette derives. $_HI_PACKAGES_PALETTE is the colors
+# file's [palette], eight _HI_COLOR_NAMES words; anything else is the shipped
+# ramp.
 function _hi_packages_palette() {
   local _hi_pp_n _hi_pp_i _hi_pp_e _hi_pp_r="$_HI_PACKAGES_RAMP"
   _hi_ramp_ok "${_HI_PACKAGES_PALETTE:-}" && _hi_pp_r="$_HI_PACKAGES_PALETTE"
@@ -1235,12 +1118,8 @@ function full_check() {
   local width=$max
   local -a row_widths=() row_pieces=() visible=()
 
-  # a carry from an earlier row (hi_header's cascade) opens this row's first
-  # line, in the same "| <cell> " shape header_row's own cells use - both
-  # sources measure "|", a space, the text, and a trailing space, so the wrap
-  # loop below treats them alike. Absorbed here rather than left for the
-  # caller: full_check is the variable-length block, the one row that can
-  # always make room for one more cell.
+  # An earlier row's carry opens this row's first line, in header_row's
+  # "| <cell> " shape; full_check, the variable-length block, absorbs it.
   for cell in ${_HI_ROW_CARRY[@]+"${_HI_ROW_CARRY[@]}"}; do
     _hi_visible_width vislen "$cell"
     row_widths+=("$((vislen + 3))")

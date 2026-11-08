@@ -24,7 +24,7 @@ function test_shipped_table_lists_a_group_and_name_per_suite() {
   [ "$count" -gt 0 ] || _hi_because "--list returned nothing"
 }
 
-# --list-paths is --list plus the suite's absolute path, for tests/coverage.sh,
+# --list-paths is --list plus the suite's absolute path, for tests/coverage_v2.sh,
 # which has to launch each suite script itself. It is a separate flag rather
 # than a third column on --list because every --list consumer reads rows with
 # `read -r group name` - two of them in this file - where a third field would
@@ -38,7 +38,7 @@ function test_list_paths_adds_a_readable_path_per_suite() {
   [ "$count" -gt 0 ] || _hi_why count
 }
 
-# the two listings have to describe the same table, or coverage.sh and CI are
+# the two listings have to describe the same table, or coverage_v2.sh and CI are
 # reading different things
 function test_list_paths_matches_list() {
   local got
@@ -64,83 +64,24 @@ function test_ci_runs_every_group_in_the_table() {
   [ -z "$missing" ] || _hi_because "groups in the runner but not run by CI:$missing"
 }
 
-# `kcov --merge` re-reads every source file at the absolute path its shard
-# recorded, so a gather job with no working tree merges to `"files": []` and a
-# run-wide 0.00 - a well-formed report, and a badge reading 0.00% rather than
-# an error. coverage.yml's kcov gather job shipped without a checkout and
-# published exactly that; nothing else in the tree would have caught it, since
-# the merge, the upload, and the badge step all exit 0. Measured on kcov 43:
-# the same parts directory merges to 41.06% with the sources present and to
-# 0.00% with one moved away. The merge itself lives in
-# `tests/coverage.sh --merge` (a local sweep's own tail, reused), but the
-# checkout requirement travels with the *job*, not the script.
-function test_coverage_merge_jobs_check_out_the_tree() {
-  local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job block missing=""
-  local seen=0 jobs
-  jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
-  while read -r job; do
-    block="$(printf '%s\n' "$jobs" | sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
-    printf '%s\n' "$block" | grep -qE 'tests/coverage\.sh --merge' || continue
-    seen=$((seen + 1))
-    printf '%s\n' "$block" | grep -q 'uses: actions/checkout' || missing="$missing $job"
-  done < <(printf '%s\n' "$jobs" | sed -n 's/^  \([a-zA-Z][a-zA-Z0-9_-]*\):$/\1/p')
-  [ "$seen" -gt 0 ] || _hi_because "no coverage.yml job calls tests/coverage.sh --merge - has it moved?" || return 1
-  [ -z "$missing" ] || _hi_because "coverage.yml jobs that merge kcov output without checking out the tree:$missing"
-}
-
-# Neither tracer follows a non-bash child, and ubuntu's sh is dash, so the
+# bashcov follows only a bash child, and ubuntu's sh is dash, so the
 # `#!/bin/sh` files the suites execute as `sh <file>` (common/targets.sh)
 # read 0% unless a bash-as-sh sits first on PATH - three points of the
-# badge, and nothing else would notice the shim going. Each driver shims its
-# own PATH (tests/lib/coverage.sh's _hi_cov_shim_sh_to_bash, called
-# before either starts sweeping), rather than every CI job building one on
-# PATH by hand (not GITHUB_PATH - zizmor's github-env audit rejects that on
-# a workflow_run workflow) - so this checks the drivers, not the workflow.
-function test_coverage_drivers_shim_sh_to_bash() {
-  local lib="$_HI_ROOT/tests/lib/coverage.sh" driver missing="" out trace="$_HI_WORKDIR/shimtrace"
-  local -a drivers=("$_HI_ROOT/tests/coverage.sh" "$_HI_ROOT/tests/coverage_v2.sh")
-  # sh, once shimmed: bash in POSIX mode, which under kcov's PS4 method traces
-  # to kcov's descriptor (bash-as-sh reads no $BASH_ENV, kcov's own route)
-  # and under its DEBUG method leaves the child as it was. A tracer sweeping
-  # this suite exports its own method's switches, so they are cleared first,
-  # or the line meant to trace inherits KCOV_BASH_USE_DEBUG_TRAP.
+# badge, and nothing else would notice the shim going. The driver shims its
+# own PATH (tests/lib/coverage.sh's _hi_cov_shim_sh_to_bash, called before
+# it starts sweeping), rather than the CI job building one on PATH by hand
+# (not GITHUB_PATH - zizmor's github-env audit rejects that on a
+# workflow_run workflow) - so this checks the driver, not the workflow.
+function test_coverage_driver_shims_sh_to_bash() {
+  local lib="$_HI_ROOT/tests/lib/coverage.sh" out
   # shellcheck disable=SC2016 # the child's script, expanded there
-  out="$(env -u _HI_ROOT -u KCOV_BASH_USE_DEBUG_TRAP -u KCOV_BASH_XTRACEFD -u BASH_ENV -u BASH_XTRACEFD -u PS4 -u SHELLOPTS \
-    _HI_HOME="$_HI_HOME" bash -c '
+  out="$(env -u _HI_ROOT _HI_HOME="$_HI_HOME" bash -c '
     source "$1" && _hi_cov_shim_sh_to_bash || exit 1
     sh -c "shopt -qo posix && echo bash-posix"
-    BASH_XTRACEFD=9 KCOV_BASH_XTRACEFD=9 sh -c "hi_traced=1" 9>"$2"
-    BASH_XTRACEFD=9 KCOV_BASH_XTRACEFD=9 KCOV_BASH_USE_DEBUG_TRAP=1 sh -c "hi_untraced=1" 9>>"$2"
-  ' _ "$lib" "$trace" 2>&1)" || true
-  [ "$out" = bash-posix ] && grep -q '^kcov@' "$trace" && grep -qx 'hi-xtrace: hi_traced=1' "$trace" &&
-    ! grep -qx 'hi-xtrace: hi_untraced=1' "$trace" ||
-    _hi_why out trace || return 1
-  for driver in "${drivers[@]}"; do
-    [ -f "$driver" ] || continue
-    grep -q '_hi_cov_shim_sh_to_bash' "$driver" || missing="$missing ${driver##*/}"
-  done
-  [ -z "$missing" ] || _hi_because "drivers that sweep without shimming sh to bash first:$missing"
-}
-
-# tests/coverage.sh --join, over two rankings as the drivers write them: a
-# row per file either tool listed, lowest average first, with a `!` where the
-# two read fifteen points apart or one never listed the file - and nothing
-# for a line that is not a ranking's row.
-function test_coverage_join_marks_what_the_tools_disagree_on() {
-  local dir="$_HI_WORKDIR/covjoin" out rc=0
-  mkdir -p "$dir"
-  printf '%s\n' ' |    90.00%     90/100    common/a.sh' ' |    50.00%      5/10     common/b.sh' \
-    ' |    80.00%      8/10     common/konly.sh' 'kcov reports 73.33% of lines executed' >"$dir/kcov"
-  printf '%s\n' ' |    95.00%     95/100    common/a.sh' ' |   100.00%     10/10     common/b.sh' \
-    ' |     0.00%      0/15     common/bonly.sh' >"$dir/bashcov"
-  out="$("$_HI_ROOT/tests/coverage.sh" --join "$dir/kcov" "$dir/bashcov" 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] || _hi_why rc out || return 1
-  [[ "$out" == *$' | !   0.00%        -        -  common/bonly.sh\n | ! 100.00%   50.00%   +50.00  common/b.sh\n'* ]] || _hi_because "the one-sided file, then the fifty-point gap, both marked: $out" || return 1
-  [[ "$out" == *$' | !       -   80.00%        -  common/konly.sh\n |    95.00%   90.00%    +5.00  common/a.sh' ]] || _hi_because "kcov's own file marked, the five-point gap not, in that order: $out" || return 1
-  [[ "$out" != *"kcov reports"* ]] || _hi_because "a line that is no row came through: $out" || return 1
-  # a ranking that is not there is said, and is a failure
-  out="$("$_HI_ROOT/tests/coverage.sh" --join "$dir/kcov" "$dir/none" 2>&1)" && rc=0 || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"no ranking at $dir/none"* ]] || _hi_why rc out
+  ' _ "$lib" 2>&1)" || true
+  [ "$out" = bash-posix ] || _hi_why out || return 1
+  grep -q '_hi_cov_shim_sh_to_bash' "$_HI_ROOT/tests/coverage_v2.sh" ||
+    _hi_because "tests/coverage_v2.sh sweeps without shimming sh to bash first"
 }
 
 # _hi_cov_resultset <file> <suite> <path> <lines>... - a bashcov resultset of
@@ -194,13 +135,12 @@ function test_coverage_v2_merge_writes_no_figure_without_the_subject() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"no product lines"* ]] && [ ! -e "$dir/out/coverage-v2-pct/pct" ] || _hi_why rc out
 }
 
-# tests/coverage.sh --untested, in a tree of its own: of the lines changed
-# since a revision, the ones on both tools' lists, a run of them joined - and
-# none that only one tool lists, that did not change, or that xtrace never
-# prints (an array above its closing line, an empty case arm); the command
-# after a trailing && is its own line, and listed. `-` for kcov's list reads
-# bashcov's alone.
-function test_coverage_untested_lists_changed_lines_both_tools_missed() {
+# tests/coverage_v2.sh --untested, in a tree of its own: of the lines
+# changed since a revision, the ones the sweep missed, a run of them joined -
+# and none that did not change, or that xtrace never prints (an array above
+# its closing line, an empty case arm); the command after a trailing && is
+# its own line, and listed.
+function test_coverage_untested_lists_changed_lines_the_sweep_missed() {
   local home tree out rc=0
   home="$(_hi_scratch_tree covdiff link:common link:tests)"
   tree="$home/say-hi"
@@ -208,13 +148,12 @@ function test_coverage_untested_lists_changed_lines_both_tools_missed() {
   printf '%s\n' a b c d e f >"$tree/x.sh"
   git -C "$tree" add x.sh && git -C "$tree" commit -q -m x || _hi_why tree || return 1
   printf '%s\n' a B C d E F G 'v=(1' '  2)' '  y) ;;' 'true &&' '  z' >"$tree/x.sh"
-  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:5 x.sh:7 x.sh:8 x.sh:9 x.sh:10 x.sh:12 >"$home/kcov"
-  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:6 x.sh:7 x.sh:8 x.sh:9 x.sh:10 x.sh:12 >"$home/bashcov"
-  out="$(_HI_HOME="$home" "$tree/tests/coverage.sh" --untested HEAD "$home/kcov" "$home/bashcov" 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 7, 9, 12' ] || _hi_why rc out || return 1
-  # a PR sweeps bashcov alone: `-` for kcov's list reads bashcov's by itself
-  out="$(_HI_HOME="$home" "$tree/tests/coverage.sh" --untested HEAD - "$home/bashcov" 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 6-7, 9, 12' ] || _hi_why rc out
+  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:6 x.sh:7 x.sh:8 x.sh:9 x.sh:10 x.sh:12 >"$home/missed"
+  out="$(_HI_HOME="$home" "$tree/tests/coverage_v2.sh" --untested HEAD "$home/missed" 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 6-7, 9, 12' ] || _hi_why rc out || return 1
+  # a list that is not there is said, and is a failure
+  out="$(_HI_HOME="$home" "$tree/tests/coverage_v2.sh" --untested HEAD "$home/none" 2>&1)" && rc=0 || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"no list at $home/none"* ]] || _hi_why rc out
 }
 
 # coverage.yml's pull_request path is for same-repo PRs only: pages.yml reads
@@ -280,13 +219,13 @@ function _hi_shards_cover_group() {
 # The cost tables deal shards by suite name, so a suite renamed, removed, or
 # added without its entry deals blind - one a table does not name costs 5.
 # Each table names every suite it deals (coverage's every suite but the
-# linter sweep both drivers drop, the Windows client's the fast group,
+# linter sweep its driver drops, the Windows client's the fast group,
 # ci.yml's shards their e2e and backends groups) and none the suite table lacks.
 function test_cost_tables_name_the_suites_they_deal() {
   local spec var group keys want n bad=""
   local names
   names=" $(_hi_runner_list | awk '{ printf "%s ", $2 }') "
-  for spec in KCOV:- BASHCOV:- GITBASH:fast E2E:e2e BACKENDS:backends; do
+  for spec in BASHCOV:- GITBASH:fast E2E:e2e BACKENDS:backends; do
     var="_HI_TEST_COSTS_${spec%%:*}" group="${spec#*:}"
     keys=" $(sed -n "/^$var=\"\$/,/^\"\$/p" "$_HI_TEST_RUN" | tr ' ' '\n' | sed -n 's/^\([a-z0-9_]*\):[0-9]*$/\1/p' | tr '\n' ' ') "
     [ "$keys" != "  " ] || {
@@ -308,20 +247,17 @@ function test_cost_tables_name_the_suites_they_deal() {
   [ -z "$bad" ] || _hi_because "cost tables out of step with the suite table:$bad - refresh them (scratch/shard_costs.sh)"
 }
 
-# coverage.yml's two sweeps take their slices dealt by their own tracer's
-# costs (tests/lib/coverage.sh), and each matrix still partitions the table
+# coverage.yml's sweep takes its slices dealt by bashcov's costs
+# (tests/lib/coverage.sh), and its matrix still partitions the table
 function test_coverage_shards_partition_by_cost() {
-  local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job tool entry slices got want
+  local workflow="$_HI_ROOT/.github/workflows/coverage.yml" entry slices="" got want
   want="$(_hi_runner_list | sort)"
-  for job in shard-kcov shard-bashcov; do
-    tool="${job#shard-}" slices=""
-    for entry in $(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',"' '  '); do
-      slices="$slices$(_HI_SHARD_BY="$tool" "$_HI_TEST_RUN" --shard "$entry" --list 2>/dev/null)"$'\n'
-    done
-    got="$(printf '%s' "$slices" | sed '/^$/d' | sort)"
-    [ "$got" = "$want" ] ||
-      _hi_because "$job's slices miss or repeat: $(comm -3 <(printf '%s\n' "$got") <(printf '%s\n' "$want") | tr '\n' ' ')" || return 1
+  for entry in $(sed -n "/^  shard-bashcov:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',"' '  '); do
+    slices="$slices$(_HI_SHARD_BY=bashcov "$_HI_TEST_RUN" --shard "$entry" --list 2>/dev/null)"$'\n'
   done
+  got="$(printf '%s' "$slices" | sed '/^$/d' | sort)"
+  [ "$got" = "$want" ] ||
+    _hi_because "shard-bashcov's slices miss or repeat: $(comm -3 <(printf '%s\n' "$got") <(printf '%s\n' "$want") | tr '\n' ' ')"
 }
 
 function test_every_group_selects_only_its_own_suites() {
@@ -384,15 +320,13 @@ function run_runner_ci_tests() {
   _hi_check "Each cost table names the suites it deals" test_cost_tables_name_the_suites_they_deal
   _hi_check "ci.yml's e2e shards cover the e2e group" _hi_shards_cover_group ci.yml e2e e2e
   _hi_check "ci.yml's e2e-backends shards cover the backends group" _hi_shards_cover_group ci.yml e2e-backends backends
-  _hi_check "coverage.yml's shards partition the table, dealt by each tracer's costs" test_coverage_shards_partition_by_cost
+  _hi_check "coverage.yml's shards partition the table, dealt by bashcov's costs" test_coverage_shards_partition_by_cost
   _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable
   _hi_check "Every suite on disk is in the table" test_every_suite_script_on_disk_is_in_the_table
   _hi_check "CI runs every group in the table" test_ci_runs_every_group_in_the_table
-  _hi_check "coverage.yml merges with the tree checked out" test_coverage_merge_jobs_check_out_the_tree
-  _hi_check "the coverage drivers shim sh to bash before sweeping" test_coverage_drivers_shim_sh_to_bash
+  _hi_check "the coverage driver shims sh to bash before sweeping" test_coverage_driver_shims_sh_to_bash
   _hi_check "coverage.yml runs a PR's sweep for same-repo PRs only" test_coverage_pr_runs_are_same_repo_only
-  _hi_check "coverage.sh --join marks what the two tools disagree on" test_coverage_join_marks_what_the_tools_disagree_on
-  _hi_check "coverage.sh --untested lists the changed lines both tools missed" test_coverage_untested_lists_changed_lines_both_tools_missed
+  _hi_check "coverage_v2.sh --untested lists the changed lines the sweep missed" test_coverage_untested_lists_changed_lines_the_sweep_missed
   _hi_check_requires ruby "coverage_v2.sh --merge ranks and figures the subject alone" test_coverage_v2_merge_reports_the_subject_alone
   _hi_check_requires ruby "...and writes no figure where the subject has no line" test_coverage_v2_merge_writes_no_figure_without_the_subject
   _hi_check "Each group selects only its own" test_every_group_selects_only_its_own_suites

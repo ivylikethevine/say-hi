@@ -1,110 +1,52 @@
 #!/usr/bin/env bash
-# The packer's include scan: every line of an overlay member that names a
-# path no target has, in each dialect hi ships, and the files a marked line
-# carries along instead. Sourced by scripts/pack.sh, never run, and like it
-# nothing here rides in the payload. GLOSSARY: HI.57 + HI.66
+# The packer's include scan: lines of an overlay member that name a path no
+# target has, and the files a marked line carries instead. Sourced by
+# scripts/pack.sh; nothing here rides. GLOSSARY: HI.57 + HI.66
 #
 # The scan is an awk script, whose `$var`s are awk's to expand (SC2016).
 # shellcheck disable=SC2016
 
-# The include scanner, in the dialect of each file it reads. Every member
-# ships into the target's `config/`, so a line naming a *path* - a second rc
-# beside it, a plugin directory, a manager's bootstrap - names something no
-# target has, and the editor or shell fails on it rather than hi. The
-# grammars are $_HI_DIALECTS rows, the file's read from ENVIRON[_hi_dialect];
-# what each finds, and what it deliberately leaves alone:
+# The include scanner, one $_HI_DIALECTS grammar per file
+# (ENVIRON[_hi_dialect]). A line naming a path the target lacks would make the
+# tool fail there. What each dialect flags, and what it leaves alone:
 #
-#   vim     `source`/`so` (a path), the managers' verbs (`Plug`, `packadd`,
-#           `plug#`/`vundle#`/`dein#`). `runtime` is *not* flagged: it
-#           searches the target vim's own &runtimepath, which is there.
-#           `source $VIMRUNTIME/...` is the same argument.
-#   lua     `dofile`/`loadfile`, a `vim.cmd` carrying `source`, `require` of
-#           anything but a `vim.` module, and the managers (lazy, packer,
-#           paq, neovim's own `vim.pack.add`, an `rtp:prepend` bootstrap).
-#           micro's init.lua reads the same, plus `AddRuntimeFile` (a plugin
-#           with `RTPlugin`); its `import` names micro's own Go packages and
-#           is left alone.
-#   nano    `include` of anything but a path *directly* under
-#           /usr/share/nano, which the nano package itself ships. A
-#           subdirectory of it is not: /usr/share/nano/extra is a Debian
-#           split that Fedora, Alpine, and macOS do not have, and a glob
-#           matching nothing costs the whole rcfile - nano says "Mistakes in
-#           '<rcfile>'" on the status bar and rings the bell. The path is
-#           read as one word, so a trailing comment cannot fool the rule.
-#   tmux    `source-file`/`source` of a path, a `default-shell` (a path on
-#           the client: without it a pane opens on the session's $SHELL), and
-#           TPM (`@plugin`, a `run` of tpm). Line-oriented, but a finding
-#           ending in `\` takes its continuation lines with it.
-#   screen  `source` of a file, and `shell`/`defshell`, as tmux's.
-#   inputrc `$include` of anything but /etc/inputrc, the system file an
-#           $INPUTRC stops readline reading on its own.
-#   kak     `source` of anything but %val{runtime}'s (the target's own), and
-#           the managers (plug.kak's `plug`, kak-bundle's `bundle`).
-#   kdl     zellij's `layout_dir`/`theme_dir` (its own layouts/ and themes/
-#           ride beside config.kdl), its `default_shell`, as tmux's, and a
-#           plugin at a `"file:..."` wherever one is named: a layout's
-#           `location=`, a `LaunchOrFocusPlugin`, `load_plugins`. A layout's
-#           borderless pane that loses its plugin is a bar, and gets
-#           zellij's own compact-bar: left empty, it opens as a shell.
-#   omp     oh-my-posh's `extends` naming a local file; a URL or a theme name
-#           resolves on the target. JSON has no comment, so there the value is
-#           emptied, which oh-my-posh reads as no base; yaml and toml comment it.
-#   git     an `[include]`'s `path`, and what is private, which is no finding
-#           but the dialect's job: every key of `[credential]`, `[gpg]`,
-#           `[includeIf]`, and `[sendemail]`, a `[url]`'s `insteadOf`, and any
-#           section's `signingkey`, `gpgsign`, `forceSignAnnotated`,
-#           `sshCommand`, `sslKey`, `sslCert`, `cookieFile`, `extraHeader`,
-#           `askPass`, `proxy`, and `password`. Read by `<section>.<key>`,
-#           lower-cased, so a key is found under any header; a header stays.
-#   elisp   `load`/`load-file`, `add-to-list 'load-path`, and the managers
-#           (`package-initialize`, `use-package`, straight, elpaca). A bare
-#           `require` is left alone: nearly every one names a built-in.
-#   sh/fish `source`/`.` of anything but a path under $_HI_CONFIG_DIR or
-#           $_HI_ROOT (which ride along), a process substitution, or - in a
-#           framework's theme only (omz, omb, bash-it) - under that
-#           framework's own tree ($ZSH, $OSH, $BASH_IT): hi sources a theme only once
-#           _hi_prompt_fw has found the tree on the target, where every other
-#           member runs with it unset. Also the zsh/fish managers' verbs
-#           (zinit, zplug, antigen, fisher, ...). An extension is sh.
+#   vim     `source`/`so` and the managers (`Plug`, `packadd`, `plug#`...);
+#           not `runtime` or `$VIMRUNTIME`, which the target has.
+#   lua     `dofile`/`loadfile`, a `vim.cmd` source, `require` of anything
+#           but `vim.`, and the managers (lazy, packer, paq, `vim.pack.add`,
+#           an `rtp:prepend` bootstrap); micro's `AddRuntimeFile` too, not
+#           its `import` of Go packages.
+#   nano    `include` of anything but a file directly in /usr/share/nano:
+#           its `extra/` is Debian's alone, and one bad glob costs the
+#           whole rcfile.
+#   tmux    `source-file`, `default-shell`, and TPM; a `\` continuation
+#           goes with its line. screen: `source`, `shell`, `defshell`.
+#   inputrc `$include` of anything but /etc/inputrc.
+#   kak     `source` outside %val{runtime}, and the managers.
+#   kdl     zellij's `layout_dir`, `theme_dir`, `default_shell`, and any
+#           `"file:..."` plugin; a bar pane that loses one gets compact-bar.
+#   omp     `extends` of a local file (emptied in JSON, which has no comment).
+#   git     an `[include]` path, and the private keys (INTEGRATIONS.md's
+#           _git_), matched as lower-cased `<section>.<key>`.
+#   elisp   `load`, `load-path`, and the managers; not a bare `require`.
+#   sh/fish `source`/`.` outside $_HI_CONFIG_DIR and $_HI_ROOT (a framework
+#           theme may also source its own tree, sourced only once
+#           _hi_prompt_fw found it), and the managers (zinit, fisher, ...).
 #
-# A line directly under a `hi-allow` comment, in the file's own comment
-# syntax, is neither reported nor touched; one under `hi-quiet` is still
-# disabled, just not reported - a line you know no target has. A pair,
-# `hi-allow-start` and `hi-allow-end` or `hi-quiet-start` and `hi-quiet-end`,
-# decides every line inside it the same way. Each word pairs on its own, a
-# start with the next end of its word, so an allow pair inside a quiet one
-# keeps its lines. A line under `hi-carry`, or inside its pair, is neither: it
-# is a `carry` row in either mode, never dropped, and the stager rides the
-# files it names (_hi_marked_carry). A line under `hi-drop`, or inside its
-# pair, is disabled whatever it says and never reported - a setting some
-# target's version of the tool rejects - unless an allow or a carry spares it;
-# a dialect with no comment has no marker to hold. A start with no end below it, or with a second start of
-# its word before one, decides nothing and is an `unclosed` row; an end with
-# no start is ignored. Whether a start is closed is known only at the end of
-# the file, so FNR == 1 reads the file through once with getline before the
-# scan: blk holds the lines inside a closed pair, bad the starts with no end.
-# mark() is the marker a comment line opens with, whole, so `hi-allow` and
-# `hi-allow-start` are never read as each other.
+# Markers (docs/SETTINGS.md): `hi-allow` rides and reports nothing,
+# `hi-quiet` drops silently, `hi-carry` is a `carry` row whose files ride
+# (_hi_marked_carry), `hi-drop` drops whatever the line says unless an allow
+# or carry spares it. Each word pairs `-start`/`-end` on its own; an unclosed
+# start is an `unclosed` row, found by reading the file once at FNR == 1
+# (blk: lines in a closed pair, bad: unclosed starts). A private line is a
+# `private` row, or `allowed` under hi-allow.
 #
-# A private line is a `private` row and is dropped like any finding; under a
-# `hi-allow` it rides, and is an `allowed` row (_hi_allowed_lines).
-#
-# mode=report prints one `<member>|<line>|<kind>|<text>` row per finding and
-# leaves the file alone; mode=fix also writes <file>.lint with each finding
-# disabled - which strip.awk then drops, so a dropped line costs no wire bytes.
-# vim and nano are line-oriented, so one line is the whole statement; lua,
-# elisp, and kdl are not, so the comment runs to the end of the bracket-balanced
-# expression the finding opened, or a `require("x").setup {` would leave its
-# closing brace behind as a syntax error. sh and fish get neither: commenting
-# a line can empty a `then`/`do` body, which does not parse, so only the verb
-# and its file word become `:` (fish: `true`), and the rest of the line stays.
-# `name` is the member, not FILENAME: doctor reads ~/.vimrc under its own name.
-#
-# bal() counts that depth blind to anything inside a quoted string, and takes
-# ' as a string delimiter only where <end> says so (lua): in elisp it is the
-# quote operator, and reading `'load-path` as an opening quote swallows the
-# rest of the file.
-# wlen() is the length of one shell word, quotes and $(...) nesting included.
+# mode=report prints `<member>|<line>|<kind>|<text>` rows; mode=fix also
+# writes <file>.lint with each finding disabled, for strip.awk to drop. lua,
+# elisp, and kdl comment out the whole bracket-balanced expression (bal(),
+# blind to strings; ' delimits only in lua); sh and fish turn just the verb
+# and its file word into `:` or `true`, since an empty `then` body does not
+# parse. wlen() is one shell word's length. `name` is the member's name.
 function _hi_lint_awk() {
   cat <<'AWK'
 function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
@@ -285,15 +227,11 @@ function _hi_carry_path() {
   esac
 }
 
-# _hi_marked_carry <outvar> <line> <member> - a line under `hi-carry`: each
-# path in it that names a file under $HOME is rewritten to
-# $_HI_CARRY_TOKEN/<dir>/<name> - <dir> the member's directory's carried/,
-# or <member>.carried for a member with no directory - and appended to the
-# caller's $_hi_marked as a <member> <source> pair; a second file of a name
-# rides under its directory's name too. A path under $HOME that is no file,
-# or a line naming none, is said in the caller's $_hi_unmarked. A path
-# outside $HOME is the target's own, and left as written. 1 when no path is
-# carried. GLOSSARY: HI.57
+# _hi_marked_carry <outvar> <line> <member> - a `hi-carry` line: each file
+# under $HOME it names is rewritten to $_HI_CARRY_TOKEN/<tool>/carried/<name>
+# (<member>.carried with no tool directory) and added to the caller's
+# $_hi_marked; a missing one goes to $_hi_unmarked. Paths outside $HOME are
+# the target's. 1 when nothing is carried. GLOSSARY: HI.57
 function _hi_marked_carry() {
   local _hi_mc_rest="$2" _hi_mc_out="" _hi_mc_t _hi_mc_p _hi_mc_d _hi_mc_f _hi_mc_i _hi_mc_n=0 _hi_mc_h=0
   case "$3" in */*) _hi_mc_d="${3%%/*}/carried" ;; *) _hi_mc_d="$3.carried" ;; esac
@@ -324,12 +262,9 @@ function _hi_marked_carry() {
   [ "$_hi_mc_n" = 1 ]
 }
 
-# _hi_require_carry <line> <tool> - each `require` in <line> of a module
-# under lua/ in one of the caller's $_hi_dirs, or in the config a module was
-# itself carried from, appended to the caller's $_hi_carried as a <member>
-# <source> pair, <tool>/lua/<its path>. The line stays as written: the module
-# is found on the runtimepath (_hi_stage_carry). 1 when none is carried.
-# GLOSSARY: HI.57
+# _hi_require_carry <line> <tool> - adds each module <line> requires from a
+# lua/ in $_hi_dirs to the caller's $_hi_carried as <tool>/lua/<path>; the
+# line stays, found on the runtimepath. 1 when none is carried. GLOSSARY: HI.57
 function _hi_require_carry() {
   local _hi_rq_rest="$1" _hi_rq_m _hi_rq_d _hi_rq_f _hi_rq_n=0
   local _hi_rq_re='require[[:space:]]*[(]?[[:space:]]*["'"'"']([A-Za-z0-9_][A-Za-z0-9_./-]*)["'"'"']'
@@ -352,12 +287,10 @@ function _hi_require_carry() {
   [ "$_hi_rq_n" = 1 ]
 }
 
-# _hi_include_carry <outvar> <line> <tool> - <line> with each path in it that
-# names a file under one of the caller's $_hi_dirs rewritten to
-# $_HI_CARRY_TOKEN/<tool>/<its path under that directory>, into <outvar>,
-# and each such file appended to the caller's $_hi_carried as a <member>
-# <source> pair; 1 when no path is carried. ~, $HOME, and $XDG_CONFIG_HOME
-# are read as they are here.
+# _hi_include_carry <outvar> <line> <tool> - <line> with each file it names
+# under $_hi_dirs rewritten to $_HI_CARRY_TOKEN/<tool>/<path>, each added to
+# the caller's $_hi_carried. ~, $HOME, and $XDG_CONFIG_HOME expand as here.
+# 1 when nothing is carried.
 function _hi_include_carry() {
   local _hi_ic_rest="$2" _hi_ic_out="" _hi_ic_t _hi_ic_p _hi_ic_d _hi_ic_r _hi_ic_n=0
   while [[ $_hi_ic_rest =~ $_HI_CARRY_RE ]]; do
