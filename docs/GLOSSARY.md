@@ -186,39 +186,30 @@ musl's often is, is left as it was.
 
 ## HI.13 command -v fallthrough
 
-``export _HI_LS_BIN="`command -v eza || command -v ls`"`` in
-`common/aliases.sh` (shown without its guards and the alias-clearing prefix
-below), with the aliases built on the result: resolved at source time, and
-ending in a binary every target has, so no alias points at a missing one.
-Backticks, not `$( )`: fish before 3.4 refuses a `$( )` anywhere in a file it
-sources and reads a backtick as text, which is also why the lint gate's shfmt
-pass, which would rewrite them, skips the file. Each chain has a rung per
-dialect - `_hi_path_lookup` for bash and zsh, the backtick line for sh,
-`command -v ... | read VAR && export VAR` for fish (a bare `read`, which
-checkbashisms passes, sets a global in fish) - and a leading
-`[ -n "$FISH_VERSION" ]` keeps the last two to their own shells. The chains
-run only under `_HI_TOOL_ALIASES=1`: off, no alias reads them, and their forks
-are skipped.
+**Every alias ends in a binary the target has.** `common/aliases.sh`
+resolves each tool chain at source time
+(``_HI_LS_BIN="`command -v eza || command -v ls`"``) and builds the aliases
+on the result. Only under
+`_HI_TOOL_ALIASES=1`; off, the forks are skipped.
 
-A second, **narrower** chain over the same family delivers flags only to the
-tier that parses them: `$_HI_BAT_BIN` is `bat || batcat` where
-`$_HI_CAT_BIN` is `bat || batcat || ccat || cat`, so bat-syntax options
-attach behind `[ -n "$_HI_BAT_BIN" ] && alias ... || true` and ccat and
-coreutils `cat` get the bare binary.
+**A rung per dialect**: `_hi_path_lookup` for bash and zsh, a backtick line
+for sh, `command -v ... | read VAR && export VAR` for fish (a bare `read`
+passes checkbashisms and sets a fish global). `[ -n "$FISH_VERSION" ]` keeps
+the last two to their shells. Backticks, not `$( )`: fish before 3.4 refuses
+`$( )` anywhere in a sourced file and reads a backtick as text, which is also
+why shfmt skips the file.
 
-Every chain runs before any alias exists, the overlay's `aliases.sh` included
-(it is sourced last): in zsh and dash `command -v name` returns an _alias's_
-definition once one exists, so an overlay `alias cat=...` ahead of the chains
-would leave `$_HI_CAT_BIN` holding the alias body. Ordering alone does not cover
-an alias that was there before hi - a target's `alias ls='ls --color=auto'`, or
-hi's own `vim` alias when an interactive shell re-sources its rc - so each
-backtick line opens with `type unalias >/dev/null 2>&1 && unalias -a || true &&`,
-clearing aliases in that subshell only (fish has no `unalias` and its
-`command -v` never reports one). bash and zsh skip those forks: with
-`common/core.sh` loaded, each chain runs through `_hi_path_lookup`, a walk of
-`$PATH` that sees no alias or function, and the backtick line runs only where
-that function is not defined. `tests/config/alias_fallthrough_test.sh` is the
-regression test.
+**A narrower chain for flags**: `$_HI_BAT_BIN` is `bat || batcat`, while
+`$_HI_CAT_BIN` adds `ccat || cat`, so bat-syntax options attach only behind
+`[ -n "$_HI_BAT_BIN" ]`.
+
+**Before any alias exists**, the overlay's included: in zsh and dash
+`command -v` returns an alias's body once one is defined. An alias that was
+there before hi (a target's `alias ls='ls --color=auto'`, or hi's own on a
+re-source) is cleared in the backtick line's subshell with
+`type unalias >/dev/null 2>&1 && unalias -a || true &&`; bash and zsh need
+none, since `_hi_path_lookup` walks `$PATH` and sees no alias.
+`tests/config/alias_fallthrough_test.sh` is the regression test.
 
 ## HI.14 _hi_on_exit
 
@@ -282,60 +273,44 @@ log, and one more thing for fish to differ about.
 
 ## HI.19 stdin transport
 
-The bootloader travels over **stdin of the first of two calls**, the arm's
-`cp` (two ssh calls multiplexed on one connection, one authentication, or two
-of a container's execs), never as an argument: Linux caps a _single_ argv
-entry at 128KB (`MAX_ARG_STRLEN`) however large `ARG_MAX` is — a hard ceiling
-on payload growth that stdin does not have. Two calls because the second's
-stdin, the arm's `attach`, belongs to the interactive session. The script goes as
-plain text, and the tree's and the overlay's archives go after it as they are
-(`_hi_boot_stream`), behind a line of the three byte counts: the probe lands
-the whole, checks its size, and splits it with `dd` and `tail -c`, and the
-script unpacks the archives from beside itself. Armored inside the script,
-they spent a third of every session's bytes on base64; only the bootloader and
-a few rc lines still are, so `base64` or `openssl` is still asked for.
+**Stdin, not argv.** The bootloader goes over stdin of the first of two
+calls, the arm's `cp`, never as an argument: Linux caps one argv entry at
+128KB (`MAX_ARG_STRLEN`) whatever `ARG_MAX` says. Two calls, because the
+second's stdin (the `attach`) belongs to the session; over ssh both share one
+connection and one authentication. The script goes as text, the two archives
+after it as they are (`_hi_boot_stream`), behind a line of the three byte
+counts; the probe checks the total and splits it with `dd` and `tail -c`.
+Armoring the archives cost a third of every session's bytes, so only the
+bootloader and a few rc lines are base64 now.
 
-The write doubles as the probe (`_hi_boot_probe`), and `_hi_boot_why` reads
-its status: the directory came back and the session runs; `sh` ran but found
-neither `base64` nor `openssl` (exit 64), no `tar` that reads gzip (67, a
-one-file archive listed), nowhere to `mktemp` (65), or fewer
-bytes than were sent (66, tried three times: an `exec -i` on nomad or kube can
-close its stdin before the target has drained it), and hi names the missing
-piece and hands over the host's own session; something that
-was not `sh` answered — a `ForceCommand` or a `command=` key, told by an exit
-of 0 or any stdout, neither of which a missing `sh` produces — and hi says so
-and hands over the same; or nothing ran at all (stock Windows OpenSSH), and
-the session falls through to the PowerShell branch rather than half-landing.
-A container whose exec fails outright is not reached, and its exec's words
-are the report.
+**The write is the probe** (`_hi_boot_probe`), read by `_hi_boot_why`: the
+directory comes back and the session runs; or `sh` ran and exited 64 (no
+`base64` or `openssl`), 67 (no `tar` that reads gzip), 65 (no `mktemp`), or 66
+(short landing, retried twice: nomad's and kube's `exec -i` can close stdin
+early), and hi names the gap and hands over the host's session; or a forced
+command answered (exit 0, or any stdout), which hi names and hands over; or
+nothing ran (stock Windows OpenSSH), and the PowerShell branch takes over. A
+container exec that fails outright is reported in its own words.
 
-Over ssh with a ControlMaster the two calls **overlap**
-(`_hi_connect_overlap`): `cp` makes the master as in series, and the session
-opens once its socket is there, which ssh makes only once authenticated,
-while `cp` is still landing the script; its command is a short stub that
-waits for it. The script stays out of every argv, where `/proc` would show it to
-other users, and the stub stays far under Dropbear's limit of about 9000
-bytes a command. `cp` itself starts as soon as the target is known
-(`_hi_overlap_start`), so the handshake rides the client's building of the
-script, which reaches it through a FIFO with its byte count on the first
-line. The client names the directory (`hi.boot.` and 16 random hex digits),
-`cp` makes it with `mkdir` under `umask 077`, which refuses one that exists, and
-renames the script in whole; the stub runs it only from a
-directory of this user's. The stub sleeps on a FIFO the probe writes once the
-script is whole, held open before its last look so the word cannot slip past,
-and the client's writer on one the client writes once the script is built;
-only the master's socket, which nothing announces, is still looked for. Saved: about two round trips a cold connect. A
-failed probe stops the stub, a forced command's program is already the
-session and is only named, and a `MaxSessions 1` host's refusal of either
-channel is made again in series. With a tty, a stub the client gives up on
-ends at the pty's hangup. Without one nothing would end it, and sshd keeps
-its session slot until it exits, so its stdin comes through the client
-(`_hi_overlap_relay`): a `go` line once the boot is in, then the client's
-own stdin, or an end of file that has the stub remove the directory and
-exit. A child of the stub reads that line and passes the rest on, so the
-session's start still waits on the probe's FIFO, not on a round trip, and
-that child is never waited on, so a stdin left open does not keep the
-channel.
+**Over ssh the two calls overlap** (`_hi_connect_overlap`), saving about two
+round trips a cold connect. `cp` starts as soon as the target is known
+(`_hi_overlap_start`) and makes the ControlMaster; the session opens once its
+socket exists, with a short stub as its command (far under Dropbear's ~9000
+byte limit, and the script never in an argv, where `/proc` would show it).
+The client names the directory (`hi.boot.` plus 16 random hex digits); `cp`
+makes it with `mkdir` under `umask 077` (refusing one that exists) and
+renames the script in whole, and the stub runs it only from a directory of
+this user's. The stub sleeps on a FIFO the probe writes once the script is
+whole, opened before its last look so the wake cannot slip past.
+
+A failed probe stops the stub; a forced command is only named; `MaxSessions
+1` refusing either channel sends it again in series. Without a tty nothing
+would end a stub the client gave up on, and sshd would hold the session slot,
+so its stdin comes through the client (`_hi_overlap_relay`): a `go` line
+once the boot is in, then the client's stdin, or end of file, which has the
+stub remove the directory and exit. A child reads that line, so the start
+still waits only on the probe's FIFO, and is never waited on, so an open
+stdin cannot hold the channel.
 
 ## HI.20 fallback rc
 
@@ -401,42 +376,28 @@ over. Read on the target, from the `settings.sh` that rode.
 
 ## HI.26 completion probe knobs
 
-`targets.sh` runs on every TAB after `hi` and a space — say-hi's most
-latency-sensitive path and its slowest (every backend but ssh is a
-subprocess, one per CLI on `$PATH`). Two internal knobs keep it honest -
-environment variables the suites and the bench set, not settings.
+`targets.sh` runs on every TAB after `hi`, and every backend but ssh is a
+subprocess, so two internal knobs (environment variables for the suites and
+bench, not settings) bound it.
 
-`_HI_PROBE_TIMEOUT` — seconds a backend CLI gets (default 2; needs GNU or
-busybox `timeout`; shared with `common/core.sh`'s `_hi_probe`). It bounds the
-**whole sweep**: backends start together and are read back in roster order,
-so four wedged daemons cost one ceiling. A host with no writable scratch
-directory falls back to the in-turn sweep — slow, not wrong. The cap is a
-SIGTERM with a SIGKILL 200ms behind it (`timeout -k 0.2`): a CLI may defer a
-TERM while it finishes something — rootless podman does for the whole of its
-runtime setup, which on a fresh `$HOME` can outlast the cap — and without the
-KILL the ceiling is a request. BusyBox before 1.35 refuses `-k`, and before
-1.30 takes the cap only as `-t SECS`, so the first probe tries each form and
-keeps the one that runs; `kubectl` also gets `--request-timeout`, its own
-bound where there is no `timeout` at all (stock macOS).
+**`_HI_PROBE_TIMEOUT`** (default 2s, shared with core.sh's `_hi_probe`) caps
+each backend CLI, and since backends start together and are read back in
+roster order it bounds the whole sweep. The cap is `timeout -k 0.2`: rootless
+podman defers a TERM through its runtime setup, so without the KILL the
+ceiling is only a request. The first probe settles BusyBox's forms (no `-k`
+before 1.35, `-t SECS` before 1.30); `kubectl` also gets `--request-timeout`
+for when there is no `timeout` (stock macOS). With no writable scratch
+directory the sweep runs in turn: slow, not wrong.
 
-`_HI_TARGETS_TTL` — seconds a result is reused (default 5, 0 disables); a
-just-started container may not appear until it expires. **Nothing invalidates
-it** but the clock. Two offset windows stack — the file cache in `targets.sh`
-stamps when it was written, the in-shell memo in
-`common/bash.sh`/`common/zsh.zsh` when that shell last read the file — so
-worst-case staleness is close to **twice** the TTL. Only `_HI_TARGETS_TTL=0`
-turns both off.
+**`_HI_TARGETS_TTL`** (default 5s; 0 disables) reuses a result, so a new
+container may not appear at once. Nothing but the clock invalidates it, and
+two caches stack (`targets.sh`'s file and the shell's memo), so staleness
+can approach twice the TTL. Past the TTL, a copy under ten minutes old
+(`stale_for`) still answers at once while a refresh runs behind it, one at a
+time under a lock directory; older, the sweep is waited on.
 
-Past the TTL the file is not discarded at once. Until the copy is ten minutes
-old (`stale_for` in `targets.sh`) a TAB is answered **from it, immediately**,
-and the replacing sweep runs behind it - no TAB inside a working session waits
-on a daemon. A lock directory beside the cache allows one refresh at a time,
-taken over if it outlives any real sweep. Older than that, the sweep is waited
-on again, like a first TAB. `_HI_TARGETS_TTL=0` skips all of this.
-
-ble.sh's as-you-type completion calls bash's completion function on every
-keystroke; with `auto` in its `comp_type` it gets the names the shell
-already holds, whatever their age, and never a sweep of its own.
+ble.sh's as-you-type completion (`auto` in `comp_type`) gets the names the
+shell already holds and never sweeps.
 
 ## HI.29 apostrophes in substitution comments
 
@@ -466,96 +427,60 @@ beneath it is a fallback for a porcelain stream too old to carry that header.
 
 ## HI.32 starship deference
 
-`_HI_PROMPT_TOOL` hands the prompt to a prompt program - starship, oh-my-posh,
-powerline-go, powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, or tide - keeping
-hi's header and aliases. It is a list, each shell taking the first entry that
-fits it and is present; `hi` is hi's own prompt and ends the walk. A
-`<shell>:<program>` entry is walked first, by that shell alone. With no plain
-entry, or unset, the rest is the whole roster (`common/core.sh`'s `_HI_PROMPT_TABLE`, one row per program - the
-shells it fits, how it is found, the overlay member its home config rides as -
-frameworks ahead of the programs that fit every shell; `_hi_prompt_row` answers
-to a program's name or a member's), so a prompt already in use at home is the
-default rather than something hi draws over; `hi` is the opt-in back, and the
-one entry that unhooks a program the rc already started (bash's PROMPT_COMMAND,
-zsh's precmd_functions, fish's right and mode prompts) - an unset list, or one
-that ran out, leaves that program drawing. A target never looks for itself:
-`hi.sh`'s `_hi_prompt_list` resolves the list on the client - the setting, else
-what this machine has installed - and ships it as a session variable (HI.47), so
-an unset setting on a target is hi's prompt, not whatever the box happens to
-carry.
+**Hand over the prompt, keep the rest.** `_HI_PROMPT_TOOL` names prompt
+programs to draw the prompt while hi keeps its header and aliases; each shell
+takes the first entry that fits and is present, `<shell>:<program>` entries
+first, and `hi` ends the walk with hi's prompt. With no plain entry the rest
+is the whole roster (`_HI_PROMPT_TABLE`: shells, how found, overlay member,
+frameworks first), so a prompt used at home is the default rather than drawn
+over. Only `hi` unhooks a program the rc already started. The list is
+resolved on the client (`_hi_prompt_list`) and sent with the session
+([HI.47](#hi47-what-a-child-inherits)), so a target never picks a program it
+happens to have.
 
-`common/core.sh`'s `_hi_prompt_tool <shell>` is the single predicate: starship,
-oh-my-posh, and powerline-go count where the binary is, and a framework through
-the shell's own `_hi_prompt_fw` - loaded by the rc already, or, on a target
-only, installed where its README puts it and with home's file to draw. At home
-the rc is the user's whole answer, so an installed-but-unloaded framework (a
-distro's powerlevel10k package nobody adopted) is never started there.
-`common/config.fish` mirrors the rule since fish cannot call it. Each program is
-started the way its README wires it: starship and oh-my-posh by `eval`ing
-`init <shell>`; powerline-go from PROMPT_COMMAND, a precmd, or fish_prompt;
-powerlevel10k and oh-my-zsh's libraries and oh-my-bash sourced when the rc did
-not (oh-my-zsh's libraries alone, oh-my-bash without plugins, and hi's aliases
-put back over theirs); bash-it the same way, `BASH_IT_THEME` pointed straight at
-home's packed theme file when the rc had not loaded it already - its own loader
-takes a literal path there, so unlike oh-my-bash this needs no separate
-theme-file step; tide by leaving its autoloaded fish_prompt alone. Each
-framework's loader is a file of its own, `common/fw_<name>.<ext>`, and `hi.sh`'s
-`_hi_payload_excl` cuts the ones a target is not handed from the payload, as it
-cuts a shadowed default (HI.41); `_hi_prompt_fw` asks for the file first, so a
-framework whose loader did not ride is passed over for the next in the list. The
-git and environment segments stay in the rcs: they draw with no fork.
+**One predicate**, `_hi_prompt_tool <shell>` (core.sh; config.fish mirrors
+it): a binary on `$PATH`, or a framework through the shell's `_hi_prompt_fw`,
+which at home means the rc loaded it (an installed but unused framework is
+never started there) and on a target means installed where its README puts
+it, with home's file to draw. Each starts the way its README says:
+`init <shell>` for starship and oh-my-posh, a prompt hook for powerline-go,
+sourced for powerlevel10k, oh-my-zsh's libraries, oh-my-bash, and bash-it
+(hi's aliases put back after), and tide left alone. Each framework's loader
+is its own `common/fw_<name>.<ext>`, cut from the payload for a target not
+handed it ([HI.41](#hi41-overlay-stream)); a missing loader passes to the
+next entry. The git and environment segments stay hi's: they cost no fork.
 
-Unhooking a program the rc already started (`_HI_PROMPT_TOOL=hi`) means
-different surfaces per program: bash's `PROMPT_COMMAND` string for starship,
-oh-my-posh, and powerline-go's own hooks, but bash-it's real hook lives in
-the `precmd_functions` array bash-preexec keeps (most bundled themes call its
-`safe_append_prompt_command` rather than assigning `PROMPT_COMMAND`
-directly), so `common/bash.sh` clears that array too - bash has no zsh-style
-`:#` array filter, so a rebuild loop rather than one substitution.
+**Unhooking** clears bash's `PROMPT_COMMAND`, and bash-preexec's
+`precmd_functions` array too (bash-it's hook lives there), with a rebuild
+loop since bash has no `:#` filter; zsh's precmd hooks; fish's right and mode
+prompts.
 
-Home's config rides the overlay (HI.41) and applies on a target only
-(`_HI_REMOTE_SESSION=1`), over whatever the target has: `$STARSHIP_CONFIG` /
-`$POSH_CONFIG` (and `$POSH_THEME`, which older oh-my-posh releases read) from
-the generated wiring ([HI.62](#hi62-generated-wiring)), `p10k.zsh` sourced after
-powerlevel10k, the oh-my-zsh, oh-my-bash, or bash-it theme file the home rc
-names sourced over the framework, and tide's `tide_*` universal variables
-exported as globals - exported because tide renders in a background `fish -c`
-that must see them over the target's own. Absent every program, the prompt is
-hi's, silently.
+**Home's config** rides the overlay and applies on targets only:
+`$STARSHIP_CONFIG` and `$POSH_CONFIG` (and `$POSH_THEME`) from the wiring
+([HI.62](#hi62-generated-wiring)), `p10k.zsh` sourced after powerlevel10k,
+the framework theme file sourced over its framework, and tide's `tide_*`
+variables exported (tide renders in a background `fish -c`).
 
-A prompt with no hand-over stays the user's where hi can tell one is
-drawing: a framework's marker (liquidprompt, bash-git-prompt, spaceship,
-pure, a promptinit theme), a `fish_prompt` that is not fish's own, and - at
-home only - a `$PS1` that `_hi_ps1_stock` does not know. That predicate
-(`common/bash.sh` and `common/zsh.zsh`, one list each) answers yes to an
-unset prompt, to hi's own from an earlier load (so a re-sourced rc redraws,
-HI.60), and to each default a shell or a distro's stock rc leaves; a default
-missing from it costs that distro's users hi's prompt at home until it is
-added, and `hi` in the list is their way back. It is never asked on a
-target, whose rc ran before hi's: the list cannot cover every box a session
-reaches, and an unset setting there stays hi's prompt.
+**A prompt with no hand-over stays the user's** where hi can tell: a known
+framework's marker, a non-default `fish_prompt`, or at home a `$PS1` that
+`_hi_ps1_stock` does not recognize as a shell's or distro's default (or hi's
+own, so a re-sourced rc redraws, [HI.60](#hi60-a-shell-that-outlives-the-tree)).
+A missing distro default costs its users hi's prompt at home until added.
+Never asked on a target, where hi's prompt draws.
 
 ## HI.33 derived tree location
 
-`$_HI_ROOT` is the tree, a checkout under any name or a package's
-`/usr/share/say-hi`, and `$_HI_HOME` the directory above it; a session's tree
-is always `$_HI_HOME/say-hi`, which the bootstrap unpacked. Every file that
-needs the tree takes it by one rule: `$_HI_ROOT` where it is set and sits in
-`$_HI_HOME` (or `$_HI_HOME` is unset), else `$_HI_HOME/say-hi` where
-`$_HI_HOME` is set (an rc line written before 1.0, a target, the suites'
-`_HI_HOME=`; an entry point run as a process refuses when nothing is there, a
-loader sourced by path falls back to its own), else its own path - never
-`$HOME`: that default was right for a standard
-install and wrong everywhere else, and when wrong it silently read _another
-tree_ (the platform e2e jobs sourced a tree under `/Users/runner` that was
-never there). The rule lets an exported `_HI_HOME` keep meaning what it did
-while an inherited `_HI_ROOT` of another tree is never taken over it.
-`scripts/install.sh` and `packaging/lib.sh` always derive from their own
-resolved path - an install acts on the tree it sits in. The rc line an
-install writes names a tree called `say-hi` by `_HI_HOME`, as every line
-before 1.0 did, and any other by `_HI_ROOT` (`rc.sh`'s `tmpdir_line`); the
-payload stages the tree under `say-hi/` whatever it is called
-(`pack_stream.sh`'s `stage_as`).
+`$_HI_ROOT` is the tree (a checkout under any name, or a package's
+`/usr/share/say-hi`) and `$_HI_HOME` the directory above it; a session's
+tree is always `$_HI_HOME/say-hi`. Every file takes the tree by one rule: a
+set `$_HI_ROOT` that sits in `$_HI_HOME` (or with `$_HI_HOME` unset), else
+`$_HI_HOME/say-hi` where `$_HI_HOME` is set, else its own path. Never
+`$HOME`: that default silently read another tree wherever the install was
+elsewhere. An inherited `_HI_ROOT` of another tree never beats an exported
+`_HI_HOME`. `install.sh` and `packaging/lib.sh` always use their own path,
+since an install acts on the tree it sits in. The rc line names a tree called
+`say-hi` by `_HI_HOME` and any other by `_HI_ROOT` (`rc.sh`'s `tmpdir_line`);
+the payload stages it as `say-hi/` whatever its name.
 
 `common/core.sh` owns the answer; everything that merely _needs_ the tree
 reaches core.sh through its own path. The files that derive have nothing above
@@ -572,8 +497,8 @@ them to ask through:
 | fish (`common/config.fish`)                                     | `sh -c 'cd -P "$1/.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                       |
 | `common/bash.sh`                                                | the rule, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set a name before this file is sourced                                                     |
 
-**The standalone-entry form, and why an exported name wins in it.** A script
-run on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
+**The standalone-entry form.** A script run on its own falls back to
+`${BASH_SOURCE[0]}` only when no name is set:
 
 ```sh
 _hi_d="${BASH_SOURCE[0]}"
@@ -582,20 +507,12 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 [ -z "${_HI_ROOT:-}" ] || [ "${_HI_ROOT%/*}" != "${_HI_HOME:-${_HI_ROOT%/*}}" ] || _hi_d="$_HI_ROOT"
 ```
 
-With a name set, _everything_ comes from there, core.sh included: reaching
-core.sh through the script's own path while `$_HI_ROOT` came from the
-environment runs two trees in one process, silently.
-
-No file falls back silently: `hi.sh` prints
-`set _HI_ROOT to the checkout, wherever it is, or set _HI_HOME to the
-directory holding a say-hi` and exits when the derived path holds no tree. A _target_ needs no such rule — a session's tree is the one hi
-just unpacked, its `$_HI_HOME` exported by the script that unpacked it; a say-hi
-the target already has is that machine's own install, and a session never reads
-it.
-
-`tests/lint/drift_test.sh`'s `lint_home_default` greps the tree, `.md`
-included, for the retired `$HOME` default — a doc teaching it is what a
-packager reads.
+With a name set, everything comes from there, core.sh included, so one
+process never runs two trees. `hi.sh` refuses, naming both variables, when
+the derived path holds no tree. A target needs no rule: its tree is the one
+hi just unpacked, and its own install is never read. `drift_test.sh`'s
+`lint_home_default` greps the tree, docs included, for the retired `$HOME`
+default.
 
 ## HI.34 test suite preamble
 
@@ -768,109 +685,76 @@ is one decision.
 
 ## HI.41 overlay stream
 
-The user's config overlay (`$_HI_OVERLAY_FILES` in `scripts/pack.sh`) lives
-outside the tree, so it travels as a second, much smaller archive rather than
-inside the
-payload. It unpacks into the tree's `config/`, over the defaults it shadows
-(which the payload already left out), and `$_HI_CONFIG_DIR` is that
-directory: one place a session reads config from. hi's own aliases are
-`common/aliases.sh`, so the user's `aliases.sh` shares `config/` with nothing;
-`common/aliases.sh` still refuses to source a `$_HI_CONFIG_DIR/aliases.sh` that
-is itself. It is omitted when there is nothing to send.
+**A second archive.** The overlay (`$_HI_OVERLAY_FILES`, `scripts/pack.sh`)
+lives outside the tree, so it travels as its own small archive and unpacks
+into the tree's `config/` over the defaults it shadows: one directory,
+`$_HI_CONFIG_DIR`, for a session to read. hi's aliases are
+`common/aliases.sh`, so the user's `aliases.sh` collides with nothing (and
+`common/aliases.sh` refuses to source itself). Nothing to send, no archive.
 
-The prompt programs' configs, eza's `eza/theme.yml`, bat's `bat/config`, rg's
-`ripgreprc`, fzf's `fzfrc`, lazygit's `lazygit/config.yml`, and readline's
-`inputrc` ride it so a tool's config on every target is the one in force at
-home: `_hi_overlay_src` packs the overlay's copy when there is one, else the
-file the tool itself reads on the client (HI.61's order; a prompt program's only
-when `_hi_prompt_list` names it), so there is one copy to edit and none to
-drift. The generated wiring ([HI.62](#hi62-generated-wiring)) points each tool's
-own variable (`$STARSHIP_CONFIG`, `$EZA_CONFIG_DIR` - the directory, since eza
-fixes the file name - `$INPUTRC`, ...) at the overlay on a target only, and the
-shell files source or read the frameworks' (HI.32). The stager keeps nothing of
-fish's universal variables but the `tide_` lines, since `set -U` holds whatever
-a user ever put there.
+**Tool configs ride from where they are.** `_hi_overlay_src` packs the
+overlay copy, else the file the tool reads on the client (HI.61; a prompt
+program's only when `_hi_prompt_list` names it), so there is one copy to
+edit. The [wiring](#hi62-generated-wiring) points each tool's variable at the
+overlay on a target only (`$EZA_CONFIG_DIR` names the directory, since eza
+fixes the file name). Of fish's universal variables only the `tide_` lines
+ride.
 
-`colors` and `packages` ride it because the tree copy is a default, and
-`common/paths.sh` points `$_HI_COLORS` and `$_HI_PACKAGES` at the overlay's
-when there is one. Left out of the stream, that guard could only fire on the
-client — an override working locally and silently reverting on every target,
-the asymmetry `paths_test.sh`'s guard/roster pin catches one layer up. The
-editor rcs, `tmux/tmux.conf`, `screenrc`, and the `micro/` and `zellij/` files
-ride with the wiring line that names them (HI.57).
+**`colors` and `packages`** ride because `common/paths.sh` points
+`$_HI_COLORS` and `$_HI_PACKAGES` at the overlay's copy when there is one;
+left behind, an override would work at home and silently revert on every
+target (`paths_test.sh` pins the two lists together).
 
-That cascade is wholesale, so a member that shadows a tree default makes the
-default dead weight: a connect hands `_hi_payload_excl` its member list, and
-`_hi_payload_tar` drops those files (`$_HI_OVERLAY_SHADOWS`; never
-`aliases.sh`, which is additive) from the stage, cached under a key of its
-own. With `_HI_DISABLE_HEADER` on (read as HI.64's `_hi_toggle_on` reads
-it), `common/header.sh` and `config/packages` are dropped too, about 11 KB
-armored: no target draws a header, and `common/paths.sh` there reads a
-missing `header.sh` as the header off, whatever the target's `settings.sh`
-says. Dropped from the stage rather than with tar's `--exclude`, which
-OpenBSD's tar lacks. Only a caller holding the list cuts anything:
-`_hi_wire_bytes` has none and measures the stock tree (HI.44). A file still under a pre-1.0 name
-(`$_HI_OVERLAY_RENAMES`) is not a member, so it cuts nothing and the default
-it no longer overrides keeps riding. The target's aliases and `$VIMINIT` ask
-for the rc file as well as the binary, so a box whose editor got no config
-keeps its own rather than an alias to a missing file.
+**Shadowed defaults stay home.** `_hi_payload_excl` takes the member list
+and `_hi_payload_tar` drops the defaults they shadow
+(`$_HI_OVERLAY_SHADOWS`, never `aliases.sh`, which adds), cached under its
+own key. With the header off (read as HI.64's `_hi_toggle_on`), `header.sh`
+and `config/packages` are dropped too, about 11 KB; a target reads the
+missing `header.sh` as the header off. Files are dropped from the stage,
+since OpenBSD's tar has no `--exclude`. `_hi_wire_bytes` has no list and
+measures the stock tree (HI.44). A file under a pre-1.0 name
+(`$_HI_OVERLAY_RENAMES`) is no member and cuts nothing. An alias or
+`$VIMINIT` asks for the rc as well as the binary, so a box whose editor got
+no config keeps its own.
 
-`ssh_tags` is the one member with no file behind it on the client:
-`_hi_ssh_tags_file` cuts the `# Tags:` lines and the `Host`/`Match host` line
-under each out of `~/.ssh/config` into the runtime dir, in ssh_config's own
-shape, so `_hi_ssh_host_tag` on a relaying box walks it with the walker it
-already has - after its own config, and only in a remote session. A block's
-`Tag` line (ssh's own keyword) is written out there as the `# Tags:` line it
-stands for, so the middle box, whose ssh may predate the keyword, reads one
-walk's worth of syntax. A `config.d`
-file's name is written out there as the `# Tags:` line it stands for: the
-walk and the cut both read it off the `# hi-file:` comment `targets.sh` puts
-ahead of each Included file's lines. Only tagged
-blocks ride, so an untagged block that would have answered first at home is
-not there to: a name both it and a later tagged wildcard match reads as
+**`ssh_tags`** has no file on the client: `_hi_ssh_tags_file` cuts each
+tagged `Host`/`Match host` line, with its `# Tags:` line, from
+`~/.ssh/config` into the runtime dir, so a relay's `_hi_ssh_host_tag` walks
+it as a config, after its own and only in a session. A `Tag` line or a
+`config.d` file's name (read off `targets.sh`'s `# hi-file:` comments) is
+written as the `# Tags:` line it stands for, so an older ssh on the middle box
+reads it. Only tagged blocks ride, so an untagged block that answers first at
+home is not there: a name it and a later tagged wildcard both match reads as
 tagged on the second hop.
 
 ## HI.43 container target grammar
 
-A container target may name what to run _in_ as well as where: `pod/container`
-for kube, `alloc/task` for nomad — one spelling for both, since a task and a
-container are the same idea here, and a suffix rather than a flag so completion
-can offer the pairs (`_hi_transport_cmds` in `hi.sh`). Only those two
-split: a container name on any of the docker-compatible family (HI.51) is
-taken whole, having no inner unit and `/` being legal in it.
+**What to run in, as a suffix**: `pod/container` for kube, `alloc/task` for
+nomad, a suffix rather than a flag so completion can offer the pairs. The
+docker-compatible family (HI.51) takes a name whole: `/` is legal in it.
 
-Whatever the grammar, a target is reached through three commands,
-`_hi_transport_cmds`' `probe` (no stdin, no tty), `cp` (stdin), and `attach`
-(a tty where there is one): a backend's `exec` in its own spelling, or ssh's
-over the ControlMaster as `-n`, stdin, and `-t`. `_hi_on_target` runs a
-script through one of them, as an argv for an exec and as one string quoted
-for ssh's login shell ([HI.18](#hi18-sh--c-wrapping)). Every arm boots in one
-`cp` and runs in one `attach` ([HI.19](#hi19-stdin-transport)), so a
-container takes the script an ssh target does: its no-bash ladder, its size
-figure, and the kept session ([HI.65](#hi65-kept-session)). What stays per
-arm is ssh's ControlMaster, keepalive, retry, and PowerShell notice, a
-container's name resolution, and the `--plain` paths.
+**Three commands per arm** (`_hi_transport_cmds`): `probe` (no stdin, no
+tty), `cp` (stdin), `attach` (a tty where there is one), an exec in each
+backend's spelling or ssh over the ControlMaster. `_hi_on_target` runs a
+script through one, as argv for an exec and as one quoted string for ssh
+([HI.18](#hi18-sh--c-wrapping)). Every arm boots in one `cp` and runs in one
+`attach` ([HI.19](#hi19-stdin-transport)), so containers get the same script,
+no-bash ladder, and [kept session](#hi65-kept-session). Only ssh has the
+ControlMaster, keepalive, retry, and PowerShell notice.
 
-kube adds `[[context:]namespace:]pod[/container]` (`_hi_kube_split`). `:` is
-the separator because no ssh host, container name, or allocation id may carry
-one, so a prefixed name can only mean a pod; no prefix means whatever kubectl
-points at, and `common/targets.sh`'s `list_kube` emits the same spelling for
-pods outside the current namespace. A multi-container pod resolves on the pod
-half; kubectl checks the container half when the session runs and fails loudly
-on a missing name — better than declining silently and falling through to ssh.
-The mirror rule: no container name, allocation id, or pod may carry an `@`,
-so `user@host` with no `:` goes to ssh with no backend asked
-(`_hi_select_arm`); a context's `@`, as in `admin@cluster:ns:pod`, has a `:`
-after it and is still asked.
+**kube's prefixes**: `[[context:]namespace:]pod[/container]`
+(`_hi_kube_split`). `:` is safe because no ssh host, container, or
+allocation name can hold one; `list_kube` emits the same spelling for other
+namespaces. The container half is checked by kubectl at session time, failing
+loudly rather than falling through to ssh. Likewise no container, allocation,
+or pod holds `@`, so `user@host` with no `:` goes straight to ssh
+(`_hi_select_arm`), while `admin@cluster:ns:pod` is still asked.
 
-docker and podman also answer to a compose service name
-(`_hi_compose_container`) when exactly one running container carries that
-label. Ambiguous (two projects, same service) and absent both fail rather than
-guess — a wrong guess lands a session in someone else's container — and the
-lookup runs only when the literal name does not resolve, so the common case
-pays one inspect. nerdctl and finch are left out as unverified: a `.Label`
-template or `label=` filter one of them rejects would fail the lookup rather
-than decline it.
+**Compose services**: docker and podman resolve a service name to its one
+running container (`_hi_compose_container`), only after the literal name
+fails. Two matches or none fail rather than guess, since a wrong guess lands
+in someone else's container. nerdctl and finch are unverified for the label
+template, so left out.
 
 ## HI.44 wire size token
 
@@ -890,95 +774,61 @@ question about a target - and none of the tree defaults one would shadow is cut
 
 ## HI.46 session rc directory
 
-`load.sh`'s `_hi_session_rc_setup` writes one rc per shell into a `mktemp -d`
-of hi's own and exports `$_HI_SESSION_RC` at it. The shell a user types at is
-**not** the one `hi.sh` starts: `bash --rcfile hi.bashrc` starts the
-_bootloader_, which sources `load.sh` and calls `load()`, which starts the
-session shell. A bare `$shell -i` there would read the target's `~/.bashrc`,
-so the session shell is pointed at hi's own rc and the target's rc files are
-never written.
+**The target's rc files are never written.** `bash --rcfile hi.bashrc`
+starts the bootloader, which runs `load()`, which starts the session shell;
+a bare `$shell -i` would read the target's `~/.bashrc` alone. So
+`_hi_session_rc_setup` writes one rc per shell into a `mktemp -d` of its own
+(`$_HI_SESSION_RC`), each sourcing the target's rc first and hi's on top.
+`ZDOTDIR` moves all of zsh's startup files, so `~/.zshenv` is sourced too,
+with `ZDOTDIR` unset (it may set its own), and then pointed back.
 
-Each generated rc sources the target's own first (`~/.bashrc`, `~/.zshrc`, and
-`~/.zshenv` — `ZDOTDIR` moves _all_ of zsh's startup files, not just `.zshrc`),
-then hi's on top, so the host's configuration still applies underneath. A
-`~/.zshenv` may set `ZDOTDIR` itself (a `~/.config/zsh` layout), which would
-have zsh read that directory's `.zshrc` and never hi's, so the `.zshenv` shim
-runs it with `ZDOTDIR` unset, keeps what it chose, and points `ZDOTDIR` back at
-hi's directory; the `.zshrc` then sources the target's from there, under that
-`ZDOTDIR`.
+**How each shell is reached:**
 
-Three variables are exported; which shell needs which is the design:
+| shell         | reached by      | inherited by a nested shell? |
+| ------------- | --------------- | ---------------------------- |
+| zsh           | `$ZDOTDIR`      | yes                          |
+| sh, dash, ash | `$ENV`          | yes, interactive shells      |
+| bash          | `--rcfile`      | no: a wrapper                |
+| fish          | `-C 'source …'` | no: a wrapper                |
 
-| shell         | reached by      | inherited by a nested shell?   |
-| ------------- | --------------- | ------------------------------ |
-| zsh           | `$ZDOTDIR`      | yes — free                     |
-| sh, dash, ash | `$ENV`          | yes — free, interactive shells |
-| bash          | `--rcfile`      | no — needs a wrapper           |
-| fish          | `-C 'source …'` | no — needs a wrapper           |
-
-`$ZDOTDIR` and `$ENV` reach any zsh or POSIX shell started inside the session,
-however it was started, including by something that is not a shell. bash and
-fish have no equivalent (`$BASH_ENV` is for _non_-interactive bash only), so
-`common/aliases.sh` defines a `bash` and a `fish` wrapper off
-`$_HI_SESSION_RC`. Both bodies begin with `command`: fish's `alias` builds a
-function of that name, and without it `fish` would call itself forever.
-
-The wrappers cannot cover a bash or fish shell nothing typed — a `tmux` pane
-spawning a login shell, an editor's shell-out — which comes up as the host's
-own. The panes of a session hi keeps are the exception
-([HI.65](#hi65-kept-session)). hi writes nothing into a target's login files
-([COMPATIBILITY.md](COMPATIBILITY.md#what-would-change-an-answer) has the
-reasoning).
+bash and fish have no such variable (`$BASH_ENV` is non-interactive only), so
+`common/aliases.sh` wraps both off `$_HI_SESSION_RC`, each body starting with
+`command` so fish's alias cannot call itself. A shell nothing typed (a tmux
+pane, an editor's shell-out) is the host's own, except in a
+[kept session](#hi65-kept-session).
 
 ## HI.47 what a child inherits
 
-`env | grep ^_HI_` in a process started from an interactive hi shell shows
-core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The roster
-is nine names:
+**Only the roster is exported.** A process started from a hi shell sees
+core.sh's `_HI_CHILD_ENV` and no other `_HI_` name:
 
-- `$_HI_HOME`, `$_HI_ROOT` and `$_HI_CONFIG_DIR` — the overlay on a target is
-  wherever `hi.sh` put it, and cannot be re-derived; the tree is a clone under
-  any name ([HI.33](#hi33-derived-tree-location)), which a child could only
-  guess as `$_HI_HOME/say-hi`;
-- `$_HI_SITE_DIR` — the site tier ([HI.61](#hi61-one-overlay-priority)),
-  which `sh targets.sh` reads for a completion;
+- `$_HI_HOME`, `$_HI_ROOT`, `$_HI_CONFIG_DIR`: a target's overlay and a
+  clone's name cannot be re-derived ([HI.33](#hi33-derived-tree-location));
+- `$_HI_SITE_DIR` ([HI.61](#hi61-one-overlay-priority)), for completion;
 - `$_HI_REMOTE_SESSION`;
-- `$_HI_SESSION_RC` — HI.46's wrappers are re-defined in every nested shell;
-- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_BACKENDS_OFF` — the knobs
-  `sh targets.sh` reads straight off its environment from a completion.
+- `$_HI_SESSION_RC`, for HI.46's wrappers in nested shells;
+- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_BACKENDS_OFF`, which
+  `sh targets.sh` reads from its environment.
 
-It works by taking the attribute off, not by never setting it. fish parses
-`common/paths.sh` alongside sh, zsh, and bash, and the one assignment all four
-accept is `export NAME=value`, so every name it sets arrives exported — over
-fifty. Each interactive rc (`bash.sh`, `zsh.zsh`, `config.fish`) un-exports the
-lot as the last thing in its required block: `_hi_unexport` in core.sh (one bash
-`export -n`, or one zsh `typeset -g +x` — a bare `typeset` inside a function
-declares a local — over every name), and a `set -gu NAME $NAME` loop in
-config.fish. The values stay as shell variables: the header's clock reads
-`$_HI_HUMAN_CENTRIC_DATE` on every render, the prompt reads the colour memos,
-and a `$( )` is a fork rather than an exec; an alias that names a path expanded
-it at definition time. Last in the block so the overlay's per-shell rc, which
-runs after it, can `export` whatever it wants a child to see.
+**By un-exporting, not by never exporting.** `paths.sh` is read by fish, sh,
+zsh, and bash, whose one shared assignment is `export NAME=value`, so its
+fifty-odd names arrive exported. Each interactive rc un-exports them last in
+its required block: `_hi_unexport` (bash `export -n`, zsh `typeset -g +x`)
+or a `set -gu` loop in fish. The values stay as shell variables. Being last
+lets the overlay's per-shell rc `export` what it wants children to see.
 
-The flip alone is not enough because of the client's verdicts — `hi.sh`'s
-`_hi_session_env`, pinned to core.sh's `_HI_SESSION_VARS`. Two of them
-(`_HI_LOCAL_USER`, `_HI_LOCAL_HOSTNAME`) name the operator's workstation, the
-one thing a target's process table should never learn from hi; they are not in
-the roster, so a nested shell cannot inherit them. `load.sh`'s
-`_hi_session_rc_setup` writes them into each session rc instead (HI.46), as
-plain assignments between the target's own rc and hi's; fish, which shells out
-to bash for the header and the colours, hands them to that one `bash -c`
-through `__hi_bash`'s function-scoped exports (`set -fx`; a `-l` inside the
-loop would be block-scoped and gone before the command runs).
+**The client's verdicts** (`_hi_session_env`, pinned to `_HI_SESSION_VARS`)
+include `_HI_LOCAL_USER` and `_HI_LOCAL_HOSTNAME`, which name the operator's
+machine and must never reach a target's process table. They are no roster
+names: `_hi_session_rc_setup` writes them into each session rc as plain
+assignments (HI.46), and fish hands them to its one `bash -c` through
+`__hi_bash`'s `set -fx` (a `-l` in the loop would be gone by then).
 
-Not covered: a POSIX `sh` started inside a session reads `$ENV`, which sources
-`paths.sh` and exports the roster into _that_ shell again — dash has no
-un-export. The bash-less fallback rc (HI.20) has the same shape for the same
-reason. Both are tiers below what `load.sh` styles.
-`tests/common/exports_test.sh` pins the contract: the child environment in
-all three shells, config.fish's two mirrors against core.sh, `_hi_session_env`
-against `_HI_SESSION_VARS`, every env read in targets.sh against the roster,
-and the session rc's quoting round-trip in each dialect.
+**Not covered**: a POSIX `sh` started in a session re-sources `paths.sh`
+through `$ENV` and dash cannot un-export; the bash-less fallback rc (HI.20)
+likewise. `tests/common/exports_test.sh` pins all of it: the child
+environment in each shell, config.fish's mirrors, `_hi_session_env`, every
+variable targets.sh reads, and the session rc's quoting.
 
 ## HI.48 header cell hue resolution
 
@@ -1015,90 +865,48 @@ hues.
 
 ## HI.50 truecolor color schemes
 
-`_HI_COLOR_SCHEME` (`common/core.sh`), which `_hi_color_tables` fills from
-the colors file's `[scheme]` table, remaps what the twenty-four palette
-names render as; it never adds a name. `_hi_hash_color`, the
-`config/colors` pins, `_hi_color_escape`, and `hi --preview colors` all keep
-the same vocabulary, so a scheme is invisible to everything that reasons
-about a color by name - only the bytes a name turns into change. The names
-are the terminal's twelve plus twelve extras (orange, pink, teal, ...) that
-no 16-color code spells: `_HI_COLOR_FALLBACK` gives every slot its
-`<bold><hue>` pair - an extra's is the nearest of the sixteen - and with no
-scheme the first twelve render as that pair alone while the extras carry a
-built-in hex, so a truecolor terminal shows an orange host as orange without
-anyone choosing a scheme. `_hi_color_base` is the pair as a name, for zsh's
-`%F{}` and fish's `set_color`, which know the sixteen and nothing else.
+**A scheme remaps names, never adds one.** `_HI_COLOR_SCHEME` (filled by
+`_hi_color_tables` from the colors file's `[scheme]`) changes what the
+twenty-four names render as; the hash, the pins, `_hi_color_escape`, and
+`hi --preview colors` all keep the same names. Twelve are the terminal's;
+twelve extras (orange, pink, ...) have no 16-color code, so
+`_HI_COLOR_FALLBACK` gives every slot its nearest `<bold><hue>` pair, and
+with no scheme the extras carry a built-in hex. `_hi_color_base` names the
+pair for zsh's `%F{}` and fish's `set_color`.
 
-A `config/colors` row may also carry its own hex, the second word of its
-string, and that is the one thing that outranks the scheme — for that pin
-only. `_hi_colors_scan` joins it to the name (`brred#ff5f5f`) and
-`_hi_color_split` takes the two apart again, so the pinned color travels as
-one string through the memos, `$_HI_TARGET_COLOR` over the wire and
-`hi --preview colors`' grouping, and only the three readers above know it is
-two halves: the name is still the 16-color half of the escape (and all a
-terminal without truecolor is given), the hex replaces the scheme's word in
-the `38;2` triple.
+**A pin's own hex outranks the scheme**, for that pin only.
+`_hi_colors_scan` joins it to the name (`brred#ff5f5f`) and `_hi_color_split`
+parts it, so it travels as one string (memos, `$_HI_TARGET_COLOR`, the
+preview's grouping) and only the three color readers know it has two halves.
 
-Those bytes are **one SGR**, `\e[<bold>;3<n>;38;2;<r>;<g>;<b>m`: the
-16-color pair first, the 24-bit triple after it. A terminal that ignores
-`38;2` keeps the first; a capable one applies the last foreground it was
-given. One escape rather than two keeps every reader of a cell's leading
-escape working unchanged - `_hi_visible_width` strips each escape,
-`_hi_collect_header_word` cuts at the first `m`, `scripts/table.sh` and the
-suites' `_hi_strip_ansi` match `\e[[0-9;]*m` - and `_hi_cell_hue` (HI.48)
-needed only to accept `;` as well as `m` after the slot digit, which is
-still the hue.
+**One SGR**: `\e[<bold>;3<n>;38;2;<r>;<g>;<b>m`, the 16-color pair first, so
+a terminal ignoring `38;2` keeps it. One escape keeps every reader of a
+cell's leading escape working (`_hi_visible_width`, the header's cut at the
+first `m`, `\e[[0-9;]*m` matches); `_hi_cell_hue` (HI.48) accepts `;` after
+the hue digit.
 
-The hex table is a fixed-width string sliced by offset (`_hi_scheme_hex`): no
-arrays, because zsh indexes them from 1 and sources this file; no separate data
-file, because the payload strips comments and the twenty-four six-digit words
-are the only bytes that cost anything on the wire. hi ships **no named schemes**
-— the only table in the tree is the default one, whose first twelve slots are
-`000000` (meaning "the terminal's own") and whose twelve extras carry a built-in
-hex. A scheme is always the user's own. `_hi_assign_palette` builds
-`$RED..$BRCYAN`, shell variables a child never sees, through the same primitive
-as `_hi_color_escape`, so the two can never disagree and a suite can rebuild
-the palette under another scheme.
+**A fixed-width string** sliced by offset (`_hi_scheme_hex`): no arrays (zsh
+indexes from 1) and no data file. hi ships no named schemes; the default's
+first twelve slots are `000000` (the terminal's own). `_hi_assign_palette`
+builds `$RED..$BRCYAN` through the same primitive, so a suite can rebuild the
+palette under another scheme.
 
-**The scheme is that same string, in the colors file.** `_hi_color_tables`
-reads `[scheme]` and `[palette]` as core.sh loads, before
-`_hi_assign_palette`: the scheme's `colors` row, then its `packages` row as
-the second bank, is `$_HI_COLOR_SCHEME`, and nothing else sets it - a
-`settings.sh` line of that name is overwritten, and `hi --doctor` names it.
-`_hi_scheme_words` reads `$_HI_COLOR_SCHEME` by the same offsets and answers
-24, 48, or 0: exactly that
-many six-digit hex words one space apart is a scheme, anything else — a leftover
-name, a typo, nothing — renders as the default. Forty-eight words are two banks
-of the twenty-four names: `_hi_scheme_hex` takes slot indexes 0-47 and folds
-24-47 onto 0-23 for every table but a 48-word list, and `_hi_color_escape_at`
-reads the 16-color half at the index mod 24, so a second-bank escape wears its
-name's `\e[<bold>;3<n>` and every hue and width reader above still works. Only
-`common/header.sh`'s packages check reads the second bank:
-`_hi_packages_palette` rebuilds `_HI_YES`/`_HI_NO` from it per render, after
-resolving the ramp, because the ramps are the palette variables and those are
-the first bank by contract. `scripts/lib.sh`'s `_hi_scheme_ok` and
-`_hi_scheme_label` are the validator and the preview/doctor label; core.sh only
-ever renders.
+**Only the colors file sets it**: a `settings.sh` line of that name is
+overwritten, and `hi --doctor` says so. `_hi_scheme_words` answers 24, 48, or
+0; anything but exactly that many hex words renders the default. A 48-word
+scheme's second bank (slots 24-47, the 16-color half taken at the index mod 24) paints only the package check (`_hi_packages_palette`, per render), since
+the palette variables are the first bank. `scripts/lib.sh`'s `_hi_scheme_ok`
+and `_hi_scheme_label` validate and label; core.sh only renders.
 
-**The packages check's ramp is the same shape, one level down.**
-`$_HI_PACKAGES_PALETTE` is eight `_HI_COLOR_NAMES` words — `[palette]`'s
-four `installed`, then its four `missing` — and `_hi_ramp_ok` (`common/core.sh`, beside
-the vocabulary it checks against, so `scripts/doctor.sh` reaches it without
-sourcing `header.sh`) is the one judge: `_hi_packages_palette` falls back to
-`$_HI_PACKAGES_RAMP`, the shipped ramp as one string, whenever it says no,
-and `scripts/lib.sh`'s `_hi_ramp_label` names the same three shapes the
-scheme label does. Like the scheme, there are no named ramps to pick from —
-neither is a setting, and no preset names either.
+**The package ramp is the same shape**: `$_HI_PACKAGES_PALETTE`, eight names
+from `[palette]`, judged by `_hi_ramp_ok` (in core.sh, so doctor reaches it
+without header.sh), falling back to `$_HI_PACKAGES_RAMP`.
 
-The gate is `_hi_has_truecolor`: `COLORTERM` (`truecolor` or `24bit`), with
-`_HI_TRUECOLOR` overriding both ways. ssh never forwards `COLORTERM`, so
-`hi.sh`'s `_hi_session_env` ships the client's verdict as `_HI_TRUECOLOR` beside
-`_HI_ASCII` - the escapes render in the client's terminal, and the target must
-not guess from its own environment. The scheme itself needs no transport:
-the colors file is in the overlay. zsh takes `%F{#rrggbb}` from 5.7
-(`common/zsh.zsh`, behind `is-at-least`) and fish takes `set_color hex name`, a
-list it resolves to the first entry it can render, so both fall back to the
-plain name on their own.
+**The gate** is `_hi_has_truecolor`: `COLORTERM` of `truecolor` or `24bit`,
+overridden by `_HI_TRUECOLOR`. ssh drops `COLORTERM`, so `_hi_session_env`
+sends the client's verdict as `_HI_TRUECOLOR`: the escapes render in the
+client's terminal. zsh takes `%F{#rrggbb}` from 5.7 (`is-at-least`), and
+fish's `set_color hex name` picks what it can render.
 
 ## HI.51 docker-compatible CLI family
 
@@ -1159,45 +967,27 @@ cursor and the DECRC only repeats it.
 
 ## HI.54 who draws the environment prefix
 
-`common/env_prompt.sh` names every active environment manager as the prompt's
-leading `(mise|direnv:proj|myproj)`. The awkward part is not the detection -
-every tool exports a variable, so a draw is parameter expansion and nothing
-else - it is that two of those tools draw a prefix of their own, and whether
-that prefix survives is a property of the _shell_, not of the tool.
+**Detection is cheap; the prefix is the shell's question.**
+`common/env_prompt.sh` names every active environment manager as the
+prompt's leading `(mise|direnv:proj|myproj)` from variables the tools export.
+But venv's activate script and conda (unless `changeps1` is off) draw a
+prefix of their own, and whether it survives depends on the shell: zsh sets
+`$PS1` once and fish's `fish_prompt` is the very function activate wrapped,
+so theirs stays; bash's `__hi_ps1` rebuilds `$PS1` every draw, so it is gone
+by the second prompt.
 
-`python -m venv`'s activate script prepends to `$PS1` (bash, zsh) or copies
-`fish_prompt` to `_old_fish_prompt` and wraps it (fish); conda prepends
-`$CONDA_PROMPT_MODIFIER` unless `changeps1` is off. zsh and fish keep what
-those scripts did: zsh.zsh assigns `$PS1` once at rc time, and fish's
-`fish_prompt` is the very function activate wrapped. bash does not -
-`common/bash.sh`'s `__hi_ps1()` is a `PROMPT_COMMAND` hook that rebuilds `$PS1`
-from `$HI_PS1` on every draw, so the activate script's edit is gone by the
-second prompt.
+So `$_HI_ENV_DEFER` is the shell's verdict: 1 in zsh and fish, where the
+venv and conda rows stand down when the tool's marker is present
+(`$_OLD_VIRTUAL_PS1`, `_old_fish_prompt`, `$CONDA_PROMPT_MODIFIER`), and 0
+in bash, where hi draws them. A venv is named in all three shells. While a
+tool's prefix stands, hi drops its own lead space. hi never sets
+`VIRTUAL_ENV_DISABLE_PROMPT=1` itself, since every other shell the user
+opens reads it.
 
-So `$_HI_ENV_DEFER` carries the shell's verdict rather than the tool's: zsh.zsh
-and config.fish set it to 1 and the venv and conda rows stand down when the
-tool's own marker is present (`$_OLD_VIRTUAL_PS1`, the `_old_fish_prompt`
-function, a non-empty `$CONDA_PROMPT_MODIFIER`); bash.sh sets it to 0, because
-there is provably nothing there to defer to. A venv is therefore named in all
-three shells - in its own styling under zsh and fish, in hi's under bash - and
-the tools with no prefix of their own are hi's everywhere. While such a prefix
-stands, hi's lead space drops out, since the prefix ends in a space of its own:
-zsh's `__hi_env_precmd` sees `$PS1` no longer starting with hi's mark, and
-fish's `prompt_login` the same markers. The alternative, exporting
-`VIRTUAL_ENV_DISABLE_PROMPT=1` to silence the tools and always draw hi's, would
-have hi overriding a setting the user configured for every other shell they
-open.
-
-config.fish carries its own copy of the source list, as it does of the git
-glyphs: it cannot call the bash function, and a `bash -c` on every prompt draw
-is exactly the fork this prompt refuses everywhere else.
-`tests/hi/prompt_test.sh` pins the two lists together.
-
-mise is the one row that is more than parameter expansion. `$MISE_SHELL` is
-set wherever mise is activated, and a `~/.tool-versions` covers every
-directory under it, so `(mise)` is named only where a config file between the
-directory and `~` overrides the global one: a builtins-only walk up from
-`$PWD`, memoized on it (HI.16).
+config.fish keeps its own copy of the list, since a `bash -c` per prompt is a
+fork; `tests/hi/prompt_test.sh` pins the two. mise shows only where a project
+config between `$PWD` and `~` overrides the global one (a `~/.tool-versions`
+covers everything), found by a builtins-only walk memoized on `$PWD` (HI.16).
 
 ## HI.55 re-entrant rc guard
 
@@ -1232,119 +1022,67 @@ of this.
 
 ## HI.57 carried configs and the include scan
 
-hi carries a `vim/vimrc`, `nvim/init.lua`, `nano/nanorc`, `emacs/init.el`,
-helix's `helix/config.toml` (and `languages.toml`), and kakoune's `kak/kakrc`
-and its `colors/` (through `$KAKOUNE_CONFIG_DIR`, since `kak -n` would drop its
-system kakrc too) to every target and starts the editor on it (`-u`, `--rcfile`,
-`-nw -q -l`, `-c`), so the question is which file -
-[HI.61](#hi61-one-overlay-priority)'s order answers it: the overlay's copy, then
-the config that editor already reads on this machine (`~/.vimrc`,
-`$XDG_CONFIG_HOME/nvim/init.lua`, `~/.nanorc`, `~/.emacs`, ..., in the editor's
-own precedence). hi ships no editor config of its own, so with neither the value
-is empty and the command has no alias; `tmux/tmux.conf` (`tmux -f`) and
-`screenrc` (`screen -c`) take the same tiers, and micro and zellij take a
-_directory_. The alias is a target's alone, a line of the overlay's `wiring.sh`
-([HI.62](#hi62-generated-wiring)): at home every tool reads its own config
-unasked, an overlay copy is what targets get, and `vim -u` would drop the system
-vimrc and `defaults.vim`. The middle tier is [HI.32](#hi32-starship-deference)'s
-argument applied to editors - one copy to edit, no duplicate in the overlay to
-keep in step.
+**Which file.** hi starts each editor on a carried config (`-u`, `--rcfile`,
+`-nw -q -l`, `-c`, kakoune through `$KAKOUNE_CONFIG_DIR` since `kak -n` would
+drop its system kakrc), as do tmux (`-f`) and screen (`-c`); micro and zellij
+take a directory. Which file is [HI.61](#hi61-one-overlay-priority)'s order:
+the overlay copy, else the config the tool reads on this machine. hi ships
+none of its own, so with neither there is no alias. The alias is the
+target's alone, a line of `wiring.sh` ([HI.62](#hi62-generated-wiring)): at
+home every tool reads its own config, and `vim -u` would skip the system
+vimrc.
 
-Carrying a real config makes a second problem real with it. Every overlay
-member - these rcs, the shell overlay files, the prompt configs - ships into the
-target's `config/`, so a line naming a _path_ - a second rc beside it, a plugin
-directory, a manager's bootstrap - names something no target has, and the editor
-or shell fails on it rather than hi. `scripts/pack_scan.sh`'s `_hi_lint_awk` finds
-exactly those lines; the per-dialect grammar, and what it deliberately leaves alone, is
-the comment above it. One pass serves both readers: `_hi_stage_tar` runs it in
-`fix` mode ahead of [HI.35](#hi35-payload-comment-and-whitespace-strip)'s
-stripper, so a finding goes out disabled in its own dialect and the strip drops
-it for free, and `hi --doctor` runs it in `report` mode, so its yellow rows name
-exactly what went missing. The grammar is a row of `scripts/pack.sh`'s
-`$_HI_DIALECTS` - its comment leader, where a statement ends, what is an include, a plugin
-manager, or allowed, and how a finding is disabled - named by the member's row's
-`<dialect>`, so doctor reads `~/.vimrc` as vim, a row of the user's is read in
-the dialect it names, and a member with none (an `eza/theme.yml`) passes through
-untouched. A line directly under a `hi-allow` comment in the file's own syntax
-is neither reported nor touched; one under `hi-quiet` is disabled like any other
-finding but not reported. A pair, `hi-allow-start` and `hi-allow-end` or
-`hi-quiet-start` and `hi-quiet-end`, decides every line inside it the same way;
-each word pairs on its own, a start with the next end of its word, so an allow
-pair inside a quiet one keeps its lines. A start with no such end decides
-nothing and is a row of its own kind, `unclosed`, which `hi --doctor` names; an
-end with no start is ignored. A line under `hi-carry` is the one marked line
-that is never a finding: each file under `$HOME` it names rides as written -
-no scan, no strip, since it is no config of the member's dialect - under
-`<tool>/carried/`, or `<member>.carried/` where the member has no directory,
-and the line holds the carried path as a carried include does. What of it
-cannot ride is a row of the kind `carry`. A line under `hi-drop` is the
-reverse: no finding by the grammar, it is disabled like one and never
-reported, for a setting some target's version of the tool rejects; an allow
-or a carry spares it, and a dialect with no comment has no marker to hold. The scan cannot know a start is closed until the
-file ends, so it reads the file through once for the pairs before it reads it
-for findings. There is no setting that turns the scan off: the comments are the
-per-line and per-block answer.
+**The scan.** A carried config can name a path no target has (a second rc, a
+plugin directory, a manager's bootstrap), and the tool would fail there.
+`scripts/pack_scan.sh`'s `_hi_lint_awk` finds those lines, by the grammar of
+the member's `<dialect>` row in `$_HI_DIALECTS` (the comment above it lists
+each dialect's rules). `_hi_stage_tar` runs it in `fix` mode before the
+[strip](#hi35-payload-comment-and-whitespace-strip), so a finding goes out
+disabled and costs no bytes; `hi --doctor` runs it in `report` mode. A member
+with no dialect rides untouched. There is no switch to turn it off; the
+marker comments (`hi-allow`, `hi-quiet`, `hi-carry`, `hi-drop`, each with a
+`-start`/`-end` pair; docs/SETTINGS.md) are the per-line answer. Pairs are
+found by reading the file once before the scan, since a start's end is known
+only at the end; an unclosed start is an `unclosed` row.
 
-Disabling must leave a file that parses. vim and nano are line-oriented, so a
-finding is one line (tmux's takes its `\` continuations). lua, elisp, and
-zellij's kdl are not, so the comment runs to the end of the bracket-balanced
-expression the finding opened - commenting only the matched line of
-`require("lazy").setup({` would leave its `})` behind. `bal()` counts that depth
-blind to strings, and takes `'` as a string delimiter for lua only: in elisp it
-is the quote operator, and reading `'load-path` as an opening quote swallows the
-rest of the file. sh and fish are the reverse problem: commenting out `. ~/x`
-inside `if ...; then` leaves an empty body. So only the verb and its one file
-word become `:` (`true` in fish), and the guard, the `&&`, the case arm around
-it stay. What the pass cannot see is a value the dropped line was meant to
-bind - a `local m = require("x")` used twenty lines down - so a plugin-heavy
-config can still error on the target; the doctor rows make that legible.
+**Disabling leaves a file that parses.** vim and nano are line-oriented
+(tmux takes its `\` continuations). lua, elisp, and kdl comment out the whole
+bracket-balanced expression, so `require("lazy").setup({` leaves no stray
+`})`; `bal()` ignores strings, and `'` delimits only in lua (in elisp it is
+the quote operator). sh and fish turn only the verb and its file word into `:`
+or `true`, since an empty `then` body does not parse. A value the dropped
+line bound (`local m = require("x")`) can still fail later; the doctor rows
+name the line.
 
-An include naming a file of the tool's own directory is carried instead
-(`_hi_stage_carry`). For a member `<tool>/<file>`, that is its source's
-directory (not `$HOME` itself), and at home `$XDG_CONFIG_HOME/<tool>`,
-`~/.<tool>`, and `~/.<tool>.d`; a path spelled from `~`, `$HOME`, or
-`$XDG_CONFIG_HOME` is read as it is here. The file rides as
-`<tool>/<its path under that directory>`, scanned in the member's dialect, so
-its own includes carry too, and the include's path becomes
-`@@HI_CONFIG@@/<tool>/...`, a word the target makes its overlay directory as the
-overlay lands (`_hi_overlay_fixup`, one `grep -rl` and a `sed` per file that has
-it). The line is not a finding, so `hi --doctor` does not name it. A relay
-sends the carried copy with the rest of its tree, and its own overlay directory
-as the word ([HI.66](#hi66-the-packer-stays-home)). The overlay cache
-watches the carried files through the list the last build left beside it.
+**Carried includes.** An include of a file in the tool's own directory (its
+source's directory, `$XDG_CONFIG_HOME/<tool>`, `~/.<tool>`, `~/.<tool>.d`) is
+carried instead (`_hi_stage_carry`): the file rides as `<tool>/<path>`,
+scanned in turn, and the include's path becomes `@@HI_CONFIG@@/<tool>/...`,
+which the target rewrites to its overlay directory as it unpacks
+(`_hi_overlay_fixup`). A relay sends its copy, its own directory as the word
+([HI.66](#hi66-the-packer-stays-home)). The overlay cache watches the carried
+files. A `hi-carry` line's files under `$HOME` ride as written (no scan, no
+strip) under `<tool>/carried/` or `<member>.carried/`.
 
-neovim's `require("x.y")` names a module, not a path, and is carried by its
-own reading (`_hi_require_carry`): a module that resolves under `lua/` in one
-of those directories - `lua/x/y.lua`, else `lua/x/y/init.lua` - rides as
-`nvim/lua/...` and is scanned in turn, so what it requires rides too. The
-line stays as written, under a `hi-allow` the stager writes above it, and the
-staged `init.lua` opens with a line putting `@@HI_CONFIG@@/nvim` on the
-`runtimepath`: said in the config, the alias, `$EDITOR`, and `$VIMINIT` need
-no word of it. A `require` that resolves to no file there is dropped as
-before.
+**neovim's `require`** names a module: one under `lua/` in those directories
+(`lua/x/y.lua`, else `lua/x/y/init.lua`) rides as `nvim/lua/...` and is
+scanned in turn (`_hi_require_carry`). The line stays, under a `hi-allow`,
+and the staged `init.lua` first adds `@@HI_CONFIG@@/nvim` to the
+`runtimepath`. A `require` that resolves nowhere is dropped.
 
-The `git` dialect reads for what is private and not for what is missing. Its
-statements are keys under a `[section]`, so the grammar matches
-`<section>.<key>`, lower-cased: every key of `[credential]`, `[gpg]`,
-`[includeIf]`, and `[sendemail]`, a `[url]`'s `insteadOf`, and any section's
-signing, key, and credential settings are a `private` row, dropped with the
-lines that continue them and named by nobody, since keeping them home is the
-plugin's job. A header is never dropped, so the keys left under it stay in
-their section. Under a `hi-allow` a private line rides and is an `allowed`
-row, which `hi --plugins` lists (`_hi_allowed_lines`).
+**git** is read for what is private, matched as lower-cased
+`<section>.<key>`: the keys docs/INTEGRATIONS.md's _git_ lists are `private`
+rows, dropped with their continuations. Headers stay. Under a `hi-allow` a
+private line rides and is an `allowed` row for `hi --plugins`
+(`_hi_allowed_lines`).
 
-One finding is given back. A nanorc whose syntax include (`*.nanorc` outside
-`/usr/share/nano`) was dropped would highlight nothing, so the stripper keeps
-that finding's comment, and `load.sh`'s `_hi_nano_fallback` puts an include
-right under it: the dropped one again where its absolute path matches files
-on the target, else `include "/usr/share/nano/*.nanorc"` where the stock set
-is there. Placement matters because nano resolves an `extendsyntax` as it
-reads it; so does the name, since nano-syntax-highlighting spells `GO` what
-the stock set spells `go`. Each `extendsyntax` takes the target's spelling,
-compared without case, and one naming no syntax there becomes a
-`# hi dropped:` comment the stripper keeps too. The file is rewritten from
-those comments each session, not patched once, since the copy rides on to a
-next hop's target, which may have a different set.
+**nano's syntax includes** are given back. A dropped `*.nanorc` include
+outside `/usr/share/nano` keeps its comment through the strip, and `load.sh`'s
+`_hi_nano_fallback` adds an include under it each session: the same path
+where the target has those files, else the stock set. Each `extendsyntax`
+takes the target's spelling of its syntax, compared without case (`GO` and
+`go`), or becomes a kept `# hi dropped:` comment. It is rewritten from the
+comments every session, since the copy rides on to a next hop.
 
 ## HI.58 overlay directory members
 
@@ -1379,56 +1117,38 @@ before it sources it, and skips one that does not parse with a line on stderr.
 
 ## HI.59 extensions
 
-`extensions/` is a directory of [HI.58](#hi58-overlay-directory-members) with no
-home but the overlay: each member is an extension, a file in the POSIX+fish
-subset `common/aliases.sh` keeps (`export`, `alias`, `&&` chains), so one file
-serves all three shells and something new - another tool's init, a prompt
-segment - rides to every target with no edit to the tree. `common/paths.sh`
-exports `$_HI_EXTENSIONS` unguarded; the overlay is its only home. A plugin is
-the other thing: a config hi carries for a tool
-([HI.64](#hi64-what-is-switched-off)).
+**Code of the user's, in one file for three shells.** `extensions/` is a
+directory member ([HI.58](#hi58-overlay-directory-members)) with no home tier:
+each file is in `common/aliases.sh`'s POSIX+fish subset, so another tool's
+init or a prompt segment rides to every target with no change to the tree.
+(A plugin is something else: a config hi carries,
+[HI.64](#hi64-what-is-switched-off).)
 
-The moment is stated: right after `$_HI_ALIASES` (so an extension sees, and can
-replace, hi's aliases and the overlay's) and before the prompt is built, in name
-order - `core.sh`'s `_hi_load_extensions` for bash and zsh, and its fish copy in
-`common/config.fish`, which cannot call bash. Each member is parsed first by the
-shell loading it (`bash -n`, `zsh -n`, `fish --no-config -n`); one that does not
-parse is skipped with a yellow
-`hi: extension <name> does not parse in <shell>; skipped` on stderr rather than
-half-run, which is also what a fish-only or sh-only construct costs in the other
-shell. The parse is a fork per extension per shell start, and nothing without
-one. The glob sits in its own function (`_hi_dir_members`, the listing
-[HI.58](#hi58-overlay-directory-members)'s `header/` shares) so zsh's
-`null_glob` can be local there: `local_options` in the loader would also undo
-every `setopt` an extension makes. That function tests `-d` on the directory
-before it globs: unset, the pattern is `/*` and the loader would source what
-parses at the root of the disk ([HI.60](#hi60-a-shell-that-outlives-the-tree) is
-how it comes to be unset). fish's copy needs no such test - an empty variable
-takes the whole word with it there.
+**Loaded right after the aliases** (so it can replace them) and before the
+prompt is built, in name order: `_hi_load_extensions` for bash and zsh, a
+copy in `config.fish`. Each file is parsed first (`bash -n`, `zsh -n`,
+`fish --no-config -n`, a fork each); one that fails is skipped with a yellow
+line rather than half-run. The glob lives in `_hi_dir_members` so zsh's
+`null_glob` stays local, and it tests `-d` first, since an unset directory
+([HI.60](#hi60-a-shell-that-outlives-the-tree)) would glob `/*`.
 
-Hooks are variables, since the subset cannot define a function all three shells
-read. The loader unsets each before an extension runs and collects it after, so
-extensions compose without `${var:+...}`, which fish lacks. The set:
+**Hooks are variables**, since the subset cannot define a function all three
+read. Each is unset before an extension runs and collected after, so
+extensions compose:
 
-| hook               | what hi does with it                                                                                                                                                                                                                                                                                   |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `_HI_SEGMENT`      | a command and its words, split at spaces and run as they stand (no shell syntax, no glob, no `eval`) on every prompt hi draws; non-empty output is drawn after the environment prefix, followed by a space. bash marks any color in it for readline, zsh doubles its `%`. Ignored under a prompt tool. |
-| `_HI_PROMPT_INIT`  | a prompt program's init in [HI.67](#hi67-shell-hooks)'s shape (`oh-my-posh init {shell}`, `{shell}` the shell's name), run in place of hi's prompt where its command is on the target.                                                                                                                 |
-| `_HI_PROMPT_DRAWN` | `1` says the extension drew the prompt itself; hi's prompt stands down, as it does for a program a target's rc started.                                                                                                                                                                                |
+| hook               | what hi does with it                                                                                                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_HI_SEGMENT`      | a command and words, split at spaces and run as is (no syntax, glob, or `eval`) every prompt; output drawn after the environment segment. Ignored under a prompt tool |
+| `_HI_PROMPT_INIT`  | a prompt program's init ([HI.67](#hi67-shell-hooks)'s shape, `{shell}` the shell's name), run in place of hi's prompt where its command exists                        |
+| `_HI_PROMPT_DRAWN` | `1`: the extension drew the prompt, and hi's stands down                                                                                                              |
 
-The overlay's `aliases.sh` takes the same parse first, through the same
-function (`_hi_parses`, and fish's copy): its home tier is a file a bash rc
-sourced, `~/.aliases` or `~/.bash_aliases`, which is as likely to hold a
-function as an alias. `common/aliases.sh` is in the four-shell dialect and
-cannot ask which shell it is, so the check is a command it is handed
-(`$_HI_ALIAS_GUARD`): each of the three names its own, and a plain `sh`, which
-has none, is left `true` and sources the file as written. `load.sh` reads the
-aliases back for `$EDITOR` under `true` as well, since the session's shell
-parses the file anyway.
-
-`hi --doctor` lists the extensions in load order and warns for each a shell on
-this machine cannot parse, and for a directory entry that is not a member
-(`doctor_code_dir`, which reads `header/` the same way, by bash alone).
+**The overlay's `aliases.sh` is parsed the same way** (`_hi_parses`), since
+its home tier (`~/.aliases`, `~/.bash_aliases`) may hold bash functions.
+`common/aliases.sh` cannot tell which shell it is in, so each rc hands it
+the check as `$_HI_ALIAS_GUARD` (`true` for plain `sh` and for `load.sh`'s
+`$EDITOR` read). `hi --doctor` lists the extensions in load order and flags
+any that do not parse here, and any stray directory entry
+(`doctor_code_dir`).
 
 ## HI.60 a shell that outlives the tree
 
@@ -1467,452 +1187,264 @@ no later name arriving empty can reach the root of the disk again.
 
 ## HI.61 one overlay priority
 
-Every overlay member resolves in one order, written once as `scripts/pack.sh`'s
-`$_HI_OVERLAY_TABLE` and the rows `config/plugins` adds to it
-([HI.63](#hi63-plugins-rows)): the overlay's copy, else the site tier's
-(`$_HI_SITE_DIR`: `/etc/say-hi`, else the first `say-hi/` under
-`$XDG_CONFIG_DIRS`, read on a client alone) for `settings.sh`, `colors`,
-`packages`, and `plugins`, else the user's own file at home, else the tree's
-default where `config/` holds one. A site `settings.sh` is sourced ahead of
-the user's and joined under it in the one `settings.sh` that rides
-(`hi.sh`'s `_hi_tag_settings`); a site `colors` or `packages` rides in the
-tree default's place as an overlay copy does (`_hi_overlay_site`); a site
-`plugins` is the second of the three files `_hi_plugins_load` reads. A tier
-is added in a minor, never reordered. A row names the
-member, the `common/paths.sh` variable that carries one of hi's own files to
-the shells (`-` for a tool's member), whether `config/` holds a default
-(`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that reads it
-(the binaries `_hi_tool_here` looks for, `-` where nothing is looked for), its
-group and its plugin, which is its name in `hi --doctor`, its wire and the
-toggles that keep one of hi's own files home, and the home tier: candidate
-paths best first, a `@function` where no list can say it (oh-my-posh's
-rc-named config, the theme a framework's rc variable names, ssh's tag map),
-or `-` for none. The table holds hi's own files alone, which the list never
-switches; every row it does switch is a plugins file's.
-`_hi_overlay_src` - the stager, the cache, the include scan - and
-`hi --doctor` read the table, and a tool's member is resolved nowhere else:
-`_hi_overlay_home` walks its row's candidates as the overlay is packed.
-`paths.sh` cannot read a table, its four-shell dialect having no loop, so it
-spells out the rows of hi's own files (`settings.sh`, `colors`, `packages`,
-`extensions/`), a line per candidate, and `paths_test.sh` walks those rows down
-their tiers against it. No setting reorders it. `hi --doctor`'s files
-section (`doctor_files`) walks the same rows, naming each member's tool and
-marking every location that holds something used or passed over, and why
-nothing is sent when something is there; a member that is switched off has no
-row, the overlay section naming the list once.
+**One order for every member**: the overlay copy; else, for `settings.sh`,
+`colors`, `packages`, and `plugins`, the site tier's (`$_HI_SITE_DIR`:
+`/etc/say-hi`, else the first `say-hi/` under `$XDG_CONFIG_DIRS`, read on the
+client only); else the user's own file at home; else the tree's default. A
+site `settings.sh` is joined under the user's (`_hi_tag_settings`), a site
+`colors` or `packages` rides as an overlay copy would (`_hi_overlay_site`),
+and a site `plugins` is read between the tree's and the user's. Tiers may be
+added in a minor, never reordered.
 
-The home tier is the config in force _here_: client-only, since a relay
-packs nothing of the middle box's
-([HI.66](#hi66-the-packer-stays-home)), and only with the member's tool on
-this machine (`_hi_tool_here`). Whichever tier answers, the include scan
-([HI.57](#hi57-carried-configs-and-the-include-scan)) runs over it on the way
-out.
+**Written once**, as `scripts/pack.sh`'s `$_HI_OVERLAY_TABLE` (hi's own
+files, never switched off) plus the plugins rows ([HI.63](#hi63-plugins-rows));
+the table's comment lists the columns. `_hi_overlay_src`, the cache, the
+include scan, and `hi --doctor` all read it; `_hi_overlay_home` walks a
+member's home candidates. `paths.sh` cannot read a table (no loop in its
+dialect), so it spells out hi's own rows, and `paths_test.sh` checks them
+tier by tier. `doctor_files` walks the same rows, marking each location used
+or passed over.
 
-A shell's own rc has no home tier. `bashrc`, `zshrc`, and `config.fish` are
-where people export tokens, and a `~/.bashrc` found at home would run on
-every box visited without the user having asked, so they ride only from the
-overlay, where a copy is the user's say-so ([SUPPORT.md](SUPPORT.md) keeps
-the same line on carrying `~/.bashrc`). `extensions/` and `settings.sh` live
-in the overlay alone anyway.
+**The home tier is this machine's**: the client only (a relay packs nothing
+of the middle box's, [HI.66](#hi66-the-packer-stays-home)), and only with the
+member's tool here (`_hi_tool_here`). Whichever tier answers, the
+[include scan](#hi57-carried-configs-and-the-include-scan) runs over it.
 
-A member is `<tool>/<file>` where its tool keeps a directory under
-`~/.config`, the file named as the tool names it, so the overlay has the
-shape of the `~/.config` it stands in for and no two tools ask for one name;
-a tool that keeps none (`starship.toml`, `inputrc`, `screenrc`) has its
-member at the top. A home candidate is a file, or with a trailing `/` a
-directory the member's file is looked for in: micro and zellij take a
-directory of fixed names, so each of their files resolves on its own against
-the tool's directory (`$MICRO_CONFIG_HOME`, `$ZELLIJ_CONFIG_DIR`, else the
-XDG one), and zellij's `layouts/` and `themes/` are trailing-`/` entries
+**Shell rcs have no home tier.** `bashrc`, `zshrc`, and `config.fish` are
+where tokens get exported, so a `~/.bashrc` found at home would run on every
+box unasked; they ride only from the overlay ([SUPPORT.md](SUPPORT.md) keeps
+the same line).
+
+**Members are named like `~/.config`**: `<tool>/<file>` where the tool keeps
+a directory there, else the bare name (`starship.toml`, `inputrc`), so no two
+tools collide. A trailing `/` on a home candidate is a directory to look in:
+micro's and zellij's fixed file names resolve one by one, and zellij's
+`layouts/` and `themes/` are directory members
 ([HI.58](#hi58-overlay-directory-members)).
 
 ## HI.62 generated wiring
 
-Pointing a tool at its carried config is a line on the target, and the target's
-line has to parse in bash, zsh, fish, and sh: `common/paths.sh`'s dialect, which
-has no loop to walk a table with. So the client writes the lines. A row's wire
-column says how: `env:<variables>` exports each as the member's path (a
-`<variable>=<word>` among them as that word, which is how git's
-`GIT_CONFIG_COUNT=1` and `GIT_CONFIG_KEY_0=include.path` ride beside the
-`GIT_CONFIG_VALUE_0` that names the file),
-`envdir:<variable>` as the directory holding it (eza and its fixed
-`eza/theme.yml`), `flag:<command> <words>` and `flagdir:` alias the command to
-itself with the words and that path, where the target has the command (a flag
-ending in `=` takes the path in the same word), `xdg:<command>` aliases it with
-`$XDG_CONFIG_HOME` set to the overlay, where the `<tool>/<file>` members sit as
-they would under `~/.config`, and `-` leaves the member to hi's own code. `xdg:`
-is the fallback: everything the command starts inherits the variable, so it is
-for a file no variable or flag reaches (helix's `languages.toml`), and its row
-follows the flag row's so its alias replaces that one when both files ride. A
-row holds several wires with a `;` between them, read in order, a later alias
-replacing an earlier one. An `env:` over a name of hi's own is how hi's code on
-a target learns a member's path without naming the member: `$_HI_VIMRC` and
-`$_HI_NVIMRC` for `load.sh`'s `$VIMINIT`, and `$_HI_NANORC` for its syntax
-fallback. `<names>=<command>` aliases other names to the command, and words
-ahead of it that hold a `=` are its environment: neovim answers to `vim` as well
-and keeps its state under the session tree. helix's rows wire `hx` and `helix`
-each as itself and alias neither name to the other: which name a target's helix
-answers to is the user's call, in their own `aliases.sh`. The path goes in bare:
-`load.sh` reads an alias's body back for `$EDITOR`, and a quote inside one does
-not survive that.
+**The client writes the target's lines.** Pointing a tool at its carried
+config is a line every target shell must parse, in `common/paths.sh`'s
+four-shell dialect, which has no loop; so `_hi_overlay_wiring` writes them
+into `wiring.sh`, staged beside the members, and `paths.sh` sources it on a
+target only. A row's wire says how:
 
-micro's row carries two flags ahead of `-config-dir`, `-backup false` and
-`-savehistory false`: its config directory is the session's tree, and a backup
-or a history written there is lost with it. `_hi_overlay_wiring` turns the
-members an overlay archive carries into `wiring.sh`, which `_hi_overlay_tar`
-stages beside them, and `paths.sh` sources it on a target only. At home each
-tool's own config is already in force.
+- `env:<vars>` exports each as the member's path; `<var>=<word>` sets a
+  word (git's `GIT_CONFIG_COUNT=1` and `GIT_CONFIG_KEY_0=include.path` beside
+  `GIT_CONFIG_VALUE_0`). `envdir:<var>` names the directory (eza's fixed
+  `theme.yml`). An `env:` over one of hi's names (`$_HI_VIMRC`, `$_HI_NVIMRC`,
+  `$_HI_NANORC`) tells `load.sh` a path without naming a member.
+- `flag:<command> <words>` aliases the command with the words and path, where
+  the target has it (a flag ending in `=` takes the path in the same word);
+  `flagdir:` the directory. `<names>=<command>` adds names, and `VAR=value`
+  words before the command are its environment (neovim answers to `vim` too).
+  The path goes in unquoted, since `load.sh` reads an alias body back for
+  `$EDITOR`.
+- `xdg:<command>` aliases with `$XDG_CONFIG_HOME` at the overlay, the last
+  resort, since everything the command starts inherits it (helix's
+  `languages.toml`, whose row follows the flag row so its alias wins).
+- `-` leaves the member to hi's code. Several wires go `;` apart, later
+  aliases winning.
 
-A target therefore knows no wired member by name, tests no file per member
-per shell start, and gets no line for a member that stayed home. The paths
-are written under `$_HI_CONFIG_DIR`, unexpanded, so the file holds on a hop
-taken from inside a session, which sends it as it stands. `wiring.sh` is no
-member:
-one in the overlay is not read, and the archive has none when no member it
-carries has a wire.
+micro gets `-backup false -savehistory false`, since its config directory is
+the session's tree.
 
-A plugin's `env` is the one line that holds a value of this machine's: each
-variable it names that is set here becomes `export NAME='value'`, its plugin
-on, read as the overlay is packed. Single quotes hold a value in all four
-dialects only without a quote, a backslash, or a line break in it, so one
-with any stays home (`_hi_env_rides`), and a name that reads as a secret is
-turned down with its plugin's row ([HI.63](#hi63-plugins-rows)).
+**So a target knows no member by name**, tests no file per shell start, and
+gets no line for a member that stayed home. Paths stay under
+`$_HI_CONFIG_DIR`, unexpanded, so the file holds on a relay. `wiring.sh` is
+no member: one in the overlay is not read.
 
-The lines are part of `_hi_overlay_cache_key`. The member list alone would
-hand an archive cached by an older packer to a newer one that wires the same
-members another way.
+**A plugin's `env`** is the one line with a value from this machine:
+`export NAME='value'` for each named variable set here. A value holding a
+quote, backslash, or line break stays home (`_hi_env_rides`); a secret-looking
+name is refused ([HI.63](#hi63-plugins-rows)).
 
-No line is written behind a test of a setting: what is switched off is
-decided on the client ([HI.64](#hi64-what-is-switched-off)), and has no line.
-An alias line ends `|| true`, since the target may lack the command: the
-file's status is its last line's, and `core.sh` sources `paths.sh` under
+The lines are part of `_hi_overlay_cache_key`, since a newer packer may wire
+the same members differently. Nothing is written behind a setting's test:
+what is off is decided on the client ([HI.64](#hi64-what-is-switched-off)).
+An alias line ends `|| true`, since `core.sh` sources `paths.sh` under
 `set -e`.
 
 ## HI.63 plugins rows
 
-The tools' rows are written as plugins, in a file: the tree's
-`config/plugins`, and the user's in another of the same shape, the overlay's
-`plugins`. Each is TOML in the subset `core.sh`'s `_hi_toml_row` reads, a
-`key = "value"` to a line, `#` lines and blank ones skipped. A
-`[<group>.<name>]` table is a plugin: `files` is its members, a space apart,
-`tool` the commands that read them (left out, the name; `-` for none), and
-`wire`, `home`, and `dialect` what each file has unless a
-`[<group>.<name>."<member>"]` table under the plugin gives that file its own.
-`scripts/pack_plugins.sh`'s `_hi_plugins_load` reads both files into
-`$_HI_PLUGIN_ROWS`, a row a file in the table's own shape
-([HI.61](#hi61-one-overlay-priority)), so the order, the tool check, the
-include scan, the cache, the wiring ([HI.62](#hi62-generated-wiring)), and
-`hi --doctor` take a row of the user's as they take one of hi's. The overlay's
-file is read after the tree's, and a plugin of a name the tree's has replaces
-the tree's whole, where it stood. Both are read once per tree and
-`$_HI_CONFIG_DIR`, the first time a row is asked for.
+**Plugins are TOML tables.** The tree's `config/plugins` and the overlay's
+`plugins` share one shape, the subset `_hi_toml_row` reads
+(docs/SETTINGS.md's _A tool hi does not know_ has the keys).
+`_hi_plugins_load` reads both into `$_HI_PLUGIN_ROWS`, a row per file in the
+overlay table's shape ([HI.61](#hi61-one-overlay-priority)), so everything
+downstream (order, tool check, include scan, cache,
+[wiring](#hi62-generated-wiring), `hi --doctor`) treats the user's rows as
+hi's. The overlay's is read second; a plugin of a tree plugin's name replaces
+it in place. The tool is the record because the tool is what is switched,
+wired, and reported, and a new key is a line a 1.x can add where a column was
+a break.
 
-The tool is the record because the tool is what is switched, wired, and named
-in a report: a key written once serves every file of it, and a new key is a
-line a 1.x can add, where a column was a break.
+**A home column is data, never evaluated.** `_hi_path_list` reads
+`:`-separated candidates starting at `/`, `~/`, or `$NAME` (dropped while
+unset); `,` within one takes the first not dropped (`$NAME/rc , ~/.rc` is
+`${NAME:-$HOME}`'s place). Nothing else expands. A grammar can grow in a 1.x
+where an `eval` could never narrow. `@<function>` homes are the packer's own,
+for the tree's file only.
 
-A home column, the table's or a file's, is data and is never evaluated.
-`_hi_path_list` reads it as candidates a `:` apart, best first, each a path
-starting at `/`, at `~/`, or at `$NAME`, which is that variable's value and
-drops the path while it is unset or empty. A candidate may be several paths
-a `,` apart, of which the first not dropped is the one: `$NAME/rc , ~/.rc`
-is `${NAME:-$HOME}`'s place, where a tool looks once its variable is unset.
-Nothing else expands: no `${NAME:-default}`, no command substitution, no
-glob. A grammar can grow in a 1.x where an `eval` could never be narrowed.
-A home of `@<function>` is a lookup of the packer's own; the tree's file may
-name one and the overlay's may not.
-
-What the table cannot hold is left out and kept, with its file, its line and
-the reason, in `$_HI_PLUGIN_BAD` for `hi --doctor`: a key above the first
-table or of no name hi reads, a line that is neither, a table that is no
-`[<group>.<name>]` (the rows this shape replaced among them, which
-`hi --configure` converts), a second plugin of a name in one file, a file's
-table under no plugin or for a file it has not, a plugin of no files; a member
-that is no `<name>`, `<dir>/<name>` or `<dir>/` (`_hi_plugin_member_ok`), that
-is hi's own, another plugin's, or the directory one sits under, or that is
-`wiring.sh` or `plugins`; a tool that is not command names or `-`; a wire that
-is not `env:` or `envdir:` over variable names, `flag:` or `flagdir:` over a
-command and its words, or `xdg:` over one command, wires a `;` apart; a
-dialect `$_HI_DIALECTS` has no row of; a `shells` that is not of bash, zsh,
-and fish, or with no `init`; an `env` that is not variable names, or that
-names one of hi's own or one that reads as a secret. A file that is turned
-down takes
-nothing of its plugin with it. The wire is checked because its words become a
-line every target sources: its names, its environment, its command, and its
-words each hold nothing that runs or expands there beyond a `$NAME`. The check
-and `_hi_overlay_wiring` take a wire apart through one function,
+**What the table cannot hold is left out** and recorded in
+`$_HI_PLUGIN_BAD` (file, line, reason) for `hi --doctor`: unknown keys or
+lines, a malformed or duplicate table, a plugin with no files, a member that
+is not `<name>`, `<dir>/<name>`, or `<dir>/` (`_hi_plugin_member_ok`) or is
+taken (hi's own, another plugin's, `wiring.sh`, `plugins`), a bad tool, wire,
+dialect, `shells`, or `env` (including one of hi's names or a secret-looking
+one). A file turned down takes nothing of its plugin with it. The wire is
+checked because it becomes a line every target sources: nothing in it may run
+or expand beyond `$NAME`. The check and `_hi_overlay_wiring` share one parser,
 `_hi_wire_read`, so what is admitted is what is written.
 
-Neither file rides. The packer is their one reader and stays home
-([HI.66](#hi66-the-packer-stays-home)), so the tree's is cut from every
-payload (`$_HI_PAYLOAD_CUT`) and the overlay's is no member, `plugins` being a
-name no row may take. A hop taken from a target sends the session's `config/`
-as it stands, so the members that rode and their wiring arrive again, and
-nothing of that machine's home does.
+**Neither file rides.** The packer stays home
+([HI.66](#hi66-the-packer-stays-home)), so the tree's file is cut from the
+payload (`$_HI_PAYLOAD_CUT`) and `plugins` is no member. A relay sends the
+`config/` it was given.
 
-The reading is kept between connects, `hi.plugins.<key>` in the runtime dir,
-since parsing the tree's file was a third of a connect's client work: tagged
-lines read back with `read`, never sourced, and read afresh when a plugins
-file or `scripts/` is newer, or a plugins file comes, goes, or changes size.
+**The reading is cached** as `hi.plugins.<key>` in the runtime dir (parsing
+was a third of a connect's client work), read back line by line, never
+sourced, and refreshed when a plugins file or `scripts/` is newer, or a
+plugins file appears, goes, or changes size.
 
 ## HI.64 what is switched off
 
-A plugin is a `[<group>.<name>]` table of a plugins file
-([HI.63](#hi63-plugins-rows)), its name the row's plugin column and its group
-the row's group column (`editors`, `mux`, `prompt`, `cli`, `shell`, or one the
-user names). A row with no group is
-hi's own file, which the list never switches; only its off column can
-(`packages`, under `_HI_DISABLE_HEADER`). `_hi_plugin_off` answers for a member:
-off when `$_HI_PLUGINS_OFF` names its plugin or the member itself
-(its row's, or its own where it is one file of a directory row,
-`extensions/10-kube`), or when a toggle of its off column is 1.
+**A plugin** is a `[<group>.<name>]` table ([HI.63](#hi63-plugins-rows)). A
+row with no group is hi's own file, which only its off column switches
+(`packages`, under `_HI_DISABLE_HEADER`). `_hi_plugin_off` says a member is
+off when `$_HI_PLUGINS_OFF` names its plugin, its row's member, or itself
+(one file of a directory row, `extensions/10-kube`), or a toggle in its off
+column is 1.
 
-It is asked in `_hi_overlay_src` and `_hi_overlay_files`, the two gates
-every member passes on its way out, so what is off is not packed, has no
-line in `wiring.sh` ([HI.62](#hi62-generated-wiring)), and is not in the
-cache key's member list. The target is handed the result and needs neither
-the list nor the table. An overlay copy stays home too: off is the user
-saying no, which outranks a file saying yes. A prompt program that is off is
-left out of the list a target is handed (`_hi_prompt_here`) unless
-`_HI_PROMPT_TOOL` names it: [HI.32](#hi32-starship-deference)'s default is
-every program found here, and off is the user saying not that one.
+**Decided on the client**, at the two gates every member passes
+(`_hi_overlay_src`, `_hi_overlay_files`): what is off is not packed, has no
+wiring line ([HI.62](#hi62-generated-wiring)), and is not in the cache key.
+An overlay copy stays home too, since off outranks a file. A prompt program
+that is off is left out of the list a target gets (`_hi_prompt_here`) unless
+`_HI_PROMPT_TOOL` names it.
 
-Two things keep it cheap and right. Every member asks, several times a
-connect, and nearly always nothing is off, so that verdict is kept for the
-values in force: the list, and each toggle an off column names
-(`$_HI_OFF_TOGGLES`). And a toggle is not always what the environment says:
-under `_HI_DISABLE_LOCAL=1` `common/paths.sh` has set every one for this
-machine alone, so there `_hi_toggle_on` reads `settings.sh`'s own
-`export NAME=value` lines, the last of a name winning, as text.
+**Cheap and right.** The usual verdict, nothing off, is memoized on the
+values in force (the list and `$_HI_OFF_TOGGLES`). Under `_HI_DISABLE_LOCAL=1`
+`paths.sh` sets every toggle for this machine, so `_hi_toggle_on` reads
+`settings.sh`'s own `export` lines as text, the last of a name winning.
 
-`scripts/plugins.sh` and `hi --configure` both write the list, as one
-`_HI_PLUGINS_OFF` line of `settings.sh` in `hi --configure`'s padded,
-marked spelling, so each rewrites the line the other left. `load.sh` reads it on a
-target, from the `settings.sh` that rode: an editor it names is passed over
-for `$EDITOR`, and `vim` or `nvim` in it sets no `$VIMINIT`.
+`scripts/plugins.sh` and `hi --configure` write the list as one
+`_HI_PLUGINS_OFF` line in the same spelling, so each rewrites the other's.
+On a target `load.sh` reads it from the `settings.sh` that rode: an editor in
+it is skipped for `$EDITOR`, and `vim` or `nvim` sets no `$VIMINIT`.
 
 ## HI.65 kept session
 
-`hi --keep <target>` (or `_HI_KEEP=1`) runs the session inside the target's
-tmux, zellij, or screen, so it outlives the connection, and where the target
-has none of the three holds the session's tree through a drop. All of it is
-the bash tier's, on every arm, since a container takes the script an ssh
-target does: `--plain` and a bash-less target connect as usual, and only an
-ssh link's drop is retried. Both halves are `common/keep.sh`'s: the
-client's, which `hi.sh` sources, and the target's, which `load.sh` does.
+`hi --keep <target>` (or `_HI_KEEP=1`) runs the session in the target's tmux,
+zellij, or screen so it outlives the connection; with none of the three, the
+session's tree is held through a drop instead. It is the bash tier's, on
+every arm; only an ssh drop is retried. `common/keep.sh` holds both halves:
+the client's (sourced by `hi.sh`) and the target's (by `load.sh`).
 
-`$_HI_DISABLE_KEEP=1` switches it off whole. `_hi_keep_off` is the one
-reading: `_hi_keep_probes` is false, so no connect carries the reattach, the
-start, the sweep, or the hold, keeps a record, or retries; `--keep` and
-`--end` are refused by name (`_hi_keep_refuse`); and `_hi_payload_excl` cuts
-`common/keep.sh` and `common/mux.sh` from the tree. A session's `hi.sh` finds
-no `keep.sh`, defines the four functions the connect path calls as no-ops,
-and reads the absence as the switch, so a relay from it carries none of it
-either, and its `load.sh` stands in for the session's six the same way; `common/aliases.sh` makes its multiplexer aliases only where `mux.sh`
-rode, which leaves `wiring.sh`'s.
+`$_HI_DISABLE_KEEP=1` turns it all off through `_hi_keep_off`: no connect
+carries the attach, start, sweep, or hold; `--keep` and `--end` are refused
+(`_hi_keep_refuse`); and `keep.sh` and `mux.sh` stay out of the payload. A
+session's `hi.sh` and `load.sh` read their absence as the switch and define
+no-op stand-ins, so a relay carries none of it either.
 
-- **The name.** `hi-<target>-<id>`, from `_hi_mux_name`: the target as typed
-  on this client, then a hash of the client's username, so two people who
-  share an account on a target keep sessions of their own, and one person
-  reaches theirs from any machine that calls the host the same thing. The
-  username rides as a hash because a session name sits in the target's
-  process table, which never learns the operator's
-  ([HI.47](#hi47-what-a-child-inherits)). The target part keeps
-  `[[:alnum:]_-]` and turns everything else into `-`: tmux refuses `:` and
-  `.` in a session name, zellij takes the same class, and `/` and `@` read
-  badly in a status line, so a kube `ctx:ns:pod/ctr` would be
-  `hi-ctx-ns-pod-ctr-<id>`.
-- **Reattach comes first.** Every interactive connect, `--keep` or not,
-  carries `_hi_keep_attach` between the preamble and the unpack. Its
-  `_hi_kept` asks tmux (`has-session -t =<name>`), then zellij (`ls -n`,
-  exited sessions dropped: attaching one would resurrect it), then screen
-  (`-ls`, Dead entries dropped), and a hit is attached and the script exits
-  there, with nothing unpacked. `--no-keep` and `hi <target> <cmd>` leave the
-  block out; without a terminal it does nothing.
-- **The owner pane.** With no session to attach, `_hi_keep_start` replaces
-  the bash handoff with `tmux new-session -s <name>` (or zellij's or screen's
-  start) running the same `bash --rcfile hi.bashrc -i`, under the config hi
-  carried, in the first of the three the target has. `load.sh` runs in that
-  pane as in any session, so its exit hook is still the one thing that
-  removes the tree: on `exit`, a killed session, or the timeout.
-- **The environment is an argv.** A multiplexer server already running hands
-  a new pane its own environment, not the caller's, so the session's
-  variables ride as `env NAME=value ...` ahead of bash. The subshell that
-  execs the multiplexer unsets them first: a server started here would
-  otherwise carry the client's verdicts to every other pane
-  ([HI.47](#hi47-what-a-child-inherits)). `$_HI_KEEP_MUX` and `$_HI_KEEP_NAME`
-  are how `load.sh` knows it is the owner.
-- **zellij starts from a layout.** It takes a first pane's command from a
-  layout and nowhere else, so the start writes `hi.keep.kdl` beside the rc:
-  zellij's own tab and status bars around one pane whose `args` are that `env`
-  argv, each word a KDL string with its `"` and `\` escaped. Its options keep
-  the session off the disk (`--session-serialization false`: nothing under
-  `~/.cache/zellij` to resurrect), make a dropped client a detach whatever
-  the config says (`--on-force-close detach`), and turn off the startup-tip
-  and release-notes popups, which would take the first prompt's keys - those
-  two only where `zellij options --help` lists them, since a zellij handed an
-  option it does not know refuses to start.
-- **The trap stands down.** On a connect that keeps, the bootstrap's exit
-  trap, which removes `$_HI_CLEANUP`, is guarded by `_hi_kept ||`: bash as `sh`
-  runs an exit trap on a hangup, and a dropped link would otherwise take the
-  tree from under the session.
-- **A target with none of the three.** A shell cannot outlive its connection
-  with nothing holding its terminal, and its tree can. There the start block
-  hands off to bash as usual with `$_HI_KEEP_HOLD` set to the name, and traps
-  the hangup (`trap : HUP`) so the bootstrap waits for `load()` instead of
-  dying under it. `load()` may hold where it is no owner pane, has a
-  disposable tree and a terminal, and `$_HI_HOLD_TIMEOUT` is not 0
-  (`_hi_keep_holds`), and does hold once `hi.hold` carries the name: written
-  by `load()` for that connect, or later by `hi --keep` typed in the session
-  (`_hi_keep_hold_here`), which is how a session started without `--keep`
-  turns it on. Each shell's rc has a hook that, while `hi.hold` is there,
-  writes `$PWD` to `hi.cwd` (a prompt hook in bash and zsh, an
-  `--on-variable PWD` function in fish), and the exit hook, where the
-  terminal is gone, leaves the tree under `hi.held` - the watcher's pid, the
-  shell's, the name - in place of removing it. An `exit` still has its
-  terminal, and takes the tree. The bootstrap's trap leaves a tree with
-  `hi.hold` alone, since bash as `sh` runs it on the hangup, ahead of that
-  hook.
-- **The timer.** `_hi_tree_watch`, which every session already runs, is the
-  held tree's: once the shell is gone and `hi.held` names it, the watcher
-  waits `$_HI_HOLD_TIMEOUT` (15m) and removes the tree. It stops early
-  for `hi.end`, which `hi --end` leaves, and goes without touching a tree
-  whose `hi.pid` is no longer that shell's.
-- **Taking a held tree.** A connect that looks for a kept session runs
-  `_hi_keep_held` after the sweep, at a terminal: a sibling tree whose
-  `hi.held` carries its name, in a directory the account owns that is no
-  symlink, becomes its own. It writes its pid to that tree's `hi.pid`,
-  removes `hi.held` - the step one of two connects wins - drops the empty
-  tree it had made, re-points `$_HI_HOME` and the rest, and changes to the
-  directory in `hi.cwd`. The unpack is skipped (`$_hi_held`), the session
-  holds as the dropped one did, and its header reads `Resumed`. The payload
-  still crossed the wire: one script serves both answers.
-- **A multiplexer typed bare.** In a session `tmux`, `zellij`, and `screen`
-  are aliases to `common/mux.sh` (`common/aliases.sh`, over the wiring's
-  aliases for the three). Typed with no word after it, at a terminal, outside
-  a multiplexer, in a session with `hi.keep`, it asks first, the way the
-  owner pane's exit does: what stays on the target and for how long, what
-  comes back to it and what closes it, and that its panes open hi's shell,
-  `[y/N]`. A `y` runs `hi --keep` with `$_HI_KEEP_WITH` naming the tool, and
-  the start block takes that one of the three; anything else starts nothing
-  and names the plain tool (`tmux new -s work`). One typed bare where
-  there is no `hi.keep` asks too, saying its panes get the machine's own
-  shell, and a `y` is the tool; with words of its own it passes through to
-  the tool on the config hi carried, unasked. So a multiplexer started by
-  habit is the kept session, not one left on a tree its connect removes at
-  the drop, and never one the user was not told about.
-- **Kept from inside.** `hi --keep` with no target, typed in a session, keeps
-  that session: `_hi_keep_here` runs the same attach and start under `sh`,
-  from where a connect starts the pane. Three things make that possible. The
-  attach block exports `$_HI_KEEP_AS`, the target as the client typed it, so
-  the name is the one a later `hi <target>` looks for. `load()` writes
-  `hi.keep` in the tree, a `NAME=value` a line: that name, the client's
-  verdicts, the tree, and its own pid as `$_HI_KEEP_OUTER`; `hi.sh`, a child
-  that inherits none of them ([HI.47](#hi47-what-a-child-inherits)), reads
-  the pane's argv off it, and drops its own exports first so the multiplexer
-  it starts inherits a child's environment and no more. And the tree now has
-  two sessions on it, so the last one out removes it: the start leaves
-  `hi.kept` as the kept session's claim, which stops the first session's
-  `clean_all` and its bootstrap trap (`[ -e hi.kept ] ||`, on every connect
-  that could be kept); the owner pane's `clean_all` gives the claim up and
-  leaves the tree while `$_HI_KEEP_OUTER` is still running. A session with
-  no `hi.keep` - a command's, a `--no-keep` one, an owner pane - says it
-  cannot be kept, as does one already inside a multiplexer. On a machine
-  with none of the three the session holds its tree instead (below).
-- **The other panes.** A multiplexer opens a new pane on its default shell,
-  the host's own, which reads none of hi's rc
-  ([HI.46](#hi46-session-rc-directory)). The owner pane's `_hi_keep_panes`
-  leaves a launcher, `hi.pane`, beside the rc - what `load()` exported for
-  the session shell, then that shell's own command - and makes it the
-  session's: tmux's `default-command` and screen's `shell`, set for this
-  session alone, and zellij's `--default-shell`, which it takes at the start
-  only, so `hi.sh` names the path there. Those panes run on the owner's
-  tree, so the owner's end is the session's: `clean_all` kills the session
-  after it removes the tree.
-- **Closing.** `load()` loops: when the pane's shell exits with a client
-  attached, `_hi_keep_stays` asks, and anything but `y` detaches the client
-  and starts a fresh shell. zellij has no command for that - its
-  `action detach` leaves an attached client where it is - so there the fresh
-  shell comes with a line naming the key. With nobody attached it closes.
-  tmux's `detach-on-destroy` is set `on` for this session alone, so closing
-  it ends the connect even where a config that rode says `off`.
-  `hi --end <target>` kills the session over one call, the arm's `probe`, and the pane's
-  bash takes the hangup. zellij may kill that bash before its exit hook has
-  run (a layout's command gets SIGTERM, which an interactive bash ignores,
-  then SIGKILL), so the same call waits up to two seconds for a pane to go
-  and then sweeps, as a connect does.
-- **A session that died.** A target that goes down kills a session with no
-  exit hook run, and a `/tmp` that outlasts the reboot keeps its tree. So
-  every session's `load()` claims its tree (`_hi_keep_claim`): an owner pane
-  writes `hi.kept`, its pid, then `$_HI_KEEP_OUTER`'s where it was kept from
-  inside, and any other session `hi.pid`, its own, and only into a tree it
-  may remove; a held tree's claim is `hi.held`, its watcher's pid first. A connect
-  that looks for a kept session and attaches none runs `_hi_keep_sweep` once
-  it has a tree of its own: each sibling of that tree (`<user>.hi.*`, the
-  same `mktemp` template in the same directory) whose claim names no process
-  still running is removed. Liveness is asked of the pids and not of the
-  multiplexer, which a connect with another socket directory cannot see; a
-  pid some other process of the account's now holds leaves the tree for a
-  later connect. An empty claim - `hi --keep` typed inside, its pane not up
-  yet - and a tree with none are left alone, and a tree a kept session
-  claims is judged by that claim, whatever its first session's says. Between
-  the two sits `_hi_tree_watch`: a job `load()` starts apart from the
-  session, which ignores the hangup, holds no terminal, polls for the
-  shell's pid once a minute, and runs the exit hook itself where the shell
-  is gone and the tree is not - both the shell and the bootstrap's `sh`
-  killed outright. The hook kills it on an ordinary exit, and a target that
-  goes down takes it too, which is what the sweep is for.
-- **The client's record.** A client cannot see a target's sessions without
-  connecting, so it notes the ones it has seen: an empty `hi.kept.<key>` in
-  hi's runtime directory, `<key>` the hash of the target and the ssh options
-  that names the connection's control socket. The target's script is what
-  writes it. A connect that looks for a kept session runs it as
-  `sh -c '...; e=$?; rm -rf <scratch>; exit $e'` rather than the bare pair
-  of commands, so its status outlasts the scratch directory's removal, and
-  the script ends 86 with a kept session left behind - off the attach, or at
-  its end, which covers a `hi --keep` typed inside: a connect that started
-  no session looks there only where `hi.kept` is, which a `hi --keep` writes
-  before its pane starts - and 0 otherwise, never
-  the session shell's own status. `_hi_keep_connect` turns 86 into 0 and
-  the record on, 0 into the record off, and leaves it alone on anything else
-  (255, a link that dropped). A connect that keeps writes it before it
-  connects, since a drop says nothing; `hi --end` removes it. With the
-  record there, the next connect's script carries one more line after the
-  attach: no session by that name, on a target that has a multiplexer to
-  have held one, and it says the kept session is gone before it goes on. A
-  keeping connect writes the record before it knows what the target has, so
-  one with none of the three is not told of a session it never kept. The runtime directory does not outlive a logout, and a
-  client that forgot expects nothing.
+- **The name.** `hi-<target>-<id>` (`_hi_mux_name`): the target as typed,
+  with anything outside `[[:alnum:]_-]` turned to `-` (tmux refuses `:` and
+  `.`), then a hash of the client's username, so people sharing an account
+  keep their own sessions without naming themselves in the target's process
+  table ([HI.47](#hi47-what-a-child-inherits)).
+- **Reattach first.** Every interactive connect carries `_hi_keep_attach`
+  between the preamble and the unpack: `_hi_kept` asks tmux
+  (`has-session -t =<name>`), zellij (`ls -n`, exited sessions dropped, since
+  attaching would resurrect one), then screen (`-ls`, dead entries dropped).
+  A hit attaches and the script ends, nothing unpacked. `--no-keep` and a
+  one-off command leave it out.
+- **The owner pane.** Otherwise `_hi_keep_start` replaces the bash handoff
+  with the multiplexer's start running the same `bash --rcfile hi.bashrc -i`.
+  `load.sh` runs there as in any session, so its exit hook still removes the
+  tree. The session's variables go as an `env NAME=value ...` argv, since a
+  running server hands new panes its own environment, and are unset before
+  the exec so a new server keeps none of them. `$_HI_KEEP_MUX` and
+  `$_HI_KEEP_NAME` tell `load.sh` it is the owner.
+- **zellij** takes a first command only from a layout, so the start writes
+  `hi.keep.kdl` (the `env` argv as escaped KDL strings, under zellij's own
+  bars), with `--session-serialization false` (nothing to resurrect),
+  `--on-force-close detach`, and the startup popups off, each only where
+  `zellij options --help` lists it, since an unknown option stops zellij.
+- **The trap stands down.** bash as `sh` runs the bootstrap's exit trap on a
+  hangup, so on a keeping connect the trap is guarded by `_hi_kept ||`.
+- **No multiplexer: the hold.** The bootstrap traps the hangup
+  (`trap : HUP`) and hands off with `$_HI_KEEP_HOLD`. `load()` holds when it
+  is no owner pane, has a disposable tree and a terminal, and
+  `$_HI_HOLD_TIMEOUT` is not 0 (`_hi_keep_holds`), once `hi.hold` names the
+  session (written by `load()`, or later by `hi --keep` typed inside,
+  `_hi_keep_hold_here`). A per-shell hook writes `$PWD` to `hi.cwd`. When the
+  terminal is gone the exit hook leaves the tree under `hi.held` (watcher
+  pid, shell pid, name) instead of removing it; an `exit` still removes it.
+- **The timer.** `_hi_tree_watch`, which every session runs, waits
+  `$_HI_HOLD_TIMEOUT` (15m) once `hi.held` names its shell, then removes the
+  tree; `hi.end` (from `hi --end`) stops it early, and a tree whose `hi.pid`
+  changed is left to its new session.
+- **Taking a held tree.** After the sweep, at a terminal, `_hi_keep_held`
+  adopts a sibling tree whose `hi.held` carries the name, only in a
+  directory the account owns and never through a symlink. It writes its pid
+  to `hi.pid` and removes `hi.held` (the step one of two connects wins),
+  drops its own empty tree, re-points `$_HI_HOME`, and changes to `hi.cwd`.
+  The unpack is skipped; the header says `Resumed`.
+- **A bare multiplexer.** In a session, `tmux`, `zellij`, and `screen` are
+  aliases to `common/mux.sh`. Typed bare at a terminal, outside a
+  multiplexer, it asks `[y/N]`, saying what stays and for how long; `y` runs
+  `hi --keep` with `$_HI_KEEP_WITH` naming the tool. With arguments it runs
+  the tool on the carried config, unasked.
+- **Kept from inside.** `hi --keep` with no target keeps the current session
+  (`_hi_keep_here`): the attach block exported `$_HI_KEEP_AS` (the target as
+  typed), and `load()` wrote `hi.keep` (`NAME=value` lines: the name, the
+  client's verdicts, the tree, its own pid as `$_HI_KEEP_OUTER`), which
+  `hi.sh` reads since a child inherits none of them. Two sessions now share
+  the tree: `hi.kept` stops the first session's `clean_all` and trap, and the
+  owner pane leaves the tree while `$_HI_KEEP_OUTER` runs. A session with no
+  `hi.keep`, or already in a multiplexer, says it cannot be kept.
+- **Other panes.** A new pane runs the host's default shell, which reads none
+  of hi's rc ([HI.46](#hi46-session-rc-directory)), so `_hi_keep_panes`
+  writes a launcher, `hi.pane`, and sets it as this session's tmux
+  `default-command`, screen `shell`, or (at start) zellij `--default-shell`.
+  The owner's `clean_all` kills the session after removing the tree.
+- **Closing.** When the owner pane's shell exits with a client attached,
+  `_hi_keep_stays` asks; anything but `y` detaches and starts a fresh shell
+  (zellij cannot detach, so it names the key). tmux's `detach-on-destroy` is
+  set `on` for the session. `hi --end` kills the session over one `probe`
+  call, waits up to two seconds for a pane to go (zellij may SIGKILL bash
+  before its hook runs), then sweeps.
+- **A session that died.** A target that goes down runs no exit hook. So
+  `load()` claims its tree (`_hi_keep_claim`): `hi.kept` for an owner pane
+  (its pid, then `$_HI_KEEP_OUTER`'s), `hi.pid` otherwise, `hi.held` for a
+  held tree. Once a looking connect has its own tree, `_hi_keep_sweep`
+  removes each sibling (`<user>.hi.*`) whose claim names no live process.
+  Pids are asked, not the multiplexer, which another socket directory hides;
+  an empty claim or none is left alone. `_hi_tree_watch` covers the case in
+  between: a detached job that ignores the hangup and runs the exit hook if
+  the shell and the bootstrap were both killed.
+- **The client's record.** An empty `hi.kept.<key>` in the runtime directory
+  (`<key>` as the control socket's) marks a target seen with a kept session.
+  The script ends 86 when it leaves one behind and 0 otherwise, run as
+  `sh -c '...; e=$?; rm -rf <scratch>; exit $e'` so the status survives
+  cleanup. `_hi_keep_connect` sets the record on 86, clears it on 0, and
+  leaves it on anything else; a keeping connect writes it up front, and
+  `hi --end` removes it. With it set, a connect that finds no session (on a
+  target with a multiplexer) says the kept session is gone.
 - **The retry.** At a terminal, an ssh session that was up, ends 255, and has
-  the record is retried, whether or not a local multiplexer holds the pane:
-  the session is the target's, and a connect is all that brings it back. Every
-  five seconds for `$_HI_KEEP_RETRY` (5m; 0 is never) from the drop, then
-  one line saying the target did not come back. A try is `_say_hi` again
-  with `ConnectTimeout=10`; the boot call's stderr goes to a file until the
-  target answers, and a boot call ssh itself failed ends the try there, with
-  no PowerShell fallback for a host that was not reached. A try that gets in
-  and drops within ten seconds does not restart the window. A connect that
-  never got in is not retried. The drop's line names how long the
-  target keeps the session and the time that runs out (`_hi_keep_until`):
-  `$_HI_KEEP_TIMEOUT` (24h) in a multiplexer, `$_HI_HOLD_TIMEOUT` (15m) for
-  a held directory, which the boot probe's `HIMUX` line said at the
-  connect. At a terminal `_hi_keep_wait` draws a dot a second,
-  five to a try, on a line the try that answers clears. ssh's `~.` ends 255 as a lost link does, and
-  nothing tells the two apart, so it is retried too: Ctrl+C at the
-  countdown is how a kept session is left for good. A link that freezes is no drop until ssh
-  says so, so a connect that keeps, or comes back to a kept session, asks
-  for `ServerAliveInterval=15` and `ServerAliveCountMax=3` where the ssh
-  config sets no interval (`_hi_keep_alive`, by `ssh -G`): forty-five
-  seconds of silence ends the session 255, and the retry takes it from
-  there.
-- **The timeout.** `_hi_keep_watch` is a background job of the owner pane,
-  polling once a minute: `$_HI_KEEP_TIMEOUT` (24h, read from the `settings.sh`
-  that rode) with no client attached, and it kills the session. `clean_all`
-  kills the job by process group, so its `sleep` does not outlive a session
-  closed another way. zellij's clients are the rows of `action list-clients`
-  under its header; an answer with no header - a zellij too old to list them,
-  or one in its first second - counts as attached, so neither the timeout nor
-  an early `exit` closes a session somebody is in.
+  the record is retried every five seconds for `$_HI_KEEP_RETRY` (5m), with
+  `ConnectTimeout=10` and the boot call's stderr held until the target
+  answers. A try that drops within ten seconds keeps the window. The drop's
+  line names how long the target keeps the session (`_hi_keep_until`, from
+  the boot probe's `HIMUX`), and `_hi_keep_wait` draws a dot a second. `~.`
+  also ends 255, so Ctrl+C is how to leave. A frozen link becomes a drop via
+  `ServerAliveInterval=15`, `ServerAliveCountMax=3`, where the ssh config
+  sets no interval (`_hi_keep_alive`).
+- **The timeout.** `_hi_keep_watch`, an owner-pane job polling each minute,
+  kills the session after `$_HI_KEEP_TIMEOUT` (24h) with nobody attached;
+  `clean_all` kills the job's process group. A zellij that cannot list its
+  clients counts as attached.
 
 ## HI.66 the packer stays home
 
@@ -1944,44 +1476,29 @@ that tars `$_HI_PAYLOAD` as it stands. A relay sends what it was sent.
 
 ## HI.67 shell hooks
 
-A plugin's `init` is how its tool installs itself into a shell: a command
-printing that shell's code, `{shell}` in it the shell's name, which every such
-tool documents as `eval "$(<tool> init bash)"` and `<tool> init fish | source`.
-hi runs it in one place, `core.sh`'s `_hi_run_init` (and its fish copy), where
-the command's first word is on the target, after the aliases and extensions
-and before the prompt - the one site in the tree that evaluates a tool's own
-text, which `tests/lint/eval_roster` holds as its `tool` row.
+**A plugin's `init` is its tool's own shell setup**: a command that prints
+shell code (`{shell}` the shell's name), as each tool documents with
+`eval "$(<tool> init bash)"`. hi runs it in one place, `_hi_run_init` (and
+its fish copy), where the command exists, after the aliases and extensions
+and before the prompt: the one site that evaluates a tool's own output, held
+as the `tool` row of `tests/lint/eval_roster`.
 
-The client decides what rides, as for every member: `_hi_overlay_wiring`
-writes `_HI_HOOKS` (`<group>.<name>=<init>` rows a `;` apart) for every init
-plugin whose tool is here and whose plugin the lists leave on, and for a
-prompt plugin (`prompt = "yes"`) `_HI_PROMPT_INITS` and `_HI_PROMPT_PLUGINS`
-instead, so the prompt hand-over ([HI.32](#hi32-starship-deference)) starts it
-and nothing else does. A target runs a hook only where it has the tool, and
-only when the settings it was sent leave it on (`_hi_hook_on`): a leading `-`
-on the name says the plugin is off by default, and then `_HI_PLUGINS_ON` has
-to name it. The shipped `hooks` group is off that way, since each
-of its tools keeps state under a target's `$HOME`. A plugin's `shells` rides
-as `:<shells>` after its name in the row, a `,` apart, and a shell not among
-them passes the row over; for a prompt plugin it is the shells column of its
-`_HI_PROMPT_PLUGINS` row. `_hi_prompt_row` reads
-`_HI_PROMPT_PLUGINS` beside `_HI_PROMPT_TABLE`, so a prompt program the table
-never heard of is picked the same way; its configs ride as its plugin's files,
-with no table column to name them.
+**The client decides.** `_hi_overlay_wiring` writes `_HI_HOOKS`
+(`<group>.<name>=<init>` rows, `;` apart) for each init plugin whose tool is
+here and which is on; a prompt plugin (`prompt = "yes"`) goes to
+`_HI_PROMPT_INITS` and `_HI_PROMPT_PLUGINS` instead, so only the prompt
+hand-over ([HI.32](#hi32-starship-deference)) starts it, and `_hi_prompt_row`
+picks such a program like a table one. In each row a leading `-` means off by
+default (on only when `_HI_PLUGINS_ON` names it, `_hi_hook_on`; the shipped
+`hooks` group, whose tools keep state in a target's `$HOME`), `~` means
+`quiet` (both streams to `/dev/null` while it activates), and `:<shells>`
+limits the shells.
 
-The rows are the session tree's alone. A target with a hi of its own wired
-into its rc loads that tree too, in the bootloader's profile chain and again
-in the session shell, and its `paths.sh` reads the session's `wiring.sh`
-through the `$_HI_CONFIG_DIR` it inherits; so `_HI_HOOKS` is set behind
-`[ "$_HI_CONFIG_DIR" = "$_HI_ROOT/config" ]`, true only in the tree the
-overlay was unpacked into, whatever version the install is. Each shell runs
-them once: the runner sets `_hi_hooks_ran`, a plain variable, as it starts on
-rows, and `load.sh` sets it over the bootloader's profile chain, a shell
-nobody types at. A plugin's `quiet = "yes"` rides as a `~` ahead of its name,
-and its activation runs with both streams on `/dev/null`: mise's status line
-goes, and the prompt hook it installed prints at a later `cd` as before,
-which mise's own `--quiet` would silence too.
+**Only the session's tree runs them.** A target's own wired hi would read the
+session's `wiring.sh` through the inherited `$_HI_CONFIG_DIR`, so `_HI_HOOKS`
+is set only where `$_HI_CONFIG_DIR` is `$_HI_ROOT/config`. Each shell runs
+them once (`_hi_hooks_ran`); `load.sh` sets that flag over the bootloader's
+profile chain, where nobody types.
 
-The decision stays data: an init is a command and its words, refused with a
-quote, `;`, `|`, `&`, `$`, a backtick or a bracket in it, since what runs is
-what the command prints and not the line itself.
+**An init is data**: a command and words, refused with a quote, `;`, `|`,
+`&`, `$`, backtick, or bracket, since what runs is its output, not the line.

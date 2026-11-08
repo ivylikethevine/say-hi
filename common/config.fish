@@ -137,13 +137,10 @@ if test -n "$_HI_HOOKS"; and not set -q _hi_hooks_ran
   set -e __hi_row
 end
 
-# core.sh's _HI_CHILD_ENV and _HI_SESSION_VARS, mirrored (fish cannot read a
-# bash array); exports_test.sh pins both. The first is what a child inherits
-# after the un-export loop at the end of the required block. The second is
-# what load.sh wrote into the session rc as plain globals, so the bash this
-# file shells out to has to be handed them - __hi_bash's job. `-f` (function
-# scope) rather than `-l`: a `-l` inside the `for` is gone by the time the
-# command runs. GLOSSARY: HI.47
+# core.sh's _HI_CHILD_ENV (what a child inherits) and _HI_SESSION_VARS (what
+# __hi_bash hands its bash), mirrored since fish cannot read a bash array;
+# exports_test.sh pins both. `-f`, since a `-l` in the `for` would be gone
+# by the command. GLOSSARY: HI.47
 set -g _HI_CHILD_ENV _HI_HOME _HI_ROOT _HI_CONFIG_DIR _HI_SITE_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
     _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_BACKENDS_OFF
 set -g _HI_SESSION_VARS _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
@@ -156,12 +153,9 @@ function __hi_bash --description 'bash -c <script>, with the session values hi k
   command bash -c $argv
 end
 
-# Opposite conditions, so exactly one runs per TAB: without the negation
-# `hi --<TAB>` would fire the target sweep too, and a flag list must never
-# wait on a docker daemon (the promise targets.sh, bash.sh, and zsh.zsh keep).
-# -k keeps targets.sh's order instead of sorting.
-# the word after a flag that takes one - `hi --preview <TAB>`, `hi --use
-# <TAB>` - is neither a flag nor a target: targets.sh's words roster
+# Opposite conditions, so a flag TAB never waits on the target sweep; -k
+# keeps targets.sh's order. A flag's word (`hi --use <TAB>`) is targets.sh's
+# words roster.
 function __hi_prev_takes_word --description 'is the previous token one of $_HI_WORD_FLAGS'
   set -l toks (commandline -opc)
   # `--` before the separator: the flags start with dashes, and string
@@ -189,25 +183,17 @@ complete -c hi -f -n 'string match -q -- "-*" (commandline -ct)' \
 # fish can't run hi's bash side, so the greeting, the package check, and the
 # color resolution each come from one bash call
 function fish_greeting
-  # on a hi session load.sh printed this already and sets $fish_greeting to
-  # suppress us; locally nothing sets it, so we print the header ourselves.
-  # $COLUMNS is fish's own global and never exported, so header.sh's
-  # _hi_draw_width wouldn't see it through __hi_bash's plain `bash -c` -
-  # handed over with an explicit prefix instead of joining _HI_SESSION_VARS
-  # for the one caller that needs it
-  # the toggle is checked here: the un-export loop below keeps it from the
-  # bash child, which would otherwise see only settings.sh's copy
+  # In a session load.sh printed the header and set $fish_greeting; locally
+  # fish prints it. $COLUMNS (fish's, never exported) and the toggle (kept
+  # from the bash child) are passed explicitly.
   set -q fish_greeting; or test "$_HI_DISABLE_HEADER" = 1
   or COLUMNS=$COLUMNS __hi_bash "source $_HI_HEADER; hi_header Online"
 end
 
-# a whole process for two colors, so memoized in a universal variable keyed
-# on user@host, the colors file's and core.sh's mtimes (the file holds the
-# scheme, and an upgrade can change how the same file resolves), and the
-# terminal's 24-bit verdict
-# (a universal variable outlives this terminal): only the first shell after a
-# change pays. Each value is a list - "rrggbb name" under a scheme, the bare
-# name otherwise - and set_color takes the first entry this terminal renders.
+# A process for two colors, so memoized in a universal variable keyed on
+# user@host, the colors file's and core.sh's mtimes, and the 24-bit verdict.
+# Each value is "rrggbb name" or a bare name; set_color takes the first entry
+# the terminal renders.
 set -l hi_key "$USER@"(prompt_hostname)
 # `path mtime` where fish has it (3.5+), a stat before that; an absent file
 # keeps its slot empty
@@ -364,12 +350,9 @@ if test "$_HI_DISABLE_PROMPT" != 1
       return $verdict
     end
 
-    # The fish half of common/env_prompt.sh: the "(myproj) " prefix naming
-    # every active environment manager. Fish cannot call the bash copy, and a
-    # `bash -c` here would be a fork on every prompt draw, so the source list
-    # is a third copy on purpose - tests/hi/prompt_test.sh pins the two
-    # together. Fish always stands down for a tool drawing its own prefix,
-    # which is _HI_ENV_DEFER=1 on the bash side. GLOSSARY: HI.54
+    # The fish copy of common/env_prompt.sh's "(myproj) " segment, since a
+    # `bash -c` per prompt is a fork; prompt_test.sh pins the two. Fish always
+    # stands down for a tool's own prefix. GLOSSARY: HI.54
     function __hi_env_prompt --description 'name every active environment manager'
       test "$_HI_DISABLE_ENV_STATUS" = 1; and return
       set -l names
@@ -486,13 +469,9 @@ if test "$_HI_DISABLE_PROMPT" != 1
     set -e __hi_marks_bare
     test $_hi_marks_for = program; and set -g __hi_marks_bare 1
     set -e _hi_marks_for
-    # OSC 133 prompt marks and OSC 7 cwd reporting, the fish half of what
-    # common/bash.sh emits, under hi's prompt and under a prompt program's
-    # ($_hi_pt), but not beside the ones oh-my-posh can send itself. fish 4
-    # emits both itself, so only fish 3 gets hi's copy - two sets of marks
-    # would confuse the terminal.
-    # whether marks go out, as bash.sh's _hi_marks_on asks: not on a dumb
-    # terminal or off one, and not beside kitty's, ghostty's, or iTerm2's own
+    # OSC 133 and OSC 7 marks, as bash.sh sends, on fish 3 only (fish 4 sends
+    # its own), not beside oh-my-posh's, and per _hi_marks_on: not on a dumb
+    # or absent terminal, nor beside kitty's, ghostty's, or iTerm2's own
     function __hi_marks_on
       test "$TERM" != dumb; and test -t 1; and not set -q ITERM_SHELL_INTEGRATION_INSTALLED
       and not functions -q __ksi_mark_prompt_start; and not set -q __ghostty_prompt_start_mark

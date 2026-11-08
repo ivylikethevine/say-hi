@@ -11,23 +11,15 @@ _HI_SSHD_IMAGE=hi-test-sshd
 # shellcheck source=../dockerfiles/sshd-entrypoint.sh
 source "$_HI_ROOT/tests/dockerfiles/sshd-entrypoint.sh"
 
-# _hi_dockerfile <name> - the checked-in image definition by that name. The
-# Dockerfiles live in tests/dockerfiles/ rather than being written into each
-# build context at runtime, so they are readable, diffable files rather than
-# heredocs; the *context* is still per-case, since it carries the generated
-# entrypoint.sh. Every caller pairs this with `-f`, which _hi_build_image
-# passes through.
+# _hi_dockerfile <name> - tests/dockerfiles/<name>, passed with `-f`; the
+# build context stays per-case for its generated entrypoint.sh.
 function _hi_dockerfile() {
   printf '%s' "$_HI_ROOT/tests/dockerfiles/$1.Dockerfile"
 }
 
 # _hi_build_image <label> <tag> <what> [build args...] - build an image, quiet
-# on success and loud on failure. Plain progress into the log rather than
-# `build -q`: BuildKit's quiet mode keeps only its own one-line verdict
-# ("exit code: 100") and drops the failing step's output, which is the part
-# that says why. The
-# env var, not `--progress=plain`, so podman (which has no such flag and
-# ignores the variable) takes the same call.
+# on success, loud on failure. Plain progress to a log, since `build -q`
+# drops the failing step's output; set by environment, which podman ignores.
 function _hi_build_image() {
   local label="$1" tag="$2" what="$3"
   shift 3
@@ -79,23 +71,13 @@ function _hi_ssh_reachable() {
     -o ConnectTimeout=2 hitest@127.0.0.1 true
 }
 
-# Boots one throwaway sshd container <name> from <image>, waits until its sshd
-# actually answers, and leaves the mapped port in $_HI_SSH_PORT. Any further
-# arguments go to `docker run` ahead of the image - that's how the per-suite
-# `-e` vars ride in (LOGIN_SHELL, SSHD_OPTS), instead of each wanting an image
-# of its own. Registers the container for teardown, and returns non-zero,
-# having said why, if it never came up.
-#
-# $_HI_SSH_PORT is the *caller's* to own: every case that boots a container
-# declares `local _HI_SSH_PORT` first, so the port a case connects to - and
-# greps the process table by, in _hi_ssh_client_pids - is the port that case
-# started, not whichever case started one last. A single global is fine until
-# two cases run at once, and then it is a race that reads as a bug in the code
-# under test.
-# The sshd option pair that reaps a frozen client in seconds rather than hours,
-# handed to _hi_sshd_container as `-e "$_HI_SSHD_ALIVE"` by the disconnect
-# cases (ssh_disconnect, ssh_relay), which freeze the client and wait for the
-# far end's exit trap.
+# Boots a throwaway sshd container <name> from <image>, registered for
+# teardown, and waits until sshd answers; extra arguments go to `docker run`
+# (`-e LOGIN_SHELL=...`). The port lands in $_HI_SSH_PORT, which each case
+# declares local, since parallel cases would otherwise race on it. Says why
+# and fails if sshd never comes up.
+# The sshd options that reap a frozen client in seconds, for the disconnect
+# cases (`-e "$_HI_SSHD_ALIVE"`).
 _HI_SSHD_ALIVE="SSHD_OPTS=-o ClientAliveInterval=2 -o ClientAliveCountMax=1"
 
 function _hi_sshd_container() {
@@ -120,13 +102,9 @@ function _hi_sshd_container() {
   fi
 }
 
-# Proving a cleanup trap fires on a *dropped* link means killing the link from
-# outside, and doing that takes two SIGSTOPs: _say_hi multiplexes, so a
-# backgrounded ControlPersist master holds the socket beside the visible
-# `ssh -t`, and it is the master that answers sshd's ClientAlive probes.
-# Freeze only the client and sshd correctly keeps the session - that is a hung
-# terminal, not a dead link. Hence _hi_ssh_mux_pids, and hence both ssh
-# suites treating a missing master as a hard failure rather than carrying on.
+# Dropping a link takes two SIGSTOPs: the visible `ssh -t` and the
+# ControlMaster, which answers sshd's ClientAlive probes. Freezing only the
+# client is a hung terminal, not a drop, so a missing master fails the case.
 
 # _hi_post_check <label> <container> <cmd> - the extra assertion a case can
 # make inside its own container once the session verdict is in. Empty <cmd>
@@ -165,21 +143,13 @@ function _hi_bg_ok() {
 # <label> <image> <login_shell> <cmd> [post] [extra-marker...] - anything past
 # $5 is handed to _hi_case_result as a further must-appear transcript marker.
 #
-# Shared by every suite that drives hi over real ssh - ssh_test.sh across login
-# shells, install_methods_test.sh across the ways say-hi gets onto a target - so
-# the `<&3` contract below is stated once. $_HI_SSH_CASE_PREFIX names the
-# containers, so two suites running at once cannot collide on one.
-#
-# Four more knobs ride in the environment rather than the argument list,
-# since one case in one suite wants each and every other call site would
-# carry empty slots: $_HI_SSH_RUN_ARGS is word-split into `docker run` ahead
-# of the image (`--cpus 0.1 --memory 64m`, say), $_HI_SSH_LAUNCH_OPTS into
-# hi's ssh options, $_HI_SSH_STDIN is a file hi reads as its stdin with no
-# pty at all, for a scripted `hi host cmd`, and $_HI_SSH_SHAPE_CMD is run inside
-# the container, as root, once sshd answers and before the session starts -
-# after, so the reachability poll is not itself made against the shaped link.
-# A shaping command that fails is a failed case: a starved target that was
-# not actually starved proves nothing, and says so here rather than passing.
+# Shared by every suite driving hi over real ssh; $_HI_SSH_CASE_PREFIX keeps
+# two suites' containers apart. Rarely used knobs come by environment:
+#   $_HI_SSH_RUN_ARGS     words for `docker run` (`--cpus 0.1 --memory 64m`)
+#   $_HI_SSH_LAUNCH_OPTS  hi's ssh options
+#   $_HI_SSH_STDIN        a file for hi's stdin, with no pty
+#   $_HI_SSH_SHAPE_CMD    run as root in the container once sshd answers;
+#                         its failure fails the case
 function _hi_ssh_run_case() {
   local label="$1" image="$2" login_shell="$3" cmd="$4" post="${5:-}" name exit_code=0 t0 t1 ok=0
   # the container's mapped port, owned by this case: _hi_sshd_container assigns
@@ -206,20 +176,10 @@ function _hi_ssh_run_case() {
   _hi_cecho " | Running: $_HI_LAUNCHER -p $_HI_SSH_PORT hitest@127.0.0.1 $cmd"
   # shellcheck disable=SC2086 # the launch opts are a flag list, split on purpose
   _hi_ssh_launch "$_HI_SSH_PORT" ${_HI_SSH_LAUNCH_OPTS:-}
-  # Backgrounded and waited on rather than a bare command substitution: a
-  # target that never returns has to fail this case, not hang the suite. A
-  # one-line mistake in the fallback rc left the `nobash` case sitting in a
-  # command substitution for 36 minutes before anyone noticed, because there
-  # was nothing here to stop it. 124 is _hi_wait_pid's timeout status.
-  #
-  # `<&3` is load-bearing and belongs with each suite's _hi_pty_stdin call -
-  # the two only work as a pair (see _hi_pty_stdin in tests/lib/process.sh).
-  # Backgrounding is exactly what takes stdin away: with job
-  # control off, bash points a background job's fd 0 at /dev/null no matter
-  # what ours was, `ssh -t` then can't allocate a pty, and a remote
-  # `bash --rcfile` with no tty is not interactive - so it ignores the rcfile
-  # outright and every case that hands off to bash fails with no output past
-  # hi's connect prefix.
+  # Backgrounded and waited on, so a target that never returns fails the case
+  # (124) instead of hanging the suite. `<&3` pairs with _hi_pty_stdin: a
+  # background job's fd 0 is /dev/null, and without a tty the remote bash
+  # ignores its rcfile.
   local out_file="$_HI_WORKDIR/$label.ssh.out"
   if [ -n "${_HI_SSH_STDIN:-}" ]; then
     "${_HI_SSH_LAUNCH_BARE[@]}" "$cmd" <"$_HI_SSH_STDIN" >"$out_file" 2>&1 &
@@ -265,12 +225,8 @@ function _hi_ssh_mux_pids() {
   pgrep -f -- "ssh: $ctl \[mux\]" 2>/dev/null || true
 }
 
-# Every local pid a suite has SIGSTOPped, so its exit trap can undo it. The
-# window between the freeze and the kill is tens of seconds of polling: an
-# abort in there (^C, a runner timeout, `set -e` upstream) would otherwise
-# leave stopped ssh clients and a mux master holding a socket open
-# indefinitely. _hi_test_cleanup thaws the ledger's copy on any exit;
-# _hi_thaw_frozen is the eager, per-case path.
+# Every pid a suite SIGSTOPped, so an abort cannot leave them stopped:
+# _hi_test_cleanup thaws them on exit, _hi_thaw_frozen per case.
 _HI_FROZEN_PIDS=()
 
 function _hi_freeze() {
@@ -331,15 +287,10 @@ function _hi_freeze_session() {
   _hi_freeze ${pids[@]+"${pids[@]}"}
 }
 
-# The client-side launcher invocation both ssh suites make: hi.sh pointed at
-# the throwaway sshd on 127.0.0.1:$1, with the keypair and flags the fixtures
-# above set up. Anything after the port is spliced in ahead of the destination
-# (ssh_wire_test.sh rides its counting ProxyCommand in this way), so the flag
-# roster lives here once. Left in the array $_HI_SSH_LAUNCH rather than run
-# here, since the callers redirect and background it differently - append the
-# remote command and go. Call it *after* _hi_pty_wrap, whose result it
-# captures. $_HI_SSH_LAUNCH_BARE is the same command without that prefix, for
-# _hi_interactive_case, which brings its own (see _HI_PTY_FORCED).
+# The ssh suites' launcher, into $_HI_SSH_LAUNCH: hi.sh at the sshd on
+# 127.0.0.1:$1 with the fixtures' key and flags, arguments after the port
+# spliced in before the destination. Call after _hi_pty_wrap, whose prefix it
+# includes; $_HI_SSH_LAUNCH_BARE omits it, for _hi_interactive_case.
 function _hi_ssh_launch() {
   local port="$1"
   shift

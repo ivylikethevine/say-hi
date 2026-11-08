@@ -5,36 +5,20 @@
 # GLOSSARY: HI.30
 # shellcheck disable=SC2329
 
-# Scratch dir every suite works in, plus the ledger of everything its exit trap
-# has to take away again: containers, docker networks, and processes a case
-# SIGSTOPped. Both are set up by _hi_workdir and consumed by _hi_test_cleanup.
-#
-# The ledger is a *file* and not an array, for two reasons that both cost real
-# containers on a real machine. A case may run in a background subshell (see
-# _hi_par_case), where an array append dies with the subshell and the container
-# it started is never registered. And a file can be written *before* the thing
-# exists - the window between `docker run` returning and the name being
-# recorded is exactly where a ^C leaks one, so every writer below registers
-# first and starts second. Removing something twice is a no-op; removing
-# something that never started is a no-op too. Missing one is not.
+# Each suite's scratch dir, and the ledger of what its exit trap removes
+# (containers, networks, SIGSTOPped pids). The ledger is a file, since a
+# parallel case's array append dies with its subshell, and every writer
+# registers before starting, so a ^C cannot leak a container.
 _HI_WORKDIR=""
 _HI_SUITE_WORKDIR=""
 _HI_EXTRA_CLEANUP=""
 _HI_LEDGER=""
 
-# Creates the suite's scratch dir as $_HI_SUITE_WORKDIR - and $_HI_WORKDIR,
-# until a case runs: _hi_assert hands each try of each case a fresh one of its
-# own under it (_hi_case_workdir), so what a suite's setup builds for its
-# cases to read goes by $_HI_SUITE_WORKDIR - and registers the one exit
-# trap it needs. $1 is a slug for the mktemp template ("checktest", "sshtest",
-# ...); $2, if given, names a suite-specific cleanup function (stopping a nomad
-# agent, deleting a kind cluster, ...) run before the generic teardown.
-# _hi_on_exit installs a *single* trap rather than appending to one, so
-# everything that has to happen on the way out goes through here.
-#
-# Resolved with `cd -P`: the product derives its tree physically
-# (GLOSSARY: HI.33), so a $TMPDIR holding a symlink - macOS's /var - would
-# leave a suite comparing two spellings of one directory.
+# Makes the suite's scratch dir, $_HI_SUITE_WORKDIR (and $_HI_WORKDIR until a
+# case gets its own), and the one exit trap. $1 names the mktemp template;
+# $2 is an optional suite cleanup run first. `cd -P`, since the product
+# resolves paths physically and macOS's $TMPDIR is under a symlink.
+# GLOSSARY: HI.33
 function _hi_workdir() {
   _HI_SUITE_WORKDIR="$(cd -P "$(mktemp -d -t "hi.$1.XXXXXX")" && pwd)"
   _HI_WORKDIR="$_HI_SUITE_WORKDIR"
@@ -77,17 +61,10 @@ function _hi_track_network() { _hi_ledger network "$1"; }
 # it, so a developer's own mkpkg.sh build survives a test run.
 function _hi_track_dir() { _hi_ledger dir "$1"; }
 
-# Every step is guarded and the whole thing ends in `return 0`: this runs as
-# an exit trap under `set -e`, where one failing step would otherwise skip
-# every step after it - leaving containers or the scratch dir behind.
-#
-# The order is not arbitrary. Background cases are killed first - before the
-# suite's own hook, even: a case still running would put a container, a job, or a
-# pod back behind whatever the hook and the sweep have just taken away. Frozen pids come next, and
-# before their containers: a SIGSTOPped process cannot act on SIGKILL until it
-# is scheduled again (see _hi_thaw_frozen), and taking its sshd away first
-# leaves it stopped forever, holding a socket to nothing. Networks come last,
-# because docker refuses to remove one that still has a container on it.
+# Every step guarded, ending `return 0`: under `set -e` one failure would
+# skip the rest. In order: background cases (which would recreate what is
+# removed), the suite hook, frozen pids (thawed before their sshd goes),
+# containers, then networks (refused while a container is on one).
 function _hi_test_cleanup() {
   local c
   local -a containers
@@ -109,12 +86,9 @@ function _hi_test_cleanup() {
   for c in $(_hi_ledger_rows dir); do
     rm -rf "$c" 2>/dev/null || true
   done
-  # Under tests/coverage_v2.sh the tree outlives the suite, named in
-  # $_HI_COV_KEEP for the driver to remove: bashcov reads the trace after the
-  # suite exits, and a script run from a copy in here is credited to the
-  # repo's file only while the copy is still there to compare.
-  # The suite's and never $_HI_WORKDIR: a trap that fires inside a case would
-  # see that case's directory there.
+  # Under coverage the tree outlives the suite ($_HI_COV_KEEP), since bashcov
+  # credits a copy's lines only while it exists. The suite's dir, never
+  # $_HI_WORKDIR, which inside a case is the case's.
   if [ -n "${_HI_COV_KEEP:-}" ] && [ -n "$_HI_SUITE_WORKDIR" ]; then
     printf '%s\n' "$_HI_SUITE_WORKDIR" >>"$_HI_COV_KEEP"
   elif [ -n "$_HI_SUITE_WORKDIR" ]; then

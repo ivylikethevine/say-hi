@@ -1,31 +1,15 @@
 #!/usr/bin/env bash
-# The display every script draws through: the column pad, the pieces a line
-# is painted from, the boxed table the previews draw (measure every column,
-# then print a rule, padded cells, and a closing rule), and the section of
-# rows a report lists.
+# What the scripts draw with: column padding, painted line pieces, boxed
+# tables, and report sections. Not in common/, which rides under a size
+# budget. Source after core.sh and lib.sh ($_HI_BOX_*).
 #
-# It sits in scripts/ rather than common/ on purpose - common/ ships in the ssh
-# payload and wears a CI-enforced size budget, and nothing a target runs draws
-# a table. Source it *after* common/core.sh, whose $NC and _hi_repeat it uses,
-# and after scripts/lib.sh, which decides the $_HI_BOX_* set every rule and
-# edge below is drawn from; sourcing it does nothing else.
-#
-# The measure-then-render split is the contract. Every column's width has to be
-# settled before the first cell prints, because a cell padded wider than the
-# rule allowed for is exactly what a broken table looks like - and the two
-# measurements are not interchangeable: _hi_widen sizes a column to text it can
-# measure, _hi_widen_to to a width the caller already worked out (a cell full of
-# color escapes has no length worth taking).
+# Every column is measured before the first cell prints: _hi_widen to text,
+# _hi_widen_to to a width the caller worked out (for cells full of escapes).
 
-# _hi_visible_len <var> <text> - <text>'s printed width into <var>: the ANSI
-# escapes stripped, then the characters counted. It lives here rather than in a
-# caller because measuring is half of this file's measure-then-render contract.
-# An out-var, not stdout: show_preview measures every line twice (once to size
-# the box, once to pad it), and through $( ) each of those is a fork plus an
-# extglob save/restore. extglob is needed for the *(...) pattern and restored
-# to whatever it was, rather than left on for the rest of the caller. The
-# pattern matches test_lib.sh's _hi_strip_ansi: *(...) and not +(...), so a
-# bare `\e[m` reset counts as zero columns in both.
+# _hi_visible_len <var> <text> - <text>'s printed width, escapes stripped,
+# into <var> (no fork; every line is measured twice). extglob is restored
+# after. The pattern matches test_lib.sh's _hi_strip_ansi, so a bare `\e[m`
+# is zero columns in both.
 function _hi_strip_escapes() {
   local _hi_se_r=0
   shopt -q extglob || {
@@ -331,12 +315,9 @@ function _hi_wrap() {
   pieces+=("$rest")
 }
 
-# _hi_rows_box - the rows in $_HI_ROWS_* as one boxed table: a mark column,
-# the label, and the text. A text of several
-# lines (ssh's stderr) is one row whose later lines leave the first two
-# columns blank. On a terminal the text column is cut down to fit the width
-# lib.sh's _hi_out_width gives, and a longer line wraps; captured, a row
-# stays one line, whole for a grep or a bug report.
+# _hi_rows_box - $_HI_ROWS_* as a boxed table of mark, label, and text; a
+# multi-line text continues with the first two columns blank. On a terminal
+# the text wraps at _hi_out_width; captured, each row stays one line.
 function _hi_rows_box() {
   local wl=0 wt=0 i=0 n line first glyph color fit
   local -a pieces

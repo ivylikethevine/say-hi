@@ -1,19 +1,16 @@
 # What hi supports, and what it doesn't
 
-`hi <name>` resolves one name through a ladder — an ssh host first, then the
-container backends — and lands you in the same styled session either way.
-Everything hi reaches is above
-[Targets weighed and not shipped](#targets-weighed-and-not-shipped); every
-**no**, with its reason, is from there down.
+`hi <name>` tries an ssh host first, then the container backends, and lands
+you in the same styled session either way. Everything hi reaches comes first;
+every **no**, with its reason, starts at
+[Targets weighed and not shipped](#targets-weighed-and-not-shipped).
 
-**Legend:** ✅ exercised by a suite on every run · 🟡 expected to work, nobody
-has proven it · ⚠️ works, reduced · ❌ decided against, not pending — see
-[What would change an answer](#what-would-change-an-answer) for the one thing
-that reopens a row.
+**Legend:** ✅ run by a suite on every push · 🟡 expected to work, unproven ·
+⚠️ works, reduced · ❌ decided against, not pending.
 
 ## Contents
 
-- [What a "yes" costs](#what-a-yes-costs)
+- [What hi needs](#what-hi-needs)
 - [What ships](#what-ships)
 - [The target's OS](#the-targets-os)
 - [A local install on a NAS](#a-local-install-on-a-nas)
@@ -21,202 +18,173 @@ that reopens a row.
 - [Targets weighed and not shipped](#targets-weighed-and-not-shipped)
 - [Shells hi does not style](#shells-hi-does-not-style)
 - [What would change an answer](#what-would-change-an-answer)
+- [What a "yes" costs](#what-a-yes-costs)
 
-## What a "yes" costs
+## What hi needs
 
-A backend is not one function. A docker-compatible CLI is the exception:
-podman, nerdctl, and finch share docker's `ps`/`exec`/`inspect` grammar, so
-they are one arm and a word in `_HI_CONTAINER_CLIS` (GLOSSARY: HI.51) — a new
-drop-in costs that word, not a row here. Anything else touches seven places:
+- **Your machine**: bash 3.2+, `tar`, `gzip`, and `base64`, plus `ssh` or the
+  backend's CLI. A libarchive `tar` compresses on its own and needs no `gzip`;
+  `openssl base64` stands in where there is no `base64`.
+- **The target**: `base64` (or `openssl`), `mktemp`, and a `tar` that reads
+  gzip, over ssh and an exec alike. `bash` gives the full session; without it
+  you get [a smaller one](#the-shell-you-end-up-in).
+- **The link**: a connect is meant to send at most 128 KB (8 s at 128 kbps), and
+  the bench holds the gzipped payload under 64 KB. The README's payload badge
+  is today's size.
 
-- **a row in `_HI_BACKENDS`** (`hi.sh`),
-  `<name>|<what a target resolves as>|<liveness probe>|<predicate>`, walked
-  by the dispatch and by `scripts/doctor.sh`.
-- **a predicate** beside `_hi_is_nomad_alloc`: one
-  `_hi_probe_is <literal> <cli> <query...>` line, which carries the
-  `command -v` guard, the timeout, and the muted stderr.
-- **an arm in `_hi_transport_cmds`** filling `probe`/`cp`/`attach`; past
-  that, everything is backend-agnostic.
-- **a lister, a `run_lister` case, and the usage line** in `common/targets.sh`,
-  in its standalone-POSIX dialect — the only file all three completions read
-  and the only one fish can run.
-- **a probe in `common/header.sh`'s `_hi_probe_launch`**, which names the
-  backend itself because `hi.sh` is never sourced in a session and sharing
-  the roster would cost payload bytes; `tests/hi/parse_test.sh` checks the
-  two against each other.
-- **an e2e suite** in `tests/targets/`, registered in `test_runner.sh`'s
-  `_HI_TESTS` table. A suite that can only ever skip is worth less than none.
-- **a fixture that stands the target up** — so far always a container image.
-
-Then the part everyone else pays, on machines with none of the runtime:
-`_hi_resolve_backend` runs **every** predicate, one background subshell per
-row, on every `hi <target>` that is neither an ssh host nor a `user@host`
-with no `:`, and `common/targets.sh`
-checks **every** backend on each uncached TAB (GLOSSARY: HI.26) — there the
-`command -v` guard is a builtin, so an absent CLI costs nothing and a present
-one is one parallel lane.
-
-**A row earns a yes by being something people actually sit in, not by being
-reachable.** One that ships stays while it fits the model this cheaply: hi's
-point is one session on every host, so a backend is not cut for want of a
-counted user.
+bash 3.2 is the floor on both ends because macOS still ships it.
 
 ## What ships
 
-Four arms, one of which answers to four CLIs.
+Four backends; the docker one answers to four CLIs.
 
-| target                                  | what a name resolves as                                                                        | proven by                                                                                                                                                                                                                                                                                                                                                 |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ssh host ✅                             | a `Host` entry in `~/.ssh/config`, or any name ssh will take                                   | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop), `ssh_relay_test.sh` (`hi` again from inside a session), `ssh_wire_test.sh` (bytes on the wire vs the printed size), and `ssh_keep_test.sh` (a kept session, in tmux, screen, and zellij)                                                                          |
-| docker ✅, podman ✅, nerdctl ✅, finch | a running container, through the one docker-grammar arm (all four, always on; GLOSSARY: HI.51) | `tests/targets/docker_test.sh`, `podman_test.sh`, and `nerdctl_test.sh` - six shell environments each (bash, bash interactive, zsh, fish, dash, busybox `sh`), plus docker's compose-alias, read-only-root, and no-writable-tmp cases; nerdctl rootful, over the runner's containerd. finch has no hosted runner, so those suites prove the arm it shares |
-| nomad ✅                                | a running allocation, or `alloc/task`                                                          | `tests/targets/nomad_test.sh`, against a real `nomad agent -dev`                                                                                                                                                                                                                                                                                          |
-| kubernetes ✅                           | a running pod, `pod/container`, `ns:pod`, `ctx:ns:pod`                                         | `tests/targets/kube_test.sh`, against a real kind cluster                                                                                                                                                                                                                                                                                                 |
+| target                                  | what a name resolves as                                      | proven by                                                                                                                              |
+| --------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| ssh host ✅                             | a `Host` entry in `~/.ssh/config`, or any name ssh will take | `tests/targets/ssh_test.sh`, plus the disconnect, relay, wire, and keep suites                                                         |
+| docker ✅, podman ✅, nerdctl ✅, finch | a running container (GLOSSARY: HI.51)                        | `docker_test.sh`, `podman_test.sh`, `nerdctl_test.sh`, six shells each; finch has no hosted runner and shares the arm the others prove |
+| nomad ✅                                | a running allocation, or `alloc/task`                        | `nomad_test.sh`, against `nomad agent -dev`                                                                                            |
+| kubernetes ✅                           | a running pod, `pod/container`, `ns:pod`, `ctx:ns:pod`       | `kube_test.sh`, against a kind cluster                                                                                                 |
 
-ssh is checked first and short-circuits the roster, so a name that is both an
-ssh host and a container name resolves as the ssh host.
+A name that is both an ssh host and a container resolves as the ssh host.
 
-**Already covered by those rows**, so no row of their own:
+**Covered by those rows**, so no row of their own:
 
-- **Anything that is a docker or podman container underneath** - distrobox,
-  toolbx, devcontainers (under docker's `vsc-<project>-<hash>-uid` name, from
-  _outside_; a devcontainer you already sit in has no client to say `hi`
-  from), compose services under docker and podman (`hi web` resolves the
-  `com.docker.compose.service` label; the same service in two projects
-  resolves to neither, on purpose), and any remote docker context, since the
-  arm shells out to whatever `docker` is on `$PATH`. Sharing your real
-  `$HOME` costs nothing: hi writes to no login file on a target.
-- **Anything that ends in a real OpenSSH connection** - AWS SSM,
+- **Anything that is a docker or podman container underneath**: distrobox,
+  toolbx, devcontainers (from outside), compose services (`hi web` resolves
+  the service label; a service name two projects share resolves to neither),
+  and remote docker contexts.
+- **Anything that ends in a real OpenSSH connection**: AWS SSM,
   `gcloud compute ssh`, `fly ssh console`, Azure Bastion, `multipass`,
-  Vagrant, Codespaces, Lima/Colima, OrbStack, Tailscale SSH, Teleport
-  (`tsh`). A `ProxyCommand` is still OpenSSH, which is all hi's
-  `ControlMaster` multiplexing (`_hi_ctl_open`) needs, and why mosh and
-  Eternal Terminal cannot be ridden. Most emit the `Host` block themselves:
-  `vagrant ssh-config`, `gh codespace ssh --config`,
-  `limactl show-ssh --format config <vm>`, `tsh config`; OrbStack writes
-  `~/.ssh/config` on its own.
+  Vagrant, Codespaces, Lima/Colima, OrbStack, Tailscale SSH, Teleport. Most
+  can write the `Host` block for you (`vagrant ssh-config`,
+  `gh codespace ssh --config`, `limactl show-ssh --format config <vm>`,
+  `tsh config`). mosh and Eternal Terminal are not OpenSSH, so hi cannot ride
+  them.
 
 ## The target's OS
 
-Can hi land a session there at all? Landing needs `base64` (or `openssl`),
-`mktemp`, and a `tar` that reads gzip (`tar -z`) on the target, over ssh and
-an exec alike. `ci.yml` calls every workflow named below on each push to main
-and same-repository pull request.
+Every workflow named here runs on each push to main and each same-repository
+pull request.
 
-| target OS                                                        | result                                                                                                                                                                                                                                         | proven by                                                                                                                                                                                                                                                                    |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Linux, glibc (Debian/Ubuntu/Fedora/Arch…)                        | ✅ full session                                                                                                                                                                                                                                | `tests/targets/ssh_test.sh`, on Debian bookworm; `install_methods_test.sh` on Fedora too                                                                                                                                                                                     |
-| Linux, musl + busybox (Alpine…)                                  | ✅ full session with `bash` installed, ⚠️ aliases-only without                                                                                                                                                                                 | `ssh_test.sh`, on Alpine 3.24; the client half by `ci.yml`'s `fast suites (Alpine client)`, in an Alpine container                                                                                                                                                           |
-| macOS                                                            | ✅ full session, client included — it ships bash 3.2                                                                                                                                                                                           | `ssh_test.sh`'s bash-3.2 target, and `ci.yml`'s `fast suites (macos-latest)`: the fast suites, then (pushes and same-repo PRs) Apple's `/bin/bash` 3.2 as the client into the runner's own sshd - a one-shot command, a full session whose header says macOS, and `--doctor` |
-| WSL                                                              | ✅ full session — it is Linux, and the package layout installs into it unchanged                                                                                                                                                               | `.github/workflows/windows-e2e.yml`'s `wsl-suites` job: the fast suites inside an Ubuntu WSL distribution, then the `--prefix` package layout and `hi` into it from Git Bash                                                                                                 |
-| Windows, with Git Bash/Cygwin/MSYS2 on `PATH`                    | ✅ as a client under Git Bash; 🟡 as a target, the same code path as any ssh host with bash                                                                                                                                                    | `.github/workflows/windows-client.yml` (the fast suites under Git Bash, x64 and arm64), and Git Bash as client and target in `windows-e2e.yml` (`openssh-target`: sshd's DefaultShell set to Git Bash)                                                                       |
-| Windows, stock OpenSSH (`cmd.exe`/PowerShell)                    | ⚠️ plain PowerShell session, no hi styling — a deliberate fallback, not a failure                                                                                                                                                              | `windows-e2e.yml`'s `openssh-target` job                                                                                                                                                                                                                                     |
-| \*BSD, Solaris/illumos                                           | ✅ FreeBSD and OpenBSD, full session, client included; OpenBSD with the `bash` package (LibreSSL's `openssl` stands in for `base64`); 🟡 the rest, which share that userland                                                                   | `.github/workflows/freebsd-e2e.yml` and `openbsd-e2e.yml`: the fast suites plus a loopback session, in a VM                                                                                                                                                                  |
-| NAS: Synology DSM, QNAP QTS, TrueNAS SCALE/CORE, Unraid          | 🟡 full session expected - DSM and QTS ship `bash` beside a busybox `sh` with the `base64` and `mktemp` the bootstrap needs; SCALE is Debian, Unraid is Slackware with bash as its shell, CORE is FreeBSD with a bash in base                  | the Alpine, glibc, and FreeBSD rows above prove each shape; nobody has run it on an appliance, and [the local-install recipe](#a-local-install-on-a-nas) is unverified                                                                                                       |
-| OpenWrt (and other busybox routers)                              | ⚠️ aliases-only — busybox `ash`, no bash, `base64` and `mktemp` present; `opkg install bash` makes it a full session. `/tmp` is RAM, and one payload a connect is fine there                                                                   | 🟡 the same shape as Alpine's bash-less case in `ssh_test.sh`; not run on a router                                                                                                                                                                                           |
-| Termux (Android)                                                 | 🟡 as a **client**, bash and coreutils `base64` are there; install as usual (the link lands in `~/.local/bin`, which Termux puts on `$PATH`). 🟡 as a target, over Termux's own `sshd` (port 8022): full session, bash is Termux's shell       | — the [adb row](#targets-weighed-and-not-shipped) is the other direction and stays a no                                                                                                                                                                                      |
-| any of the above behind sshd `ForceCommand`, or a `command=` key | ⚠️ the host's own session — the forced program — after a line saying hi's bootstrap never ran; a forced program that exits non-zero and prints nothing gets the PowerShell notice instead                                                      | `ssh_test.sh`'s three forced-command cases, one with stdin off a terminal                                                                                                                                                                                                    |
-| any of the above with an `rbash` login shell, or `MaxSessions 1` | ✅ full session - `sh` has no `/` in its name, so rbash runs the bootstrap unrestricted (not a boundary hi respects, [SECURITY.md](SECURITY.md#what-runs-where)); a session channel refused while the bootstrap's is open opens once it closes | `ssh_test.sh`'s rbash case, and its maxsessions1 cases at a terminal and off one                                                                                                                                                                                             |
+| target OS                                                        | result                                                                              | proven by                                                                                     |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Linux, glibc (Debian/Ubuntu/Fedora/Arch…)                        | ✅ full session                                                                     | `ssh_test.sh` on Debian; `install_methods_test.sh` on Fedora too                              |
+| Linux, musl + busybox (Alpine…)                                  | ✅ full with `bash` installed, ⚠️ aliases-only without                              | `ssh_test.sh` on Alpine; `ci.yml`'s Alpine client job                                         |
+| macOS                                                            | ✅ full session, client included                                                    | `ssh_test.sh`'s bash-3.2 target; `ci.yml`'s macOS job, with Apple's `/bin/bash` as the client |
+| WSL                                                              | ✅ full session: it is Linux                                                        | `windows-e2e.yml`'s `wsl-suites` job                                                          |
+| Windows, with Git Bash/Cygwin/MSYS2 on `PATH`                    | ✅ as a client under Git Bash; 🟡 as a target                                       | `windows-client.yml` (x64 and arm64); `windows-e2e.yml`'s `openssh-target`                    |
+| Windows, stock OpenSSH (`cmd.exe`/PowerShell)                    | ⚠️ a plain PowerShell session, on purpose                                           | `windows-e2e.yml`'s `openssh-target` job                                                      |
+| \*BSD, Solaris/illumos                                           | ✅ FreeBSD and OpenBSD (with the `bash` package), client included; 🟡 the rest      | `freebsd-e2e.yml` and `openbsd-e2e.yml`, in a VM                                              |
+| NAS: Synology DSM, QNAP QTS, TrueNAS SCALE/CORE, Unraid          | 🟡 full session expected: each ships bash and the tools the bootstrap needs         | the Alpine, glibc, and FreeBSD rows cover each shape; untested on an appliance                |
+| OpenWrt (and other busybox routers)                              | ⚠️ aliases-only; `opkg install bash` makes it full                                  | 🟡 the same shape as Alpine without bash                                                      |
+| Termux (Android)                                                 | 🟡 as a client, installed as usual; 🟡 as a target over Termux's `sshd` (port 8022) | none; [adb](#targets-weighed-and-not-shipped) is the other direction and stays a no           |
+| any of the above behind sshd `ForceCommand`, or a `command=` key | ⚠️ the host's forced program, after a line saying hi's bootstrap never ran          | `ssh_test.sh`'s forced-command cases                                                          |
+| any of the above with an `rbash` login shell, or `MaxSessions 1` | ✅ full session ([SECURITY.md](SECURITY.md#what-runs-where) on rbash)               | `ssh_test.sh`'s rbash and maxsessions1 cases                                                  |
 
 ## A local install on a NAS
 
-**Untested** — drafted from the install path, hence the NAS row's 🟡; what it
-gets wrong is a bug report.
+**Untested**: drafted from the install path; what it gets wrong is a bug
+report.
 
-A tree on the NAS is for its own shells: `ssh nas` and the appliance's
-terminal get the header, prompt, and aliases without a `hi` in front. A `hi`
-from your laptop still sends the payload, as to every ssh target. Two rules
-set the shape:
+An install on the NAS is for its own shells (`ssh nas` without `hi`). A `hi`
+from your laptop sends the payload as it does to every ssh target.
 
-- **Not `scripts/install.sh --prefix`.** Packaging mode writes `/usr/bin/hi`
-  and `/etc/profile.d/say-hi.sh`
-  ([RELEASING.md](RELEASING.md#channels-weighed-and-not-shipped) records the
-  two paths as hardcoded), and appliance firmware owns both: a DSM or QTS
-  upgrade rewrites the system partition and takes them with it.
-- **The home directory on the data volume survives upgrades.** DSM keeps it
-  at `/volume1/homes/<user>` once the _user home service_ is on (without it
-  there is no `$HOME`, and no `hi` session at all), QTS at
-  `/share/homes/<user>`; SCALE, Unraid, and CORE have ordinary homes.
+- **Don't use `scripts/install.sh --prefix`.** It writes `/usr/bin/hi` and
+  `/etc/profile.d/say-hi.sh`, which a DSM or QTS firmware upgrade wipes.
+- **Install into your home on the data volume**, which survives upgrades:
+  `/volume1/homes/<user>` on DSM (turn on the _user home service_ first),
+  `/share/homes/<user>` on QTS. SCALE, Unraid, and CORE have ordinary homes.
 
-So the recipe is the README's
-[plain in-place install](../README.md#in-sixty-seconds), done on the NAS as
-the user you ssh in as (a release tarball where `git` is not a given - on DSM
-it is the Git Server package), and everything it writes (`settings.sh`, the
-`~/.local/bin/hi` link) stays on the data volume. On DSM a non-admin login
-lands in `/bin/sh` and never reads `~/.bashrc`, so check which rc file that
-account reads before expecting the install's line to load.
+So: the README's [clone and install](../README.md#in-sixty-seconds), run on
+the NAS as the user you ssh in as (a release tarball where there is no
+`git`). On DSM a non-admin login lands in `/bin/sh` and never reads
+`~/.bashrc`, so check which rc that account reads.
 
 ## The shell you end up in
 
-Your login shell on the target leads where hi styles it, else the first the
-target has of fish, zsh, and bash; `_HI_SHELL_PREFERENCE` in `settings.sh`
-reorders that (`zsh fish` is zsh wherever the target has it, whatever your
-login shell there - [SETTINGS.md](SETTINGS.md#every-setting)).
+Your login shell on the target, when hi styles it; else the first of fish,
+zsh, and bash the target has. `_HI_SHELL_PREFERENCE` reorders that
+([SETTINGS.md](SETTINGS.md#every-setting)).
 
-| session shell                                           | result                                                                    | note                                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bash` ≥ 3.2                                            | ✅ full: header, prompt, git status, aliases, editor configs              | 3.2 is the floor because macOS still ships it                                                                                                                                                                                                                                        |
-| `zsh` ≥ 5.5                                             | ✅ full                                                                   | `common/zsh.zsh`, and `common/_hi` on `$fpath` for completion, which the rc's own `compinit` registers; the floor is `tests/lint/dialects_test.sh`'s pinned 5.5.1 image (RHEL 8's)                                                                                                   |
-| `fish` ≥ 3.3                                            | ✅ full                                                                   | `common/config.fish`; the same suite parses it in pinned 3.3 (floor, Ubuntu 22.04's) and 4.x (ceiling) images. An older fish gets a one-line notice, and a session the next shell down: 3.2 has no `--no-config` for the overlay's parse gate, and 3.1's `-n` refuses every `export` |
-| `sh`/`dash`/`ash` (no bash on the target)               | ⚠️ aliases and a colored `user@host cwd` prompt, with a warning saying so | no header and no git segment - those need bash                                                                                                                                                                                                                                       |
-| `nushell`, `ion`, `elvish`, `xonsh`, `tcsh`, PowerShell | ❌ **decided against**, not pending                                       | [why](#shells-hi-does-not-style). You still get a session: the best of `$_HI_SHELL_TREE` the target has, or with no `sh` at all, plain PowerShell                                                                                                                                    |
+| session shell                                           | result                                                       | note                                                                                       |
+| ------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `bash` ≥ 3.2                                            | ✅ full: header, prompt, git status, aliases, editor configs | 3.2 because macOS still ships it                                                           |
+| `zsh` ≥ 5.5                                             | ✅ full                                                      | completion through your rc's own `compinit`; 5.5 is RHEL 8's                               |
+| `fish` ≥ 3.3                                            | ✅ full                                                      | 3.3 is Ubuntu 22.04's; an older fish gets a notice and the next shell down                 |
+| `sh`/`dash`/`ash` (no bash on the target)               | ⚠️ aliases and a colored prompt, with a warning              | no header and no git segment: those need bash                                              |
+| `nushell`, `ion`, `elvish`, `xonsh`, `tcsh`, PowerShell | ❌ [decided against](#shells-hi-does-not-style)              | you still get a session in the best shell the target has, or plain PowerShell with no `sh` |
 
-**A shell framework loads normally on a target** ✅ — oh-my-zsh,
-powerlevel10k, starship, bash-it, oh-my-bash, tide, powerline-go, fzf,
-zoxide, direnv, atuin, and mise, each in `tests/targets/framework_test.sh`.
-What hi does alongside each is [INTEGRATIONS.md](INTEGRATIONS.md).
+**Shell frameworks load normally on a target** ✅: oh-my-zsh, powerlevel10k,
+starship, bash-it, oh-my-bash, tide, powerline-go, fzf, zoxide, direnv,
+atuin, and mise, each in `tests/targets/framework_test.sh`. What hi does
+alongside each is [INTEGRATIONS.md](INTEGRATIONS.md).
 
 ## Targets weighed and not shipped
 
-Everything weighed and left off the roster above. Each would need everything
-in [What a "yes" costs](#what-a-yes-costs).
+Each of these still works from the other side: ssh into the host and run `hi`
+there, or use the host's own shell.
 
-| target                                                                                                    | why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `systemd-nspawn` / `machinectl`                                                                           | `machinectl shell` goes through systemd-machined, so it wants root or a polkit prompt on the host, and the few people who sit in an nspawn container long enough to want their aliases do not outweigh another probe on every TAB for everyone else: ideal targets, failing audience                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| WSL (`wsl -d <distro>`)                                                                                   | reachable only from a Windows client, and a distribution is a machine you install say-hi _into_ ([the OS table](#the-targets-os))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `crictl` / CRI-O                                                                                          | a node-level debugging tool, not a place people sit; the session you want is the pod, which the kubernetes row resolves. `tests/targets/kube_test.sh` uses `crictl` to preload images — about the right relationship to it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Apptainer / Singularity                                                                                   | HPC containers are mostly run-to-completion jobs, so there is usually nothing to exec into; where there is, the culture is batch schedulers and `srun`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Proxmox `pct enter`                                                                                       | LXC underneath, reachable only from the PVE node as root — the lxc row below with a narrower door                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| FreeBSD jails (`jexec`), illumos zones (`zlogin`)                                                         | host-local and root-only: you ssh to the host first, where `hi` is already running. The transports are also unlike the container arms' — no unprivileged listing, no unprivileged liveness probe                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `chroot`                                                                                                  | no isolation worth the name, nothing to enumerate, root-only to enter, and hi's disposable tree lands inside the chroot anyway                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `adb shell` (Android), the closest call here                                                              | mechanically the best fit on this page: `adb shell`/`adb push`/`adb devices` map onto probe/cp/attach almost exactly, and the CLI is one static binary. The other end fails: Toybox with no bash and no package manager to get one, so every session lands in the aliases-only tier by construction, and `$HOME` is `/data/local/tmp` at best. hi would reach it and have almost nothing to do there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| AWS ECS Exec (`aws ecs execute-command`)                                                                  | a real exec shape with a real audience, and a name hi cannot take: a task is a cluster/task/container triple, not one word. It also needs the Session Manager plugin beside the CLI, so `command -v aws` would not be honest about whether the backend works                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Slurm (`srun --pty bash`)                                                                                 | `srun` **allocates** rather than attaches: `hi <job>` would queue a job on a scheduler, which nothing else on this page does. The machine people want styled is the login node they submit from, already an ssh host                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Docker Swarm services, Azure Container Instances (`az container exec`), `systemd-run` / portable services | none has shown an audience that _sits_ in it: Swarm is largely superseded by the kubernetes row, ACI is run-a-container-and-go, `systemd-run` launches a unit rather than being a place to find one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Talos Linux and other shell-less immutable distributions                                                  | no shell to style, by design: the node exposes an API, not a login, and `talosctl` has no exec-a-shell verb because there is no `/bin/sh`. Where such a node runs pods, the kubernetes row answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Serial consoles (`picocom`, `virsh console`), `telnet`                                                    | **no file transfer channel at all**, disqualifying as no other row is: hi's first move is landing `$_HI_PAYLOAD` on the far end, and a serial console offers nothing to land through short of typing base64 at a getty                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| WinRM / PowerShell Remoting                                                                               | the answer [the OS table](#the-targets-os) gives stock Windows OpenSSH: PowerShell can neither source hi's POSIX payload nor run its fallback ladder; Git Bash on `PATH` is the supported shape                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Apple `container` (macOS 26)                                                                              | the CLI is not docker's grammar, so it cannot be a word in `_HI_CONTAINER_CLIS`: it lists with `container list` rather than `ps`, its `--format` takes `json`, `table`, `yaml`, or `toml` and no Go template, and `inspect` prints JSON and takes no `-f`, so the arm's templated `ps --format`, its `--filter label=`, and its `container inspect -f` have no counterpart. Its `exec -i -t` maps onto the cp and attach calls, so an arm of its own is the full [cost of a yes](#what-a-yes-costs) plus a JSON reader in the POSIX lister, for an audience of macOS 26 on Apple silicon that has not yet shown it sits in these. `.github/workflows/apple-container.yml`, run by hand, checks that grammar: container 1.5.0 on a hosted `macos-26` runner matched it, and its runtime step refused to start a container there, "Virtualization is not available on this hardware", the runner being a virtual machine itself |
-| `lxc` / `incus` (and LXD)                                                                                 | the closest shape to a fit: a full system container running a real distro, and `lxc exec <name> -- <cmd>` is an ordinary probe/cp/attach triple. Two things decide it. **The suite could only ever skip:** every other backend suite stands its target up from a container image; LXD and Incus want a real daemon and a storage pool on the runner. **And the door is already open:** a system container people sit in is either running sshd, which the ssh row answers, or a machine you install say-hi _into_. That leaves another fork on every `hi <target>` and every TAB, charged to everyone, to save an `~/.ssh/config` entry                                                                                                                                                                                                                                                                                       |
-
-Every one of these still works from the other side: ssh into the host and run
-`hi` there if say-hi is installed, or accept the host's own shell.
+| target                                                                                                    | why not                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `systemd-nspawn` / `machinectl`                                                                           | needs root or a polkit prompt, and few people sit in one; not worth another probe on everyone's TAB                                                                            |
+| WSL (`wsl -d <distro>`)                                                                                   | reachable only from a Windows client; install say-hi _into_ the distribution instead                                                                                           |
+| `crictl` / CRI-O                                                                                          | a node debugging tool; the pod you want is the kubernetes row's                                                                                                                |
+| Apptainer / Singularity                                                                                   | HPC jobs run to completion, so there is rarely anything to exec into                                                                                                           |
+| Proxmox `pct enter`                                                                                       | LXC, reachable only as root on the PVE node; see `lxc` below                                                                                                                   |
+| FreeBSD jails (`jexec`), illumos zones (`zlogin`)                                                         | root-only on the host, where you can already run `hi`; no unprivileged listing or probe                                                                                        |
+| `chroot`                                                                                                  | nothing to list, root-only, and no isolation worth the name                                                                                                                    |
+| `adb shell` (Android)                                                                                     | the commands fit, but the device has no bash, so every session would be aliases-only                                                                                           |
+| AWS ECS Exec (`aws ecs execute-command`)                                                                  | a task is a cluster/task/container triple, not one name, and it needs a plugin `command -v aws` cannot see                                                                     |
+| Slurm (`srun --pty bash`)                                                                                 | `srun` queues a job rather than attaching; the login node you submit from is already an ssh host                                                                               |
+| Docker Swarm services, Azure Container Instances (`az container exec`), `systemd-run` / portable services | nobody sits in these: Swarm is largely replaced by kubernetes, ACI is run-and-go, `systemd-run` starts a unit                                                                  |
+| Talos Linux and other shell-less immutable distributions                                                  | no shell by design; pods on such a node are the kubernetes row's                                                                                                               |
+| Serial consoles (`picocom`, `virsh console`), `telnet`                                                    | no way to transfer the payload                                                                                                                                                 |
+| WinRM / PowerShell Remoting                                                                               | PowerShell cannot run hi's POSIX payload; Git Bash on `PATH` is the supported shape                                                                                            |
+| Apple `container` (macOS 26)                                                                              | not docker's grammar (no `ps`, no Go templates), so it would need its own arm; `apple-container.yml`, run by hand, checks this, and the hosted runner cannot start a container |
+| `lxc` / `incus` (and LXD)                                                                                 | a suite could only skip (it needs a daemon and storage pool), and a system container people sit in runs sshd or can have say-hi installed                                      |
 
 ## Shells hi does not style
 
-Each would need its own rc in `common/` (prompt, aliases, completion) plus a
-tier in the fallback ladder in `hi.sh`'s `_hi_remote_suffix` and `load.sh`'s
-`load()`. Using one of these as a _login_ shell still works - only the
-_session_ shell is limited.
+Each would need its own rc in `common/` and a tier in the fallback ladder. You
+can still use one as your _login_ shell; only the _session_ shell is limited.
 
-| shell            | why                                                                                                                                                                                                        |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `elvish`         | its own language, so the prompt and aliases would be a second implementation to keep in sync forever, for an audience hi has no evidence of. A `common/rc.elv` is what it would take, and nobody has asked |
-| `xonsh`          | Python — a third implementation, on elvish's terms                                                                                                                                                         |
-| `tcsh`/`csh`     | different rc syntax _and_ no `$ENV` equivalent, so there is no hook to land on: it would need its own rc and its own delivery mechanism                                                                    |
-| `nushell`, `ion` | not POSIX, so neither can source any of `common/`                                                                                                                                                          |
-| `ksh`/`mksh`     | they land in the `sh` tier like any bash-less shell — aliases and the colored prompt, no header. A ksh tier for a live git segment is not worth a second POSIX implementation                              |
-| PowerShell       | not a POSIX shell; the greeting hi prints there is the whole extent of it                                                                                                                                  |
+| shell            | why not                                                                      |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `elvish`         | its own language: a second prompt and alias implementation, and nobody asked |
+| `xonsh`          | Python: a third implementation                                               |
+| `tcsh`/`csh`     | different rc syntax and no `$ENV` hook to land on                            |
+| `nushell`, `ion` | not POSIX, so neither can source `common/`                                   |
+| `ksh`/`mksh`     | they get the `sh` tier: aliases and the colored prompt                       |
+| PowerShell       | not POSIX; hi prints a greeting there and nothing more                       |
 
 ## What would change an answer
 
-A "no" above is closed, not permanent, and the one thing that reopens it is
-the same in every section: **evidence of people sitting in it** — who is in
-these, how often, and what they do today instead — enough to be worth what
-[a yes costs](#what-a-yes-costs) everyone who has never heard of it. A new
-exec CLI, a cleaner API, or an easier integration moves nothing, because
-nothing here is a "no" for being hard.
+A "no" above is closed, not permanent. What reopens one is **evidence of
+people sitting in it**: who, how often, and what they use today, enough to be
+worth [what a yes costs](#what-a-yes-costs) everyone else. A new CLI or an
+easier integration does not, because nothing here is a "no" for being hard.
 
-One proposal about hi itself was declined: **a bash 4 floor for the client** —
-the 3.2 plumbing is tested on both ends, and a split floor is two dialects in
+One proposal about hi itself was declined: **a bash 4 floor for the client**.
+The 3.2 code is tested on both ends, and a split floor means two dialects in
 one tree.
+
+## What a "yes" costs
+
+A new docker-compatible CLI is one word in `_HI_CONTAINER_CLIS` (GLOSSARY:
+HI.51). Any other backend touches seven places:
+
+- a row in `_HI_BACKENDS` (`hi.sh`), walked by the dispatch and
+  `scripts/doctor.sh`;
+- a predicate beside `_hi_is_nomad_alloc`, one `_hi_probe_is` line;
+- an arm in `_hi_transport_cmds` (`probe`, `cp`, `attach`);
+- a lister, a `run_lister` case, and the usage line in `common/targets.sh`;
+- a probe in `common/header.sh`'s `_hi_probe_launch`
+  (`tests/hi/parse_test.sh` checks it against the roster);
+- an e2e suite in `tests/targets/`, registered in `_HI_TESTS`;
+- a fixture that stands the target up, so far always a container image.
+
+Everyone pays for it too: every `hi <target>` that is not an ssh host runs
+every backend's predicate, and every uncached TAB checks every backend
+(GLOSSARY: HI.26). An absent CLI costs nothing; a present one costs a
+parallel probe. So a backend earns a yes by being somewhere people actually
+sit, not by being reachable.

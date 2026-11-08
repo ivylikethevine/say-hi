@@ -1,43 +1,43 @@
 # Documentation
 
-Reference beyond [the README](../README.md)'s walkthrough. Each fact has one
-home, the doc named for it below, and every other page links there.
+Reference beyond [the README](../README.md). Each fact has one home, named
+below, and other pages link to it.
 
 ## Using hi
 
-| Doc                                                                          | Covers                                                                                                                                                                                                              |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Getting started](GETTING-STARTED.md)                                        | What hi is, the words these docs use, a starting path for a first install, for a dotfiles repo, and for a minimal one, a tour of one story a feature with the GIF that shows it, and installing without a terminal. |
-| [Usage](USAGE.md)                                                            | Every `hi --flag` with an example and a picture of what it prints, generated from `common/flags`.                                                                                                                   |
-| [Settings](SETTINGS.md)                                                      | `hi --configure`, presets, and the config overlay: every toggle and environment variable hi reads.                                                                                                                  |
-| [Integrations](INTEGRATIONS.md)                                              | The tools hi wires in where a target has them: your prompt program, mise, direnv, bat, eza, tmux, and the rest.                                                                                                     |
-| [Colors](COLORS.md)                                                          | The per-host hash, the pins, the 24-bit scheme, and the package check's ramp and rows.                                                                                                                              |
-| [Compatibility](COMPATIBILITY.md)                                            | Every target, OS, and shell hi answers to, and every runtime, shell, and feature answered **no**, and why.                                                                                                          |
-| [Packaging](PACKAGING.md)                                                    | The install channels, verifying a release download, what a package leaves for you to do, and where its files land.                                                                                                  |
-| [Changelog](CHANGELOG.md)                                                    | What each release changed for someone using hi, newest first, from its pull requests' release notes.                                                                                                                |
-| [Troubleshooting](TROUBLESHOOTING.md)                                        | Symptom, cause, and fix: installing, your own machine, connecting, and inside a session.                                                                                                                            |
-| [Getting help](SUPPORT.md)                                                   | Where to ask a question or file a bug, what to include, what response to expect, and the changes already turned down, with the reasons.                                                                             |
-| [Security policy](SECURITY.md)                                               | The threat model, what hi touches on a target, the scanning policy, supported versions, and how to report a vulnerability.                                                                                          |
-| [Man page](https://github.com/ivylikethevine/say-hi/blob/main/docs/hi.1)     | `man hi`: every flag, setting, and exit status; `hi --help` is its short form. A roff page, so not on the site.                                                                                                     |
-| [tldr page](https://github.com/ivylikethevine/say-hi/blob/main/docs/tldr.md) | The eight-example draft for tldr-pages, kept in step with `common/flags` by the lint gate. Not on the site either.                                                                                                  |
+| Doc                                                                          | Covers                                                     |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [Getting started](GETTING-STARTED.md)                                        | the words these docs use, a starting path, a feature tour  |
+| [Usage](USAGE.md)                                                            | every flag, with what it prints                            |
+| [Settings](SETTINGS.md)                                                      | presets, every setting, the overlay, plugins               |
+| [Integrations](INTEGRATIONS.md)                                              | prompt programs, multiplexers, bat, eza, git, and the rest |
+| [Colors](COLORS.md)                                                          | host colors, tags, schemes, the package check              |
+| [Compatibility](COMPATIBILITY.md)                                            | supported targets, OSes, and shells, and what is not       |
+| [Packaging](PACKAGING.md)                                                    | install channels and verifying a download                  |
+| [Changelog](CHANGELOG.md)                                                    | what each release changed                                  |
+| [Troubleshooting](TROUBLESHOOTING.md)                                        | symptoms and fixes                                         |
+| [Getting help](SUPPORT.md)                                                   | where to ask, what to include, what was turned down        |
+| [Security policy](SECURITY.md)                                               | the threat model and reporting a vulnerability             |
+| [Man page](https://github.com/ivylikethevine/say-hi/blob/main/docs/hi.1)     | `man hi`; not on the site                                  |
+| [tldr page](https://github.com/ivylikethevine/say-hi/blob/main/docs/tldr.md) | the draft for tldr-pages; not on the site                  |
 
 ## Understanding it
 
-| Doc                             | Covers                                                                                                                                                                                                                                  |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [How it works](HOW-IT-WORKS.md) | The architecture: client to transport to target session, how the payload is built and armored, cleanup, and every file a session makes or reads on a target. [What runs where](SECURITY.md#what-runs-where) is the trust-boundary view. |
-| [Files](FILES.md)               | Every file say-hi is made of, reads, recognizes, and creates on your machine. Where state lives.                                                                                                                                        |
-| [Alternatives](ALTERNATIVES.md) | sshrc, xxh, kyrat, sshdot, and homeshick side by side, and the adjacent tools hi composes with.                                                                                                                                         |
-| [Glossary](GLOSSARY.md)         | The named idioms the code's `GLOSSARY:` tags point at; drift-checked by the lint suite. Never ships.                                                                                                                                    |
+| Doc                             | Covers                                            |
+| ------------------------------- | ------------------------------------------------- |
+| [How it works](HOW-IT-WORKS.md) | what happens between `hi <target>` and the prompt |
+| [Files](FILES.md)               | every file hi is made of, reads, and creates      |
+| [Alternatives](ALTERNATIVES.md) | sshrc, xxh, kyrat, and others, side by side       |
+| [Glossary](GLOSSARY.md)         | the idioms the code's `GLOSSARY:` tags point at   |
 
 ## Changing it
 
-| Doc                                   | Covers                                                                                                                                               |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Roadmap](ROADMAP.md)                 | What is left to build, and what the 1.0 tag and the releases after it wait on.                                                                       |
-| [Contributing](CONTRIBUTING.md)       | The gate, what CI runs, what a review bounces on, what 1.x will not break, which docs change with what, AI-assisted contributions, push protection.  |
-| [Testing](TESTING.md)                 | The runner, suite groups, parallel cases, coverage, the test images, the lint gate, test levers, relaying.                                           |
-| [Portable spellings](SYNTAX.md)       | How to write a command so every target runs it - sed, grep, awk, pipes under strict mode, bash 3.2, Git Bash - and what catches each slip.           |
-| [Releasing](RELEASING.md)             | The maintainer's runbook: channels not shipped, cutting a release, the release environment, publishing each channel, reproducibility, the demo GIFs. |
-| [Governance](GOVERNANCE.md)           | Who decides, the roles, how a change gets in, contributor certification, sensitive access, and continuity.                                           |
-| [Code of conduct](CODE_OF_CONDUCT.md) | The Contributor Covenant 2.1 as adopted here: the bar for behaviour, where to report a breach, and the enforcement ladder.                           |
+| Doc                                   | Covers                                                      |
+| ------------------------------------- | ----------------------------------------------------------- |
+| [Roadmap](ROADMAP.md)                 | what is left to build                                       |
+| [Contributing](CONTRIBUTING.md)       | the gate, CI, review rules, and which docs change with what |
+| [Testing](TESTING.md)                 | the runner, suites, coverage, and the lint gate             |
+| [Portable spellings](SYNTAX.md)       | writing commands every target runs                          |
+| [Releasing](RELEASING.md)             | the maintainer's release runbook                            |
+| [Governance](GOVERNANCE.md)           | who decides and how a change gets in                        |
+| [Code of conduct](CODE_OF_CONDUCT.md) | the Contributor Covenant 2.1 as adopted here                |

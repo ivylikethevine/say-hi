@@ -22,18 +22,13 @@ hi <anything>                  # ssh, with your prompt, aliases, and editors alo
 ```
 
 No sudo: the install links `~/.local/bin/hi` and writes only to your rc files
-and `~/.config/say-hi`. `--preset balanced` answers without asking,
-`--dry-run` shows every write first, and `hi --configure` opens the settings
-in your editor.
+and `~/.config/say-hi`. `--dry-run` shows every write first.
 
 ![hi into a web host whose site answers 502: the site and errs aliases from the overlay find a refused upstream, sudo vim opens on the carried vimrc to fix the port, restart restarts nginx through systemd, and the site answers 200](docs/tapes/demo.gif)
 
 > View these docs as a [website here](https://ivylikethevine.github.io/say-hi/).
->
-> New here: [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) has the words
-> these docs use and a starting path for the way you work.
-> [docs/README.md](docs/README.md) indexes the rest, the man page and the tldr
-> draft included.
+> New here? [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) picks a
+> starting path; [docs/README.md](docs/README.md) indexes the rest.
 
 ## Contents
 
@@ -55,35 +50,33 @@ in your editor.
 
 ## What You Get
 
-A line each here; [the tour](docs/GETTING-STARTED.md#a-tour) has each one's
-story, its GIF, and the config it was recorded with.
+Each links to its story and GIF in [the tour](docs/GETTING-STARTED.md#a-tour).
 
 - [**Your aliases, in every shell, on every host**](docs/GETTING-STARTED.md#your-aliases-in-every-shell-on-every-host):
-  `~/.config/say-hi/` rides along on every connect, to a box that does not
-  run your shell too.
+  `~/.config/say-hi/` rides along on every connect, even to a box that does
+  not run your shell.
 - [**Your editors and your git**](docs/GETTING-STARTED.md#your-editors-and-your-git):
-  your vimrc and nanorc, under `sudo` as well, and your git aliases without
-  your keys.
+  your vimrc and nanorc, under `sudo` too, and your git aliases without your
+  keys.
 - [**Know where you are at a glance**](docs/GETTING-STARTED.md#know-where-you-are-at-a-glance):
-  a color a host and a tag, so prod looks like prod.
+  a color per host and tag, so prod looks like prod.
 - [**One command, every backend**](docs/GETTING-STARTED.md#one-command-every-backend):
   ssh hosts, docker and podman containers, nomad allocations, and kubernetes
-  pods, one `hi <target>` for all of them.
-- [**Survive a dropped link**](docs/GETTING-STARTED.md#survive-a-dropped-link): `hi --keep`
-  keeps the session in tmux on the box and reattaches it after a drop.
+  pods, all through `hi <target>`.
+- [**Survive a dropped link**](docs/GETTING-STARTED.md#survive-a-dropped-link):
+  `hi --keep` runs the session in tmux on the box and reattaches after a drop.
 - [**The header tells you what's missing**](docs/GETTING-STARTED.md#the-header-tells-you-whats-missing):
-  a package check on every connect, quiet where the tools are there.
+  a package check on every connect, quiet when the tools are there.
 - [**Every target in one tab**](docs/GETTING-STARTED.md#every-target-in-one-tab):
   `hi <TAB>` lists your ssh hosts and every running container, allocation,
   and pod.
 
 ## Target Requirements
 
-<!-- Seven shields endpoint badges, published by pages.yml
-     (.github/scripts/platform_badges.sh) - which says why
-     img.shields.io/github/check-runs cannot answer per job here, and is where
-     a renamed CI job has to be mirrored. A badge added here reads
-     "inaccessible" until the next Pages deploy publishes its file. -->
+<!-- Shields endpoint badges, published by pages.yml
+     (.github/scripts/platform_badges.sh, which says why check-runs cannot
+     answer per job, and where a renamed CI job has to be mirrored). A new
+     badge reads "inaccessible" until the next Pages deploy. -->
 
 ![Minimal](https://img.shields.io/badge/minimal-ssh%20%2B%20base64%20%2B%20tar-0A6E8A)
 ![Full](https://img.shields.io/badge/full-bash%203.2-0A8E8A)
@@ -95,153 +88,90 @@ story, its GIF, and the config it was recorded with.
 ![Windows](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fwindows.json)
 ![Windows client](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fwindows-client.json)
 
-Which OSes hi lands a session on, which shell you end up in, what proves each
-row, and everything answered **no**, and why:
-[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
+- **Your machine**: bash 3.2+, `tar`, `gzip`, `base64`, and `ssh` or the
+  backend's CLI (`docker`, `podman`, `nerdctl`, `finch`, `nomad`, `kubectl`).
+- **The target**: `base64` (or `openssl`), `mktemp`, and a `tar` that reads
+  gzip. With `bash` you get the full session; without it, your aliases and a
+  colored prompt.
+- **Shells hi styles**: bash 3.2, zsh 5.5, and fish 3.3 or newer.
 
-- **Client**: `bash` 3.2+, `tar` and `gzip` (a libarchive `tar` compresses on
-  its own and needs no `gzip`), and `base64` (coreutils, busybox, macOS/BSD, and Git
-  Bash all ship one; `openssl base64` stands in where none does), `ssh` for
-  ssh targets, any of `docker`/`podman`/`nerdctl`/`finch` and
-  `nomad`/`kubectl` for those backends. hi has no protocol of its own: `ssh`
-  is the transport, `base64` is armor, not crypto
-  ([docs/SECURITY.md](docs/SECURITY.md)).
-- **Target**: `base64` (or `openssl`), `mktemp`, and a `tar` that reads
-  gzip (`tar -z`), on every backend: the payload lands the same way over
-  ssh and an exec. `bash` gets the full session; without it you
-  land in the best shell the target has, with a smaller one
-  ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
-- **A slow link**: the ssh wire is meant to stay at or under 128 KB — 8 s over
-  a 128 kbps link — and the gzipped payload is held to 64 KB by the bench
-  group. The payload badge above is today's wire size.
-- **bash 3.2** is the floor on both ends (macOS still ships it; what that rules
-  out of the code is
-  [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)),
-  **fish 3.3** (Ubuntu 22.04's) and **zsh 5.5** (RHEL 8's) for the other two
-  shells hi styles.
-- Everything else is plain POSIX/bash/zsh/fish — no compiled artifacts, no
-  package manager, no build step.
+The payload badge is what each connect sends. Every OS and shell, and
+everything answered **no**: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 ## Installation
 
-- The `.deb`/`.rpm`/`.apk` are on
-  [the releases page](https://github.com/ivylikethevine/say-hi/releases), and
-  [the package repository](docs/PACKAGING.md#package-repository) serves them
-  signed and subscribable, so upgrades ride your package manager:
+From a clone, the four lines [above](#in-sixty-seconds). From a package
+([docs/PACKAGING.md](docs/PACKAGING.md) has every channel):
 
-  ```sh
-  # Debian, Ubuntu
-  sudo curl -fsSLo /etc/apt/keyrings/say-hi.asc https://ivylikethevine.github.io/say-hi/say-hi.asc
-  echo 'deb [signed-by=/etc/apt/keyrings/say-hi.asc] https://ivylikethevine.github.io/say-hi/apt stable main' |
-    sudo tee /etc/apt/sources.list.d/say-hi.list
-  sudo apt update && sudo apt install say-hi
+```sh
+# Debian, Ubuntu
+sudo curl -fsSLo /etc/apt/keyrings/say-hi.asc https://ivylikethevine.github.io/say-hi/say-hi.asc
+echo 'deb [signed-by=/etc/apt/keyrings/say-hi.asc] https://ivylikethevine.github.io/say-hi/apt stable main' |
+  sudo tee /etc/apt/sources.list.d/say-hi.list
+sudo apt update && sudo apt install say-hi
 
-  # Fedora, RHEL, and derivatives
-  sudo curl -fsSLo /etc/yum.repos.d/say-hi.repo https://ivylikethevine.github.io/say-hi/say-hi.repo
-  sudo dnf install say-hi
+# Fedora, RHEL, and derivatives
+sudo curl -fsSLo /etc/yum.repos.d/say-hi.repo https://ivylikethevine.github.io/say-hi/say-hi.repo
+sudo dnf install say-hi
 
-  # Alpine
-  wget -O /etc/apk/keys/say-hi.rsa.pub https://ivylikethevine.github.io/say-hi/say-hi.rsa.pub
-  echo https://ivylikethevine.github.io/say-hi/apk >>/etc/apk/repositories
-  apk add say-hi
-  ```
+# Alpine
+wget -O /etc/apk/keys/say-hi.rsa.pub https://ivylikethevine.github.io/say-hi/say-hi.rsa.pub
+echo https://ivylikethevine.github.io/say-hi/apk >>/etc/apk/repositories
+apk add say-hi
 
-  A packaged install still needs `hi --install` once per user, for the rc
-  lines; it leaves the package's `/usr/bin/hi` to the package manager. macOS:
-  `brew install ivylikethevine/tap/say-hi`
-  ([the tap](docs/PACKAGING.md#homebrew-tap)), then `hi --install`.
+# macOS
+brew install ivylikethevine/tap/say-hi
+```
 
-- `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
-  It syntax-checks `~/.bashrc`, `~/.zshrc`, and `~/.config/fish/config.fish`
-  with each shell's own checker first and asks before continuing if any fails
-  (`--yes` answers it). Your login shell is wired, and any other of the three
-  with an rc file already; `--shell bash,zsh` names them instead, and `all` is
-  every one installed. Each line tests for the tree first, so a deleted
-  checkout costs a shell nothing. On macOS `~/.bash_profile` is taught to read
-  `~/.bashrc`. A first install asks one thing, which preset to start from
-  ([docs/SETTINGS.md](docs/SETTINGS.md#presets)), and nothing else. For an rc file a dotfile manager owns, `--print-rc` prints
-  each block and writes none
-  ([docs/SETTINGS.md](docs/SETTINGS.md#keeping-the-overlay-in-a-dotfile-manager)). `hi` is linked at `~/.local/bin/hi` (`--link system`
-  for `/usr/bin/hi`, `--link none` for no link — the wired shells alias it
-  either way). Then reload your shell. zsh completes `hi` through the
-  `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
-  of its own.
-- `hi --configure` asks which preset to start from, then opens
-  `~/.config/say-hi/settings.sh` in your editor, every setting a line of it
-  ([Configuration](#configuration)).
-- `hi --doctor [<target>]` when something is slow or failing (`--problems` for
-  only what needs fixing, `--json` for a bug report); it also reports which rc
-  files are wired and where `hi` on your `PATH` leads.
-  [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) goes symptom by symptom.
-- `hi --update` moves a cloned install to the newest release tag, or on the
-  `dev` branch fast-forwards it (`--dry-run` says what it would do; a package
-  upgrades through its package manager).
-- `hi --add-tag web1 prod` writes the `# Tags: prod` line above `Host web1`
-  in `~/.ssh/config`, which a `hosttag` row then colors
-  ([docs/COLORS.md](docs/COLORS.md)).
-- `hi --edit packages` and `hi --edit colors` open your copy of the package
-  check and the color pins in your editor, copying the shipped file there
-  first.
-- `hi --plugins` lists every config hi carries to a target, and what rides;
-  `hi --disable-plugin lazygit vim` keeps a plugin home and
-  `hi --enable-plugin` brings it back; `hi --edit plugins` opens your plugins
-  file in your editor, for the configs of a tool hi does not know
-  ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
-- The whole surface is twenty flags: `hi --help` (or bare `hi`) lists them,
-  [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
-  form, and everything hi does not answer goes to `ssh`.
-- **A dropped connection ends the session** and nothing on the target
-  outlives it, unless you ask: `hi --keep <target>` runs the session in
-  `tmux`, `zellij`, or `screen` on the target, the next `hi <target>`
-  reattaches, and `hi --end <target>` or a day unattended closes it. On a
-  target with none of the three, its files and directory wait fifteen
-  minutes for you
-  ([how](docs/INTEGRATIONS.md#terminal-multiplexers)).
-- Done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
-  hi's lines from your rc files, removes the `settings.sh` it wrote, and
-  unlinks `~/.local/bin/hi` (or a `/usr/bin/hi` of its own making; a
-  package's stays). A one-time `<rc>.hi-orig` backup goes once the rc matches
-  it again; one that differs is kept, with the differing lines printed. Left
-  behind on purpose: the checkout or package (`apt remove say-hi` and
-  friends), and the rest of `~/.config/say-hi` (`--purge` removes that too).
-  `--dry-run` names what would go. To take it all off a cloned install:
+Then run `hi --install` once per user to wire your shell.
+
+- **Wiring**: the install wires your login shell and any of bash, zsh, and
+  fish that already has an rc file, and asks which
+  [preset](docs/SETTINGS.md#presets) to start from. It checks each rc's
+  syntax first and leaves the rest of the file alone.
+- **Your flags**: `--shell`, `--link`, `--preset`, and `--print-rc` (for an rc
+  a dotfile manager owns) are in [docs/USAGE.md](docs/USAGE.md#hi---install);
+  unattended installs are
+  [Installing without a terminal](docs/GETTING-STARTED.md#installing-without-a-terminal).
+- **Updating**: `hi --update` moves a clone to the newest signed release tag;
+  a package updates through its package manager.
+- **Uninstalling**: `hi --uninstall` removes hi's rc lines and its link;
+  `--purge` removes `~/.config/say-hi` too. For a clone:
 
   ```sh
   hi --uninstall --purge && rm -rf ~/say-hi
   ```
 
+All twenty flags are in [docs/USAGE.md](docs/USAGE.md) and `man hi`;
+anything hi does not recognize goes to `ssh`. When something is slow or
+failing, run `hi --doctor` and see
+[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
 ## Configuration
 
-Your config lives in `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` and rides
-along to every host you say `hi` to. `settings.sh` is what `hi --configure`
-writes; the install copies nothing else there, so the shipped `colors` and
-`packages` apply until you copy one out of the tree's `config/` to edit
-(`hi --edit packages` and `hi --edit colors` do the copying) or add an
-`aliases.sh` of your own. The editor rcs need no copy: hi carries your
-own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
-([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
-The overlay file table, the presets, and every setting are in
-[docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
-[How it works](docs/HOW-IT-WORKS.md). The tools hi wires in where a
-target has them — your prompt program, mise, direnv, bat, eza, and more — are
-[docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+Your config lives in `~/.config/say-hi/` (the overlay) and rides along to
+every host you say `hi` to. `hi --configure` writes `settings.sh` there and
+opens it in your editor. `hi --edit colors` and `hi --edit packages` copy the
+shipped defaults in for editing. Your own `~/.vimrc`, `~/.nanorc`, and other
+editor configs ride without a copy.
 
-**_IMPORTANT: every overlay file in that directory is copied to every host you
-say `hi` to — keep local-only lines (a token, an internal hostname) in
-`~/.bashrc` and friends instead._** What lands on a target, and that it is
-removed on exit:
-[docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target).
+**_IMPORTANT: every file in the overlay is copied to every host you say `hi`
+to. Keep local-only lines (a token, an internal hostname) in `~/.bashrc` and
+friends instead._**
+What lands on a target: [docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target).
+
+More: every setting and preset in [docs/SETTINGS.md](docs/SETTINGS.md), the
+tools hi wires in (your prompt program, mise, direnv, bat, eza) in
+[docs/INTEGRATIONS.md](docs/INTEGRATIONS.md), and how a session reaches the
+target in [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md).
 
 ### Hostname, Username, and Group/Tag Colors
 
-Every username and hostname gets a color derived from its name; a line in
-`~/.config/say-hi/colors` (`prod-db = "yellow"` under `[hostname]`, which
-`hi --edit colors` opens) pins one, and
-`hi --preview colors` shows what every host and your user resolve to. Tags
-(`# Tags:` lines in `~/.ssh/config`, which sshm writes, or ssh's own `Tag`
-keyword), patterns, truecolor
-schemes of your own, and using the hash in your own prompt:
-[docs/COLORS.md](docs/COLORS.md).
+Every user and host gets a color derived from its name. Pin one in
+`hi --edit colors` (`prod-db = "yellow"` under `[hostname]`), color a group
+with a tag (`hi --add-tag web1 prod`), and check the result with
+`hi --preview colors`. Patterns, truecolor schemes, and the hash in your own
+prompt: [docs/COLORS.md](docs/COLORS.md).
 
 ## Built from/with/in mind
 
@@ -263,24 +193,23 @@ How say-hi compares to similar tools, and when to use something else:
 
 ## Testing
 
-`tests/test_runner.sh` runs the suites with a colored pass/fail summary;
-`--group fast` and `--group lint` are [the gate](docs/CONTRIBUTING.md#the-gate)
-CI runs on every push. Runbook: [docs/TESTING.md](docs/TESTING.md).
+`tests/test_runner.sh` runs the suites; `--group fast` and `--group lint` are
+[the gate](docs/CONTRIBUTING.md#the-gate) CI runs on every push. Runbook:
+[docs/TESTING.md](docs/TESTING.md).
 
 ![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)
 [![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
-The coverage badge measures the shipped product over the full sweep and gates
-nothing ([how it skews](docs/TESTING.md#coverage-and-profiling)).
+The coverage badge measures the shipped code over the full sweep and gates
+nothing.
 
 ## Getting help and contributing
 
-A question, a bug, or an idea: [docs/SUPPORT.md](docs/SUPPORT.md) says where
-each one goes and what to bring (`hi --doctor --json` answers most of it).
-Anything exploitable goes privately, per
-[docs/SECURITY.md](docs/SECURITY.md#reporting-a-vulnerability). A change:
-[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) has the gate, what a review
-bounces on, and which docs change with what; who decides is
+Questions, bugs, and ideas: [docs/SUPPORT.md](docs/SUPPORT.md)
+(`hi --doctor --json` answers most of what a report needs). Anything
+exploitable goes privately, per
+[docs/SECURITY.md](docs/SECURITY.md#reporting-a-vulnerability). Changes:
+[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md); who decides:
 [docs/GOVERNANCE.md](docs/GOVERNANCE.md).
 
 ## AI usage

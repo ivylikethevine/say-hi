@@ -169,11 +169,8 @@ function _hi_has_truecolor() {
 function _hi_truecolor_flag() { if _hi_has_truecolor; then _hi_out "${1:-}" 1; else _hi_out "${1:-}" 0; fi; }
 
 # _hi_scheme_words <outvar> - 24 or 48 when $_HI_COLOR_SCHEME is that many
-# six-digit hex words one space apart (the colors file's [scheme], which
-# _hi_color_tables reads), 0 for nothing or anything else. The shape is
-# the one _hi_scheme_hex slices, so the walk is by offset: no read, no fork,
-# no arrays, and no variable in a `case` pattern (zsh reads one literally).
-# Memoized on the scheme string: _hi_scheme_hex asks once per slot.
+# hex words one space apart, else 0. Walked by offset (no fork, no arrays, no
+# variable in a `case` pattern, which zsh reads literally); memoized.
 # GLOSSARY: HI.50
 function _hi_scheme_words() {
   local _hi_sw_s="${_HI_COLOR_SCHEME:-}" _hi_sw_n=0 _hi_sw_i=0
@@ -193,17 +190,11 @@ function _hi_scheme_words() {
 }
 
 # _hi_scheme_hex <outvar> <index> - rrggbb for _HI_COLOR_NAMES slot <index>
-# under $_HI_COLOR_SCHEME, empty when the terminal is not truecolor, and for
-# the first twelve slots when there is no scheme: those keep the terminal's
-# own sixteen colors, while the twelve extras always have a hex of their
-# own, since no 16-color code is orange. Twenty-four six-digit words in one
-# fixed-width string, sliced by offset: no arrays (zsh indexes them from 1),
-# no read, no fork. The vocabulary is the twenty-four names - a scheme
-# changes what a name renders as, never which name a host hashes to or what
-# config/colors may pin. <index> runs 0-47: slots 24-47 are a second bank,
-# the names again, which only a 48-word list fills (header.sh paints the
-# packages check from it); every other table answers them with the first
-# bank. GLOSSARY: HI.50
+# under $_HI_COLOR_SCHEME. Empty on a non-truecolor terminal, and for the
+# first twelve slots with no scheme (the terminal's own colors); the extras
+# always have a hex. Sliced by offset (zsh indexes arrays from 1). Slots 24-47
+# are the package check's second bank, the first bank's where a scheme has
+# only 24 words. GLOSSARY: HI.50
 function _hi_scheme_hex() {
   local _hi_sh_t _hi_sh_n _hi_sh_i="$2" _hi_sh_d=0
   printf -v "$1" '%s' ''
@@ -234,17 +225,11 @@ function _hi_slot_hex() {
 }
 
 # _hi_color_escape_at <outvar> <index> [hex] - the literal '\e[..m' string for
-# slot <index> (the two characters backslash-e, which every palette variable
-# holds; a consumer's final printf '%b' makes it an ESC). One SGR: the
-# 16-color pair first, then ;38;2;r;g;b when the scheme and the terminal
-# both say so, so a terminal that ignores the second keeps the first, and
-# header.sh's hue and width readers still see one escape. The pair is
-# $_HI_COLOR_FALLBACK's for <index> mod 24, so a second-bank slot wears the
-# same 16-color half as its name. <hex> is a config/colors row's own
-# rrggbb (its string's second word): it stands in for the scheme's hex for
-# this one escape, and a terminal with no 24-bit color still gets the slot's
-# pair, so a pinned hex never costs a pin its 16-color half. Empty under
-# $NO_COLOR. GLOSSARY: HI.50
+# slot <index> (a literal backslash-e, made an ESC by the consumer's printf
+# '%b'). One SGR: the 16-color pair for <index> mod 24, then ;38;2;r;g;b on
+# a truecolor terminal, so a terminal that ignores the second keeps the
+# first. [hex], a pin's own, replaces the scheme's. Empty under $NO_COLOR.
+# GLOSSARY: HI.50
 function _hi_color_escape_at() {
   local _hi_ce_h _hi_ce_rgb="" _hi_ce_p
   if [ -n "${NO_COLOR:-}" ]; then
@@ -257,14 +242,9 @@ function _hi_color_escape_at() {
   printf -v "$1" '\\e[%s;3%s%sm' "${_hi_ce_p:0:1}" "${_hi_ce_p:1:1}" "$_hi_ce_rgb"
 }
 
-# _hi_color_split <namevar> <hexvar> <value> - a resolved color as its two
-# halves: the palette name, and the rrggbb a config/colors row pinned for
-# it as its string's second word (empty when there was none). Every
-# resolved color is one shape or the other - "brgreen" or "brgreen#3ba55d" -
-# so the three readers below answer a pinned color exactly where they answer
-# a bare name, and everything between _hi_colors_scan and them (the memos,
-# $_HI_TARGET_COLOR over the wire, preview.sh's grouping) carries one string
-# and needs to know nothing. GLOSSARY: HI.50
+# _hi_color_split <namevar> <hexvar> <value> - a resolved color, "brgreen" or
+# "brgreen#3ba55d", as its name and its pinned hex (empty for none). Everything
+# between the scan and the readers carries the one string. GLOSSARY: HI.50
 function _hi_color_split() {
   # \#: under zsh's extended_glob a bare # in a pattern is an operator
   printf -v "$1" '%s' "${3%%\#*}"
@@ -313,10 +293,8 @@ function _hi_dir_member_ok() {
 
 # _hi_dir_members <dir> - an overlay directory's members into the caller's
 # $_hi_members, in name order: its plain files _hi_dir_member_ok admits. Every
-# other entry goes into $_hi_strays, for hi --doctor to name. The one listing
-# extensions/, header/, and their doctor rows share. Its own function so
-# zsh's null_glob stays local: set in a loader, local_options would also undo
-# every setopt an extension makes.
+# other entry goes into $_hi_strays, for hi --doctor. Its own function so
+# zsh's null_glob stays local without undoing an extension's setopts.
 function _hi_dir_members() {
   local _hi_dm_f
   # the -d first: unset, "$1"/* is /*, and a loader would source whatever
@@ -400,14 +378,9 @@ function _hi_load_extensions() {
   return 0
 }
 
-# _hi_ramp_ok <value> - true when <value> is eight _HI_COLOR_NAMES words,
-# the shape $_HI_PACKAGES_PALETTE takes from the colors file's [palette]
-# (header.sh reads it per render,
-# scripts/lib.sh's _hi_ramp_label reports it, so both judge by this one
-# function). The `case` up front rejects every byte a name cannot hold; the
-# walk then trims a word at a time rather than splitting on $IFS, since zsh
-# sources this file and does not split unquoted parameters. A doubled space
-# leaves an empty word, which no name matches.
+# _hi_ramp_ok <value> - true when <value> is eight _HI_COLOR_NAMES words, the
+# [palette] shape header.sh and lib.sh's _hi_ramp_label both judge by. Trimmed
+# a word at a time, since zsh does not split unquoted parameters.
 function _hi_ramp_ok() {
   local _hi_ro_s="$1" _hi_ro_w _hi_ro_c=0
   case "$_hi_ro_s" in '' | *[!a-z\ ]*) return 1 ;; esac
@@ -437,12 +410,9 @@ function _hi_color_escape_var() {
   fi
 }
 
-# _hi_color_hex <outvar> <name> - rrggbb for <name> under the scheme, or the
-# row's own hex when the pin carried one, empty when the escape would be the
-# plain 16-color one; zsh's %F{#..} and fish's set_color take the hex where
-# the escape form does not fit. A pin's hex outranks the scheme, which is the
-# point of writing one: the scheme says what a *name* renders as, a fourth
-# column says what this one host or user renders as.
+# _hi_color_hex <outvar> <name> - rrggbb for <name>: a pin's own hex, else the
+# scheme's, else empty (the plain 16-color escape). For zsh's %F{#..} and
+# fish's set_color.
 function _hi_color_hex() {
   local _hi_ch_i _hi_ch_b _hi_ch_h
   printf -v "$1" '%s' ''
@@ -464,13 +434,8 @@ function _hi_assign_palette() {
   done
 }
 
-# _hi_cecho <text> [color] [no_newline]
-#
-# %b for the palette - the colors are '\e[..m' strings until printf expands
-# them - and %s for the text. The text is not always hi's own: _hi_report_failure
-# feeds a connect errlog through here, so a backslash in a target's banner or
-# a Windows path is printed as a backslash, and a literal `\e]0;` a target
-# wrote is text rather than a title change on the client's terminal.
+# _hi_cecho <text> [color] [no_newline] - %b for the color, %s for the text,
+# which may be a target's (a connect errlog), so its escapes print as text.
 function _hi_cecho() {
   printf '%b%s%b' "${2:-}" "${1:-}" "$NC"
   [ $# -ge 3 ] || printf '\n'
@@ -585,12 +550,8 @@ function _hi_bin_is() {
 # scripts/lib.sh: they are tooling, and common/ ships in the ssh payload
 # under a size budget nothing a target runs should spend.
 
-# $EPOCHREALTIME (bash 5) first - free, no fork; else date +%s.%N, which has
-# sub-second precision and _hi_remote_preamble's copy of this function (hi.sh)
-# already proves on bash 3.2 targets; *N* or empty is a date(1) with no %N
-# (old BSD), where plain date +%s or $SECONDS is the fallback, in that order.
-# Only ever differenced, so any monotonic clock works; an empty answer would
-# make _hi_elapsed print a time for a session it never timed.
+# $EPOCHREALTIME (bash 5, no fork), else date +%s.%N, else date +%s (no %N
+# on old BSD), else $SECONDS. Only ever differenced.
 function _hi_now() {
   local d="${EPOCHREALTIME:-}"
   [ -n "$d" ] || d=$(date +%s.%N 2>/dev/null)
@@ -662,24 +623,16 @@ function _hi_human_duration() {
   _hi_out "${2:-}" "$_hi_hd"
 }
 
-# _hi_runtime_dir <var> - a private per-user directory for hi's own ephemeral
-# state (the ControlMaster socket, the payload/overlay caches), or empty when
-# there is none hi can vouch for: $XDG_RUNTIME_DIR, else a `mkdir -m 700`
-# directory of hi's own under ${TMPDIR:-/tmp}, never adopted if something else
-# is already there and ownership-checked before use. Every caller degrades
-# rather than trust a directory it cannot vouch for. common/targets.sh keeps
-# its own copy of this - it is standalone POSIX and sources nothing, so the
-# two only stay in step by comment.
+# _hi_runtime_dir <var> - a private per-user directory for the control
+# socket and caches: $XDG_RUNTIME_DIR, else a `mkdir -m 700` one under
+# ${TMPDIR:-/tmp}, ownership-checked and never adopted; empty when neither
+# can be trusted, and callers degrade. common/targets.sh keeps a copy.
 function _hi_runtime_dir() {
   # prefixed locals (GLOSSARY: HI.04): a plain `dir` would shadow the caller's
   # outvar and the assignment would never leave this function
   local _hi_rtd_dir="${XDG_RUNTIME_DIR:-}"
-  # Memoized one deep and keyed on what it reads: a connect asks up to five
-  # times, and without $XDG_RUNTIME_DIR each miss costs the stats below.
-  # Keyed rather than a bare memo because cache_test.sh asks against several
-  # $TMPDIRs in one process. Only a *found* directory is remembered - the one
-  # it wanted can appear between two calls, and caching "no" would hold a
-  # client to the degraded path for the rest of its life.
+  # Memoized, keyed on its inputs (cache_test.sh varies $TMPDIR); only a
+  # found directory is remembered, since a missing one may appear later.
   local _hi_rtd_key="${XDG_RUNTIME_DIR:-}|${TMPDIR:-}"
   if [ "${_HI_RTD_KEY:-}" = "$_hi_rtd_key" ] && [ -n "${_HI_RTD_MEMO:-}" ]; then
     printf -v "$1" '%s' "$_HI_RTD_MEMO"
@@ -785,12 +738,10 @@ function _hi_prime_identity() {
   _hi_user_color >/dev/null
 }
 
-# Bound a backend CLI so a downed daemon can't hang a waited-on path: bare
-# without `timeout` (stock macOS), without `-k` where it is refused (BusyBox
-# before 1.35), and as `-t SECS` where that is the only form (before 1.30). The first call settles which and redefines this, so
-# a caller that forks probes calls `_hi_probe true` first and every lane
-# inherits the answer. targets.sh keeps its own copy and says why the KILL
-# follows the TERM.
+# Bounds a backend CLI so a downed daemon cannot hang: bare without `timeout`
+# (stock macOS), no `-k` before BusyBox 1.35, `-t SECS` before 1.30. The
+# first call picks the form and redefines this, so call `_hi_probe true`
+# before forking probes. targets.sh keeps a copy.
 function _hi_probe() {
   if ! command -v timeout >/dev/null 2>&1; then
     function _hi_probe() { "$@"; }
@@ -960,14 +911,9 @@ function _hi_prompt_end() {
 # _hi_session_editor); scripts/lib.sh's _hi_is_editor validates against it.
 _HI_EDITORS="nvim vim micro hx helix kak nano emacs"
 
-# Every prompt program hi hands the prompt to, one row each:
-# name|shells it fits|how it is found|the overlay member(s) its home config
-# rides as. `bin` is a binary on $PATH; `fw` a framework the shell's own
-# _hi_prompt_fw answers for (tide: fish's autoloaded functions). The order is
-# the unset default's - frameworks ahead of the programs that fit every shell.
-# The one roster: _hi_prompt_tool, hi.sh's _hi_prompt_list and
-# _hi_prompt_handed, and the wizard all read it. config.fish keeps the
-# fish-fitting names; rc_test pins that copy to this. GLOSSARY: HI.32
+# Every prompt program, in the unset default's order (frameworks first):
+# name|shells|`bin` on $PATH or `fw` (the shell's _hi_prompt_fw)|overlay
+# members. config.fish copies the fish rows; rc_test pins it. GLOSSARY: HI.32
 _HI_PROMPT_TABLE=(
   'powerlevel10k|zsh|fw|p10k.zsh'
   'oh-my-zsh|zsh|fw|oh-my-zsh.zsh-theme'
@@ -1086,12 +1032,9 @@ function _hi_prompt_init() {
 }
 
 # _hi_prompt_tool <bash|zsh> [outvar] - the first of $_HI_PROMPT_TOOL's prompt
-# programs that fits this shell and is here, to hand the prompt to while hi
-# keeps its header and aliases; `hi` or none leaves hi's prompt. A
-# <shell>:<program> entry is tried first, by that shell alone. With no plain
-# entry the rest is every program - so one found at home wins by default -
-# and a target is handed home's answer (hi.sh's _hi_prompt_list), never its
-# own. A framework's presence is the shell's own _hi_prompt_fw. GLOSSARY: HI.32
+# programs that fits this shell and is installed; `hi` or none keeps hi's.
+# <shell>:<program> entries go first. A target gets home's list
+# (_hi_prompt_list), never its own. GLOSSARY: HI.32
 function _hi_prompt_tool() {
   local _hi_ptt _hi_ptr _hi_pts _hi_ptl="${_HI_PROMPT_TOOL:-} " _hi_pto="" _hi_ptp=""
   while [ -n "$_hi_ptl" ]; do
@@ -1139,7 +1082,7 @@ function _hi_has_color() {
 # overrides it both ways (1 forces ASCII, 0 forces glyphs) and is not a
 # setting anyone is asked for: it carries the *client's* answer into a session,
 # because the glyphs render in the terminal the client is sitting at and not in
-# the target's (hi.sh's _hi_ascii_flag, docs/SETTINGS.md's _Not settings_).
+# the target's (hi.sh's _hi_ascii_flag, docs/FILES.md's _Variables hi sets_).
 function _hi_use_ascii() {
   case "${_HI_ASCII:-}" in
   1) return 0 ;;
@@ -1156,17 +1099,9 @@ function _hi_use_ascii() {
 # target honors
 function _hi_ascii_flag() { if _hi_use_ascii; then _hi_out "${1:-}" 1; else _hi_out "${1:-}" 0; fi; }
 
-# Does ${#} answer in columns or in bytes? A UTF-8 locale makes bash count
-# characters; anything else counts bytes - and the two part company exactly
-# where the glyph set is forced on rather than derived, which is the normal
-# case on a target: a client whose terminal renders glyphs ships _HI_ASCII=0,
-# and a target sitting in LC_ALL=C then draws them under a shell that measures
-# a three-byte ● as three columns. Header lines wrap that a real terminal
-# would have fitted.
-#
-# One multibyte character is the whole probe, and it is decided once here
-# because the callers are per-cell hot paths. The literal, not $'\uXXXX':
-# that escape is bash 4.2 and the floor is 3.2. GLOSSARY: HI.12
+# Does ${#} count characters or bytes? Bytes outside a UTF-8 locale, so a
+# target in LC_ALL=C drawing the client's glyphs would measure ● as three
+# columns. Probed once, with a literal (not $'\u', bash 4.2). GLOSSARY: HI.12
 _HI_MB_PROBE='─'
 _HI_BYTE_COUNTS=0
 [ "${#_HI_MB_PROBE}" = 1 ] || _HI_BYTE_COUNTS=1
@@ -1252,11 +1187,8 @@ function _hi_local_hostname() {
 }
 
 # _hi_toml_row <line> <keyvar> <valvar> - a `key = value` line of the TOML
-# subset config/colors and config/packages keep to: the key bare or in double
-# quotes, the value a double-quoted string or an array of them, on the one
-# line, and whatever follows it (a # comment) left unread. The value comes
-# back as the string's text, or the array's members a , apart. 1 for a line
-# that is no row: a comment, a [table], anything the subset has no word for.
+# subset (docs/SETTINGS.md's _The TOML hi reads_): the string, or an array's
+# members joined by `,`. 1 for anything that is not a row.
 function _hi_toml_row() {
   local _hi_tr_k _hi_tr_v="${1#"${1%%[![:space:]]*}"}"
   case "$_hi_tr_v" in
@@ -1304,10 +1236,9 @@ function _hi_package_table() {
 
 # _hi_colors_load - $_HI_COLORS' `[<type>]` tables of `<name> = "<color>
 # [rrggbb]"` rows as "<type>\x1f<name>\x1f<color>\x1f<hex>" lines in
-# $_HI_COLORS_ROWS. A caller resolving several colors declares
-# `local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS=""` and loads once, so the file
-# is read once (zsh's `read` costs a syscall a byte); each lookup below opens
-# its own otherwise.
+# $_HI_COLORS_ROWS. A caller resolving several declares `local
+# _HI_COLORS_BATCH=1 _HI_COLORS_ROWS=""` to read the file once (zsh's `read`
+# is a syscall a byte).
 function _hi_colors_load() {
   local t="" l n="" c="" h us=$'\x1f'
   _HI_COLORS_ROWS=""
@@ -1329,10 +1260,8 @@ function _hi_colors_load() {
 }
 
 # _hi_color_tables [file] - $_HI_COLOR_SCHEME and $_HI_PACKAGES_PALETTE from
-# the [scheme] and [palette] tables of [file] ($_HI_COLORS by default): the
-# scheme's `colors` words with its `packages` words after them as the second
-# bank, and the palette's `installed` names then its `missing` ones. Empty
-# where the file has none, and taken as written otherwise, for the readers to
+# [file]'s [scheme] (`colors`, then `packages` as the second bank) and
+# [palette] (`installed`, then `missing`), as written, for the readers to
 # judge. GLOSSARY: HI.50
 function _hi_color_tables() {
   local f="${1:-${_HI_COLORS:-}}" t="" l k v s="" p="" i="" m=""
@@ -1368,14 +1297,10 @@ else
 fi
 _hi_assign_palette
 
-# The two readers of those rows. One walk behind both: they differ only in
-# whether the name field is compared or matched, and the two wrappers below
-# are what the callers and the suites name. A string's second word is
-# that pin's own 24-bit color; it comes back joined to the name as
-# "<color>#<rrggbb>", the shape _hi_color_split reads, and only when it is six
-# hex digits (a leading `#` is allowed and dropped) - anything else is ignored
-# and the row colors by name alone, since a colors file is hand-written and a
-# typo must not cost the pin.
+# One walk behind the two readers of those rows, which differ only in
+# comparing or matching the name. A pin's second word comes back as
+# "<color>#<rrggbb>" when it is six hex digits; anything else is ignored so a
+# typo does not cost the pin.
 # _hi_colors_scan <type> <name> <glob?> [outvar]
 function _hi_colors_scan() {
   local rest row cur_name color hex us=$'\x1f'
@@ -1459,16 +1384,9 @@ function _hi_ssh_host_tag() {
 }
 
 # _hi_ssh_pattern_hit <name> <space/comma-separated patterns> - ssh's Host glob
-# syntax (*, ?) is case-pattern syntax too, so each token is tried as one.
-# GLOSSARY: HI.37 - the zsh divergences, and why a leading "!" is inert.
-#
-# The tokens are peeled off the string by parameter expansion, never with
-# `for pat in $2`: an unquoted expansion is pathname-expanded as well as
-# word-split, so a bare `*` - the commonest Host line there is - would become
-# the cwd's file list and match nothing, and a host's color would depend on
-# the directory hi runs from. bash only; zsh does not glob there, so the two
-# shells disagreed on the same box. header.sh's _hi_ip_filter matches through
-# this too.
+# syntax (*, ?) is case-pattern syntax, so each token is tried as one.
+# Tokens are peeled, never `for pat in $2`, which would expand a bare `*`
+# against the cwd. GLOSSARY: HI.37
 function _hi_ssh_pattern_hit() {
   local name="$1" rest="$2 " pat hit=1
   while [ -n "${rest// /}" ]; do
@@ -1514,19 +1432,12 @@ function _hi_ssh_try_patterns() {
   return 2
 }
 
-# The tag of the "Host <alias>" or "Match host <pattern>" block naming a host
-# in ~/.ssh/config (case-insensitive, wildcards honoured): the "# Tags: a, b"
-# comment directly above it, else a `Tag <name>` line inside it (ssh's own
-# keyword, OpenSSH 9.4 up, which `Match tagged` reads), else, for a host
-# spelled out in a file directly in a `config.d`, that file's name. Unknown
-# host returns 1, known host with no tag returns 2. An untagged block that
-# matches (a leading `Host *`) does not end the walk: ssh applies every
-# matching block, so a tag further down still counts; the first block that
-# answers does, as ssh takes the first `Tag` it reads. An `Include` is walked
-# in place, its files flattened by targets.sh - a fork only for a config that
-# has one - and a block an Include sits in goes on through its lines, as it
-# does for ssh. $_hi_sw_src says which of the three answered: comment, tag,
-# or file.
+# The tag of the `Host` or `Match host` block naming a host in ~/.ssh/config
+# (case-insensitive, wildcards honoured): its "# Tags:" comment, else its
+# `Tag` line, else its `config.d` file's name (docs/COLORS.md's _Tags_). 1 for
+# an unknown host, 2 for no tag. The first block that answers wins, as with
+# ssh's `Tag`; an `Include` is walked in place (targets.sh flattens it).
+# $_hi_sw_src says which answered: comment, tag, or file.
 function _hi_ssh_host_tag_walk() {
   local line trimmed known=1
   _hi_sw_tag="" _hi_sw_file="" _hi_sw_hit="" _hi_sw_src="" _hi_sw_open="" _hi_sw_pend=""

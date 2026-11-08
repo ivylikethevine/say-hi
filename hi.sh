@@ -18,12 +18,9 @@ _hi_now() {
 # empty connect time rather than aborting before this file defines anything.
 _HI_CONNECT_T0="${EPOCHREALTIME:-$(_hi_now)}" || _HI_CONNECT_T0=""
 
-# The tree: $_HI_ROOT where it is exported and sits in $_HI_HOME, else
-# $_HI_HOME/say-hi where $_HI_HOME is exported (an older rc line, a target,
-# the suites - and refused below when nothing is there, never a stranger),
-# else this script's own path behind a symlink walk - the same walk as
-# scripts/install.sh's and packaging/lib.sh's: fix one, fix all. $_HI_HOME
-# is then the directory above it. GLOSSARY: HI.33
+# The tree: an exported $_HI_ROOT inside $_HI_HOME, else $_HI_HOME/say-hi,
+# else this script's path behind a symlink walk (the same walk as install.sh's
+# and packaging/lib.sh's: fix one, fix all). GLOSSARY: HI.33
 if [ -n "${_HI_ROOT:-}" ] && { [ -z "${_HI_HOME:-}" ] || [ "${_HI_ROOT%/*}" = "$_HI_HOME" ]; }; then
   :
 elif [ -n "${_HI_HOME:-}" ]; then
@@ -243,18 +240,13 @@ function _hi_backend_tags() {
   done
 }
 
-# _hi_tag_settings <fallback> [arm] - the settings a target's tags name:
-# for an ssh host (no [arm]) each `settings.<tag>.sh` of the overlay whose
-# tag the `# Tags:` line above $DOMAIN names, in that line's order; for a
-# container, an allocation, or a pod ([arm], the backend's word) the
-# backend's file, then a pod's context's and namespace's
-# (_hi_backend_tags). Sourced here, over settings.sh, and joined to it - the
-# site tier's settings.sh (HI.61) ahead of both - in one file that rides as
-# the target's settings.sh ($_HI_TAG_SETTINGS, pack.sh's _hi_overlay_src),
-# so both ends read the same. The file lives in the runtime directory,
-# rewritten only when its content changes since the overlay cache watches
-# its mtime, else at <fallback>, the caller's to remove. A session's relay
-# has none: it inherits what it was sent.
+# _hi_tag_settings <fallback> [arm] - sources the overlay's settings.<tag>.sh
+# for each of the target's tags (an ssh host's `# Tags:` line, or [arm]'s
+# words from _hi_backend_tags) and joins the site's, yours, and those into
+# one file that rides as the target's settings.sh ($_HI_TAG_SETTINGS). It
+# lives in the runtime directory, rewritten only on change since the overlay
+# cache watches its mtime, else at <fallback>. A relay inherits what it was
+# sent.
 function _hi_tag_settings() {
   local _hi_ts_t _hi_ts_f _hi_ts_dir _hi_ts_out _hi_ts_tmp _hi_ts_o=$- _hi_ts_site=""
   local -a _hi_ts_files=() _hi_tags=()
@@ -341,22 +333,17 @@ function _hi_overlay_fixup() {
     "$1" "$_HI_CARRY_TOKEN" "$_HI_CARRY_TOKEN"
 }
 
-# Whether this client can gzip at all: gzip itself, or a tar that compresses
-# in-process. Only libarchive's does - GNU's and OpenBSD's exec gzip off $PATH
-# for -z - so "no gzip" is a refusal rather than a bigger payload. The probe
-# is _hi_tar_gz's own fallback invocation, so the two cannot disagree, against
-# a real member: Git Bash's tar does not reliably stat /dev/null.
-# GLOSSARY: HI.38
+# Whether this client can gzip: gzip itself, or libarchive's tar (GNU's and
+# OpenBSD's exec gzip). The probe is _hi_tar_gz's own fallback, on a real file
+# since Git Bash's tar does not reliably stat /dev/null. GLOSSARY: HI.38
 function _hi_can_gzip() {
   command -v gzip >/dev/null 2>&1 && return 0
   tar -c -z -f - -C "$_HI_ROOT" hi.sh >/dev/null 2>&1
 }
 
-# Dash-style options everywhere tar runs: OpenBSD's tar reads every word
-# after an old-style `cf <file>` as a member name, -C and -h included.
-# gzip in a second process rather than `z`: bsdtar pads the compressed stream
-# to 10240; the -z arm is for a tar that compresses on its own (_hi_can_gzip).
-# -9: the cache pays for it once. GLOSSARY: HI.38 - that, PIPESTATUS, no-gzip.
+# Dash-style options: OpenBSD's tar reads every word after `cf <file>` as a
+# member. gzip runs apart, since bsdtar pads its own `z` output to 10240.
+# GLOSSARY: HI.38
 function _hi_tar_gz() {
   if ! command -v gzip >/dev/null 2>&1; then
     tar -c -z -f - "$@"
@@ -368,13 +355,10 @@ function _hi_tar_gz() {
   return "${st[1]}"
 }
 
-# _hi_hash <value> [outvar] - 32-bit FNV-1a of <value>, in decimal: a cache or
-# socket name, never verified. Arithmetic, not cksum(1): Git for Windows ships
-# none, a fork per key is what Git Bash is slowest at, and a connect's keys,
-# 10 to 200 characters, hash faster here than a fork takes. Sliced 64
-# characters at a time because `${s:i:1}` walks from the start of $s. The
-# last value is remembered, since a connect asks for its payload's and its
-# socket's keys twice each.
+# _hi_hash <value> [outvar] - 32-bit FNV-1a of <value>, in decimal, for cache
+# and socket names. Arithmetic, not cksum(1): Git for Windows has none, and a
+# fork costs more there than hashing. Sliced 64 characters at a time because
+# `${s:i:1}` walks from the start; the last value is memoized.
 function _hi_hash() {
   if [ "${_HI_HASH_IN+x}" = x ] && [ "$1" = "$_HI_HASH_IN" ]; then
     _hi_out "${2:-}" "$_HI_HASH_OUT"
@@ -450,11 +434,8 @@ function _hi_container_target() {
 }
 
 # _hi_compose_container <cli> <service> - the one running container behind a
-# compose service name, or failure; never a guess. GLOSSARY: HI.43
-# docker and podman only: both take the `label=` filter and render
-# `{{.Label "..."}}`, which common/targets.sh needs to offer the service name
-# on TAB; nerdctl and finch are unchecked, and a template one rejects would
-# fail the lookup rather than decline it.
+# compose service, or failure. docker and podman only: nerdctl and finch are
+# unchecked against the label filter. GLOSSARY: HI.43
 function _hi_compose_container() {
   command -v "$1" >/dev/null 2>&1 || return 1
   local matches
@@ -493,13 +474,10 @@ function _hi_is_k8s_pod() {
     get pod "$_HI_K_POD" -o jsonpath='{.status.phase}' --request-timeout="${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}s"
 }
 
-# The backend roster, in resolution order:
-# "<name>|<what a target resolves as>|<liveness probe>|<predicate>", for _hi's
-# dispatch and scripts/doctor.sh's report. The last two columns are command
-# lines, the predicate run with the target as its last argument. The family
-# rows come off $_HI_CONTAINER_CLIS (core.sh), which common/targets.sh cannot
-# read and spells again on its own - the drift suite pins the two together.
-# GLOSSARY: HI.51
+# The backend roster in resolution order, for dispatch and doctor.sh:
+# "<name>|<what a target resolves as>|<liveness probe>|<predicate>", the last
+# two command lines (the predicate takes the target last). common/targets.sh
+# spells the family rows again; the drift suite pins the two. GLOSSARY: HI.51
 _HI_BACKENDS=()
 for _hi_cli in $_HI_CONTAINER_CLIS; do
   _HI_BACKENDS+=("$_hi_cli|$_hi_cli container|$_hi_cli ps -q|_hi_is_family_container $_hi_cli")
@@ -534,32 +512,23 @@ function _hi_use_backend() {
 
 # _hi_ctl_open <run-persist-secs> <run|shared> [ssh-opts...] - a ControlMaster
 # socket into the caller's ctl_dir/ctl_path/ctl_opts/ctl_shared, so the boot
-# probe and the session multiplex one authentication. _hi_ctl_close tears it
-# down, except a shared one.
+# probe and the session share one authentication; _hi_ctl_close removes it
+# unless shared.
 #
-# `run` is a fresh socket inside a `mktemp -d` (0700), not at a `mktemp -u`
-# name: `ControlMaster=auto` joins an existing socket rather than refusing it.
-# doctor.sh asks for `run`, to leave no socket behind.
-#
-# `shared` is a stable per-(target, ssh-args) socket under _hi_runtime_dir, so
-# a second `hi <target>` within $_HI_CTL_PERSIST seconds skips the key
-# exchange. _HI_CTL_PERSIST=0 or no runtime directory fall back to `run`.
-#
-# "/s" and "hi.ctl.<key>", never a second random component or a 40-hex `%C`:
-# ControlPath goes into a sockaddr_un capped near 104 bytes, and macOS's
-# per-user $TMPDIR already spends ~50. <key> hashes $DOMAIN and $SSHARGS, so
-# a `-p`/`-l`/`-o` naming another connection gets its own socket.
+# `run`: a fresh socket in a `mktemp -d`, never a `mktemp -u` name, since
+# `ControlMaster=auto` joins a socket already there. `shared`: a stable socket
+# per target and ssh args (_hi_conn_key) in the runtime directory, reused for
+# $_HI_CTL_PERSIST seconds; with neither available it falls back to `run`.
+# Names stay short ("/s", "hi.ctl.<key>"): sockaddr_un caps near 104 bytes,
+# and macOS's $TMPDIR spends ~50.
 function _hi_ctl_open() {
   local persist="$1" scope="$2" dir key
   shift 2
   ctl_dir="" ctl_path="" ctl_shared=0
   ctl_opts=()
-  # No multiplexing from an MSYS/Cygwin client: ssh passes the session's file
-  # descriptors to the master over SCM_RIGHTS, which that runtime does not
-  # carry, so the connection dies rather than degrading. $OSTYPE answers
-  # without a `uname` fork ("msys" for MSYS2 and Git Bash both).
-  # $_HI_DISABLE_CONTROLMASTER asks for the same state: no option of hi's, so
-  # the ssh config's own ControlMaster line decides.
+  # No multiplexing from MSYS or Cygwin, whose runtime cannot pass the
+  # session's descriptors over SCM_RIGHTS; _HI_DISABLE_CONTROLMASTER leaves it
+  # to the ssh config.
   case "${_HI_DISABLE_CONTROLMASTER:-0}:${OSTYPE:-}" in
   1:* | *:msys* | *:cygwin*)
     ctl_opts+=("$@")
@@ -597,34 +566,21 @@ function _hi_ctl_close() {
   return 0
 }
 
-# _hi_boot_probe [dir] - the sh script the boot runs through the arm's `cp`:
-# check for base64 (or openssl), make a scratch directory, take what
-# _hi_boot_stream sends off stdin, check that all of it landed, split it into
-# the script and the two archives beside it, say where it went. The split is
-# `dd` on a regular file, whose read is never short, and `tail -c`, POSIX
-# both; `head -c` is not, and OpenBSD has none.
+# _hi_boot_probe [dir] - the sh the boot runs on the target: check for base64
+# (or openssl) and a tar that reads gzip, make a scratch directory, take
+# _hi_boot_stream off stdin, check all of it landed, and split it into the
+# script and two archives with `dd` and `tail -c` (OpenBSD has no `head -c`).
+# Every path is the target's. GLOSSARY: HI.19
 #
-# Every path in it is the *target's*: a client-side `mktemp -u -t` would name
-# a path in the client's $TMPDIR, and a target without it would fall through
-# to the PowerShell branch.
+# Exit codes name the failure for _say_hi: 64 no armor, 67 no gzip tar, 65 no
+# scratch directory, 66 a short landing (nomad's and kube's `exec -i` can
+# deliver less). `if`s, not `|| exit N`: cmd.exe honours `||` and would exit
+# 64 itself. HIMUX (a multiplexer is there, for _hi_keep_until) comes before
+# HIBOOT, which stays last.
 #
-# The failures say which in the exit status (64 no armor, 67 no tar that
-# reads gzip, 65 no scratch directory, 66 a short landing) so _say_hi can
-# name the reason. A short
-# landing is nomad's and kube's: an `exec -i` whose stdin closes before the
-# target's cat drains it succeeds at the transport and delivers less. `if`s
-# rather than `|| exit N`: Windows OpenSSH hands the command to cmd.exe,
-# which cannot run `sh` but does honour `||`, and would itself exit 64.
-# GLOSSARY: HI.19
-#
-# HIMUX says whether the target has a multiplexer to keep a session in, which
-# decides how long one is kept (_hi_keep_until); ahead of HIBOOT, whose line
-# stays the last.
-#
-# [dir] is a target-side path the session's stub already waits on
-# (_hi_connect_overlap): made 0700 by `mkdir` under `umask 077`, which
-# refuses one that exists and, unlike `mkdir -m`, makes no chmod Git Bash
-# refuses, and the script renamed into it whole, so the stub never runs half.
+# [dir] is a path the session's stub already waits on (_hi_connect_overlap),
+# made 0700 by `mkdir` under `umask 077` (no chmod for Git Bash to refuse),
+# with the script renamed in whole so the stub never runs half of it.
 function _hi_boot_probe() {
   printf '%s\n' 'if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then exit 64; fi'
   _hi_targz_check
@@ -664,13 +620,10 @@ if command -v base64 >/dev/null 2>&1; then z=$(printf %s "$z" | { base64 -d || b
 TARGZ
 }
 
-# _hi_boot_why <status> <output> - why the boot probe left no scratch dir, as
-# a line naming $DOMAIN, or nothing (GLOSSARY: HI.19): the probe's own four
-# codes; a path hi refused; and a *forced command* (sshd's `ForceCommand`, or
-# a `command=` on the key), known by exiting 0 or printing anything, since
-# cmd.exe and PowerShell both fail `sh` non-zero and say so on stderr. One
-# that exits non-zero printing nothing reads as a missing `sh`: nothing here,
-# and the caller's PowerShell notice.
+# _hi_boot_why <status> <output> - why the boot left no scratch directory, as
+# a line naming $DOMAIN, or nothing: the probe's codes, a refused path, or a
+# forced command, known by exiting 0 or printing anything (cmd.exe and
+# PowerShell fail `sh` non-zero with stderr). GLOSSARY: HI.19
 function _hi_boot_why() {
   case "$1:$2" in
   *HIBOOT:*) printf '%s\n' "[$DOMAIN] named a scratch directory hi will not use" ;;
@@ -771,12 +724,10 @@ function _hi_fallback_prompt() {
   printf -v ce '%b' "$ce" # the _var form leaves `\e` literal
   printf -v nc '%b' "$NC"
   printf -v cwd_esc '%b' "$BRBLUE"
-  # A line editor counts every byte it is not told to skip, so each escape
-  # sits between $_hi_a and $_hi_z: bash's \[ \] for BusyBox ash, a delimiter
-  # PS1's first two bytes declare for mksh ($_hi_p), nothing for dash, which
-  # has no line editing. One assignment per statement where one reads another:
-  # FreeBSD's sh expands every word of a command before assigning any. The cwd
-  # stays ${PWD}, for the shell to expand at each draw.
+  # Each escape sits between $_hi_a and $_hi_z so the line editor skips it:
+  # \[ \] for BusyBox ash, mksh's declared delimiter ($_hi_p), nothing for
+  # dash. One assignment per statement where one reads another: FreeBSD's sh
+  # expands every word before assigning any.
   # shellcheck disable=SC2016 # every $ here is the target shell's
   printf '%s\n' '_hi_u=$(id -un 2>/dev/null || echo "${USER:-?}"); _hi_a= _hi_z= _hi_p=; [ -z "${BB_ASH_VERSION-}" ] || { _hi_a='"'"'\['"'"' _hi_z='"'"'\]'"'"'; }; case "${KSH_VERSION-}" in *MIRBSD*) _hi_a=$(printf '"'"'\001'"'"'); _hi_z=$_hi_a; _hi_p=$_hi_a$(printf '"'"'\r'"'"') ;; esac'
   printf 'PS1="${_hi_p} ${_hi_a}%s${_hi_z}${_hi_u}${_hi_a}%s${_hi_z}@${_hi_a}%s${_hi_z}%s${_hi_a}%s${_hi_z} ${_hi_a}%s${_hi_z}%s${_hi_a}%s${_hi_z} %s "\n' \
@@ -922,11 +873,9 @@ REMOTE
 }
 
 # _hi_terminfo_line <outvar> - the script's line that compiles the client's
-# terminfo entry into the session tree, where the preamble swapped a TERM the
-# target had no entry for, and puts the TERM back (GLOSSARY: HI.22): `infocmp
-# -x` here, `tic -x -o` there, the tree on TERMINFO_DIRS ahead of the target's
-# own. Empty for a TERM every target knows, or one this client cannot
-# describe; a target with no `tic` keeps the swap.
+# terminfo entry (`infocmp -x` here, `tic -x -o` there) into the session tree
+# for a TERM the target lacks, and restores that TERM. Empty for a TERM every
+# target knows; a target with no `tic` keeps the fallback. GLOSSARY: HI.22
 function _hi_terminfo_line() {
   local _hi_tl_src=""
   printf -v "$1" '%s' ''
@@ -939,12 +888,10 @@ function _hi_terminfo_line() {
     "$(printf '%s\n' "$_hi_tl_src" | _hi_armored_line '|' 'tic -x -o "$_HI_ROOT/terminfo" - >/dev/null 2>&1 && export TERMINFO_DIRS="$_HI_ROOT/terminfo:${TERMINFO_DIRS:-}" TERM="$_hi_ti_was"')"
 }
 
-# The target's half of the glyph decision (GLOSSARY: HI.12), for a client
-# that ships glyphs: a session whose locale is no UTF-8 one the target has
-# installed counts a glyph's bytes as columns, so it is given the session's,
-# the client's ($_HI_CLIENT_LOCALE), or C.UTF-8 as LC_CTYPE, the first that
-# `locale -a` lists, and ASCII where none is or an LC_ALL says otherwise,
-# which is the user's to keep. A target with no `locale` is left as it is.
+# The target's half of the glyph decision: LC_CTYPE becomes the first UTF-8
+# locale `locale -a` lists of the session's, the client's, and C.UTF-8, else
+# the session goes ASCII (as it does under a user's LC_ALL). A target with no
+# `locale` is left alone. GLOSSARY: HI.12
 function _hi_locale_probe() {
   cat <<'LOCALE'
       if [ "${_HI_ASCII:-}" = 0 ] && _hi_la=$(locale -a 2>/dev/null | tr 'A-Z' 'a-z' | sed 's/utf-8/utf8/') && [ -n "$_hi_la" ]; then
@@ -1040,20 +987,14 @@ $tail
 REMOTE
 }
 
-# The disposable-tree half of the script: unpack the archives beside it into
-# a fresh /tmp root. Reads $size, $bootloader, and $overlay_line from its
-# caller, so _say_hi and _hi_wire_bytes assemble one shape.
+# The disposable-tree half of the script: unpack the archives into a fresh
+# /tmp root. Reads $size, $bootloader, and $overlay_line from its caller, so
+# _say_hi and _hi_wire_bytes build one shape.
 #
-# The `trap ... exit` is a backstop for bash killed by a signal nothing can
-# trap: load.sh's clean_all owns the teardown otherwise, and the trap only
-# has to remove the tree, since $_HI_SESSION_RC_DIR nests inside it, and
-# runs no `rm` for a tree clean_all already took. hi.probes is the header's
-# probe directory, made here with the root to save it a `mktemp`. A kept
-# session's tree is left to its owner pane, one kept later from inside
-# leaves a marker for the same, and one that holds its tree (hi.hold) leaves
-# it to its own exit hook and the timer behind that; the tree of an owner pane that died goes here, by the next connect,
-# which takes a held tree of its own name in place of unpacking
-# (GLOSSARY: HI.65).
+# The exit trap is a backstop for a bash killed by an untrappable signal;
+# load.sh's clean_all owns the teardown. A kept or held tree is left to its
+# owner pane or hold timer, and the next connect removes one whose owner died
+# or takes over a held one of its name. GLOSSARY: HI.65
 function _hi_remote_middle() {
   local tmpl _hi_esc _hi_nc kept="" sweep="" fresh="" fi=""
   _hi_keep_middle
@@ -1096,26 +1037,19 @@ function _hi_boot_stream() {
   cat "$tree_f" ${ovl_f:+"$ovl_f"}
 }
 
-# The script rides stdin of the first of two calls, the arm's `cp`, and the
-# write doubles as the POSIX-shell-and-base64 probe that selects the
-# fallbacks. GLOSSARY: HI.19 - the argv cap, and why two calls. A short
-# landing (66) is tried twice more, since the race behind it is transient.
+# The script rides stdin of the first of two calls, the arm's `cp`, which
+# doubles as the probe that picks the fallbacks. A short landing (66) is
+# retried twice. GLOSSARY: HI.19
 #
-# An ssh call's stderr is deliberately *not* redirected: it authenticates, so
-# it carries the server's `Banner` and, on an unknown host, the key
-# fingerprint the yes/no prompt on /dev/tty is about. A retry
-# (_hi_keep_connect) holds those words back until the target has answered,
-# and is false where ssh could not reach it. A container's words are the
-# exec's, and go to $errlog for _hi_report_failure.
+# ssh's stderr is not redirected: it carries the server's banner and an
+# unknown host's fingerprint. A retry (_hi_keep_connect) holds those back
+# until the target answers. A container's words go to $errlog.
 #
-# The *target* names the directory and prints it back (_hi_boot_probe),
-# tagged rather than taken whole: a target whose sh writes anything of its
-# own to stdout would otherwise prepend it to the path. It is a target string
-# reaching a command run back on that target, so _hi_safe_path's rule holds,
-# over the characters a temp path is built from ("+" for macOS).
+# The target prints the directory back tagged, so anything its sh writes to
+# stdout cannot prefix the path, and _hi_safe_path checks it ("+" for macOS).
 #
-# Reads arm, errlog, script, bytes, and the arm's commands from _say_hi, and
-# fills its boot_out, boot_ec, and boot_tmp.
+# Reads arm, errlog, script, bytes, and the arm's commands from _say_hi;
+# fills boot_out, boot_ec, and boot_tmp.
 function _hi_boot_call() {
   local boot_fd=2 quiet="" try
   [ "$arm" != ssh ] || quiet="${_HI_KEEP_QUIET:-}"
@@ -1166,13 +1100,10 @@ function _hi_ctl_alive() {
 }
 
 # _hi_overlap_start - _hi_connect_overlap's boot call, started as soon as the
-# target is known, so the handshake runs while the client builds the script:
-# its stdin a FIFO a writer holds, which sends the script once
-# _hi_connect_overlap has written it beside and marked it ready, or ends
-# with this shell. No descriptor of this shell's is taken, since a fixed
-# number may be a tracer's BASH_XTRACEFD. Fills ov_dir, ov_d, and ov_boot
-# from _say_hi; 1 where no FIFO could be made, and the connect goes in
-# series.
+# target is known so the handshake runs while the script is built. Its stdin
+# is a FIFO whose writer sends the script once it is ready. No fixed
+# descriptor is taken, since one may be a tracer's BASH_XTRACEFD. Fills
+# ov_dir, ov_d, and ov_boot; 1 where no FIFO could be made (a serial connect).
 function _hi_overlap_start() {
   local r
   ov_dir="$(mktemp -d -t hi.boot.XXXXXX 2>/dev/null)" || ov_dir=""
@@ -1201,17 +1132,14 @@ function _hi_overlap_start() {
 }
 
 # _hi_overlap_stub <dir> [pipe] - the session's command under
-# _hi_connect_overlap: wait for the script in <dir>, on the FIFO the boot
-# probe writes once it is whole, held open before the last look so the word
-# cannot slip past, after a poll for the FIFO itself while the probe checks
-# the target; then run it from a directory of this user's, claimed first.
+# _hi_connect_overlap: wait on <dir>'s FIFO (opened before the last look, so
+# the wake cannot slip past) until the script is whole, then claim the
+# directory and run it.
 #
-# [pipe] is the stub with no tty, whose hangup cannot end it: its stdin is
-# _hi_overlap_relay's, read by a child of its own whose first line is the
-# client's word. `go` passes the rest through to the session; anything else,
-# an end of file included, marks <dir> `no` and wakes the stub, which removes
-# it and ends. That child is not waited on, so a stdin the client never
-# closes does not hold the session's channel open.
+# [pipe]: with no tty, a hangup cannot end the stub, so a child reads
+# _hi_overlap_relay's first line. `go` passes the rest to the session;
+# anything else, end of file included, marks <dir> `no` and the stub removes
+# it. The child is not waited on, so an open stdin cannot hold the channel.
 function _hi_overlap_stub() {
   printf 'd=%s\n' "$1"
   # fd 4 carries stdin past sh's /dev/null for a background job, taken by
@@ -1269,22 +1197,16 @@ function _hi_overlap_unrelay() {
   wait "$ov_relay" 2>/dev/null || :
 }
 
-# _hi_connect_overlap - the session opened while the boot call is still
-# landing the script, its command a stub that waits for the script in a
-# directory the client names (_hi_boot_probe's [dir]) and runs it only from
-# a directory of this user's, so neither channel waits out the other's round
-# trips. The boot call makes the master, as in series; the session goes once
-# its socket is there, which ssh makes only once authenticated, so both ride
-# one authentication and the master is the same ControlPersist one.
+# _hi_connect_overlap - opens the session while the boot call is still
+# landing the script; the session's stub waits for it (_hi_boot_probe's
+# [dir]). The boot call makes the ControlMaster, and the session starts once
+# its socket exists, so both share one authentication.
 #
-# 1 hands back to _say_hi, with booted set and boot_out/boot_ec when the boot
-# call failed, the stub stopped first; unset when the boot call was refused
-# while the master answers, `MaxSessions 1` having given the one channel to
-# the stub, so the boot is made again. A forced command's program is the
-# session already, so it is only named. A session channel refused the same
-# way leaves the script unclaimed, which a stub that ran never does, and
-# opens again once the boot is in. Fills
-# ec, booted, boot_out, boot_ec, and boot_tmp from _say_hi.
+# 1 hands back to _say_hi: with booted set when the boot failed (the stub
+# stopped first), unset when `MaxSessions 1` gave the one channel to the stub
+# and the boot must run again. A refused session channel leaves the script
+# unclaimed and opens again once the boot is in. A forced command is only
+# named. Fills ec, booted, boot_out, boot_ec, and boot_tmp.
 function _hi_connect_overlap() {
   local d="$ov_d" boot="$ov_boot" sess=""
   _hi_boot_stream >"$ov_dir/script" && : >"$ov_dir/ready" && printf 'x\n' 1<>"$ov_dir/go"
@@ -1347,11 +1269,9 @@ function _hi_connect_overlap() {
 }
 
 # _hi_transport_cmds <arm> - the three ways to reach the target through
-# <arm>, ssh or a roster name, into the caller's probe/cp/attach arrays: probe
-# asks a question (no stdin, no tty), cp streams a file in, attach hands over
-# a session (a tty where there is one). ssh's ride the caller's ctl_opts,
-# its ControlMaster. Its own function because scripts/doctor.sh has to ask
-# exactly as a session would. Each runs a script by _hi_on_target.
+# <arm> into the caller's probe/cp/attach arrays: probe asks (no stdin, no
+# tty), cp streams a file in, attach hands over a session. ssh's use the
+# caller's ctl_opts. doctor.sh calls it to ask exactly as a session would.
 function _hi_transport_cmds() {
   # the where and the what of `pod/container` and `alloc/task` (GLOSSARY:
   # HI.43); $inner is empty for a plain target, and docker and podman names are
@@ -1402,13 +1322,10 @@ function _hi_transport_cmds() {
 }
 
 # _hi_on_target <probe|cp|attach> <script> - <script> under the target's sh,
-# through that command of the caller's (_hi_transport_cmds). An exec takes
-# `sh -c` as an argv; ssh hands its words to the login shell as one string,
-# so they are quoted for it. GLOSSARY: HI.18 - fish-shaped login shells, and
-# quoting over %q
-#
-# [exec] runs the command in this process, so a backgrounded call's $! is
-# the command's.
+# through the caller's command of that name. An exec takes `sh -c` as argv;
+# ssh's words reach the login shell as one string, so they are quoted.
+# [exec] runs in this process, so a backgrounded call's $! is the command's.
+# GLOSSARY: HI.18
 function _hi_on_target() {
   local _hi_tgt_q
   local -a _hi_tgt_c
@@ -1436,11 +1353,9 @@ function _hi_attach_cmd() {
 }
 
 # _say_hi [arm] [errlog] - connect through [arm] (ssh when empty), copy
-# say-hi over, hand off to load.sh: the script boots in one `cp` call and
-# runs in one `attach`, the same script for every arm, the two overlapped
-# over ssh (GLOSSARY: HI.19). Everything up to the
-# bash branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18). [errlog]
-# takes a container's words.
+# say-hi over in one `cp` call, and run load.sh in one `attach`, overlapped
+# over ssh (GLOSSARY: HI.19). Plain POSIX up to the bash branch
+# (GLOSSARY: HI.18). [errlog] takes a container's words.
 function _say_hi() {
   local arm="${1:-ssh}" errlog="${2:-/dev/null}"
   local size script bytes boot_tmp ctl_path="" ctl_dir="" ctl_shared=0 ct ec=0
@@ -1576,12 +1491,10 @@ function _hi_container_fallback_shell() {
   ! _hi_list_has "$_HI_SHELL_LADDER" "$fallback" || printf '%s' "$fallback"
 }
 
-# --plain over ssh: no bootstrap, no boot probe, no payload - just ssh
-# handing over the target's own login shell. Needs nothing beyond sshd and a
-# shell. Also where _say_hi lands when the target refused its bootstrap, which
-# is when the ControlMaster options arrive in "$@". <arm>, when it is not ssh,
-# goes to _say_hi_container_plain.
-# _say_hi_plain [arm] [ssh option...]
+# _say_hi_plain [arm] [ssh option...] - --plain: ssh hands over the target's
+# own login shell, nothing sent. Also _say_hi's fallback when the bootstrap
+# was refused (the ControlMaster options then arrive in "$@"). A container
+# arm goes to _say_hi_container_plain.
 function _say_hi_plain() {
   local arm="${1:-ssh}"
   [ $# -eq 0 ] || shift
@@ -1789,21 +1702,13 @@ function _hi_select_arm() {
   _hi_resolve_backend "$DOMAIN"
 }
 
-# What a dropped link leaves behind. ssh restores the tty's termios, but not
-# the *terminal* modes a remote program switched on - application cursor
-# keys, the keypad, bracketed paste, kitty keyboard mode, the alternate
-# screen, a hidden cursor - nor the OSC 133 "command running" state hi's
-# prompt marks leave a Konsole in. Every byte is a no-op on a terminal
-# already normal (the alternate-screen exit only once wrapped, below);
-# `stty sane` is for the container arms, whose exec does not always restore
-# termios. GLOSSARY: HI.53
+# Resets the terminal modes a remote program left on after a dropped link
+# (cursor keys, keypad, bracketed paste, kitty keyboard, alternate screen,
+# hidden cursor, OSC 133 state); ssh restores only termios. Each byte is a
+# no-op on a normal terminal. `stty sane` is for container execs. GLOSSARY: HI.53
 function _hi_reset_terminal() {
-  # DECSC/DECRC (`ESC 7`/`ESC 8`) around the alternate-screen exit, the one
-  # byte here that is not a no-op on a normal screen: Konsole answers
-  # `CSI ?1049 l` with an unconditional cursor restore, and with nothing saved
-  # that slot is home. In the alternate screen the save goes to *that*
-  # screen's slot, 1049l still restores the pre-alt cursor, and the DECRC
-  # repeats it. GLOSSARY: HI.53
+  # ESC 7/ESC 8 around the alternate-screen exit, since Konsole's 1049l
+  # restores the cursor unconditionally, to home when nothing was saved.
   printf '\033[?1l\033>\033[?2004l\033[<u\0337\033[?1049l\0338\033[?25h'
   printf '\033]133;D;%s\a' "$1"
   stty sane 2>/dev/null || true
@@ -1869,10 +1774,8 @@ function _hi() {
     _hi_keep_end "$arm"
     exit $?
   fi
-  # No `2>"$tmp"` around this block: it would also catch every word ssh says
-  # on a *successful* session - the server's `Banner`, the "Permanently added"
-  # line, the host-key fingerprint. $tmp still reaches _say_hi, which sends a
-  # container exec's words there.
+  # No `2>"$tmp"` here: it would swallow ssh's banner and host-key lines on a
+  # good connect. _say_hi sends a container's words to $tmp.
   # said for the flag alone: _HI_KEEP=1 is a default, and silent where it
   # does not apply
   if [ "${KEEP:-}" = 1 ] && [ "${PLAIN:-0}" = 1 ]; then

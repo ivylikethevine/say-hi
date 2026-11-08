@@ -2,17 +2,11 @@
 # `hi --update`: move the say-hi checkout this hi runs from to a release tag,
 # or, on the dev branch, fast-forward it to the remote's dev.
 #
-# Here and not in hi.sh, for the reason common/core.sh states about
-# scripts/lib.sh - hi.sh ships in the ssh payload under a size budget, and
-# this is the one subcommand that cannot succeed anywhere the payload copy is
-# what is running: a disposable tree is /tmp/<x>/say-hi with no .git, and
-# that is what every session runs, even on a target with a say-hi of its own.
-# It goes through
-# _hi_dispatch_subcommand like every other subcommand.
+# Not in hi.sh, which rides under a size budget, and a session's tree has no
+# .git anyway.
 #
-# SC2317/SC2329: shellcheck follows the `source "$_HI_LAUNCHER"` chain into
-# hi.sh's trailing `_hi "$@"` and marks what follows unreachable - it does not
-# model hi.sh's BASH_SOURCE guard (same story as scripts/doctor.sh).
+# SC2317/SC2329: shellcheck follows `source "$_HI_LAUNCHER"` into hi.sh's
+# trailing `_hi "$@"` and misses its BASH_SOURCE guard (as in doctor.sh).
 # shellcheck disable=SC2317,SC2329
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
@@ -111,17 +105,12 @@ if [ "$here" = "$tag" ]; then
   _hi_cecho "$_HI_ME: already on $tag" "$GREEN"
   exit 0
 fi
-# The tag's signature, read off gpg's status lines rather than verify-tag's
-# exit code, which is 1 for "bad", "unsigned", and "signed by a key you have not
-# imported" alike. Only a signature that verified against a key this checkout
-# already trusts moves it. A bad one always refuses; an unsigned tag (a fork,
-# a mirror), a key nobody vouches for, or no gpg is said, then refused unless
-# $_HI_UPDATE_UNSIGNED=1.
-#
-# An ssh-signed tag (every release) is not checked at all without an
-# allowed-signers file, so one is always named: this checkout's own
-# .github/allowed_signers - the copy already trusted, not the tag's - else
-# git config's, else an empty one, which still catches a tampered signature.
+# The tag's signature, from gpg's status lines (verify-tag's exit code is 1
+# for bad, unsigned, and unknown key alike). Only a key this checkout already
+# trusts moves it; a bad signature always refuses; unsigned, unknown, or no
+# gpg refuses unless $_HI_UPDATE_UNSIGNED=1. git skips ssh signatures with no
+# allowed-signers file, so one is always named: this checkout's own (not the
+# tag's), else git config's, else an empty one.
 verified=""
 signers="$root/.github/allowed_signers"
 [ -f "$signers" ] || signers="$(exec git -C "$root" config --path --get gpg.ssh.allowedSignersFile)" || signers=""

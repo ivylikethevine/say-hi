@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# tests/coverage_v2.sh's scaffold: tree resolution, suite selection off the
-# runner's table, the tally files the suites report through, the per-suite
-# trace loop, and cleanup. Sourced by the driver directly - deliberately NOT
-# part of the tests/test_lib.sh harness. HI.34 is about suites; the driver
-# avoids test_lib.sh so the instrumented process stays the suite script
-# itself (its header says what the instrumentation does and does not record).
+# tests/coverage_v2.sh's scaffold: tree, suite selection, tally files, the
+# trace loop, and cleanup. Not part of test_lib.sh, so the instrumented
+# process stays the suite script itself.
 
 # the tree this harness sits in, under any name, and the directory above it
 if [ -z "${_HI_ROOT:-}" ] || { [ -n "${_HI_HOME:-}" ] && [ "${_HI_ROOT%/*}" != "$_HI_HOME" ]; }; then
@@ -107,15 +104,9 @@ function _hi_cov_cleanup() {
 }
 trap '_hi_cov_cleanup' EXIT
 
-# _hi_cov_shim_sh_to_bash - a bash-as-sh symlink first on this process's own
-# PATH, inherited by every suite it launches from here on. bashcov follows
-# only a bash child (its xtrace rides the exported SHELLOPTS and PS4, which
-# bash-as-sh imports), and where /bin/sh is dash (ubuntu's, this process's
-# own before this runs) the `#!/bin/sh` files a suite *executes* as a child
-# rather than sources - common/targets.sh - read 0% instead of a real
-# figure. Local to this process only: no GITHUB_PATH write (zizmor's audit
-# flags that on coverage.yml's workflow_run trigger) and nothing for a
-# caller to undo.
+# _hi_cov_shim_sh_to_bash - puts a bash-as-sh symlink first on this process's
+# PATH, so `#!/bin/sh` children (common/targets.sh) are traced where /bin/sh
+# is dash; bashcov follows only bash. No GITHUB_PATH write (zizmor flags it).
 function _hi_cov_shim_sh_to_bash() {
   local dir
   dir="$(mktemp -d)"
@@ -126,19 +117,9 @@ function _hi_cov_shim_sh_to_bash() {
 }
 
 # _hi_cov_select_suites [runner args...] - fill $_HI_NAMES/$_HI_PATHS with the
-# suites the given runner arguments select. The runner owns the suite table,
-# so ask it rather than keeping a second copy here - the same reason
-# .github/workflows/ci.yml does not spell the suites out. `--list-paths`
-# exists for this caller: the instrumenting tool has to launch the suite
-# script itself, so the name alone is not enough.
-#
-# `shellcheck` is dropped from whatever the selection resolves to. It is a
-# linter sweep, not a code path: it shells out to shellcheck, shfmt, and
-# checkbashisms over every file in the tree and runs almost none of hi's own
-# bash, so it traces nothing this report is asking about - while being the
-# slowest suite in its group by an order of magnitude, and slower again under
-# instrumentation. Dropped by name, so a groupless run (the default, every
-# suite including the lint group) does not sweep it back in.
+# suites the runner selects for those arguments (`--list-paths`, since the
+# tracer launches the script). `shellcheck` is always dropped: it runs linters,
+# not hi's code, and is the slowest suite by far.
 function _hi_cov_select_suites() {
   _HI_NAMES=()
   _HI_PATHS=()
@@ -160,17 +141,9 @@ function _hi_cov_select_suites() {
   fi
 }
 
-# _hi_cov_counts_files <tag> - the two files the runner would otherwise
-# export, made here so _hi_suite_end has somewhere to write its tally;
-# everything else a suite needs it derives from $_HI_HOME through
-# common/paths.sh.
-#
-# Also pins every in-suite batch to one case at a time. The tracer reads a
-# single xtrace stream per suite process, and a batch of pty children (the
-# configure suite runs thirty-odd side by side) writing into it at once
-# interleaves lines the tracer then drops: configure.sh read six points low
-# the first time the batch ran wide under bashcov. Serial batches cost the
-# sweep a few seconds a suite and lose nothing.
+# _hi_cov_counts_files <tag> - the tally files the runner would export, for
+# _hi_suite_end. Also runs batches one case at a time, since parallel cases
+# interleave the single xtrace stream and lose lines.
 function _hi_cov_counts_files() {
   _HI_COUNTS_FILE="$(mktemp -t "hi.$1.counts.XXXXXX")"
   _HI_FAILS_FILE="$(mktemp -t "hi.$1.fails.XXXXXX")"
@@ -185,15 +158,9 @@ function _hi_cov_counts_files() {
 }
 
 # _hi_cov_trace_all <trace-fn> - run <trace-fn> <name> <path> for every
-# selected suite, its output discarded (the report is the artifact, the
-# transcript is noise). The first suite that fails ends the sweep, non-zero
-# and with no report: a figure over the suites that happened to pass is a
-# partial number, and a partial number is no number. A tool that is missing
-# (no fish, no docker) is a skip, never a failure, so this is a real one.
-# A suite still running after $_HI_COV_SUITE_LIMIT seconds (600) is stalled:
-# the processes running then are kept for the report, and the tracer is
-# stopped, so a stall names its suite and what held it rather than running
-# the job out.
+# selected suite, output discarded. The first failing suite ends the sweep
+# with no report, since a partial figure is wrong. A suite past
+# $_HI_COV_SUITE_LIMIT (600s) is stopped, its processes kept for the report.
 function _hi_cov_trace_all() {
   local _hi_i _hi_suite _hi_path _hi_log _hi_run _hi_dog _hi_rc
   local _hi_limit="${_HI_COV_SUITE_LIMIT:-600}"

@@ -1,7 +1,7 @@
 # Security Policy
 
-The threat model for a tool people run against every host they touch, and how
-to report what slipped through it.
+The threat model for a tool you run against every host you touch, and how to
+report what slipped through it.
 
 ## Contents
 
@@ -19,302 +19,215 @@ to report what slipped through it.
 
 ## What hi does - and deliberately doesn't
 
-- **No network calls of its own.** `hi` only execs the transports you already
+- **No network calls of its own.** `hi` only runs the transports you already
   use (`ssh`, `docker exec`, `podman exec`, `nerdctl exec`, `finch exec`,
-  `nomad alloc exec`, `kubectl exec`) against a target you named. No telemetry,
-  no update checks, no `curl`/`wget` in the shipped tree.
-- **No `curl | bash`.** Installing is `git clone` plus `scripts/install.sh`, or
-  a package built from that same script
-  ([PACKAGING.md's _Install channels_](PACKAGING.md#install-channels)).
-  `hi --update` is a release-tag checkout in a checkout you can read (on
-  `dev`, a fast-forward of the branch you chose to follow).
-- **The payload is an allow list.** What goes over the wire is exactly
-  `$_HI_PAYLOAD` at the top of `hi.sh` (`common config load.sh hi.sh`, the
-  last so a session can say `hi` onward) — docs, tests, CI, and editor config
-  never leave the client. Your overlay is a second, smaller allow list,
-  `$_HI_OVERLAY_FILES` (the roster is
-  [CONTRIBUTING.md's contract](CONTRIBUTING.md#what-1x-will-not-break)), and
-  the files your own `plugins` rows name, each listed by `hi --doctor`;
-  nothing else in `~/.config/say-hi/` leaves the client. Your git config
-  rides only with its plugin switched on, and then without its credentials,
-  keys, and signing settings ([INTEGRATIONS.md](INTEGRATIONS.md#git)). A
-  `settings.<tag>.sh` is the one file sent under another name: joined to the
-  `settings.sh` of a host carrying that tag, and to no other
-  ([SETTINGS.md](SETTINGS.md#settings-by-host-tag)). A `plugins` row is
-  read as data: its paths are never evaluated
-  ([HI.63](GLOSSARY.md#hi63-plugins-rows)).
+  `nomad alloc exec`, `kubectl exec`) against a target you named. No
+  telemetry, no update checks, no `curl` or `wget` in the shipped tree.
+- **No `curl | bash`.** Installing is `git clone` plus `scripts/install.sh`,
+  or a package built from that script
+  ([PACKAGING.md](PACKAGING.md#install-channels)). `hi --update` checks out a
+  release tag in a checkout you can read (or fast-forwards `dev`, if you
+  chose to follow it).
+- **The payload is an allow list.** Only `$_HI_PAYLOAD` (`common config
+load.sh hi.sh`) goes over the wire; docs, tests, and CI never leave your
+  machine. Your overlay is a second allow list, `$_HI_OVERLAY_FILES`, plus the
+  files your `plugins` rows name; `hi --doctor` lists each. Your git config
+  rides only with its plugin on, and never its credentials or keys
+  ([INTEGRATIONS.md](INTEGRATIONS.md#git)). A `plugins` row is read as data,
+  never evaluated ([HI.63](GLOSSARY.md#hi63-plugins-rows)).
 - **base64 is armor, not crypto.** It gets the payload through the target's
-  login shell unmangled; confidentiality and integrity come entirely from the
-  transport.
-- **hi writes nothing on the target outside its own temp directories.** No
-  login file, no history file, nothing under `$HOME`, under any setting -
-  [What hi writes on a target](#what-hi-writes-on-a-target) is the whole list,
-  and names what a prompt program or your own per-shell files write on their
-  own account.
-- **The transport keeps its own voice.** hi does not redirect `ssh`'s stderr, so
-  the server's `Banner`, the `Permanently added ... to the list of known hosts`
-  line and the host-key fingerprint on a first connection reach your terminal
-  exactly as they would without hi. Capturing them would turn trust-on-first-use
-  into accepting a fingerprint nobody was shown.
-- **`hi --update` reads the tag's signature before checking it out**, from
-  `git verify-tag`'s output rather than its exit code, SSH signatures checked
-  against the checkout's own `.github/allowed_signers`: only a tag signed by
-  a key the checkout already trusts moves it, named with its signer. A failing
-  signature (gpg or ssh, or a revoked gpg key) always refuses; a key nobody
-  lists, an unsigned tag (a fork, a mirror), or no `gpg` is said and refused,
-  and [`_HI_UPDATE_UNSIGNED=1`](SETTINGS.md#every-setting) takes those three.
-  `--dry-run` reports the same verdict.
+  login shell intact; confidentiality and integrity come from the transport.
+- **hi writes nothing on the target outside its own temp directories**: no
+  login file, no history file, nothing under `$HOME`
+  ([the full list](#what-hi-writes-on-a-target)).
+- **The transport keeps its own voice.** hi does not capture `ssh`'s stderr,
+  so the server's banner and a first connection's host-key fingerprint reach
+  you exactly as without hi.
+- **`hi --update` verifies the tag's signature before checking it out**,
+  against the checkout's own `.github/allowed_signers` (ssh) or your gpg
+  keyring. A failing signature always refuses. An unsigned tag, an unknown
+  key, or no `gpg` refuses too, unless
+  [`_HI_UPDATE_UNSIGNED=1`](SETTINGS.md#every-setting).
 
 ## What runs where
 
-`hi.sh` runs on the client: it parses arguments, picks the backend, tars and
-armors the payload, and pipes it over the transport. On the target a single
-`sh` unpacks it into a temp directory and chainloads `load.sh`, which prints
-the header, writes the session's rc files into a scratch directory of its own,
-and hands off to the best shell available. The target's login files are never
-written; everything the target executes was generated on the client.
+`hi.sh` runs on your machine: it parses arguments, picks the backend, packs
+the payload, and sends it over the transport. On the target one `sh` unpacks
+it into a temp directory and starts `load.sh`, which prints the header,
+writes the session's rc files into its own directory, and starts your shell.
+Everything the target runs was generated on your machine
+([HOW-IT-WORKS.md](HOW-IT-WORKS.md)).
 
-Three sshd shapes change that picture, and hi names each. A `ForceCommand` in
-`sshd_config`, or a `command=` on the key in `authorized_keys`, runs its own
-program whatever the client asked: hi's bootstrap never runs, and hi says so
-and hands over the host's own session - the only one such a host offers -
-rather than report a success it never had. (A forced program that exits
-non-zero and prints nothing is indistinguishable from a host with no `sh`, and
-gets the PowerShell notice instead.) A restricted login shell (`rbash`)
-forbids a `/` in a command name and little else; `sh` has no slash, so hi's
-bootstrap runs unrestricted - rbash is not a boundary hi respects, and a host
-whose restriction matters wants `ForceCommand`. `MaxSessions 1` fits: hi's two
-calls share one connection, and a channel the host refuses while the other is
-open is opened again once that one closes
-([HI.19](GLOSSARY.md#hi19-stdin-transport)). All three are
-`tests/targets/ssh_test.sh` cases, at a terminal and with stdin off one.
+Three sshd setups change this, and hi says so for each:
+
+- **`ForceCommand`, or `command=` on the key**: the host runs its own program
+  whatever the client asks. hi's bootstrap never runs; hi says so and hands
+  over the host's own session.
+- **`rbash` as the login shell** forbids a `/` in a command name, and `sh`
+  has none, so hi's bootstrap runs unrestricted. rbash is not a boundary; a
+  host that needs one wants `ForceCommand`.
+- **`MaxSessions 1`** works: hi's two calls share one connection
+  ([HI.19](GLOSSARY.md#hi19-stdin-transport)).
+
+`tests/targets/ssh_test.sh` covers all three.
 
 ## What hi writes on a target
 
-Default answer: two directories, and only for the life of the
-session. A session is as long as its connection unless you ask otherwise:
-`hi --keep` runs it in tmux, zellij, or screen on the target, where it and
-its directory last until you close it or nobody has been attached for
-`_HI_KEEP_TIMEOUT` (24h); on a target with none of the three, a dropped
-link leaves the directory for fifteen minutes, for a reconnect to take.
+Two directories in the target's temp directory, mode 0700, for the life of
+the session (longer only for a [kept session](INTEGRATIONS.md#terminal-multiplexers)):
 
-| what             | where, in the target's temp directory, mode 0700 | when                                                                                  |
-| ---------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| the session tree | `mktemp -d` `<user>.hi.XXXXXX`                   | every session but `--plain`                                                           |
-| the bootstrap    | `mkdir` or `mktemp -d` `hi.boot.XXXXXX`          | every session but `--plain`, removed by the same remote command once the session ends |
+| what             | where              | when                                              |
+| ---------------- | ------------------ | ------------------------------------------------- |
+| the session tree | `<user>.hi.XXXXXX` | every session but `--plain`                       |
+| the bootstrap    | `hi.boot.XXXXXX`   | every session but `--plain`, removed when it ends |
 
-That is everything hi's own code writes. A prompt program drawing the prompt
-([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)) - by default, one you
-have installed at home and the target has too - writes what it always does,
-under the target's `$HOME`, and keeps it after the session ends:
+Besides those, a fish session caches its two prompt colors in fish's
+universal variables, as it does locally, and a `hi` run from inside a
+session to reach a further target keeps its caches in the runtime directory.
+That is everything hi's own code writes.
 
-| tool                        | what it keeps, by default                                                                                                                                             | when                                                                                                                  |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| starship, oh-my-posh        | starship's log files under `~/.cache/starship/`, oh-my-posh's cache under `~/.cache/oh-my-posh/`                                                                      | when it draws the prompt                                                                                              |
-| powerlevel10k               | gitstatusd under `~/.cache/gitstatus/` and its instant-prompt cache under `~/.cache/`                                                                                 | when it draws the prompt                                                                                              |
-| tide                        | a `_tide_*` universal variable or two in the target's `fish_variables`, rewritten each start                                                                          | when it draws the prompt                                                                                              |
-| zoxide, atuin, direnv, mise | zoxide's database, atuin's history (and a sync, where the target's atuin is logged in), direnv's allow list, mise's shims and caches, each under the target's `$HOME` | only once `hi --enable-plugin` named it: the `hooks` group is off by default ([SETTINGS.md](SETTINGS.md#shell-hooks)) |
+Tools you turn on write what they always do, under the target's `$HOME`, and
+keep it after the session:
 
-Each tool's own settings on that target can move those paths;
-`_HI_PROMPT_TOOL=hi` brings a session back to the first table alone. What your
-own per-shell files start (a zoxide or atuin `init`, say) writes on its own
-account.
+| tool                        | what it keeps, by default                                                                             | when                                                                             |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| starship, oh-my-posh        | log and cache files under `~/.cache/`                                                                 | when it draws the prompt                                                         |
+| powerlevel10k               | gitstatusd and its instant-prompt cache under `~/.cache/`                                             | when it draws the prompt                                                         |
+| tide                        | a `_tide_*` universal variable or two in `fish_variables`                                             | when it draws the prompt                                                         |
+| zoxide, atuin, direnv, mise | zoxide's database, atuin's history (and sync, if logged in there), direnv's allow list, mise's caches | only once `hi --enable-plugin` names it ([SETTINGS.md](SETTINGS.md#shell-hooks)) |
 
-Your commands land in the target's own history file, and the programs you run
-yourself - editors included - write there, exactly as over plain `ssh`;
-nothing hi ships touches the history file, and hi's emacs config turns off
-emacs's backups, autosaves, and lock files. `hi --doctor` prints any setting
-not at its default, so "what is this install allowed to do to a target" is one
-command.
+`_HI_PROMPT_TOOL=hi` keeps the prompt programs out. Your commands land in the
+target's own history file, and programs you run write what they always do,
+as over plain `ssh`; hi's emacs config turns off emacs's backups, autosaves,
+and lock files. `hi --doctor` prints every setting not at its default.
 
 ## Footprint and cleanup on the target
 
-- `load.sh`'s on-exit hook removes the whole session tree, session-rc
-  directory included, on a clean exit and on an abrupt disconnect alike
-  (`tests/targets/ssh_disconnect_test.sh` verifies the latter). Over ssh the
-  bootstrap's exit trap, which removes `$_HI_CLEANUP` where the hook has
-  not, is a backstop for the one thing the hook cannot survive: bash killed
-  by a signal nothing can trap.
-  Behind both, each session leaves one process apart from itself that does
-  the hook's work should both be killed, and its pid in the tree, by which
-  the account's next `hi <target>` removes a tree whose session is gone
+- **On exit or a dropped link**, the session's exit hook removes the session
+  tree. Over ssh the bootstrap's exit trap is a backstop, and a watcher
+  process does the same if both are killed; the account's next
+  `hi <target>` removes any tree whose session is gone
   ([HI.65](GLOSSARY.md#hi65-kept-session)).
-- A kept session ([INTEGRATIONS.md](INTEGRATIONS.md#terminal-multiplexers))
-  moves the same hook into the session's first pane, and adds one process: a
-  timer in that pane, which ends the session once nobody has been attached
-  for `_HI_KEEP_TIMEOUT`. Nothing of hi's runs outside the multiplexer
-  session, and the bootstrap's backstop leaves a tree alone while its session
-  is running. A target that goes down under a kept session and keeps `/tmp`
-  across the reboot is left with the tree until the account's next
-  `hi <target>`, which removes every tree of its own whose kept session's
-  processes are gone ([HI.65](GLOSSARY.md#hi65-kept-session)).
-- Where `--keep` finds no multiplexer, a dropped link leaves the tree to the
-  one process each session already runs apart from itself, which removes it
-  after `_HI_HOLD_TIMEOUT` (15m; `0` holds nothing). A connect takes
-  such a tree only from a directory its own account owns, and never through
-  a symlink, since it runs the rc inside.
-- The session tree is **not** added to `$PATH`; `hi` inside a session is an
-  alias (`common/paths.sh`) instead. A `/tmp` path on `$PATH` is a finding on
-  any host that is scanned for one. The one exception is yours to make: an
-  overlay with scripts in `bin/` puts that one directory of the tree last on
-  the session's `$PATH` ([SETTINGS.md](SETTINGS.md#scripts-of-your-own)), and
-  `hi --disable-plugin bin` takes it back off.
-- A say-hi installed on the target is neither read nor written by a session:
-  every session runs out of the tree hi just unpacked, so the installed tree
-  need not be writable by you or at any fixed path.
-  `tests/targets/install_methods_test.sh` drives one target per install method
-  and asserts the install is still whole once the session is gone.
+  `tests/targets/ssh_disconnect_test.sh` checks the abrupt case.
+- **A kept session** keeps its tree until it closes or times out
+  ([INTEGRATIONS.md](INTEGRATIONS.md#terminal-multiplexers)). A reconnect
+  takes over a held tree only from a directory its own account owns, never
+  through a symlink.
+- **`$PATH` is not changed**, since a `/tmp` path there is a finding on a
+  scanned host; `hi` inside a session is an alias. The one exception is
+  yours: an overlay `bin/` puts that directory last on `$PATH`
+  ([SETTINGS.md](SETTINGS.md#scripts-of-your-own)).
+- **A say-hi installed on the target is neither read nor written.**
+  `tests/targets/install_methods_test.sh` checks it is whole after a session.
 
 ## Trust boundaries
 
-- hi's security model is the transport's. It adds no authentication, listens on
-  nothing, and anyone positioned to intercept or control your ssh/container
-  session could do so without hi in it. Backend dispatch trusts your local
-  `~/.ssh/config` and your `docker`/`podman`/`nerdctl`/`finch`/`nomad`/`kubectl`
-  CLIs — the same ones you already run. A name that is no `Host` entry is put
-  to each of those CLIs before it goes to ssh, and `hi <TAB>` lists through
-  them, `kubectl get pods -A` included;
-  [`_HI_BACKENDS_OFF`](SETTINGS.md#every-setting) names the ones hi is never
-  to start, and `all` leaves ssh alone.
-- A malicious target gets what any interactive session gives it: your payload
-  and a terminal. Treat every overlay file as public to every host you visit,
-  `ssh_tags` included (`hi --doctor` flags a secret-shaped line in a file that
-  rides): it names the hosts your `~/.ssh/config` tags, and only
-  those, with nothing of how to reach them. Nothing a target sends back is
-  executed on the client. The one string hi reads back and uses - the scratch
-  directory the target made (the ssh bootstrap's, or a container's session
-  tree) - reaches a command run back on that target only if absolute and built
-  from an allow list of path characters (`_hi_safe_path`); otherwise ssh hands
-  over the host's own session and a container connect fails. Escape sequences in
-  session output remain possible, exactly as with plain `ssh`; hi's own
-  connect-failure report prints a target's stderr as text, so a backslash
-  sequence a target wrote stays one.
-- A tool your per-shell files start on a target runs under that target's own
-  config for it, not yours: an atuin logged in to a sync server there syncs
-  the session's history like any other shell's on that box.
-- **What hi writes on the client.** The rc lines and `settings.sh` the install
-  asked about - `install.sh` checks your rc files with each shell's own syntax
-  checker before touching them, and `--uninstall` removes exactly what it
-  wrote - plus `hi <TAB>`'s target cache, the payload, overlay, and plugins caches, the
-  ssh `ControlMaster` socket, and an empty file per target seen holding a
-  kept session, in a private runtime directory:
-  `$XDG_RUNTIME_DIR`, or a per-uid directory hi creates with `mkdir -m 700`.
-  Its name is predictable - the next `hi` has to find it - so if it already
-  exists and is not owned by you, or is a symlink, all four are skipped:
-  completion sweeps the backends, a connect builds afresh over a fresh
-  socket, slower and correct, and a kept session that dies is not missed.
-- The `ControlMaster` socket is never at a `mktemp -u` name in a shared temp
-  directory: `ControlMaster=auto` _joins_ a socket it finds at its path, and a
-  name that was unused when printed promises nothing about the moment it is
-  used. A connect reuses one at a stable path in the runtime directory, named
-  by a hash of the target and your ssh options rather than either in the
-  clear, and torn down after `_HI_CTL_PERSIST` idle seconds (sixty by
-  default); `scripts/doctor.sh`'s probe, `_HI_CTL_PERSIST=0`, and a runtime
-  directory hi cannot vouch for take a fresh socket in a `mktemp -d` of their
-  own, closed when done. Passed as `-o`, either outranks a `ControlMaster no`
-  in your `~/.ssh/config`;
-  [`_HI_DISABLE_CONTROLMASTER=1`](SETTINGS.md#every-setting) passes neither,
-  at the cost of a second authentication a connect.
+- **hi's security is the transport's.** It adds no authentication and listens
+  on nothing. Backend dispatch trusts your `~/.ssh/config` and your backend
+  CLIs. A name with no `Host` entry is tried with each backend CLI before ssh,
+  and `hi <TAB>` lists through them (`kubectl get pods -A` included);
+  [`_HI_BACKENDS_OFF`](SETTINGS.md#every-setting) names the ones hi never
+  starts.
+- **A malicious target gets your payload and a terminal**, as any session
+  would. Treat every overlay file as public to every host you visit,
+  `ssh_tags` included (it names your tagged hosts, not how to reach them);
+  `hi --doctor` flags a line that looks like a secret.
+- **Nothing a target sends back runs on your machine.** The one string hi
+  reads back, the scratch directory's path, is used only if absolute and made
+  of allowed characters (`_hi_safe_path`). Escape sequences in session output
+  are possible, as with plain `ssh`.
+- **Tools you start on a target use that target's config**: an atuin logged
+  in to a sync server there syncs the session's history.
+- **What hi writes on your machine**: the rc lines and `settings.sh` the
+  install asked about (each rc syntax-checked first, and `--uninstall`
+  removes exactly what it wrote), and caches, the ssh control socket, and kept
+  session markers in a private runtime directory (`$XDG_RUNTIME_DIR`, or one
+  hi makes with mode 700). If that directory is not yours or is a symlink, hi
+  skips the caches and works slower but correct
+  ([FILES.md](FILES.md#caches-and-sockets)).
+- **The ssh control socket** lives at a hashed name in that runtime
+  directory, never in a shared temp directory, and closes after
+  `_HI_CTL_PERSIST` idle seconds (60).
+  [`_HI_DISABLE_CONTROLMASTER=1`](SETTINGS.md#every-setting) turns it off, at
+  the cost of a second authentication per connect.
 
 ### What a process started from a session inherits
 
-`core.sh`'s `_HI_CHILD_ENV` roster, and nothing else with the prefix: the tree
-and overlay pointers, the remote-session flag, the session rc directory, and the
-completion knobs `targets.sh` reads from its environment. Everything else hi
-sets — sixty-odd paths and toggles — stays a shell variable in the session
-shell, so a service started by hand, a `sudo -E`, or a cron line pasted at the
-prompt sees an ordinary environment. In particular the two values that name
-your workstation (`_HI_LOCAL_USER`, `_HI_LOCAL_HOSTNAME`) are never in a
-child's environment; a shell started inside the session reads them from hi's
-own rc directory instead. The mechanism and the roster are
-[HI.47](GLOSSARY.md#hi47-what-a-child-inherits); `tests/common/exports_test.sh`
-pins both. The one tier this does not reach is a POSIX `sh` started inside a
-session (and the bash-less fallback), where `$ENV` sources `paths.sh` again
-and dash has no un-export.
+Only the names in `core.sh`'s `_HI_CHILD_ENV`: the tree and overlay paths,
+the session flag, the session rc directory, and the completion settings.
+Everything else hi sets stays a shell variable, so a service started by hand,
+a `sudo -E`, or a pasted cron line sees an ordinary environment. The names of
+your own user and machine never reach a child. The exception is a POSIX `sh`
+started inside a session, which re-reads `paths.sh`
+([HI.47](GLOSSARY.md#hi47-what-a-child-inherits);
+`tests/common/exports_test.sh`).
 
 ## Assurance case
 
-The argument that secure design principles were applied against the threat
-model ([What hi does](#what-hi-does---and-deliberately-doesnt), [What runs
-where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
-— not a claim that the tool is free of bugs.
+How secure design principles were applied against the threat model and
+[trust boundaries](#trust-boundaries) above. It is not a claim that hi is
+free of bugs.
 
-| principle                                                    | how it holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Least privilege, minimal surface                             | hi adds no authentication of its own, listens on nothing, and makes no network call of its own - it trusts the transport you already run                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Fail loud, fail closed                                       | every entry point (`hi.sh`, `load.sh`, `common/core.sh`, `scripts/install.sh`) runs under `set -euo pipefail`, each with a documented re-disable where an error must not close an interactive shell                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Untrusted input allowlisted, not sanitized after the fact    | `_hi_safe_path` in `hi.sh` checks the scratch directory a target hands back against an explicit `[bracket-class]` before it reaches a command run back on it; `_hi_ssh_pattern_hit` in `common/core.sh` skips an ssh-config token that isn't a hostname shape rather than evaluate it; `_hi_sanitize_var` in `common/core.sh` strips control characters and backslashes from target-derived text                                                                                                                                                                                                                                                                                                                  |
-| No secret ever needs to be in the payload                    | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([CONTRIBUTING.md](CONTRIBUTING.md#when-a-push-is-refused)), with GitHub's push protection as backstop and `ci.yml`'s `quick lint` sweeping the full history on every PR and push to `main`, findings redacted from the log                                                                                                                                                                                                                                                                                                                                                 |
-| The build and release path is defended, not just the product | every CI and release job starts with `step-security/harden-runner` (egress blocked to an allowlist on every Ubuntu x64 job, each list taken from a real run; audited on macOS, Windows and arm64 Linux until each job has its list, unmonitored on Windows arm64, which has no agent, and audited on the link checker); third-party actions are pinned by SHA; `dependency review` fails a PR that adds a dependency with a high or critical advisory; `release.yml`'s `gate` builds only a tag signed by a key in `.github/allowed_signers`, on `main`, with green CI; the signing keys are repository secrets only the signing and publishing steps name ([RELEASING.md](RELEASING.md#the-release-environment)) |
+| principle                                                    | how it holds                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Least privilege, minimal surface                             | no authentication of its own, no listener, no network call of its own                                                                                                                                                                                                 |
+| Fail loud, fail closed                                       | every entry point (`hi.sh`, `load.sh`, `common/core.sh`, `scripts/install.sh`) runs under `set -euo pipefail`, turned off only where an error must not close an interactive shell                                                                                     |
+| Untrusted input checked against an allow list                | `_hi_safe_path` checks the directory a target hands back; `_hi_ssh_pattern_hit` skips an ssh-config token that is not a hostname; `_hi_sanitize_var` strips control characters from text a target supplies                                                            |
+| No secret ever needs to be in the payload                    | the payload is an allow list; credentials are handled outside CI ([CONTRIBUTING.md](CONTRIBUTING.md#when-a-push-is-refused)), with push protection and a full-history secret scan on every PR and push to `main`                                                      |
+| The build and release path is defended, not just the product | every CI and release job runs `step-security/harden-runner`; actions are pinned by SHA; `dependency review` blocks high or critical advisories; `release.yml` builds only a signed tag on `main` with green CI ([RELEASING.md](RELEASING.md#the-release-environment)) |
 
-**What is not (yet) countered.** `_HI_UPDATE_UNSIGNED=1` takes a tag
-re-signed with a key `.github/allowed_signers` does not list, or stripped of
-its signature, naming it in yellow. On the `dev` branch `hi --update`
-fast-forwards commits, which carry no check under either setting. The
-allowed-signers file is trusted on first use - the copy already checked out, which a later release can change.
-A packaged install updates through its package manager instead
+**Not yet countered.** `_HI_UPDATE_UNSIGNED=1` accepts an unsigned tag or one
+signed by an unlisted key, naming it in yellow. On `dev`, `hi --update`
+fast-forwards commits with no signature check. The allowed-signers file is
+trusted on first use. A package updates through its package manager instead
 ([PACKAGING.md](PACKAGING.md)).
 
 ## Scanning policy
 
-What a dependency or code-scanning finding must clear, and by when. The checks
-themselves are [CONTRIBUTING.md's _What CI runs_](CONTRIBUTING.md#what-ci-runs).
+What a finding must clear, and by when. The checks themselves are
+[CONTRIBUTING.md's _What CI runs_](CONTRIBUTING.md#what-ci-runs).
 
-- **Dependencies (SCA).** `dependency review`, a required check on every pull
-  request, refuses a change that adds a dependency with a high or critical
-  advisory. An advisory published later against an existing dependency
-  reaches Dependabot and the weekly `tool-versions.yml` issue: high or
-  critical is fixed before the next release, moderate or low by the next
-  routine bump. The one exception is an advisory with no patched release,
-  accepted in `.github/osv-scanner.toml` with its reason and an expiry date.
-  The lint suites run osv-scanner over every lockfile, locally and in
-  `lint suites (ubuntu-26.04)`, and show what Scorecard will find without
-  failing on it.
-- **Licenses.** Nothing is vendored or redistributed: every dependency is a
-  dev-only tool or a system package the user's package manager installs. A
-  dependency whose license is incompatible with MIT is refused at review.
-- **Code (SAST).** shellcheck runs in `lint suites (ubuntu-26.04)`, a
-  required check, with nothing disabled globally: any finding blocks the
-  merge, and a suppression is inline on the line it covers. CodeQL blocks a
-  merge on a high or critical alert through `main`'s ruleset; a medium or
-  lower one is fixed or dismissed with its reason before the next release.
-  zizmor runs in `quick lint`, each rule-level ignore in
-  `.github/zizmor.yml` with its reason.
-- **Before a release.** `release.yml`'s `gate` builds only a tag whose commit
-  went green on `main`, and a tag is not pushed while a high or critical SCA
-  or SAST finding is open.
+- **Dependencies.** `dependency review`, required on every pull request,
+  refuses a new dependency with a high or critical advisory. A later
+  advisory reaches Dependabot and the weekly `tool-versions.yml` issue: high
+  or critical is fixed before the next release, moderate or low by the next
+  routine bump. An advisory with no patched release is accepted in
+  `.github/osv-scanner.toml` with its reason and an expiry date.
+- **Licenses.** Nothing is vendored or redistributed; a dependency whose
+  license is incompatible with MIT is refused at review.
+- **Code.** shellcheck is a required check with nothing disabled globally;
+  each suppression is inline. CodeQL blocks a merge on a high or critical
+  alert; a lower one is fixed or dismissed with its reason before the next
+  release. zizmor runs in `quick lint`, each ignore in `.github/zizmor.yml`
+  with its reason.
+- **Before a release.** `release.yml` builds only a tag whose commit is green
+  on `main`, and no tag is pushed while a high or critical finding is open.
 
 ## Supported versions
 
-No **1.0** release yet: the supported version is the latest release and the
-tip of `main`, and packages exist for the pre-1.0 versions a hand-pushed `v*`
-tag has built ([RELEASING.md](RELEASING.md#cutting-a-release)). Bug and
-security fixes land on `main` and ship in the next release, never as a
-backport, so a release stops receiving security updates the day its
-successor is tagged. Once v1.0 is tagged, this
-becomes a version table with the latest release supported; what a 1.x release
-keeps stable is
+Before **1.0**, the supported version is the latest release and the tip of
+`main`. Fixes ship in the next release, never as a backport, so a release
+stops receiving security updates when its successor is tagged. After 1.0
+this becomes a version table; what 1.x keeps stable is
 [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break).
 
 ## Reporting a vulnerability
 
-Please don't open a public issue for anything exploitable. Instead, report
+Please don't open a public issue for anything exploitable. Report it
 privately via
 [GitHub private vulnerability reporting](https://github.com/ivylikethevine/say-hi/security/advisories/new).
 
 ### What happens to a report
 
-- **Acknowledgement within 14 days**, usually much sooner — this is a
-  one-maintainer project, and the private report reaches that maintainer
-  directly.
+- **Acknowledgement within 14 days**, usually sooner; the report reaches the
+  one maintainer directly.
 - **Coordinated disclosure.** A confirmed vulnerability is fixed before it is
-  discussed publicly, unless the reporter and maintainer agree otherwise; the
-  aim is a fix within 60 days of the report. Reporters are kept in the loop
-  from acknowledgement to advisory.
+  discussed publicly, unless the reporter and maintainer agree otherwise,
+  aiming for a fix within 60 days. Reporters are kept in the loop throughout.
 - **Advisories are public.** Every fixed vulnerability gets a
   [GitHub Security Advisory](https://github.com/ivylikethevine/say-hi/security/advisories)
-  naming the affected versions and the fix, and the fixing release's notes
-  reference it. None have been reported to date.
+  naming the affected versions and the fix, referenced in the release notes.
+  None have been reported to date.
 - **Credit.** Reporters are credited in the advisory and the release notes
   unless they ask not to be.
 

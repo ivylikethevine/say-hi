@@ -1,17 +1,8 @@
 #!/usr/bin/env bash
-# The kept session (GLOSSARY: HI.65), both halves, in a file the switch
-# ($_HI_DISABLE_KEEP) leaves home: hi.sh and load.sh each source it, with
-# stand-ins for a tree that came without.
-#
-# The client's half is first: which connects look for one and which start
-# one, the sh those put on a target - the reattach, the owner pane's start,
-# the sweep, a held tree's take - `hi --end`, `hi --keep` typed in a session,
-# the client's record, and the retry of a dropped link. Its functions read
-# hi.sh's parsed state ($DOMAIN, $KEEP, $CMDARG, $SSHARGS) and call its
-# helpers, and _hi_keep_connect runs its _say_hi; like hi.sh, most of it is a
-# script assembled for another machine (SC2016, SC2029). The target's half
-# follows, for load.sh: a session's claim on its tree, and the owner pane's
-# watch, panes, and exit.
+# The kept session (GLOSSARY: HI.65), left home under $_HI_DISABLE_KEEP;
+# hi.sh and load.sh source it, with stand-ins when it is absent. First the
+# client's half, on hi.sh's parsed state, mostly sh assembled for the target
+# (SC2016, SC2029); then the target's, for load.sh.
 #
 # What a session leaves in its tree, each file's words, and who reads it:
 #   hi.pid       <pid>: a disposable session's claim - the sweep, the watcher
@@ -47,14 +38,10 @@ function _hi_keep_seconds() {
   printf -v "$2" '%s' "$_hi_kd_n"
 }
 
-# The session name for a target and the user connecting to it: every
-# character tmux's rules reject, or that reads badly in a status line,
-# becomes `-`, and the client's username ends it as a hash, since a session
-# name sits in the target's process table, which never learns the operator's
-# (GLOSSARY: HI.47). `ctx:ns:pod/ctr` -> `hi-ctx-ns-pod-ctr-<hash>`. So two
-# people on one account of a target keep sessions of their own, and one
-# person comes back to theirs from any machine.
-# _hi_mux_name <target> [outvar]
+# _hi_mux_name <target> [outvar] - the session name: characters tmux rejects
+# become `-`, and a hash of the client's username ends it, so two people on
+# one account keep their own sessions without naming either in the process
+# table (GLOSSARY: HI.47). `ctx:ns:pod/ctr` -> `hi-ctx-ns-pod-ctr-<hash>`.
 function _hi_mux_name() {
   local _hi_mn_u _hi_mn_h
   _hi_local_username _hi_mn_u
@@ -104,14 +91,10 @@ function _hi_keep_find() {
 REMOTE
 }
 
-# Ahead of the unpack: a kept session is attached and the script ends there,
-# so nothing new lands on the target. _hi_kept_note is the line a detach
-# leaves, for this path and the start below, and the script's status says
-# whether a kept session is left behind (86, _hi_keep_connect). A client that
-# expected one says so where there is none - on a target with a multiplexer
-# to have held it, since a keeping connect expects one before it knows. A
-# session that does start is told the target's name, for a `hi --keep` typed
-# in it (_hi_keep_here).
+# Ahead of the unpack: attach a kept session and end there, nothing new
+# landed. Exit 86 means one is left behind (_hi_keep_connect). A client that
+# expected one says so when it is gone. A new session learns the target's
+# name for a later `hi --keep` (_hi_keep_here).
 function _hi_keep_attach() {
   local target_q _hi_esc _hi_nc gone="" any="" m
   _hi_esc_pair _hi_esc _hi_nc
@@ -135,24 +118,16 @@ $gone      export _HI_KEEP_AS=$target_q
 REMOTE
 }
 
-# The bash handoff of a connect that keeps its session: the same
-# `bash --rcfile` as the owner pane of a tmux, zellij, or screen session, the
-# first of the three on the target. The session's variables reach the pane as
-# an `env` argv, since a multiplexer server already running hands a pane its
-# own environment, and the subshell drops them before the exec so a server
-# started here carries none of them to its other panes (GLOSSARY: HI.47).
-# The multiplexer reads the config hi carried, as the session's alias does.
-# zellij takes a first pane's command from a layout alone, so that argv is
-# written into one beside the rc, as KDL strings, under zellij's own two bars;
-# its options keep the session off the disk and a dropped client a detach,
-# open new panes on the launcher _hi_keep_panes writes, and turn
-# off the popups that would take the first prompt's keys, each asked for only
-# where this zellij lists it.
-# _hi_keep_start [note prefix [name...]] - the names are the pane's variables
-# where a session starts it, which has them in a file and not in a connect.
-# $_HI_KEEP_WITH, there, is the one of the three that was typed. A target with
-# none of the three holds the session's tree instead (_hi_keep_held): its
-# bootstrap outlasts the hangup, so the session's own exit decides the tree.
+# _hi_keep_start [note prefix [name...]] - a keeping connect's handoff: the
+# session's `bash --rcfile` as the owner pane of the first of tmux, zellij,
+# and screen on the target, on the config hi carried. Its variables go as an
+# `env` argv (a running server hands panes its own environment) and are
+# dropped before the exec, so a new server keeps none (GLOSSARY: HI.47).
+# zellij takes a first command only from a layout, written beside the rc,
+# with options (where this zellij has them) for no disk session, detach on
+# drop, new panes on _hi_keep_panes' launcher, and no popups. [name...] are
+# the pane's variables when a session starts it; $_HI_KEEP_WITH is the one
+# typed. With no multiplexer the session holds its tree (_hi_keep_held).
 function _hi_keep_start() {
   local n argv="" drop="" note="${1:- |}"
   local -a vars=("${@:2}")
@@ -216,16 +191,10 @@ function _hi_keep_middle() {
   ! _hi_keep_starts || kept='_hi_kept || [ -e "$_HI_ROOT/hi.hold" ] || '
 }
 
-# What a connect that looks for a kept session runs once it has a tree of its
-# own. A session killed with no exit hook - the target went down under it -
-# left its tree, and its claim in it (_hi_keep_claim): hi.kept, an
-# owner pane's pid and that of the shell it was kept from, or hi.pid, any
-# other session's, or hi.held, the watcher's of a tree a drop left to its
-# timer and the shell's that left it (load.sh's clean_all). A tree no process
-# of its claim still runs on is removed, and one a kept session or a timer
-# claims is that claim's alone - but for the session $_hi_endname names, which
-# hi --end has just ended: its tree goes whatever its panes are still doing,
-# since a multiplexer may end them late or without a hangup. GLOSSARY: HI.65
+# The sweep, run once a connect has its own tree: remove every tree whose
+# claim (hi.kept, hi.pid, or hi.held) names no live process, left by a
+# session killed with no exit hook. The tree of $_hi_endname, which hi --end
+# just ended, goes whatever its panes are doing. GLOSSARY: HI.65
 function _hi_keep_sweep() {
   # shellcheck disable=SC2016 # the target's to expand
   printf '%s\n' \
@@ -237,15 +206,11 @@ function _hi_keep_sweep() {
     '      done'
 }
 
-# What a connect that looks for a kept session runs after the sweep, at a
-# terminal: a tree a dropped session of this name left to its timer
-# (hi.held: the watcher, the shell, the name) becomes this connect's, in place
-# of the empty one it just made, and $_hi_held says the unpack is not needed.
-# Only a directory of this account's own, never a link to one, since its rc
-# is about to be run. The claim is this script's pid in hi.pid, then the
-# removal of hi.held, which one of two connects wins; the session starts in
-# the directory the dropped one was in, and holds its tree as that one did.
-# GLOSSARY: HI.65
+# After the sweep, at a terminal: take over a held tree of this name in place
+# of the new one ($_hi_held skips the unpack), only one this account owns and
+# never through a link, since its rc will run. Removing hi.held is the claim
+# one of two connects wins; the session resumes in the old directory and
+# holds its tree in turn. GLOSSARY: HI.65
 function _hi_keep_held() {
   # shellcheck disable=SC2016 # the target's to expand
   printf '%s\n' \
@@ -263,15 +228,10 @@ function _hi_keep_held() {
     '      done'
 }
 
-# What `hi --end` runs on the target: 3 when there is no kept session to
-# close. The owner pane's bash takes the hangup and its exit hook removes the
-# tree, as on a dropped connection. That hook may never run: zellij sends a
-# layout's command SIGTERM and then SIGKILL as its server goes, and an
-# interactive bash ignores the first. So the script waits, two seconds at
-# most, for one of the panes that were running to go, then sweeps as a
-# connect does (_hi_keep_sweep), and its status stays the kill's. A tree a
-# drop left to its timer is ended through that timer's watcher, which hi.end
-# tells to stop waiting.
+# What `hi --end` runs on the target; 3 when there is nothing to close. The
+# owner pane's exit hook removes the tree, but zellij may SIGKILL it first, so
+# the script waits up to two seconds for a pane to go and then sweeps. A held
+# tree is ended through its watcher, told by hi.end.
 function _hi_keep_end_script() {
   local tmpl
   _hi_whoami >/dev/null
@@ -329,14 +289,10 @@ function _hi_keep_end() {
   return "$ec"
 }
 
-# hi --keep typed in a session: the session's tree gets an owner pane in the
-# first multiplexer here, under the name its client looks for, by the script
-# a keeping connect runs from where it starts the pane. load() left what the
-# pane needs in hi.keep, a NAME=value a line, the target's name among them.
-# The hi.kept marker is the pane's claim on the tree: this session's exit
-# leaves the tree to it (load.sh's clean_all). A multiplexer typed bare in a
-# session comes here too (common/mux.sh), naming itself in $_HI_KEEP_WITH,
-# and is the one started where the name is one of the three. GLOSSARY: HI.65
+# `hi --keep` typed in a session (or a bare multiplexer, via common/mux.sh
+# and $_HI_KEEP_WITH): start an owner pane on this tree under the name its
+# client looks for, from load()'s hi.keep. hi.kept leaves the tree to the
+# pane when this session exits. GLOSSARY: HI.65
 function _hi_keep_here() {
   local file="$_HI_ROOT/hi.keep" line with="" mux
   ! _hi_list_has "$_HI_MUXES" "${_HI_KEEP_WITH:--}" || with="$_HI_KEEP_WITH"
@@ -368,12 +324,8 @@ function _hi_keep_here() {
       _hi_kept || rm -f "$_HI_ROOT/hi.kept"' || [ "$?" = 86 ]
 }
 
-# `hi --keep` typed in a session on a machine with none of the three: the
-# session holds its tree from here on, as one a keeping connect started
-# there does. hi.hold, the name a later connect looks for, is what its exit
-# hook, its prompt hooks, and its bootstrap's trap read
-# (_hi_keep_holds), and the directory it is in now is noted for it. Refused
-# where the session could not hold: a window of 0.
+# `hi --keep` typed with no multiplexer: the session holds its tree from now
+# on, writing hi.hold and its directory. Refused when the hold window is 0.
 function _hi_keep_hold_here() {
   local line as="" name limit=0 _HI_LOCAL_USER="${_HI_LOCAL_USER:-}"
   # the client's username, which names the session, rode the file too
@@ -405,12 +357,9 @@ function _hi_keep_record() {
   printf -v "$1" '%s/hi.kept.%s' "$_hi_kr_dir" "$_hi_kr_key"
 }
 
-# _hi_keep_alive - a keepalive, into the caller's retry array, for a connect
-# that keeps its session or comes back to one: a link that freezes is a drop,
-# and so retried, only once ssh says so, and ssh says nothing unasked. Fifteen
-# seconds three times over, and only where the ssh config sets no interval of
-# its own (`ssh -G`, one fork, on these connects alone); an ssh too old to
-# answer that gets none.
+# _hi_keep_alive - ssh keepalive options (15s, three times) into the caller's
+# retry array, so a frozen link is noticed as a drop; skipped where the ssh
+# config sets its own interval (`ssh -G`) or ssh is too old to say.
 function _hi_keep_alive() {
   local _hi_ka
   _hi_keep_starts || [ "${_HI_KEEP_EXPECTED:-}" = 1 ] || return 0
@@ -437,11 +386,8 @@ function _hi_keep_live() {
 }
 
 # _hi_keep_until <outvar> - ", where the session is kept for <how long> until
-# <when that is>", for the line a drop leaves. How long is what the target
-# reads: $_HI_KEEP_TIMEOUT (24h) for a session in a multiplexer, and
-# $_HI_HOLD_TIMEOUT (15m) for a directory held where there is none
-# ($_HI_TARGET_MUX, the boot probe's word); 0, a multiplexer's session with
-# no end and no held directory at all. No time where date gives none.
+# <when>", for a drop's line: $_HI_KEEP_TIMEOUT with a multiplexer, else
+# $_HI_HOLD_TIMEOUT ($_HI_TARGET_MUX says which).
 function _hi_keep_until() {
   local span secs at fmt='%H:%M' mux="${_HI_TARGET_MUX:-1}" def
   if [ "$mux" = 1 ]; then
@@ -476,16 +422,12 @@ function _hi_keep_wait() {
   done
 }
 
-# _hi_keep_connect <log> [arm] - _say_hi, for a session that may be kept. The
-# target's script ends 86 when it leaves a kept session behind and 0 when it
-# does not, and the record follows; a connect that keeps writes it up front,
-# since a dropped link says nothing. The record is what the next connect's
-# script warns by when the session is gone (_hi_keep_attach), and what a
-# dropped session is retried by: at a terminal, for $_HI_KEEP_RETRY from the
-# drop, each try quiet (its words in <log>) until the target answers. A try
-# that gets in and drops within ten seconds does not restart the window. Only
-# ssh's drop is retried: a container's exec that ends is not a link that
-# went. GLOSSARY: HI.65
+# _hi_keep_connect <log> [arm] - _say_hi for a session that may be kept. The
+# client records a kept session (written up front by a keeping connect, then
+# set by the script's 86 or 0), so the next connect can warn when it is gone
+# and a dropped one is retried: at a terminal, over ssh only, for
+# $_HI_KEEP_RETRY, quietly (into <log>) until the target answers. A try that
+# drops within ten seconds keeps the window. GLOSSARY: HI.65
 function _hi_keep_connect() {
   local log="$1" arm="${2:-ssh}" ec rec="" window="${_HI_KEEP_RETRY:-$_HI_KEEP_RETRY_DEFAULT}" limit t0="" t1 expected="" until
   ! _hi_keep_probes || _hi_keep_record rec || rec=""
@@ -551,13 +493,10 @@ function _hi_keep_claim() {
   fi
 }
 
-# Whether this session may hold its tree through a drop: not an owner pane,
-# the tree a disposable one, a terminal to lose, and a window to hold it for,
-# into $_hi_keep_limit - $_HI_HOLD_TIMEOUT in seconds (15m), and 0 holds
-# nothing. It does hold once hi.hold names it:
-# load() writes that for a connect that asked ($_HI_KEEP_HOLD, where a
-# keeping connect found no multiplexer or took a held tree), and `hi --keep`
-# typed in the session writes it later. GLOSSARY: HI.65
+# Whether this session may hold its tree through a drop (not an owner pane,
+# a disposable tree, a terminal, a nonzero window), the window in seconds into
+# $_hi_keep_limit. It holds once hi.hold exists: load() writes it for
+# $_HI_KEEP_HOLD, or `hi --keep` typed later. GLOSSARY: HI.65
 function _hi_keep_holds() {
   _hi_keep_limit=0
   [[ -z "${_HI_KEEP_MUX:-}" && -n "${_HI_CLEANUP:-}" && "$_HI_ROOT" == "$_HI_CLEANUP"/* ]] && [ -t 0 ] || return 1
@@ -637,14 +576,11 @@ function _hi_keep_kill() {
   _hi_mux_kill "$_HI_KEEP_MUX" "$_HI_KEEP_NAME" "${STY:-$_HI_KEEP_NAME}"
 }
 
-# _hi_keep_panes <session shell command...> - the session's other panes. A
-# multiplexer opens each on its default shell, the host's own, which reads
-# none of hi's rc (GLOSSARY: HI.46). So the owner pane leaves a launcher
-# beside the rc - what load() exported for the session shell, then that shell
-# - and names it the session's: tmux's default-command and screen's shell,
-# set here for this session alone; zellij takes a default shell at its start
-# only, where _hi_keep_start named this path. $SHELL is written back since screen
-# hands a window its `shell` as $SHELL. GLOSSARY: HI.65
+# _hi_keep_panes <session shell command...> - makes new panes open hi's
+# session shell, not the host's: a launcher beside the rc (load()'s exports,
+# then the shell), set as this session's tmux default-command or screen shell
+# (zellij's is set at start by _hi_keep_start). $SHELL is restored since
+# screen sets it to `shell`. GLOSSARY: HI.65
 function _hi_keep_panes() {
   local v q file="$_HI_ROOT/hi.pane"
   [ -n "${_HI_KEEP_MUX:-}" ] || return 0

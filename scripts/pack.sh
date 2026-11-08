@@ -1,65 +1,35 @@
 #!/usr/bin/env bash
-# The packer: what hi.sh sends a target, built on the machine that owns the
-# config - the overlay's table and the plugins files' rows, home's lookups,
-# the include scan, the comment strip, and the staged tars with their caches.
-# hi.sh sources this where it is. scripts/ never rides in the payload, so a
-# session's hi.sh finds none and relays its own tree as it stands (hi.sh's
-# own _hi_payload_tar): nothing here costs a byte on the wire.
-# GLOSSARY: HI.66
+# The packer, sourced by hi.sh on the client: the overlay table, home's
+# lookups, and the wiring, with pack_plugins.sh (plugins rows), pack_scan.sh
+# (the include scan), and pack_stream.sh (tars, strip, caches). scripts/
+# never rides, so a session relays its tree as it stands. GLOSSARY: HI.66
 #
-# Three files hold its larger halves and are sourced from here, where each
-# sat: pack_plugins.sh (the plugins files' rows), pack_scan.sh (the include
-# scan), and pack_stream.sh (the staged tars, the strip, the caches).
-#
-# Sourced, never run. Strict mode, common/core.sh, and the helpers called
-# from here (_hi_tar_gz, _hi_hash, _hi_armored_line, ...) are hi.sh's.
-#
-# Much of this file is a table or a script read somewhere else, so a `$var`
-# in single quotes is that reader's to expand (SC2016).
+# A `$var` in single quotes is a table's or script's reader's to expand
+# (SC2016).
 # shellcheck disable=SC2016
 
 # _hi_zshrc_here: the .zshrc a framework's theme or init line is read from
 # shellcheck source=./zshrc.sh
 source "$_HI_ROOT/scripts/zshrc.sh"
 
-# The user's config overlay: a second, smaller stream into its own overlay/ on
-# the target (GLOSSARY: HI.41), and every member's one resolution order
-# (HI.61): the overlay's copy, else the user's own file at home, else the
-# tree's default, which the payload already carries. One row per member:
-# <member>|<paths.sh variable>|<tree, when config/ has a default>|<tool>|<group>|<plugin>|<wire>|<off>|<dialect>|<home>.
-# This table is hi's own files', which $_HI_PLUGINS_OFF never switches. The
-# rows it does switch are the plugins files' (_hi_plugins_load), config/plugins
-# and the overlay's plugins: a `[<group>.<plugin>]` table there is a row here
-# for each of its files, of its `tool`, `wire`, `home`, and `dialect`.
-# <paths.sh variable> is hi's own files' alone: a tool's member has none, and
-# what hi's code reads of one on a target is an env: wire of its row.
-# <tool> is the binaries that read it: home's copy rides with any of them on
-# $PATH, and - asks about nothing (a shell, readline, a prompt program:
-# _hi_prompt_list asks about those).
-# <group> is the section a list draws it under, or - for a member of hi's
-# own, which nothing switches.
-# <plugin> is its word in $_HI_PLUGINS_OFF (_hi_plugin_off) and the name a
-# report gives what reads it, or - for none.
-# <wire> is what points the tool at the member on a target, written there by
-# _hi_overlay_wiring (HI.62), whose comment is the grammar: env: and envdir:
-# export variables, flag: and flagdir: alias a command, and - leaves the
-# member to hi's own code.
-# <off> is the toggles that keep one of hi's own files home, spelled as a
-# wiring line reads them, or - for none: with any of them at 1 the member
-# stays home (_hi_plugin_off). A tool's member has none: $_HI_PLUGINS_OFF
-# switches it.
-# <dialect> is the $_HI_DIALECTS row the include scan and the comment strip
-# read it by, or - for a file that rides as written.
-# <home> is the candidates, best first, in _hi_path_list's grammar - or @fn
-# for a lookup no path list can say, a function of this file that only this
-# table and the tree's config/plugins may name, or - for none: a shell's own rc
-# (bashrc, zshrc, config.fish) rides only from the overlay, since the rc a
-# target runs should be asked for, not found. A member is <tool>/<file>
-# where its tool keeps a directory under ~/.config, the file named as the
-# tool names it, and its own name where the tool keeps none. A candidate
-# ending in / is a directory, the member's file looked for inside it. A
-# member with a trailing / is a directory whose files ride one by one
-# (HI.58), from the overlay alone where the row has no home.
+# The overlay's own members, a second stream into the target's overlay/
+# (GLOSSARY: HI.41), each resolved overlay copy, else home's file, else the
+# tree's default (HI.61). The plugins files' tables become rows of the same
+# shape (_hi_plugins_load); these rows, hi's own, are never switched off.
+# <member>|<paths.sh variable>|<tree default>|<tool>|<group>|<plugin>|<wire>|<off>|<dialect>|<home>,
+# - for none in any column:
+#   <member>     <tool>/<file> where the tool keeps a ~/.config directory,
+#                else its own name; a trailing / rides file by file (HI.58)
+#   <tool>       binaries that read it; home's copy rides only with one here
+#   <group>      the section a list draws it under
+#   <plugin>     its word in $_HI_PLUGINS_OFF (_hi_plugin_off)
+#   <wire>       how the target's tool finds it (_hi_overlay_wiring, HI.62)
+#   <off>        toggles that keep one of hi's own files home
+#   <dialect>    the $_HI_DIALECTS row the include scan and strip use
+#   <home>       candidates, best first, in _hi_path_list's grammar, or @fn
+#                for a lookup function of this file; a trailing / is a
+#                directory. Shell rcs have none: they ride from the overlay
+#                alone.
 _HI_OVERLAY_TABLE=(
   'settings.sh|_HI_SETTINGS|-|-|-|-|-|-|sh|-'
   'colors|_HI_COLORS|tree|-|-|-|-|-|conf|-'
@@ -86,24 +56,21 @@ function _hi_row_col() {
   printf -v "$3" '%s' "${_hi_rc_r%%|*}"
 }
 
-# The dialects a row's <dialect> names, for _hi_lint_awk and _hi_strip_awk:
-# <name> | <leader> | <strip> | <end> | <disable> | <plugin> | <include> | <allow> | <stand-in>,
-# no column holding a ` | `, - for none. <leader> starts a comment line; with
-# <strip> 1 the strip drops those, blank lines, and indentation. <end> is
-# where a statement ends: line, \ (a line ending in one continues it), ()
-# (the brackets balance, strings "-quoted), ()' ('-quoted too), or [] (a key
-# under a [section], a \ continuing it: <plugin> and <include> then match
-# `<section>.<key>`, lower-cased, and a <plugin> match is private, not a
-# manager).
-# <disable> is how a finding goes out: comment (a <leader> line, the whole
-# statement), : or true (the verb and its file word become that no-op, a
-# plugin line is prefixed with it), or "" (the value is emptied). <plugin>,
-# <include>, and <allow> are EREs, \t a tab: a line matching <plugin> is a
-# plugin manager, and one matching <include> is an include, once the text
-# <allow> matches is taken out - for a : or true disable, <include> is the
-# verb in command position and <allow> the file words it leaves alone.
-# <stand-in> is `<ERE> => <line>`: a dropped plugin directly under a line the
-# ERE matches leaves <line> in its place.
+# The dialects, for _hi_lint_awk and _hi_strip_awk, - for none:
+# <name> | <leader> | <strip> | <end> | <disable> | <plugin> | <include> | <allow> | <stand-in>
+#   <leader>    starts a comment line; <strip> 1 drops those, blank lines,
+#               and indentation
+#   <end>       where a statement ends: line; \ (continues); () (brackets
+#               balance, "-strings); ()' ('-strings too); [] (a key under a
+#               [section], matched as `<section>.<key>`, a <plugin> match
+#               then private rather than a manager)
+#   <disable>   comment (the statement), : or true (the verb and file word
+#               become that no-op), or "" (the value emptied)
+#   <plugin>    ERE of a plugin manager line
+#   <include>   ERE of an include once <allow>'s text is removed; for : or
+#               true, the verb, and <allow> the file words it spares
+#   <stand-in>  `<ERE> => <line>`: a dropped plugin under a matching line
+#               leaves <line>
 _HI_DIALECTS=()
 
 # _hi_dialect_row <name> <outvar> - its $_HI_DIALECTS row; 1 for none
@@ -200,11 +167,9 @@ function _hi_prompt_handed() {
 }
 
 # _hi_posh_home <member> [outvar] - oh-my-posh's config at home, under the
-# member its extension names: oh-my-posh parses by extension and paths.sh
-# cannot rename, hence three members for one program - and one config a
-# target, so an overlay copy in any format outranks home's. oh-my-posh has no
-# default file: $POSH_CONFIG ($POSH_THEME in older releases), else the rc's
-# `init --config`.
+# member its extension names (it parses by extension, hence three members); an
+# overlay copy in any format wins. $POSH_CONFIG (or $POSH_THEME), else the
+# rc's `init --config`.
 function _hi_posh_home() {
   local _hi_ph_f
   for _hi_ph_f in "$_HI_CONFIG_DIR"/oh-my-posh.{json,yaml,toml}; do
@@ -252,13 +217,9 @@ function _hi_theme_home() {
   [ -f "$_hi_th_f" ] && _hi_out "${2:-}" "$_hi_th_f"
 }
 
-# _hi_prompt_here <list> - hi.sh's _hi_prompt_list, where $_HI_PROMPT_TOOL
-# names no program for every shell: <list>, then every prompt program this
-# machine has - the ones on $PATH, tide where fisher put it, and a framework
-# with a theme or config to ship - into $_HI_PROMPT_LIST_MEMO. One whose
-# plugin is switched off is left out: off sets nothing on a target, and
-# naming it in $_HI_PROMPT_TOOL is how it is handed over all the same.
-# GLOSSARY: HI.32
+# _hi_prompt_here <list> - <list>, then every prompt program installed here
+# whose plugin is on, into $_HI_PROMPT_LIST_MEMO, for _hi_prompt_list when
+# $_HI_PROMPT_TOOL has no plain entry. GLOSSARY: HI.32
 function _hi_prompt_here() {
   local _hi_pl_r _hi_pl_t _hi_pl_f _hi_pl_p _hi_pl_out="$1"
   # _hi_overlay_src asks this list too: all of it while it is being built
@@ -305,22 +266,12 @@ function _hi_posh_rc_config() {
   [ -n "$_hi_pc_v" ] && _hi_out "${1:-}" "$_hi_pc_v"
 }
 
-# _hi_p10k_in_use - does the zsh rc load powerlevel10k *as the theme*? Its
-# config file is not that signal. p10k's wizard appends
-# `[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh`, guarded so it goes inert
-# when the file is gone - so a `~/.p10k.zsh` left behind by a theme switch
-# outlives the theme it configured, and the file alone read as "in use"
-# shipped p10k over the `ZSH_THEME` actually in force. What loads the theme is
-# one of three shapes, and all of them name it twice or name its repo:
-# `ZSH_THEME=powerlevel10k/powerlevel10k` (oh-my-zsh's entry point for it, the
-# one _hi_theme_home turns down as "not a theme file"), a
-# source of `powerlevel10k.zsh-theme` wherever it is installed, or a plugin
-# manager naming `romkatv/powerlevel10k`. Missed: an rc that loads it from a
-# file it sources - the cheaper failure of the two, since it costs the p10k
-# prompt on a target rather than drawing a prompt the user does not use, and
-# `_HI_PROMPT_TOOL=powerlevel10k` names it past any detection. Every other
-# framework here is found the same way, by what the rc sets
-# (docs/INTEGRATIONS.md's _counts as installed here_).
+# _hi_p10k_in_use - does the zsh rc load powerlevel10k as the theme? A
+# leftover ~/.p10k.zsh is no sign, so it looks for what loads it:
+# `ZSH_THEME=powerlevel10k/powerlevel10k`, a source of
+# `powerlevel10k.zsh-theme`, or a manager naming `romkatv/powerlevel10k`. An
+# rc that loads it from another file is missed, the cheaper failure;
+# `_HI_PROMPT_TOOL=powerlevel10k` covers it.
 function _hi_p10k_in_use() {
   local _hi_pk="" _hi_pk_z
   _hi_zshrc_here _hi_pk_z
@@ -332,13 +283,10 @@ function _hi_p10k_in_use() {
 # shellcheck source=./pack_plugins.sh
 source "$_HI_ROOT/scripts/pack_plugins.sh"
 
-# _hi_overlay_row <member> [outvar] - its row, $_HI_OVERLAY_TABLE's then the
-# plugins files' ($_HI_PLUGIN_ROWS): its own or the directory entry (a
-# trailing /) it sits under, the first of them in that order. Looked up in
-# $_HI_OVERLAY_INDEX, `<member>|<position>` a line for every row in order,
-# made once a load: a scan of every row was most of a pack's time. A member's
-# first line is its first row, the one a lookup finds, so no line is checked
-# for a duplicate on the way in.
+# _hi_overlay_row <member> [outvar] - its row, or its directory's (trailing
+# /), $_HI_OVERLAY_TABLE's first, then $_HI_PLUGIN_ROWS'. Looked up in
+# $_HI_OVERLAY_INDEX (`<member>|<position>` lines, built once a load), since
+# scanning every row was most of a pack's time; the first line found wins.
 _HI_OVERLAY_INDEX=""
 function _hi_overlay_row() {
   local _hi_or_nl=$'\n' _hi_or_m="$1" _hi_or_k _hi_or_i _hi_or_at=""
@@ -372,13 +320,10 @@ function _hi_overlay_row() {
   fi
 }
 
-# _hi_overlay_src <member> [outvar] - where an overlay member is packed from,
-# in the table's order: the overlay's copy, else home's (_hi_overlay_home) -
-# a target gets the config in force here with no copy to keep in step - else
-# nothing, since a tree default rides in the payload already. A prompt
-# config rides only for a program a target is handed, and nothing of a
-# plugin that is switched off. Fails, printing nothing, when there is no
-# file either way.
+# _hi_overlay_src <member> [outvar] - where a member is packed from: the
+# overlay copy, else home's (_hi_overlay_home); a tree default rides in the
+# payload. Nothing for a prompt program a target is not handed, or a plugin
+# switched off. Fails when there is no file.
 function _hi_overlay_src() {
   local _hi_os_f="$_HI_CONFIG_DIR/$1"
   # a tagged target's settings.sh is settings.sh and its tags' files joined
@@ -438,15 +383,11 @@ function _hi_overlay_places() {
   done
 }
 
-# _hi_ssh_tags_file <member> [outvar] - the tag map a relayed hop colors by
-# (ssh_tags' home, so the table's calling shape): every
-# `# Tags:` line of ~/.ssh/config and the files it Includes, with the Host or
-# Match line under it and nothing else of the block, and a block's `Tag` line
-# or a config.d file's name written out as the line it stands for, in the
-# walk's order (comment, Tag, file), so the middle box's _hi_ssh_host_tag can
-# walk it as the config it is cut from. Kept in the runtime dir, recut when
-# the config is newer or has an Include; fails with no config, no runtime
-# dir, or no tag.
+# _hi_ssh_tags_file <member> [outvar] - ssh_tags' home: each tagged `Host`
+# or `Match host` line of ~/.ssh/config and its Includes, under a `# Tags:`
+# line (a `Tag` line or config.d name written as one), so a relay's
+# _hi_ssh_host_tag walks it like the real config. Kept in the runtime dir and
+# recut when the config changes; fails with no config, runtime dir, or tag.
 function _hi_ssh_tags_file() {
   local _hi_tf_d="" _hi_tf _hi_tf_tmp
   [ -f "$_HI_SSH_CONFIG" ] || return 1
@@ -523,13 +464,9 @@ function _hi_toggle_on() {
   return 1
 }
 
-# _hi_plugin_off <member> [outvar] - is it switched off, and by what, into
-# <outvar>? By $_HI_PLUGINS_OFF naming its plugin or the member - its row's,
-# or its own where it is one file of a directory row - (words a space or a
-# comma apart), or by a toggle of its row's <off> column;
-# a row of hi's own (group -) is never off. Read where the overlay is
-# packed, so what is off neither rides nor is wired, and the target is handed
-# the result. GLOSSARY: HI.64
+# _hi_plugin_off <member> [outvar] - whether it is switched off, and by what:
+# $_HI_PLUGINS_OFF naming its plugin, its row's member, or itself, or a toggle
+# in its <off> column. hi's own rows (group -) never are. GLOSSARY: HI.64
 function _hi_plugin_off() {
   local _hi_po_r _hi_po_g _hi_po_n _hi_po_t
   # nothing is off, most connects: said once for the values in force, since
@@ -566,27 +503,17 @@ function _hi_plugin_off() {
 }
 
 # _hi_overlay_wiring <outvar> <member...> - the lines that point each tool at
-# its member on a target, in common/paths.sh's four-shell dialect, which
-# sources them there. A row's wire column holds one wire or several, a ;
-# between them, each read by _hi_wire_read: env:<variables> exports each as
-# the member's path and envdir: as its directory, a <variable>=<word> among
-# them as that word; flag:<command> <words>
-# aliases the command to itself, the words, and the path, where the target
-# has the command, and flagdir: the same with the directory. A flag ending
-# in = takes the path in the same word.
-# xdg:<command> aliases the command to itself with $XDG_CONFIG_HOME set to
-# the overlay, whose <tool>/<file> members are laid out as ~/.config is: the
-# fallback for a file no variable or flag reaches, since everything the
-# command starts inherits the variable too.
-# The directory of a member under a / is the one its first name names.
-# Wires run in order and a later alias replaces an earlier one, so helix's
-# languages.toml row follows its config.toml row: with both riding, the xdg
-# alias is the one a target keeps.
+# its member on a target, in paths.sh's four-shell dialect. Wires, `;`
+# apart (_hi_wire_read): env:<vars> exports the path (<var>=<word> that
+# word), envdir: the directory; flag:<command> <words> aliases the command
+# with the words and path where the target has it (flagdir: the directory; a
+# flag ending in = takes the path in the same word); xdg:<command> aliases it
+# with $XDG_CONFIG_HOME at the overlay, the last resort. Later aliases win,
+# so helix's languages.toml row follows config.toml's.
 #
-# The paths stay under $_HI_CONFIG_DIR for the target to expand, so the file
-# holds on a next hop, and a row's <off> toggles are tested there, where the
-# shell starts. A line is written once, however many members ask
-# for it. Builtins only: every connect runs it. GLOSSARY: HI.62
+# Paths stay under $_HI_CONFIG_DIR for the target to expand, so they hold on
+# a next hop; <off> toggles are tested there. Each line is written once.
+# Builtins only: every connect runs it. GLOSSARY: HI.62
 function _hi_overlay_wiring() {
   local _hi_ow_out="$1" _hi_ow_m _hi_ow_r _hi_ow_ws _hi_ow_g _hi_ow_p _hi_ow_v _hi_ow_l _hi_ow_n _hi_ow_all=$'\n'
   local _hi_wr_kind _hi_wr_vars _hi_wr_names _hi_wr_env _hi_wr_cmd _hi_wr_words

@@ -8,17 +8,9 @@
 # GLOSSARY: HI.30
 # shellcheck disable=SC2329
 
-# _hi_align <left> <right> [color] - one status line, with <right> pushed out
-# to _HI_MAX_WIDTH: the width the summary table and the _hi_h1 rules already
-# span, so every verdict in a run lands in the same column instead of ragging
-# along behind labels of every length. That is what made scanning a verbose
-# transcript for the one red line hard.
-#
-# <left> is the whole left-hand side, prefix included, because callers do not
-# share one: " | ", " | [label] -- " and "  [shell] -- " all pass through here.
-# A left too long to leave room overflows the line rather than truncating, but
-# never past a two-space gutter, so the label and the verdict cannot run
-# together into one unreadable word.
+# _hi_align <left> <right> [color] - a status line with <right> at
+# _HI_MAX_WIDTH, so every verdict lines up. <left> includes its prefix; a long
+# one overflows, keeping at least two spaces before <right>.
 function _hi_align() {
   local left="$1" right="$2" pad line floor=$((${#2} + 2))
   pad=$((${_HI_MAX_WIDTH:-80} - ${#left}))
@@ -68,15 +60,9 @@ function _hi_note_time() {
 function _hi_true() { return 0; }
 function _hi_false() { return 1; }
 
-# Runs "$@" (a predicate function or command) and reports it under $1 as a
-# human-readable label. The unit suites always want this wrapped in _hi_case,
-# which is what _hi_check below is; the e2e suites bring their own case
-# runners, which report their own timings, and so use _hi_case directly.
-# _hi_because <text> - name on stderr why a case is failing, and fail it. The
-# stderr _hi_assert runs a case with is the transcript's, so the reason lands
-# beside the FAILED line. One call per arm keeps a multi-way assertion readable
-# where `|| { echo ...; return 1; }` would not: shfmt expands every brace group
-# onto four lines of its own.
+# _hi_because <text> - says on stderr why a case fails, beside its FAILED
+# line, and fails it; one line where `|| { echo ...; return 1; }` would be
+# four after shfmt.
 function _hi_because() {
   printf '%s\n' "$1" >&2
   return 1
@@ -126,13 +112,9 @@ function _hi_refused() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"$phrase"* ]] || _hi_because "from: $* - exit $rc, wanted [$phrase], got [$out]"
 }
 
-# _hi_why [-N] [name...] - _hi_because for an assertion with no words of its
-# own: the statement that failed, read off the suite's file at the caller's
-# line, and each named variable as the case had it, cut at 300 characters.
-# With -N, the N lines above it too, for a bare `return 1` or a block's end,
-# whose condition is up there. What a trace would have shown, said by the
-# first failure, so a flake has it too. Run only once the assertion has
-# failed: a passing case never reaches it.
+# _hi_why [-N] [name...] - _hi_because with no words of its own: the failed
+# statement from the suite's file (and N lines above, for a bare `return 1`)
+# and each named variable, cut at 300 characters. Only on failure.
 function _hi_why() {
   local _hi_w_file="${BASH_SOURCE[1]:-}" _hi_w_line="${BASH_LINENO[0]:-0}" _hi_w_text="" _hi_w_n _hi_w_v _hi_w_cut _hi_w_up=0
   case "${1:-}" in -[0-9]*)
@@ -201,16 +183,11 @@ function _hi_assert() {
   return 1
 }
 
-# _hi_case_workdir - $_HI_WORKDIR as a new, empty directory of the suite's,
-# for one try of one case: _hi_assert's local, so the suite's own is back the
-# moment the case is done. A traced rerun gets another, or it would start
-# where its first try stopped - over the file, link, or fixture that try made
-# - and a flake could never pass it. A setup that builds once for every case
-# builds in $_HI_SUITE_WORKDIR.
-#
-# A name and `mkdir`, not `$(mktemp -d)`: an empty capture is Windows arm64's
-# flake, and this one would aim the case at the root. Parallel cases count
-# from the same number in their subshells, so a taken name is tried again.
+# _hi_case_workdir - a fresh, empty $_HI_WORKDIR for one try of one case
+# (a rerun gets its own, so a flake can pass); shared setup goes in
+# $_HI_SUITE_WORKDIR. `mkdir` of a counted name, not `$(mktemp -d)`, whose
+# empty capture on Windows arm64 would aim the case at /; a taken name is
+# retried.
 _HI_CASE_SEQ=0
 function _hi_case_workdir() {
   local try
@@ -223,12 +200,9 @@ function _hi_case_workdir() {
   return 1
 }
 
-# _hi_rerun_holds <label> <case...> - under $_HI_RERUN_CHECK=1, a case that
-# passed is run once more, in a subshell and a fresh directory as its traced
-# rerun would be. One that fails there leaves something outside its
-# directory - $HOME, the tree, an exported variable - that its first try
-# changed, so a flake in it can never pass that rerun: a FLAKY that reads
-# FAILED. Off by default, since it doubles a run's time.
+# _hi_rerun_holds <label> <case...> - under $_HI_RERUN_CHECK=1, reruns a passed
+# case as its traced rerun would; a failure means its first try changed state
+# outside its directory, so a flake could never pass. Doubles a run's time.
 function _hi_rerun_holds() {
   local label="$1"
   shift
@@ -241,25 +215,12 @@ function _hi_rerun_holds() {
   return 1
 }
 
-# _hi_trace_rerun <seconds-it-took> <case...> - a failed case once more under
-# `set -x`: most cases fail with a label and no word of their own, and a red
-# line from a runner nobody can reach is worth little. Exits 0 when the rerun
-# passed (a flake), 1 when it failed too or was not run; the trace's tail is
-# left in $_HI_RERUN_OUT for the FAILED line to print. A subshell, so nothing
-# the rerun sets survives it, in a directory of its own (_hi_case_workdir), so
-# nothing the first try wrote there is in its way.
-#
-# A failure that took over 30s is rerun all the same, since a slow failure is
-# the likeliest kind on an emulated runner and the one a label explains
-# least: apart from this shell and into a file, so it can be ended once it
-# has had that time again and half a minute, with the trace it got to - where
-# a hung case stands - in place of a second timeout paid in full. It is for
-# the trace alone: a slow failure is a failure whatever its rerun does, never
-# a flake. All of it is a failure's cost; a pass forks nothing but the
-# `mkdir` of its directory.
-#
-# Not when $_HI_TRACE_RERUN is 0: the coverage sweeps set that, their tracers
-# owning xtrace, and the line says where the same case is traced.
+# _hi_trace_rerun <seconds-it-took> <case...> - reruns a failed case under
+# `set -x`, in a subshell and fresh directory, leaving the trace's tail in
+# $_HI_RERUN_OUT. 0 when it passed (a flake), else 1. A failure over 30s is
+# rerun in the background and cut off after that time plus 30s, for the trace
+# alone: a slow failure is never a flake. Off under $_HI_TRACE_RERUN=0 (the
+# coverage sweeps own xtrace). A passing case pays nothing.
 _HI_RERUN_OUT=""
 function _hi_trace_rerun() {
   local took="$1" out rc=0
@@ -314,12 +275,10 @@ function _hi_trace_rerun_slow() {
   return 1
 }
 
-# _hi_pipe_probe - is this host losing output right now, and from which kind
-# of writer: 20 rounds each of a subshell, a child bash, and a process
-# substitution into a capture, and a child bash into a file, counted when the
-# words come back short. One stderr line with the runtime's version and the
-# load, ahead of the rerun of a failed case where a flake may pass: the
-# flakes of Windows arm64 are captures that came back empty with no error.
+# _hi_pipe_probe - one stderr line on whether this host is losing output now
+# (20 rounds each of subshell, child bash, process substitution, and file
+# writes), with the runtime and load, before a failed case's rerun. Windows
+# arm64's flakes are captures that come back empty.
 function _hi_pipe_probe() {
   local i got want=0123456789abcdef sub=0 child=0 psub=0 file=0 died=0 f="${_HI_WORKDIR:-${TMPDIR:-/tmp}}/pipe-probe" load=""
   for ((i = 0; i < 20; i++)); do
@@ -340,12 +299,8 @@ function _hi_pipe_probe() {
     "$sub" "$child" "$psub" "$file" "$died" "$(uname -srm 2>/dev/null || true)" "${load:+, load $load}" >&2
 }
 
-# _hi_flaky_allowed - whether a flake may pass here. Not on native Linux x64:
-# the fastest, least loaded platform CI has, where a case that needs a second
-# try is shaky code, not a slow runner. Everywhere else - Windows (WSL
-# included), the BSDs, arm64 (macOS included) - emulation and load make a
-# flake likely enough that it is a warning. $_HI_FLAKY_OK (1/0) overrides.
-# Worked out once, on the first flake.
+# _hi_flaky_allowed - whether a flake may pass: everywhere but native Linux
+# x64, where a second try means shaky code. $_HI_FLAKY_OK (1/0) overrides.
 _HI_FLAKY_OK_MEMO=""
 function _hi_flaky_allowed() {
   if [ -z "$_HI_FLAKY_OK_MEMO" ]; then
@@ -365,13 +320,10 @@ function _hi_note_flaky() {
   printf '%s\n' "$1" >>"$_HI_FAILS_FILE.flaky"
 }
 
-# _hi_run_said [--both] <what> <cmd...> - <cmd>'s stdout (--both: stderr too)
-# through a file, then printed, with <cmd>'s exit status: for a whole run of a
-# program that always says something. Windows arm64 has ended such a run
-# early, exit 0 and nothing said, in cases too long for _hi_assert's rerun.
-# Where a flake may pass, a run that wrote nothing is made once more and
-# listed under "Flaky cases" as <what>; one silent to the end is named on
-# stderr. Whatever a run did write is passed on as it is, never run again.
+# _hi_run_said [--both] <what> <cmd...> - runs a program that always prints,
+# through a file, keeping its status. A silent run (Windows arm64 ends some
+# early with 0) is retried once where flakes may pass and listed as <what>
+# under "Flaky cases"; one silent twice is named on stderr.
 function _hi_run_said() {
   local both=0 what said rc try
   [ "$1" != --both ] || {
@@ -419,20 +371,12 @@ function _hi_suite_begin() {
   _HI_SKIPPED=0
 }
 
-# A single case the suite couldn't run (no python3 to drive a pty, say) - as
-# opposed to _hi_report_skip, which is the whole suite standing down. Counted
-# rather than silently passed, so _hi_suite_end's banner can say how much of
-# what it just reported was actually exercised.
-#
-# Under --require-run it is a failure instead, and reported as one here rather
-# than by counting up at the end: this is the only place the case's label and
-# its reason are both in hand, so it is the only place the runner's recap can
-# be told which case went missing. The tally still calls it a skip - the case
-# did stand down, and the summary's SKIP column should say so - and
-# _hi_suite_end is what turns the count into the suite's verdict. That split
-# is also what makes the parallel path work: _HI_SKIPPED comes back from a
-# case's subshell through its verdict file (see _hi_par_case), while a
-# counter bumped here would not.
+# One case the suite could not run (no python3 for a pty, say), counted so
+# the banner says how much ran; _hi_report_skip is the whole suite. Under
+# --require-run it is also reported as a failure here, where the label and
+# reason are at hand, while still tallied as a skip; _hi_suite_end turns the
+# count into the verdict (a parallel case's _HI_SKIPPED returns through its
+# verdict file).
 function _hi_skip() {
   _HI_SKIPPED=$((${_HI_SKIPPED:-0} + 1))
   if [ "${_HI_REQUIRE_RUN:-0}" = 1 ]; then
@@ -443,15 +387,9 @@ function _hi_skip() {
   _hi_align " | $1" "SKIPPED${2:+ ($2)}" "$YELLOW"
 }
 
-# _hi_report_counts <total> <failed> [skipped] - hand this suite's tally up to
-# test_runner.sh, which sums every suite's into the pass/fail/skip columns of
-# its summary table. $_HI_COUNTS_FILE is only set when running under the
-# runner, so a suite executed on its own is a no-op here. A suite that exits
-# before reporting (_hi_require_bin's skip path) contributes nothing, which is why
-# the runner renders "-" rather than 0 for those. _hi_suite_end calls this for
-# every suite built on the standard counters; the tests/lint/*_test.sh
-# suites, whose unit is files rather than cases, report through
-# _hi_lint_suite_end (tests/lib/lint.sh) instead.
+# _hi_report_counts <total> <failed> [skipped] - the suite's tally for the
+# runner's summary, through $_HI_COUNTS_FILE (a no-op outside the runner; a
+# suite that never reports shows "-"). Lint suites use _hi_lint_suite_end.
 function _hi_report_counts() {
   [ -n "${_HI_COUNTS_FILE:-}" ] || return 0
   printf '%s %s %s\n' "$1" "$2" "${3:-0}" >"$_HI_COUNTS_FILE"
@@ -475,18 +413,9 @@ function _hi_note_failure() {
   printf '%s\n' "$1" >>"$_HI_FAILS_FILE"
 }
 
-# _hi_note_failure_unless_named <label> <text> - the parallel path's backstop. A
-# case that dies before naming itself (a container that never started, say) has
-# named nothing, and the recap then says only "suite exited N with no per-case
-# detail". One that died after has already named itself, and must not be listed
-# twice.
-#
-# Both naming forms have to be checked, because the two case runners write
-# different ones: _hi_case_result (the e2e path) writes "[label] ...", while
-# _hi_assert (what _hi_par_check uses, so every fast-group parallel case) writes
-# the bare label. Checking only the bracketed form listed every failed fast
-# parallel case twice - once truthfully, then again as "exited 1 before
-# reporting a verdict", which reads as a crash rather than a false assertion.
+# _hi_note_failure_unless_named <label> <text> - the parallel path's backstop
+# for a case that died before naming itself; one already named (as "[label]"
+# by _hi_case_result or bare by _hi_assert) is not listed twice.
 function _hi_note_failure_unless_named() {
   [ -n "${_HI_FAILS_FILE:-}" ] || return 0
   grep -qxF "$1" "$_HI_FAILS_FILE" 2>/dev/null && return 0
@@ -495,19 +424,9 @@ function _hi_note_failure_unless_named() {
 }
 
 # _hi_expect_eq <label> <want> <cmd...> - _hi_assert's twin for a value rather
-# than a predicate: it runs <cmd>, compares its stdout to <want>, and says what
-# it got. A bare `[ "$a" = "$b" ]` inside a case reports FAILED and nothing else,
-# so a red run on a machine you cannot reach - CI, someone else's laptop -
-# replays a transcript that names the case and withholds the one fact that
-# would explain it. Both values print at _hi_dump_log's six-space indent, and
-# quoted, so an empty result and a trailing newline are visible rather than
-# guessed at.
-#
-# It reports its own verdict exactly as _hi_assert does, so it drops into
-# either case runner - _hi_check_eq and _hi_par_check_eq (parallel.sh) are
-# its _hi_check / _hi_par_check. The parallel path captures a
-# case's stdout and replays it in submission order, which this writes to like
-# any other case output.
+# than a predicate: runs <cmd> and compares its stdout to <want>, printing
+# both quoted on failure so empties and trailing newlines show.
+# _hi_check_eq and _hi_par_check_eq wrap it.
 function _hi_expect_eq() {
   local label="$1" want="$2" got rc=0
   shift 2
@@ -527,13 +446,8 @@ function _hi_expect_eq() {
 }
 
 # _hi_dump_log <message> <file> [color] - a failure line and the output that
-# explains it, together. The text and never the log's *path*: _hi_test_cleanup
-# rm -rf's $_HI_WORKDIR from the exit trap, so a path is unlinked before anyone
-# can open it - including on the _hi_stand_down path, which is a plain
-# `exit 0`. Dumped raw at
-# _hi_case_result's six-space indent (raw so a backend's own coloring survives)
-# into the case's stdout, which _hi_par_wait replays in submission order and
-# which the runner replays whole for any suite that isn't green.
+# explains it: the text, never the path, which the exit trap removes. Raw, at
+# a six-space indent, into the case's stdout.
 function _hi_dump_log() {
   local msg="$1" file="$2" color="${3:-$RED}"
   _hi_cecho " | $msg" "$color"
@@ -593,15 +507,9 @@ function _hi_report_skip() {
   printf 'SKIP %s\n' "$1" >"$_HI_COUNTS_FILE"
 }
 
-# The tally, the closing banner, and the suite's exit status - which is what
-# the runner reads as PASS or FAILED.
-#
-# Under --require-run a skipped case counts toward that status, so a suite that
-# quietly ran less than it was asked to cannot exit 0. The counts handed up are
-# untouched by it: the summary's FAIL column stays the number of cases that
-# actually failed an assertion, the SKIP column the number that never ran, and
-# the exit status carries the verdict. $_hi_bad is what the banner and the
-# status are built from, so the two can never disagree.
+# The tally, closing banner, and exit status (the runner's PASS or FAILED).
+# Under --require-run a skip fails the status, though the counts still say
+# skip. The banner and status share $_hi_bad.
 function _hi_suite_end() {
   local subject="$1" skipped="" bad="$_HI_FAILED" stood_down=""
   [ "${_HI_SKIPPED:-0}" -gt 0 ] && skipped=", ${_HI_SKIPPED} skipped"
@@ -645,17 +553,10 @@ function _hi_require_backend() {
   _hi_stand_down "$1 unreachable" "$1 not reachable, skipping"
 }
 
-# When a suite fails on someone's machine and passes in CI (or the reverse),
-# the first three questions are always the same and none of them are in the
-# output: what bash is this, what userland, and is $_HI_HOME even pointing at
-# this checkout. This block answers them once at the top of a run, behind
-# test_runner.sh's --host-report (or _HI_HOST_REPORT=1), so CI logs can always
-# carry it without noising up a local one.
-#
-# Every probe is guarded and every substitution falls back: this is a debug
-# aid, and it must never be the thing that fails a run. A host with nothing on
-# its PATH still gets a block, reading "absent" in every row - which is itself
-# a test case (see tests/harness/lib_test.sh).
+# The host report (--host-report, or _HI_HOST_REPORT=1): which bash, which
+# userland, and which tree, for comparing a local run with CI. Every probe is
+# guarded, so it never fails a run; with nothing on PATH every row reads
+# "absent" (lib_test.sh checks).
 
 # _hi_host_row <label> <text> [color]
 function _hi_host_row() {
@@ -692,16 +593,8 @@ function _hi_host_versions() {
   printf '%s' "$out"
 }
 
-# How big is this machine. The ceilings in tests/bench/bench_test.sh are one
-# number for every runner the matrix has, so which box a borderline timing came
-# off is the first thing anybody asks of a CI log - GitHub's hosted runners
-# vary in spec across OS images and over time, and a contributor's own machine
-# is a different host again. Overridable paths so the cases can point at a
-# fixture instead of the real /proc.
-#
-# Read with the `read` builtin rather than awk: these two rows have to survive
-# the empty-PATH case below like every other, and on Linux this way they cost
-# no fork at all.
+# The machine's size, for reading a borderline bench timing. Paths are
+# overridable for fixtures; read with `read`, so it works with no PATH.
 
 # _hi_host_cores - online CPU count, or empty
 function _hi_host_cores() {
@@ -818,15 +711,10 @@ function _hi_host_backend_state() {
 }
 
 # _hi_host_tree_check <reference-tree> - is $_HI_ROOT the tree this run was
-# invoked from? Silent when it is; one yellow line and a non-zero return when
-# it is not. The reference has to come from the caller, because everything
-# derived from $_HI_HOME - this file included - moves with the mistake: only
-# the script the user actually typed the path of knows which tree that was.
-#
-# A warning, never a failure: pointing a run at another tree is legal and
-# test_runner.sh --help documents it. Doing it *by accident* is the thing -
-# a login profile exporting _HI_HOME is how - and it shows up nowhere else
-# than as suites quietly running fewer cases.
+# invoked from? Silent if so, else one yellow line and non-zero. The caller
+# supplies the reference, since everything derived from $_HI_HOME moves with
+# the mistake. A warning only: another tree is allowed, but an inherited
+# _HI_HOME otherwise shows only as fewer cases.
 function _hi_host_tree_check() {
   local here="${1:-}" there="${_HI_ROOT:-}"
   [ "$there" = "$here" ] || there="$(_hi_host_resolve "$there")"

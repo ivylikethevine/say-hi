@@ -18,14 +18,10 @@
 #                _HI_PLUGINS_ON -> its plugins'; shape 1's
 #                _HI_DISABLE_BANNER/_HI_DISABLE_GREETING -> the `banner` and
 #                `greeting` words of _HI_HEADER_ORDER
-# A file already in the current shape is left alone, so a second run is a
-# no-op; a packages or colors file holding one TOML row is in it, whatever
-# else it holds, and a settings.sh is the shape its `# say-hi settings N`
-# line says (lib.sh's $_HI_SETTINGS_SHAPE): with none it is shape 0, and
-# the rows above say whether it converts; one of a shape this hi does not
-# read is said and left alone. scripts/install.sh (--install, --configure) and scripts/update.sh
-# run it; add_tag.sh's shape: HI.33 the standalone entry, HI.09 the
-# commit step.
+# A file already current is left alone, so reruns are no-ops: a packages or
+# colors file with any TOML row is current, and settings.sh's shape is its
+# `# say-hi settings N` line (none is 0); an unknown shape is reported and
+# left alone. install.sh and update.sh run it. HI.33 and HI.09 as add_tag.sh.
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
@@ -41,12 +37,10 @@ source "$_hi_d/scripts/table.sh"
 unset _hi_d
 
 # _hi_convert_packages - stdin's name:N rows as [group] sections on stdout.
-# A row goes to the group its highest N named (3 core, 2 useful, 1 extras,
-# 0 trivia), alternatives sorted highest N first, file order within one. An
-# old `-` row (shown only when missing) becomes a `+` row, those at N 0-1 in
-# [base]; an old `+` row (shown only when installed) has no counterpart and
-# becomes a plain row in [platform]. Comments travel with the row below them;
-# those above the first row stay on top.
+# A row joins the group of its highest N (3 core, 2 useful, 1 extras, 0
+# trivia), alternatives highest N first. An old `-` row becomes `+` (in
+# [base] at N 0-1); an old `+` row becomes a plain row in [platform].
+# Comments stay with the row below.
 function _hi_convert_packages() {
   awk '
     function flush_to(g, row) {
@@ -183,12 +177,9 @@ function _hi_toml_packages() {
 }
 
 # _hi_marked_packages - a TOML packages file on stdin with its
-# `[group.required]` and `[group.unwanted]` tables folded into `[group]` on
-# stdout: each of their rows keeps its line, its name taking + or - in double
-# quotes, after the group's own rows, and a bare `[required]` or `[unwanted]`
-# holds rows of no group, which go above the first table. Comments and blank
-# lines travel with the row below them; those above a group's first table
-# stay above it.
+# `[group.required]` and `[group.unwanted]` rows folded into `[group]` as
+# "+name" and "-name", after its own rows; a bare `[required]` or `[unwanted]`
+# goes above the first table. Comments stay with the row below.
 function _hi_marked_packages() {
   awk '
     function group(g) {
@@ -316,13 +307,9 @@ function _hi_convert_plugins() {
 
 # _hi_toml_plugins - stdin's `[group]` tables of
 # `"member" = "tool | wire | home | dialect"` rows as the plugins hi reads on
-# stdout: a `[group.<name>]` table for each tool, named as the rows named
-# their plugin (the tool column's first word, else the member's first name,
-# what a bare key cannot hold as a -), with its rows' members as `files`. A
-# row whose wire, home, or dialect is not its plugin's gets a table of its
-# own under it. A name a second group uses takes that group behind it.
-# Comments travel with the plugin below them, and a line that is no row
-# becomes one.
+# stdout: a `[group.<name>]` table per tool (named by the tool column's first
+# word, else the member's), its members as `files`, with a member table for a
+# row that differs. Comments stay with the plugin below.
 function _hi_toml_plugins() {
   awk '
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
@@ -384,18 +371,13 @@ function _hi_toml_plugins() {
   '
 }
 
-# _hi_convert_settings - stdin's settings.sh with a _HI_PACKAGES_MIN_PRIORITY
-# line replaced by the _HI_PACKAGES_GROUPS that shows the same tiers, its
-# trailing comment (install's marker among them) kept, or dropped where that
-# is the default (2) or a _HI_PACKAGES_GROUPS line already says what to show;
-# with every editor's and multiplexer's toggle gone, the ones at 1 as words
-# of the _HI_PLUGINS_OFF line, which is written where the file's own was, or
-# last, under the marker any of them carried; and with a group's word in
-# either plugins list replaced by its plugins, $_HI_GROUP_MAP's or the
-# tree's; and with the banner and greeting toggles gone into the header
-# order: a custom order gains `banner` first and `greeting` last but for the
-# one a toggle hid, a hidden one with no order writes the default less it,
-# and the file is then marked this hi's shape so the words are added once
+# _hi_convert_settings - stdin's settings.sh converted, per the header above:
+# _HI_PACKAGES_MIN_PRIORITY becomes the matching _HI_PACKAGES_GROUPS (dropped
+# at the default 2 or beside a groups line), keeping its trailing comment; the
+# editor and multiplexer toggles at 1 become _HI_PLUGINS_OFF words where that
+# line was; a group's word becomes its plugins ($_HI_GROUP_MAP); and the
+# banner and greeting toggles become header-order words, the file then
+# marked current so they are added once
 function _hi_convert_settings() {
   awk -v old="$_HI_OLD_TOGGLES" -v gmap="${_HI_GROUP_MAP:-$(_hi_group_map "$_HI_ROOT/config/plugins")}" \
     -v def="$_HI_HEADER_ORDER_DEFAULT" -v shape="$_HI_SETTINGS_SHAPE" -v marker="$_HI_MARKER" '

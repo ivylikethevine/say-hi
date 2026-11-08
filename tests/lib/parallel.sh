@@ -6,26 +6,11 @@
 # GLOSSARY: HI.30
 # shellcheck disable=SC2329
 
-# The container suites are nearly the whole cost of a full run, and nearly all
-# of that is spent waiting on one container at a time while the machine idles.
-# Every case already builds its own container under its own name, so the
-# containers never collided - the harness around them did, in three places:
-#
-#   - **the counters.** _hi_case increments $_HI_TOTAL/$_HI_FAILED in the
-#     current shell, and a background subshell's increments die with it. A case
-#     writes its verdict to a file instead and _hi_par_wait tallies them in the
-#     parent, which is the shape common/header.sh's _hi_probe_start /
-#     _hi_probe_wait already uses for the header's backend probes.
-#   - **teardown registration.** See the ledger (tests/lib/workdir.sh).
-#   - **the transcript.** Concurrent _hi_cecho lines are unreadable, so each
-#     case's output is buffered to its own file and replayed *in submission
-#     order* once the batch is done. That is test_runner.sh's
-#     collapse-and-replay idea one level down rather than a second mechanism:
-#     a parallel run reads exactly like a serial one, only the timings overlap.
-#
-# Cases that share state stay serial through _hi_case - ssh_test.sh's two
-# _hi_transcript_is_clean checks read files the bash32 cases write, so they run
-# after the batch, not in it.
+# Parallel cases, mostly for the container suites. Each case writes its
+# verdict to a file for _hi_par_wait to tally (a subshell's counters die with
+# it), registers teardown in the ledger (workdir.sh), and buffers its output,
+# replayed in submission order so a parallel run reads like a serial one.
+# Cases that share state stay serial through _hi_case.
 _HI_PAR_DIR=""
 _HI_PAR_N=0
 _HI_PAR_SLOTS=1
@@ -53,17 +38,9 @@ function _hi_deal() {
   done
 }
 
-# How wide to fan out. Unbounded is the wrong answer on a laptop: twenty sshd
-# containers, twenty ssh clients, and twenty pty feeders thrash the docker daemon
-# and swap the box, which is both slower and flakier than four. So the default
-# is four, or the CPU count when that is smaller. $_HI_PAR_WIDTH overrides it,
-# and _HI_PAR_WIDTH=1 is a genuine serial run down this same code path - what
-# bisecting a flake wants.
-#
-# That cap is about the daemon, not the box. A suite whose cases are plain
-# local processes (a pty-driven configure run, an `env -i` shell, a nested
-# runner) sets _HI_PAR_LOCAL=1 at its top and gets the whole CPU count
-# instead; $_HI_PAR_WIDTH still overrides both.
+# Fan-out width: four, or fewer CPUs, since more containers thrash the
+# daemon. A suite of local processes sets _HI_PAR_LOCAL=1 for the CPU count.
+# $_HI_PAR_WIDTH overrides both; 1 runs serially down the same path.
 function _hi_par_width() {
   local cpus
   if [ -n "${_HI_PAR_WIDTH:-}" ]; then
@@ -123,12 +100,8 @@ function _hi_par_slot() {
 }
 
 # _hi_par_case <label> <fn> [args...] - _hi_case's parallel twin: same contract
-# (one counted case, non-zero means failed), run in a background subshell once a
-# slot is free. The verdict file carries the exit status *and* the case's own
-# skip tally, since _hi_skip increments a variable that would otherwise die with
-# the subshell too. A case that leaves no verdict at all - killed, or `exit`ed
-# out from under us - is counted as a failure by _hi_par_wait rather than
-# quietly vanishing from the totals.
+# in a background subshell once a slot is free. Its verdict file holds the
+# status and skip tally; a case that leaves none counts as failed.
 function _hi_par_case() {
   local label="$1"
   shift
@@ -156,12 +129,9 @@ function _hi_par_case() {
   return 0
 }
 
-# A case still running $_HI_PAR_CASE_LIMIT seconds after it started (300, or
-# 0 for no limit; the slowest healthy case takes under 40) is stopped, its
-# processes listed into its transcript first. Waiting on a hung one ran the
-# job out with no transcript replayed and no case named. At 0 neither poll
-# calls this: under a tracer each line it runs is a line through the trace
-# pipe, 20 times a second.
+# A case running past $_HI_PAR_CASE_LIMIT seconds (300; the slowest healthy
+# one takes under 40) is stopped, its processes listed in its transcript
+# first. 0 means no limit and no polling, which matters under a tracer.
 function _hi_par_overdue() {
   local n pid limit="${_HI_PAR_CASE_LIMIT:-300}"
   [ "${#_HI_PAR_PID[@]}" -gt 0 ] || return 0
@@ -177,16 +147,10 @@ function _hi_par_overdue() {
   return 0
 }
 
-# _hi_proc_table [pid] - every process, or <pid> with everything under it and
-# everything in its group, ps's header first: pid, ppid, pgid, then where ps
-# -o has them the controlling terminal, the state (T is stopped) and the
-# kernel wait channel, then age and command. For a hung case: whether the
-# shell had a terminal, whether a signal stopped it, and what it waits on.
-# Both the tree and the group, because a `timeout` may have moved what it ran
-# into a group of its own (OpenBSD's does) and a daemon reparents to init.
-# -A on Linux, macOS and the BSDs (-e there is the environment), -e on a
-# busybox without -A, MSYS's plain ps elsewhere; pid, ppid and pgid lead all,
-# after the one-letter status MSYS puts ahead of a waiting or stopped process.
+# _hi_proc_table [pid] - every process, or <pid>'s tree and process group
+# (a `timeout` may regroup its child), with pid, ppid, pgid, and where ps has
+# them the tty, state, wait channel, age, and command: what a hung case was
+# doing. `ps -A`, else busybox's `-e`, else MSYS's plain ps.
 function _hi_proc_table() {
   local list
   list="$(ps -A -o pid,ppid,pgid,tty,stat,wchan,etime,args 2>/dev/null)" ||
@@ -308,13 +272,9 @@ function _hi_par_wait() {
       [ -s "$_HI_PAR_DIR/$i.out" ] || printf '      it printed nothing before it went: look for a kill or an exit ahead of its first line\n'
       _hi_note_failure "[$label] left no verdict"
     fi
-    # $_HI_TOTAL counts cases that reached a verdict, pass or fail - a skipped
-    # one is tracked in $_HI_SKIPPED alone. That is the serial twin's rule
-    # (_hi_check_requires reaches _hi_skip *without* going through _hi_case, so
-    # nothing is added there), and counting it in both columns here made
-    # test_runner.sh's `pass = cases - failed` report every stand-down as a
-    # green pass - inflating the number that feeds --totals-file and the README
-    # badge. A case that skipped and then failed is still a failure.
+    # A skip counts in $_HI_SKIPPED only, as in the serial path, or the
+    # runner's `pass = cases - failed` would count it as a pass. A case that
+    # skipped and then failed is a failure.
     if [ -s "$_HI_PAR_DIR/$i.late" ]; then
       _HI_TOTAL=$((_HI_TOTAL + 1))
       _HI_FAILED=$((_HI_FAILED + 1))
@@ -355,12 +315,8 @@ function _hi_par_kill() {
 }
 
 # _hi_before <text> <first-pattern> <second-pattern> - both patterns present
-# in <text>, and the first's earliest match on an earlier line. The ordering
-# assertion several suites make about generated rc/bootloader content.
-# `grep -m1` and a here-string, not `printf | grep | head | cut`: two processes
-# per pattern instead of four, across ten call sites in the fast suites. The
-# patterns stay grep's BREs on purpose - bash's own `=~` is an ERE, where the
-# unescaped `+` in a caller's 'set +euo pipefail' silently stops being literal.
+# in <text>, the first matching on an earlier line. `grep -m1` BREs, since
+# under `=~`'s ERE a caller's 'set +euo pipefail' would lose its literal `+`.
 function _hi_before() {
   local a b
   a="$(grep -n -m1 "$2" <<<"$1")"

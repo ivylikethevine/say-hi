@@ -270,6 +270,7 @@ under `tests/` or `scripts/` a package does not ship.
 | a flag, or `_hi_parse`                                 | `docs/hi.1` (and `docs/tldr.md` when one of its eight examples shows it) |
 | a new flag                                             | its `docs/tapes/usage` row, which writes `docs/USAGE.md` (enforced)      |
 | an environment variable or toggle                      | a row of `scripts/settings`, which writes `docs/SETTINGS.md`'s table     |
+| a file the overlay carries, or a variable hi sets      | `docs/FILES.md`                                                          |
 | what hi leaves on a target                             | `docs/SECURITY.md`                                                       |
 | a target hi does or doesn't answer to                  | `docs/COMPATIBILITY.md`                                                  |
 | a tool hi wires in, or its hook                        | `docs/INTEGRATIONS.md`                                                   |
