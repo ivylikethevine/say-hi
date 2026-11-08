@@ -8,8 +8,8 @@
 #   GH_TOKEN="$(gh auth token)" .github/scripts/check_tool_versions.sh
 #
 # Sections:
-#   1. tools.txt        CI tools installed by ../actions/setup-tool, read
-#                       through its lib.sh so no pinned tool goes unchecked;
+#   1. tools.txt        CI tools installed by ../actions/setup-tools, read
+#                       through setup-tool/lib.sh so no pinned tool goes unchecked;
 #                       skipped in a tree with no setup-tool
 #   2. inline pins      versions pinned in workflow/config text rather than
 #                       tools.txt (e.g. a release download URL), listed in

@@ -50,7 +50,7 @@ jobs:
           disable-sudo: true
           # Off this job's own audit log: the pinned images' registries, and
           # trivy's database and version check. The release hosts serve the
-          # trivy binary on a setup-tool cache miss, which a warm-cache audit
+          # trivy binary on a setup-tools cache miss, which a warm-cache audit
           # log never shows. A rotating
           # run-actions-N-azure-*.actions.githubusercontent.com host also
           # appeared; no fixed row covers it, and this job is advisory.
@@ -70,9 +70,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-tool
+      - uses: ./.github/actions/setup-tools
         with:
-          tool: trivy
+          tools: trivy
 
       # The three verdicts (0 clean, 1 a finding no repin improves, 2 a repin
       # that helps) are captured as an output, not collapsed by
