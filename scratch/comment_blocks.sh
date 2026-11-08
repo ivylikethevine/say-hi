@@ -19,7 +19,7 @@ awk -v min="$min" '
   /^[[:space:]]*#/ && !/^#!/ && !/^[[:space:]]*# shellcheck / {
     if (n == 0) start = FNR
     n++
-    if (/GLOSSARY: HI\./) g = 1
+    if (/GLOSSARY:[ ]HI\./) g = 1
     next
   }
   { flush() }
