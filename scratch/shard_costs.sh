@@ -8,9 +8,8 @@
 #
 # shard_costs.sh <coverage run id> --coverage - each suite's traced seconds in
 # a coverage run, off the `coverage: tracing <suite>` stamps of every shard's
-# log, printed as the two tables $_HI_TEST_COSTS_KCOV and
-# $_HI_TEST_COSTS_BASHCOV. A suite a cancelled shard cut short reads as far as
-# it got: check those by hand.
+# log, printed as the table $_HI_TEST_COSTS_BASHCOV. A suite a cancelled shard
+# cut short reads as far as it got: check those by hand.
 #
 # The rows land in local/shard-costs-<run>.txt.
 #
@@ -82,15 +81,15 @@ else:
     for job, line in (l.rstrip("\n").split("\t", 1) for l in open(sys.argv[1])):
         if ts(line):
             jobs.setdefault(job, []).append((ts(line), line))
-    times = {"kcov": {}, "bashcov": {}}
+    times = {}
     for job, ev in jobs.items():
-        tool = "bashcov" if "bashcov" in job else "kcov"
+        if "bashcov" not in job:
+            continue
         traced = [(t, re.search(r"tracing (\S+)", l).group(1)) for t, l in ev if "coverage: tracing" in l]
         ends = [t for t, l in ev if "tracing" not in l]
         for i, (t, suite) in enumerate(traced):
             nxt = traced[i + 1][0] if i + 1 < len(traced) else min((e for e in ends if e > t), default=None)
             if nxt:
-                times[tool][suite] = round((nxt - t).total_seconds())
-    for tool in ("kcov", "bashcov"):
-        table(tool.upper(), times[tool])
+                times[suite] = round((nxt - t).total_seconds())
+    table("BASHCOV", times)
 PY

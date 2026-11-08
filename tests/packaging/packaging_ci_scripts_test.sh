@@ -14,8 +14,8 @@ _HI_PACKAGING_CI_PART=scripts
 source "${BASH_SOURCE[0]%/*}/packaging_ci_test.sh"
 
 # pct_ok.sh, the one judge of a coverage figure three workflows share: a
-# percentage is one, and nothing, a word, a figure with its sign, and kcov's
-# all-zero merge in each spelling are not
+# percentage is one, and nothing, a word, a figure with its sign, and an
+# all-zero figure in each spelling are not
 function test_pct_ok_takes_a_figure_and_refuses_a_zero() {
   (
     # shellcheck source=../../.github/scripts/pct_ok.sh

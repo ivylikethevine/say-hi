@@ -141,17 +141,17 @@ their fixtures, `generate.sh` to render them, and `demo.gif`, plus
 
 All **dev**; [TESTING.md](TESTING.md) is the full layout.
 
-| Path                                                | What it is                                                                                                                                      |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/test_runner.sh`                              | The runner and its `_HI_TESTS` table of suites and groups.                                                                                      |
-| `tests/test_lib.sh`, `tests/lib/`                   | The harness every suite sources: workdir, reporting, parallel cases, fixtures, ssh and container backends.                                      |
-| `tests/<dir>/*_test.sh`                             | One suite per tested area, in a directory named for what it tests (`common/`, `hi/`, `load/`, `scripts/`, `config/`, `packaging/`, `harness/`). |
-| `tests/<dir>/<suite>/`                              | Data files one suite reads, beside it (`scripts/convert_settings/`: the name:N packages and comma colors files).                                |
-| `tests/lint/`                                       | The lint group: shellcheck, the zsh and fish dialects, formatters and editor rcs, drift checks.                                                 |
-| `tests/bench/`                                      | Hot-path timings and the payload size budget.                                                                                                   |
-| `tests/targets/`                                    | The e2e and backends groups: ssh, docker, podman, nomad, kube, install methods, frameworks.                                                     |
-| `tests/dockerfiles/`                                | Every image those suites build: sshd targets, shell floors, installed-target variants, frameworks.                                              |
-| `tests/coverage.sh`, `coverage_v2.sh`, `profile.sh` | kcov and bashcov coverage, and timep profiles.                                                                                                  |
+| Path                                 | What it is                                                                                                                                      |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/test_runner.sh`               | The runner and its `_HI_TESTS` table of suites and groups.                                                                                      |
+| `tests/test_lib.sh`, `tests/lib/`    | The harness every suite sources: workdir, reporting, parallel cases, fixtures, ssh and container backends.                                      |
+| `tests/<dir>/*_test.sh`              | One suite per tested area, in a directory named for what it tests (`common/`, `hi/`, `load/`, `scripts/`, `config/`, `packaging/`, `harness/`). |
+| `tests/<dir>/<suite>/`               | Data files one suite reads, beside it (`scripts/convert_settings/`: the name:N packages and comma colors files).                                |
+| `tests/lint/`                        | The lint group: shellcheck, the zsh and fish dialects, formatters and editor rcs, drift checks.                                                 |
+| `tests/bench/`                       | Hot-path timings and the payload size budget.                                                                                                   |
+| `tests/targets/`                     | The e2e and backends groups: ssh, docker, podman, nomad, kube, install methods, frameworks.                                                     |
+| `tests/dockerfiles/`                 | Every image those suites build: sshd targets, shell floors, installed-target variants, frameworks.                                              |
+| `tests/coverage_v2.sh`, `profile.sh` | bashcov coverage, and timep profiles.                                                                                                           |
 
 ### .github/
 

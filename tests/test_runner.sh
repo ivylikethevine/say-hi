@@ -140,31 +140,12 @@ fi
 
 # What each suite costs, in seconds, one table a way of dealing shards:
 # --shard deals the suites by one when $_HI_SHARD_BY names it, and a suite
-# not named costs 5. kcov and bashcov are a coverage sweep's, the time CI
-# took tracing each (scratch/shard_costs.sh --coverage reads them off a coverage
-# run), as tests/lib/coverage.sh asks; a suite a tracer skips costs it 0.
+# not named costs 5. bashcov is the coverage sweep's, the time CI took
+# tracing each (scratch/shard_costs.sh --coverage reads them off a coverage
+# run), as tests/lib/coverage.sh asks; a suite it skips costs it 0.
 # gitbash is the Windows client's, the time each took under Git Bash on
 # arm64, and e2e and backends ci.yml's shards of those groups
 # (scratch/shard_costs.sh reads them off a CI run's summaries).
-_HI_TEST_COSTS_KCOV="
-  ssh_keep:272 framework:140 kube:112 ssh:60 ssh_relay:45 podman:40
-  hi_payload_scan:35 home_prompt:34 test_lib:34 configure_pty:32
-  doctor_config:29 test_runner:26 dialects:23 docker:21 install_methods:21
-  plugins:20 load_session:19 ssh_wire:18 rc:15
-  doctor_target:14 hi_payload_home:14 hi_payload_overlay:14
-  install_location:14 rc_prompt:14 ssh_disconnect:11 configure_wizard:10
-  targets:10 doctor_json:9 alias_fallthrough:7 install_run:7 test_runner_ci:7
-  doctor_report:6 packaging_ci_scripts:6 test_lib_par:6 update:6 header:5
-  hi_cache:5 hi_keep:4 packaging_ci_mkpkg:4 rc_lines:4 test_lib_report:4
-  aliases:3 configure:3 hi_help:3 hi_payload:3
-  packaging_ci_release:3 preview:3 add_tag:2 bench:2 core_identity:2 drift:2 edit:2
-  drift_docs:2 hi:2 hi_container:2 load:2 packaging:2
-  packaging_ci_workflows:2 preview_packages:2 convert_settings:1
-  core:1 core_target:1 doctor:1 exports:1 git_prompt:1 header_bare:1
-  header_check:1 header_whole:1 hi_helpers:1 hi_prompt:1 hi_remote:1
-  install:1 packaging_ci:1 paths:1 targets_complete:1 tools:1 env_prompt:0
-  hi_dispatch:0 hi_mux:0 nerdctl:0 nomad:0 repo:0 table:0
-"
 _HI_TEST_COSTS_BASHCOV="
   ssh_keep:323 framework:227 hi_payload_scan:181 kube:122
   hi_payload_overlay:107 doctor_config:106 ssh:100 doctor_target:93
@@ -343,7 +324,7 @@ EOF
   --host-report) _HI_HOST_REPORT=1 ;;
   # a third column would land in $name for every `read -r group name` consumer
   # (runner_test.sh has two), so the path gets its own flag rather than widening
-  # --list. tests/coverage.sh is the caller: it traces each suite script as the
+  # --list. tests/coverage_v2.sh is the caller: it traces each suite script as the
   # top-level process, which needs the path, not the name.
   --list-paths)
     _HI_LIST=1
@@ -427,7 +408,6 @@ if [ -n "$_HI_SHARD" ]; then
   _hi_mine=" " _hi_costs=""
   # the table $_HI_SHARD_BY names, if any
   case "${_HI_SHARD_BY:-}" in
-  kcov) _hi_costs=" ${_HI_TEST_COSTS_KCOV//$'\n'/ } " ;;
   bashcov) _hi_costs=" ${_HI_TEST_COSTS_BASHCOV//$'\n'/ } " ;;
   gitbash) _hi_costs=" ${_HI_TEST_COSTS_GITBASH//$'\n'/ } " ;;
   e2e) _hi_costs=" ${_HI_TEST_COSTS_E2E//$'\n'/ } " ;;

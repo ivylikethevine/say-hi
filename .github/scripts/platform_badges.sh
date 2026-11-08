@@ -10,7 +10,7 @@
 # land inside the first thirty rendered "no check runs", and which rows those
 # are is nothing this repo controls. The same question asked with GitHub's own
 # `check_name` filter is answered server-side, whole; the endpoint-badge
-# pattern was already here for the test count and the two coverage figures.
+# pattern was already here for the test count and the coverage figure.
 #
 # A skipped job is not a verdict: ci.yml's `detect changes` skips the platform
 # matrix on a docs-only push, and a tag commit skips nearly all of it, so each

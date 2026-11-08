@@ -266,11 +266,10 @@ function test_release_body_carries_frozen_badges() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   [[ "$job" == *"head-sha: \${{ github.sha }}"* ]] || _hi_why job || return 1
-  [[ "$job" == *"artifact-name: tests"* && "$job" == *'artifact-name: "{coverage-pct,coverage-v2-pct}"'* ]] || _hi_why job || return 1
+  [[ "$job" == *"artifact-name: tests"* && "$job" == *'artifact-name: coverage-v2-pct'* ]] || _hi_why job || return 1
   [[ "$job" == *"img.shields.io/badge/"* && "$job" == *"unknown"* && "$job" == *"lightgrey"* ]] || _hi_why job || return 1
   # shellcheck disable=SC2016 # the workflow's own literals, expanded there
-  [[ "$job" == *'![tests]($HI_BADGE_TESTS)'* && "$job" == *'($HI_BADGE_KCOV)'* &&
-    "$job" == *'($HI_BADGE_BASHCOV)'* ]] || _hi_why job || return 1
+  [[ "$job" == *'![tests]($HI_BADGE_TESTS)'* && "$job" == *'($HI_BADGE_BASHCOV)'* ]] || _hi_why job || return 1
   # shellcheck disable=SC2016 # likewise
   grep -q 'head_sha=\$HEAD_SHA' "$_HI_ROOT/.github/actions/fetch-latest-artifact/action.yml" || _hi_why
 }
@@ -747,7 +746,7 @@ function run_packaging_ci_release_tests() {
   _hi_check "Every release asset goes up through gh_asset.sh" test_release_assets_go_through_the_helper
   _hi_check "The minisign pin is drift-checked" test_minisign_pin_is_drift_checked
   _hi_check "Every tools.txt row is well-formed" test_tool_manifest_rows_are_wellformed
-  _hi_check "Every setup-tool call names a row" test_every_setup_tool_call_names_a_manifest_row
+  _hi_check "Every setup-tools call names a row" test_every_setup_tool_call_names_a_manifest_row
   _hi_check "release.yml reads dist/ARTIFACTS" test_release_workflow_reads_the_artifact_list
   _hi_check "write_checksums lists the artifacts" test_write_checksums_lists_the_artifacts
   _hi_check "...and reports a missing artifact type" test_write_checksums_reports_a_missing_artifact_type

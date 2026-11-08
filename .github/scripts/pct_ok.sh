@@ -3,9 +3,8 @@
 # PR comment - the one answer to "is this coverage figure a real measurement",
 # so the three places a figure reaches a reader agree.
 #
-# An all-zero figure is kcov's checkout-less merge ("files": [], 0.00), not a
-# measurement: coverage.yml's gather job refuses to publish one, and every
-# reader here refuses to render one an older artifact still carries.
+# An all-zero figure is a merge that resolved no sources, not a measurement:
+# every reader here refuses to render one an artifact carries.
 #
 # No `set -euo pipefail`: every caller already has its own before sourcing
 # this, and a sourced file changing the caller's shell options is a surprise.

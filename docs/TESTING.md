@@ -297,56 +297,39 @@ run.
 
 ### Coverage and profiling
 
-Two coverage tools, kcov (`tests/coverage.sh`) and
-[bashcov](https://github.com/infertux/bashcov) (`tests/coverage_v2.sh`), each
-run over the full suite sweep — every suite the box's backends can host — by
-hand or by `coverage.yml`: both after every green CI run on a push to `main`,
-and bashcov alone on every same-repo, non-draft PR, where the `comment` job
-posts its figure beside main's in one comment edited in place, with main's kcov
-figure, and the PR's passed-case count from its CI run beside main's (the push
-that merges the PR reuses its bashcov figure). The two
-aggregates have tracked each other within a few points for many commits: **the
-average of the two badges** is the coverage figure, and the per-file reports are
-for finding untested arms. Only a divergence of tens of points means one tool
-has lost the plot. Never a gate: the pull request template's 90% is a target,
-and the PR comment flags a PR whose bashcov figure, the one it measures, falls
-below it without failing anything. Both
-sweeps pin `_HI_PAR_WIDTH=1`, since a batch writing into a suite's one trace
-stream side by side loses lines, and both put a bash-as-`sh` first on their own
-`PATH`: neither tracer follows a dash child, so a `#!/bin/sh` file a suite
-executes as `sh …` (`common/targets.sh`, `common/mux.sh`) would read 0% where
-`/bin/sh` is dash. It is a script rather than a link, since bash started as
-`sh` reads no `$BASH_ENV`, which is how kcov's `PS4` method traces a child: it
-switches kcov's trace on itself.
+[bashcov](https://github.com/infertux/bashcov) (`tests/coverage_v2.sh`) runs
+over the full suite sweep — every suite the box's backends can host — by hand
+or by `coverage.yml`: after every green CI run on a push to `main`, and on every
+same-repo, non-draft PR, where the `comment` job posts its figure beside main's
+in one comment edited in place, with the PR's passed-case count from its CI run
+beside main's (the push that merges the PR reuses its figure). The figure is
+for finding untested arms. Never a gate: the pull request template's 90% is a
+target, and the PR comment flags a PR whose figure falls below it without
+failing anything. The sweep pins `_HI_PAR_WIDTH=1`, since a batch writing into
+a suite's one trace stream side by side loses lines, and puts a bash-as-`sh`
+link first on its own `PATH`: bashcov does not follow a dash child, so a
+`#!/bin/sh` file a suite executes as `sh …` (`common/targets.sh`,
+`common/mux.sh`) would read 0% where `/bin/sh` is dash.
 
-Both report one subject: every tracked `*.sh` file outside `tests/`, `docs/`,
+It reports one subject: every tracked `*.sh` file outside `tests/`, `docs/`,
 `scratch/`, and `.github/` (`_HI_COV_NOT_SUBJECT` in `tests/lib/coverage.sh`),
-a file no suite loads included, at 0%. Each sweep leaves its worst-first
-ranking as `files` in its outdir, and `tests/coverage.sh --join` sets the two
-side by side, with a `!` on a file the tools read fifteen points apart or only
-one of them lists: an artifact to rule out against the lists below, not a gap.
-Beside `files` each leaves `missed`, its unrun lines, and
-`tests/coverage.sh --untested <revision>` lists the lines changed since that
-revision that are on both, less the ones `xtrace` never prints: a line that only
-closes a block with a redirect (`done <file`), an empty case arm, the rest of a
-command the line above continues with a `\`, and an array assignment's lines
-above the one that closes it; `-` for the kcov list reads bashcov's alone. The
-`comment` job puts the table in its summary, kcov's column main's, and the
-lines bashcov did not record, for the PR's diff, in the comment. The `test_runner_ci` suite runs
-`--join`, `--untested`, and `tests/coverage_v2.sh --merge` over fixtures.
-Without a local sweep, `scratch/coverage_gaps.sh <run id>` reads a CI run's two
-reports out of its artifacts and writes the lines both tools missed, sorted into
-tracer artifacts, platform-only arms, and gaps, under `local/`.
+a file no suite loads included, at 0%. The sweep leaves its worst-first
+ranking as `files` in its outdir and its unrun lines as `missed`, and
+`tests/coverage_v2.sh --untested <revision>` lists the lines changed since
+that revision that are on `missed`, less the ones `xtrace` never prints: a
+line that only closes a block with a redirect (`done <file`), an empty case
+arm, the rest of a command the line above continues with a `\`, and an array
+assignment's lines above the one that closes it. The `comment` job puts those
+lines, for the PR's diff, in the comment. The `test_runner_ci` suite runs
+`--untested` and `tests/coverage_v2.sh --merge` over fixtures.
 
-In CI each tool is sharded (`--shard i/n`, which `_hi_cov_select_suites` passes
-to `test_runner.sh` with `_HI_SHARD_BY` naming the tracer: the suites dealt by
-that tracer's table, `$_HI_TEST_COSTS_KCOV` or `$_HI_TEST_COSTS_BASHCOV`, the
-seconds CI took tracing each, costliest first to the lightest slice, so the
-slices take about as long; `scratch/shard_costs.sh --coverage` re-reads them off a
-coverage run) and merged by a gather job: `kcov --merge`
-over the shards' `parts/` directories, and a plain JSON hash union of bashcov's
-`--command-name`-keyed `.resultset.json` files, safe because shards partition
-the suite table.
+In CI the sweep is sharded (`--shard i/n`, which `_hi_cov_select_suites` passes
+to `test_runner.sh` with `_HI_SHARD_BY=bashcov`: the suites dealt by
+`$_HI_TEST_COSTS_BASHCOV`, the seconds CI took tracing each, costliest first to
+the lightest slice, so the slices take about as long;
+`scratch/shard_costs.sh --coverage` re-reads them off a coverage run) and
+merged by a gather job: a plain JSON hash union of the `--command-name`-keyed
+`.resultset.json` files, safe because shards partition the suite table.
 
 The Windows client's shards and `ci.yml`'s e2e shards are dealt the same way,
 by `_HI_SHARD_BY=gitbash` (`$_HI_TEST_COSTS_GITBASH`, each suite's time under
@@ -355,62 +338,33 @@ Git Bash on arm64), `_HI_SHARD_BY=e2e` (`$_HI_TEST_COSTS_E2E`), and
 to itself); `scratch/shard_costs.sh` re-reads any of them off a CI run's summary
 tables.
 
-- **kcov** runs its `PS4` method on every bash: `DEBUG` never follows a suite
-  into a child bash, which reads every script run through `hi.sh` as 0.
-  `tests/test_lib.sh` sources `tests/lib/kcov_env.sh`, which swaps kcov's
-  `PS4` for one of hi's own, in the suite and, through a `$BASH_ENV` of its
-  own, in every bash child. kcov's named a bare `${BASH_SOURCE}`, which killed
-  a `set -u` child at a `bash -c`'s top level, and printed each command on its
-  record's line, where kcov 43 counts quotes to follow a string across lines:
-  an array literal with an apostrophe in an element (`scripts/configure.sh`'s
-  presets) left it inside a string, and every later record of that process
-  was lost. Under bash 5.3, a traced value holding a quote and a newline did
-  the same; `scratch/kcov_ps4_probe.sh` reruns that case under each `PS4` and
-  `DEBUG` if the badges diverge. hi's ends
-  the record at the line number and puts the command on a `hi-xtrace:` line
-  of its own, which `tests/coverage.sh` drops from kcov's output. kcov still
-  reads a multi-line `awk '…'` program (the converters in
-  `scripts/convert_settings.sh`) as bash lines no trace can reach, so such a
-  file reads far under bashcov's figure. **`kcov --merge` re-reads the
-  sources** at the absolute paths each shard recorded, so a merge with no
-  working tree yields `"files": []` and a well-formed `0.00%` badge, not an
-  error. `coverage.yml`'s `gather-kcov` checks the tree out before calling
-  `tests/coverage.sh --merge` (a local sweep's own merge, ranking, and all-zero
-  refusal), and the `test_runner_ci` suite (`runner_test.sh`'s ci part) asserts
-  every job calling it does. `gather-bashcov` calls
-  `tests/coverage_v2.sh --merge`, which reads the resultsets alone.
-- **bashcov** reads bash's `xtrace`, and skews the other way: a **heredoc body**
-  counts as covered whether or not it ran, and children under a bare `env -i`
-  or inside containers drop out of the trace — so a single file reads a few points off
-  either way while the pair brackets the truth. More readings are artifacts, not
-  gaps, and `tests/coverage_v2.sh`'s header is their list: a scratch-tree copy,
-  an `eval` inside a `$( )`, the `sh …` case above, and the
-  lines `xtrace` never prints (an empty case arm, a redirect line). Rule those
-  out before writing a test against a number. An arm neither tool can reach
-  here (zsh's, an old bash's, a tool no sweep has) sits between
-  `# hi-nocov-begin: <why>` and `# hi-nocov-end` comments, which both drivers
-  leave out of their figures. bashcov's trace pipe is
-  non-blocking, and bash drops a line written while it is full, so
-  `tests/lib/coverage_env.sh` makes it blocking ahead of each suite; with
-  bashcov's reader the bottleneck, a parallel suite gains nothing, so the
-  driver runs every one with `_HI_PAR_WIDTH=1`. A suite still running after
-  `_HI_COV_SUITE_LIMIT` seconds (600) is stopped, and the drivers print the
-  processes running then: a stall names its suite rather than running the job
-  out. It skips `configure_pty`, which runs near ten times
-  slower under bashcov on a CI runner than anywhere else measured; kcov's
-  figure carries them. It needs `gem install --user-install bashcov` (found
-  off the gem bin directory if not on `$PATH`), and writes a `.simplecov` into
-  the checkout for the run, refusing to start rather than overwrite one you
-  have.
+bashcov reads bash's `xtrace`, and skews in known ways: a **heredoc body**
+counts as covered whether or not it ran, and children under a bare `env -i` or
+inside containers drop out of the trace. More readings are artifacts, not gaps,
+and `tests/coverage_v2.sh`'s header is their list: a scratch-tree copy, an
+`eval` inside a `$( )`, the `sh …` case above, and the lines `xtrace` never
+prints (an empty case arm, a redirect line). Rule those out before writing a
+test against a number. An arm the sweep cannot reach here (zsh's, an old
+bash's, a tool no sweep has) sits between `# hi-nocov-begin: <why>` and
+`# hi-nocov-end` comments, which the driver leaves out of its figure. bashcov's
+trace pipe is non-blocking, and bash drops a line written while it is full, so
+`tests/lib/coverage_env.sh` makes it blocking ahead of each suite; with
+bashcov's reader the bottleneck, a parallel suite gains nothing. A suite still
+running after `_HI_COV_SUITE_LIMIT` seconds (600) is stopped, and the driver
+prints the processes running then: a stall names its suite rather than running
+the job out. It skips `configure_pty`, which runs near ten times slower under
+bashcov on a CI runner than anywhere else measured, so no figure counts it. It
+needs `gem install --user-install bashcov` (found off the gem bin directory if
+not on `$PATH`), and writes a `.simplecov` into the checkout for the run,
+refusing to start rather than overwrite one you have.
 
-`pages.yml` publishes both aggregates as shields endpoints
-(`badges/coverage.json`, `badges/coverage-v2.json`), each labelled by its tool
-and computed over that subject.
-A completed Coverage run is `pages.yml`'s only automatic trigger, so a badge
-is never older than its sweep.
+`pages.yml` publishes the figure as a shields endpoint
+(`badges/coverage-v2.json`), labelled `bashcov`. A completed Coverage run is
+`pages.yml`'s only automatic trigger, so the badge is never older than its
+sweep.
 
-`common/zsh.zsh` and `common/config.fish` sit outside both tools: kcov's DEBUG
-trap and bashcov's `xtrace` are bash mechanisms, so no line-coverage figure for
+`common/zsh.zsh` and `common/config.fish` sit outside the sweep: bashcov's
+`xtrace` is a bash mechanism, so no line-coverage figure for
 them is honest. What stands in: `tests/lint/dialects_test.sh`'s floor checks
 ([checks 2–5](#the-lint-gate)), and `tests/common/exports_test.sh` and
 `tests/hi/prompt_test.sh`, which drift-check `common/config.fish` against
@@ -777,14 +731,14 @@ candidate has to hand it something it can still collect through
 | runtime-generated cases  | plain bash `for`, unrestricted                             | `bats_test_function` (workaround; order is issue #860)                            | `Parameters:dynamic` allows a `for` loop, but no function/variable access | `parametrize`/`pytest_generate_tests`, fully dynamic                  |
 | skip vs. `--require-run` | three tiers, wrapper turns every skip into a fail          | `skip`; no fail-mode documented                                                   | `Skip`/`Pending`; no fail-mode documented                                 | needs `pytest-error-for-skips`, a second package                      |
 | parallel, ordered replay | own scheduler, submission-order replay                     | needs GNU parallel; **order not guaranteed**                                      | own `--jobs`; ordering undocumented                                       | needs `pytest-xdist`; reorders for scheduling                         |
-| coverage topology        | suite = top-level process, kcov + bashcov merged           | kcov known to read 0% on some `.bats` files (kcov#462)                            | built-in `--kcov`, same bash/zsh/ksh DEBUG-trap limit as ours             | coverage.py measures Python only - subprocess bash is invisible to it |
+| coverage topology        | suite = top-level process, bashcov merged                  | kcov known to read 0% on some `.bats` files (kcov#462)                            | built-in `--kcov`, whose DEBUG trap misses a child bash                   | coverage.py measures Python only - subprocess bash is invisible to it |
 | lint-gate reach          | already `*.sh`; shellcheck, shfmt, checkbashisms all apply | shellcheck parses `.bats` since 0.7; shfmt/checkbashisms don't know the extension | DSL keywords (`It`/`When`/`Then`); no shellcheck dialect found            | not shell at all - opts the driver out of the gate entirely           |
 | new dependency           | none                                                       | GNU parallel                                                                      | none found required                                                       | pytest + xdist + a pty replacement on Windows                         |
 
 **Keep it.** Every candidate loses at least one row, usually more, and the
 sweep's wall clock is container boot and e2e deadlines rather than per-case
 dispatch, so speed would not have decided it. Reopen it if Git Bash leaves the
-platform matrix, both coverage tools go unmaintained at once, or one of the
+platform matrix, bashcov goes unmaintained, or one of the
 three documents an ordered parallel mode and a skip-as-failure flag without a
 second package.
 

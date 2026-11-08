@@ -268,12 +268,10 @@ How say-hi compares to similar tools, and when to use something else:
 CI runs on every push. Runbook: [docs/TESTING.md](docs/TESTING.md).
 
 ![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)
-[![Kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
-Both coverage badges measure the shipped product over the full sweep and gate
-nothing; read their average as the figure
-([why two](docs/TESTING.md#coverage-and-profiling)).
+The coverage badge measures the shipped product over the full sweep and gates
+nothing ([how it skews](docs/TESTING.md#coverage-and-profiling)).
 
 ## Getting help and contributing
 

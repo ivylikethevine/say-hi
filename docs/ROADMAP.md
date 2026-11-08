@@ -6,13 +6,6 @@ an entry leaves as one sentence for the top list of
 [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **One coverage tool** — kcov and bashcov each produce a badge and
-      each has cost an incident (the PS4 switch, the SimpleCov root filter).
-      **Do:** keep bashcov, which credits the staged copies; drop
-      `tests/coverage.sh`, its job in `coverage.yml`, the kcov pin in
-      `tools.txt`, and the kcov badge; TESTING.md's _Coverage_. Medium.
-      **Ticks when:** `main` publishes one coverage figure.
-
 - [ ] **Fewer workflows** — `rerun-timeouts.yml` retries hung jobs where
       the rule is to fix slow jobs in code; `cancel-closed-pr.yml` is one
       `concurrency:` block; `usage.yml` is a `pages.yml` job; and
@@ -30,24 +23,6 @@ an entry leaves as one sentence for the top list of
       drop the repository and its keys and keep the files on the release;
       PACKAGING.md and RELEASING.md. Medium. **Ticks when:** decided, and the
       channels shipped are the ones PACKAGING.md lists.
-
-- [ ] **Every default and preset audited before the tag** —
-      [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break)
-      freezes the name and default of all 35 rows of
-      [SETTINGS.md's _Every setting_](SETTINGS.md#every-setting) and the
-      four presets, and a toggle removal is a 2.0. Read at 8d9296d3 as a
-      stranger's first run, every row's default agreeing with its code, and
-      no default has moved since, through 8108d7d8. The
-      known changes, both shipped in 0.8.0, are the `balanced` first-install
-      default and `hi --update`'s verification. Moved since fe63e85e:
-      `_HI_IP_HIDE` from `172.*`, which hid public addresses and missed
-      rootful podman's bridge, to the bridges' interface names;
-      `_HI_PROMPT_END_ZSH` from `>` to `%(!.#.>)`, which marks root as bash
-      and fish do; `_HI_PACKAGES_GROUPS` from `core useful deprecated`
-      to `core deprecated`, with `useful` under the `everything` preset;
-      and `_HI_HEADER_ORDER` gaining `banner` first and `greeting` last.
-      **Ticks when:** the 1.0.0 release note lists those moves, the known
-      changes, and any others that move.
 
 - [ ] **The pre-1.0 conversions go at the tag** —
       `scripts/convert_settings.sh` (23 KB, 11 functions) rewrites overlay

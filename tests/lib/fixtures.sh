@@ -673,16 +673,14 @@ function _hi_stub_tools() {
   _hi_fake_path "stub-$*" "$@"
 }
 
-# _hi_trace_env - fills the caller's `local -a _hi_trace` with what a coverage
-# tracer follows a bash child through, for an `env -i` to hand on: bashcov's
-# xtrace trio, or kcov's DEBUG-trap one. Stripped, every line the child runs
-# reads as untested. Empty outside a sweep, and no fork either way.
+# _hi_trace_env - fills the caller's `local -a _hi_trace` with what bashcov
+# follows a bash child through, for an `env -i` to hand on: the xtrace trio.
+# Stripped, every line the child runs reads as untested. Empty outside a
+# sweep, and no fork either way.
 function _hi_trace_env() {
   _hi_trace=()
   if [ -n "${BASH_XTRACEFD:-}" ] && [[ $- == *x* ]]; then
     _hi_trace=(SHELLOPTS=xtrace "PS4=$PS4" "BASH_XTRACEFD=$BASH_XTRACEFD")
-  elif [ -n "${KCOV_BASH_USE_DEBUG_TRAP:-}" ] && [ -n "${BASH_ENV:-}" ]; then
-    _hi_trace=("BASH_ENV=$BASH_ENV" "KCOV_BASH_XTRACEFD=${KCOV_BASH_XTRACEFD:-}" KCOV_BASH_USE_DEBUG_TRAP=1)
   fi
 }
 

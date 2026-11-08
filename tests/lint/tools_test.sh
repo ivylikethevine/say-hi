@@ -4,7 +4,7 @@
 # gate, checkbashisms over the #!/bin/sh files, mandoc over the man page, vim
 # over the editors demo's vimrc, typos over the whole tree, osv-scanner over
 # the lockfiles, and markdownlint and prettier over the Markdown. CI always
-# has them (setup-tool pins each binary; `npm ci --prefix .github` the two
+# has them (setup-tools pins each binary; `npm ci --prefix .github` the two
 # node tools), so a local skip here is a local-only gap, never a green run
 # that CI would have failed.
 set -euo pipefail
@@ -15,7 +15,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # The formatter as a lint: shfmt -d over the same file list shellcheck reads
 # (so dist/ stays excluded). The 2-space style comes from .editorconfig, which
 # shfmt picks up when invoked with no style flags. Skips yellow when shfmt is
-# absent; CI pins one via .github/actions/setup-tool so the gate runs there.
+# absent; CI pins one via .github/actions/setup-tools so the gate runs there.
 #
 # common/aliases.sh is left out: its sh-tier lookups are backticks, which
 # shfmt rewrites to `$( )`, and fish before 3.4 refuses a `$( )` anywhere in
@@ -38,7 +38,7 @@ function lint_shfmt() {
 # common/paths.sh really is sourced by dash/busybox sh on minimal targets -
 # checkbashisms covers exactly that shebang list (first line only: the test
 # files embed '#!/bin/sh' inside the shim scripts they generate). Skips yellow
-# when absent; CI installs a pinned copy via .github/actions/setup-tool.
+# when absent; CI installs a pinned copy via .github/actions/setup-tools.
 function lint_checkbashisms() {
   local file rel shebang bad=0
   _hi_h2 "Checking the #!/bin/sh files for bashisms (checkbashisms)"

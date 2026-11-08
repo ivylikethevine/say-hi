@@ -187,9 +187,9 @@ body edit) fails any non-draft PR, `dev` → `main` included and only
 Dependabot's exempt, whose section is missing or holds only whitespace and
 comments. The release reads the bodies as they are at the tag.
 
-**The body opens with the tag's own badges.** README's tests, kcov, and
-bashcov badges track the newest green `main`; the release body freezes the
-same three figures at the tag, looked up by its commit's sha
+**The body opens with the tag's own badges.** README's tests and bashcov
+badges track the newest green `main`; the release body freezes the same two
+figures at the tag, looked up by its commit's sha
 (`.github/actions/fetch-latest-artifact` with `head-sha`). A figure that is
 not there (a tag cut before the sweep finished, an artifact past its
 retention) reads `unknown` in grey rather than failing the release. Only a

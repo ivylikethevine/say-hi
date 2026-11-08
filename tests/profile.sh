@@ -54,12 +54,12 @@
 # What it is good for is the question `_hi_bench` cannot answer: a ceiling has
 # gone red, and you need to know which line did it.
 #
-# **Pointed at the product, never at a suite.** timep drives the DEBUG trap -
-# the same mechanism tests/coverage.sh's header documents kcov losing the
-# moment the harness is sourced. Every target below is an argv shaped like
-# `_hi_bench_env`'s: a bare `env -i` bash running one of hi's own files.
-# Wrapping test_runner.sh instead would land in kcov's hole for exactly the
-# same reason, and would profile the harness rather than hi.
+# **Pointed at the product, never at a suite.** timep drives the DEBUG trap,
+# which does not follow a suite into the subshells and child bash processes
+# it starts. Every target below is an argv shaped like `_hi_bench_env`'s: a
+# bare `env -i` bash running one of hi's own files. Wrapping test_runner.sh
+# instead would lose the trap the same way, and would profile the harness
+# rather than hi.
 #
 # **bash arms only.** timep profiles bash, so `common/config.fish`,
 # `common/zsh.zsh`, and `common/targets.sh`-under-`sh` stay bench-only. What is
@@ -67,7 +67,7 @@
 # `hi.sh`'s payload assembly.
 # ---------------------------------------------------------------------------
 #
-# Lives in tests/ for tests/coverage.sh's reason: no target ships it.
+# Lives in tests/ for tests/coverage_v2.sh's reason: no target ships it.
 set -euo pipefail
 
 if [ -z "${_HI_HOME:-}" ]; then

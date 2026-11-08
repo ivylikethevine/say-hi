@@ -674,7 +674,7 @@ jobs:
           disable-sudo: true
           # The union of the four jobs' lists this replaced: the checkout and
           # the cache, github.com and api.github.com from zizmor, which resolves
-          # the actions it audits online, and setup-tool's download path for a
+          # the actions it audits online, and setup-tools' download path for a
           # cold run (release.yml's allowlist records it). The rest of the render
           # is local.
           allowed-endpoints: >

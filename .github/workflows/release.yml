@@ -759,16 +759,16 @@ jobs:
           missing-message: "no green CI run for this commit - the tests badge reads unknown"
           warn-on-missing: "true"
 
-      # one lookup, both figures
+      # one artifact lands flat: badge-coverage/pct
       - uses: ./.github/actions/fetch-latest-artifact
         with:
           workflow: coverage.yml
-          artifact-name: "{coverage-pct,coverage-v2-pct}"
+          artifact-name: coverage-v2-pct
           dest-subdir: badge-coverage
           head-sha: ${{ github.sha }}
           event: workflow_run
-          found-message: "coverage figures from Coverage run"
-          missing-message: "no green Coverage run for this commit - the coverage badges read unknown"
+          found-message: "coverage figure from Coverage run"
+          missing-message: "no green Coverage run for this commit - the coverage badge reads unknown"
           warn-on-missing: "true"
 
       # totals is one line, "passed failed skipped selected"
@@ -779,32 +779,24 @@ jobs:
           badge() { printf 'https://img.shields.io/badge/%s-%s-%s' "$1" "$2" "$3"; }
           # pct_ok (.github/scripts/pct_ok.sh, shared with pages.yml and
           # coverage.yml's PR comment): a figure that is all zeros is not a
-          # measurement, it is what kcov's merge writes when it resolves no
-          # sources ("files": [], 0.00) - coverage.yml's gather job refuses to
-          # publish one, but an older pct artifact can still carry it, and a
-          # frozen 0.00% in a release body reads as true where grey "unknown"
-          # reads as what it is. The same refusal, at the consumer.
+          # measurement, and a frozen 0.00% in a release body reads as true
+          # where grey "unknown" reads as what it is.
           # shellcheck source=.github/scripts/pct_ok.sh
           source .github/scripts/pct_ok.sh
-          tests=unknown tcolor=lightgrey kcov=unknown kcolor=lightgrey bashcov=unknown bcolor=lightgrey
+          tests=unknown tcolor=lightgrey bashcov=unknown bcolor=lightgrey
           if [ -f "$RUNNER_TEMP/badge-tests/totals" ]; then
             read -r passed _ _ _ <"$RUNNER_TEMP/badge-tests/totals" || true
             case "$passed" in '' | *[!0-9]*) ;; *) tests="$passed%20passed" tcolor=4c1 ;; esac
           fi
-          if [ -f "$RUNNER_TEMP/badge-coverage/coverage-pct/pct" ]; then
-            pct="$(tr -d ' \n' <"$RUNNER_TEMP/badge-coverage/coverage-pct/pct")"
-            if pct_ok "$pct"; then kcov="$pct%25" kcolor=informational; else echo "::warning::kcov figure '$pct' is not a measurement - the badge reads unknown"; fi
-          fi
-          if [ -f "$RUNNER_TEMP/badge-coverage/coverage-v2-pct/pct" ]; then
-            pct="$(tr -d ' \n' <"$RUNNER_TEMP/badge-coverage/coverage-v2-pct/pct")"
+          if [ -f "$RUNNER_TEMP/badge-coverage/pct" ]; then
+            pct="$(tr -d ' \n' <"$RUNNER_TEMP/badge-coverage/pct")"
             if pct_ok "$pct"; then bashcov="$pct%25" bcolor=informational; else echo "::warning::bashcov figure '$pct' is not a measurement - the badge reads unknown"; fi
           fi
           {
             echo "HI_BADGE_TESTS=$(badge tests "$tests" "$tcolor")"
-            echo "HI_BADGE_KCOV=$(badge kcov "$kcov" "$kcolor")"
             echo "HI_BADGE_BASHCOV=$(badge bashcov "$bashcov" "$bcolor")"
           } >>"$GITHUB_ENV"
-          echo "badges: tests=$tests kcov=$kcov bashcov=$bashcov"
+          echo "badges: tests=$tests bashcov=$bashcov"
 
       - id: attach
         name: Attach everything to the release
@@ -869,7 +861,7 @@ jobs:
           # .github/scripts/release_slot.sh; unfilled, a comment renders as
           # nothing.
           body="$(printf '%s\n' \
-            "![tests]($HI_BADGE_TESTS) ![kcov]($HI_BADGE_KCOV) ![bashcov]($HI_BADGE_BASHCOV)" \
+            "![tests]($HI_BADGE_TESTS) ![bashcov]($HI_BADGE_BASHCOV)" \
             "" \
             ${demo:+"$demo" ""} \
             ${changed:+"$changed" ""} \
