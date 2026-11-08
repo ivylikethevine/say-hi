@@ -149,8 +149,9 @@ dist/
 /result
 /result-*
 
-# the coverage driver's report (tests/coverage_v2.sh), as coverage.yml
-# writes it into the checkout
+# the coverage drivers' reports (tests/coverage.sh, tests/coverage_v2.sh), as
+# coverage.yml writes them into the checkout
+/coverage-report/
 /coverage-v2-report/
 # a local render's GIFs (docs/tapes/generate.sh): CI renders the six and
 # pages.yml serves them; only the hand-reviewed demo.gif is committed

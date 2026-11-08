@@ -10,7 +10,7 @@
   "overrides": {
     "katex": "0.19.1",
     "markdown-it": "15.0.3",
-    "re2js": "2.9.0",
+    "re2js": "2.9.1",
     "smol-toml": "1.9.1"
   }
 }
