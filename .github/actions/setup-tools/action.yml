@@ -1,9 +1,11 @@
 name: Setup tools
-# The batched form of ../setup-tool for a job that needs several pinned tools:
-# one actions/cache round trip covers every tool named. The trade is that
-# editing one tool's row redownloads the others in the same call - rows move
-# rarely and the downloads are small. Use ../setup-tool for one tool.
-description: Install several pinned CI tools from ../setup-tool/tools.txt with one shared cache round trip
+# Pinned CI tools from ../setup-tool/tools.txt: resolved, cached, downloaded,
+# sha256-verified, installed. The roster lives in tools.txt rather than in
+# per-tool actions or `run:` lines, so .github/scripts/check_tool_versions.sh
+# reads the same rows and no pin goes undrift-checked. One actions/cache round
+# trip covers every tool named; editing one tool's row redownloads the others
+# in the same call, which is cheap since rows move rarely.
+description: Install pinned CI tools from ../setup-tool/tools.txt, sha256-verified, with one shared cache round trip
 
 inputs:
   tools:
