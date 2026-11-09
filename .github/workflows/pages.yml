@@ -88,14 +88,70 @@ jobs:
             echo "tagged=false" >>"$GITHUB_OUTPUT"
           fi
 
+  # docs/USAGE.md's images (docs/tapes/usage.sh), rendered from the tree this
+  # deploy publishes: none is committed, so this is their only source, and
+  # USAGE.md links their published URLs beside the GIFs'. ci.yml's quick-lint
+  # renders a pull request's, so an example a flag change broke fails there;
+  # here rather than in ci.yml because a merge's CI run skips every job whose
+  # tree a PR run already took green, and the site's images have to come from
+  # main. Runs under the same conditions as `build`, which copies its artifact
+  # in; a failed render warns there and the site goes out without the images.
+  render-usage:
+    name: render the usage images
+    needs: release-pending
+    if: >-
+      !cancelled() && (github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event != 'pull_request' &&
+       needs.release-pending.outputs.tagged != 'true'))
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: block
+          # The checkout, setup-tools' download of freeze, and the results
+          # receiver; every command the render runs is local.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+
+      # full history, so `hi --version` and the header show git describe
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: freeze
+
+      - name: Render
+        run: docs/tapes/usage.sh
+
+      # read back by `build` in this run; nothing else reads it
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: usage-svgs
+          path: docs/tapes/usage-*.svg
+          retention-days: 1
+          if-no-files-found: error
+
   build:
     name: build (jekyll)
     runs-on: ubuntu-26.04
     # A Coverage run's own event is workflow_run (following CI on main) or a
     # maintainer's dispatch; a pull_request one never publishes - a fork's
     # `main` would pass the branch filter. The dispatch trigger has no run to
-    # judge.
-    needs: release-pending
+    # judge. render-usage is a need so its artifact is in before this reads
+    # it; its failure does not hold the deploy (`!cancelled()`).
+    needs: [release-pending, render-usage]
     if: >-
       !cancelled() && (github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -192,17 +248,19 @@ jobs:
           found-message: demo GIFs from run
           missing-message: no successful demos run - the rendered GIFs are missing
 
-      # docs/USAGE.md's images, from usage.yml's newest push to main: none is
-      # committed, so this is their only source, and USAGE.md links their
-      # published URLs beside the GIFs'
-      - name: Fetch the last usage render's images
-        uses: ./.github/actions/fetch-latest-artifact
+      # docs/USAGE.md's images, from this run's render-usage job
+      - name: Fetch this run's usage images
+        if: needs.render-usage.result == 'success'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          workflow: usage.yml
-          artifact-name: usage-svgs
-          dest-subdir: usage
-          found-message: usage images from run
-          missing-message: no successful usage run on main - USAGE.md's images are missing
+          name: usage-svgs
+          path: ${{ runner.temp }}/usage
+
+      - name: Warn when the usage images did not render
+        if: needs.render-usage.result != 'success'
+        env:
+          RESULT: ${{ needs.render-usage.result }}
+        run: echo "::warning title=usage images::render-usage ended $RESULT - USAGE.md's images are missing from this deploy"
 
       - name: Write the shields endpoint
         env:
