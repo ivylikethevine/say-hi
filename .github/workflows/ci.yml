@@ -436,8 +436,15 @@ jobs:
     steps:
       - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          # audit until this job has an allowlist taken from its audit runs
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log: the checkout, and the fish bottle
+          # setup-shells has brew pull from GitHub's container registry. The
+          # Apple services macOS calls on its own are left out, and the
+          # loopback sshd below never leaves the runner.
+          allowed-endpoints: >
+            github.com:443
+            ghcr.io:443
+            pkg-containers.githubusercontent.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

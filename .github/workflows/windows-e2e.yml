@@ -37,8 +37,14 @@ jobs:
     steps:
       - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          # audit until this job has an allowlist taken from its audit runs
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log: the checkout, and the host Windows
+          # asks whether its certificate is revoked. No audited run's
+          # capability install below fetched anything, and both sessions stay
+          # on 127.0.0.1.
+          allowed-endpoints: >
+            github.com:443
+            ocsp.sectigo.com:80
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -174,8 +180,27 @@ jobs:
     steps:
       - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          # audit until this job has an allowlist taken from its audit runs
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log: the checkout, the two hosts Windows
+          # asks whether a certificate is revoked, and what apt reaches inside
+          # the distribution for setup-wsl's packages. The audit log names the
+          # two mirrors on 443 and apt's stock sources are plain http, so both
+          # ports are listed. releases.ubuntu.com is setup-wsl's download of
+          # the distribution, which no audited run made: each restored it from
+          # the cache. Windows' own telemetry, time and connectivity checks
+          # are left out.
+          allowed-endpoints: >
+            github.com:443
+            ocsp.sectigo.com:80
+            crl.microsoft.com:80
+            releases.ubuntu.com:443
+            archive.ubuntu.com:80
+            archive.ubuntu.com:443
+            security.ubuntu.com:80
+            security.ubuntu.com:443
+            esm.ubuntu.com:443
+            changelogs.ubuntu.com:443
+            contracts.canonical.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
