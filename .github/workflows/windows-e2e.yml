@@ -187,8 +187,12 @@ jobs:
           # two mirrors on 443 and apt's stock sources are plain http, so both
           # ports are listed. releases.ubuntu.com is setup-wsl's download of
           # the distribution, which no audited run made: each restored it from
-          # the cache. Windows' own telemetry, time and connectivity checks
-          # are left out.
+          # the cache. The rest are the names a block run denied: apt's SRV
+          # lookups for its sources, the distribution's time, snap and motd
+          # hosts, and Windows' own telemetry, push, update, time and
+          # connectivity checks. A denied name logs no connection, so each
+          # port is its service's own. The runner's own wpad and _ldap names
+          # under internal.cloudapp.net differ per runner and stay denied.
           allowed-endpoints: >
             github.com:443
             ocsp.sectigo.com:80
@@ -196,11 +200,26 @@ jobs:
             releases.ubuntu.com:443
             archive.ubuntu.com:80
             archive.ubuntu.com:443
+            _http._tcp.archive.ubuntu.com:80
             security.ubuntu.com:80
             security.ubuntu.com:443
+            _http._tcp.security.ubuntu.com:80
             esm.ubuntu.com:443
+            _https._tcp.esm.ubuntu.com:443
             changelogs.ubuntu.com:443
             contracts.canonical.com:443
+            motd.ubuntu.com:443
+            _https._tcp.motd.ubuntu.com:443
+            api.snapcraft.io:443
+            ntp.ubuntu.com:123
+            time.windows.com:123
+            www.msftconnecttest.com:80
+            www.msftncsi.com:80
+            ipv6.msftncsi.com:80
+            settings-win.data.microsoft.com:443
+            client.wns.windows.com:443
+            fe2cr.update.microsoft.com:443
+            incoming.telemetry.mozilla.org:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
