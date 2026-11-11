@@ -48,11 +48,18 @@ jobs:
             runner: windows-11-arm
             width: 2
     steps:
-      # audit on the x64 legs; the arm64 legs only log that harden-runner
+      # block on the x64 legs; the arm64 legs only log that harden-runner
       # has no Windows arm agent and carry on
       - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          egress-policy: block
+          # Off the x64 legs' own audit log: the checkout, and the two hosts
+          # Windows asks whether its certificate is revoked. The telemetry
+          # Windows and the image's browsers send on their own is left out.
+          allowed-endpoints: >
+            github.com:443
+            ocsp.sectigo.com:80
+            crl.microsoft.com:80
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

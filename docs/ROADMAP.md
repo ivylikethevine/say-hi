@@ -6,23 +6,18 @@ an entry leaves as one sentence for the top list of
 [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **Fewer workflows** — `rerun-timeouts.yml` retries hung jobs where
-      the rule is to fix slow jobs in code; `cancel-closed-pr.yml` is one
-      `concurrency:` block; `usage.yml` is a `pages.yml` job; and
-      `apple-container.yml` is a dispatch-only probe. Of the six scanners,
-      CodeQL and scorecard earn their keep on a public repo; dependency
-      review, the image scan, the link check and the tool-versions report are
-      each a question. **Do:** one PR per cut; a file ci-shared owns moves in
-      the batch, never alone. Small each. **Ticks when:** every workflow left
-      has a line in CONTRIBUTING.md's _What CI runs_ saying what it catches.
-
-- [ ] **The hosted package repository has subscribers** — the apt, rpm and
-      apk repository (`packaging/mkrepo.sh`, `release.yml`, `pages.yml`, two
-      signing keys) is the heaviest channel to keep honest, and the release
-      already carries the .deb, .rpm and .apk files. **Do:** ask; with none,
-      drop the repository and its keys and keep the files on the release;
-      PACKAGING.md and RELEASING.md. Medium. **Ticks when:** decided, and the
-      channels shipped are the ones PACKAGING.md lists.
+- [ ] **Fewer workflows** — gone: `usage.yml`, now `pages.yml`'s
+      `render-usage` job, and `apple-container.yml`, whose finding is
+      COMPATIBILITY.md's row. Left: `rerun-timeouts.yml`, which retries hung
+      jobs where the rule is to fix slow jobs in code, and
+      `cancel-closed-pr.yml`, which cancels a merged PR's runs where a
+      `concurrency:` block cannot, both ci-shared's and so cut in its batch.
+      The six scanners stay as they are: dependency review blocks a new
+      dependency with a high advisory at the PR, and the image scan, the link
+      check and the tool-versions report each opened issues that were acted
+      on. CONTRIBUTING.md's _What CI runs_ now has a line per workflow.
+      **Do:** the two cuts in ci-shared's batch, and drop their two lines.
+      Small. **Ticks when:** the two files are gone from this repository.
 
 - [ ] **The pre-1.0 conversions go at the tag** —
       `scripts/convert_settings.sh` (23 KB, 11 functions) rewrites overlay

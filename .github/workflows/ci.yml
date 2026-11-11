@@ -436,8 +436,15 @@ jobs:
     steps:
       - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          # audit until this job has an allowlist taken from its audit runs
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log: the checkout, and the fish bottle
+          # setup-shells has brew pull from GitHub's container registry. The
+          # Apple services macOS calls on its own are left out, and the
+          # loopback sshd below never leaves the runner.
+          allowed-endpoints: >
+            github.com:443
+            ghcr.io:443
+            pkg-containers.githubusercontent.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -771,14 +778,14 @@ jobs:
           report-file: ${{ runner.temp }}/hadolint.truncated
 
       # A pull request into main renders docs/USAGE.md's images, so an example a
-      # flag change broke fails here; usage.yml renders the site's on a push.
+      # flag change broke fails here; pages.yml renders the site's from main.
       - id: usage
         name: Render the usage images
         if: github.event_name == 'pull_request' && github.base_ref == 'main'
         continue-on-error: true
         run: docs/tapes/usage.sh
 
-      # for reviewing the change; pages.yml reads only usage.yml's
+      # for reviewing the change; pages.yml reads only its own render's
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.usage.outcome == 'success'
         with:

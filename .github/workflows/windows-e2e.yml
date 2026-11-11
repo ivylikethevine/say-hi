@@ -37,8 +37,14 @@ jobs:
     steps:
       - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          # audit until this job has an allowlist taken from its audit runs
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log: the checkout, and the host Windows
+          # asks whether its certificate is revoked. No audited run's
+          # capability install below fetched anything, and both sessions stay
+          # on 127.0.0.1.
+          allowed-endpoints: >
+            github.com:443
+            ocsp.sectigo.com:80
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -174,7 +180,9 @@ jobs:
     steps:
       - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          # audit until this job has an allowlist taken from its audit runs
+          # audit, not block: under block the distribution's connections hang
+          # even to a host the list allows and the agent resolves, so
+          # setup-wsl's apt-get update never returns.
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
