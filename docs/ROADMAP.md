@@ -7,17 +7,17 @@ an entry leaves as one sentence for the top list of
 [Release Stages](#release-stages).
 
 - [ ] **Fewer workflows** — gone: `usage.yml`, now `pages.yml`'s
-      `render-usage` job, and `apple-container.yml`, whose finding is
-      COMPATIBILITY.md's row. Left: `rerun-timeouts.yml`, which retries hung
-      jobs where the rule is to fix slow jobs in code, and
-      `cancel-closed-pr.yml`, which cancels a merged PR's runs where a
-      `concurrency:` block cannot, both ci-shared's and so cut in its batch.
-      The six scanners stay as they are: dependency review blocks a new
-      dependency with a high advisory at the PR, and the image scan, the link
-      check and the tool-versions report each opened issues that were acted
-      on. CONTRIBUTING.md's _What CI runs_ now has a line per workflow.
-      **Do:** the two cuts in ci-shared's batch, and drop their two lines.
-      Small. **Ticks when:** the two files are gone from this repository.
+      `render-usage` job, `apple-container.yml`, whose finding is
+      COMPATIBILITY.md's row, and `cancel-closed-pr.yml`, cut in ci-shared's
+      batch. Left: `rerun-timeouts.yml`, which retries hung jobs where the
+      rule is to fix slow jobs in code, ci-shared's and so cut in its batch
+      once the stuck runners it retries are fixed upstream. The six scanners
+      stay as they are: dependency review blocks a new dependency with a high
+      advisory at the PR, and the image scan, the link check and the
+      tool-versions report each opened issues that were acted on.
+      CONTRIBUTING.md's _What CI runs_ now has a line per workflow. **Do:**
+      the cut in ci-shared's batch, and drop its line. Small. **Ticks when:**
+      `rerun-timeouts.yml` is gone from this repository.
 
 - [ ] **The pre-1.0 conversions go at the tag** —
       `scripts/convert_settings.sh` (23 KB, 11 functions) rewrites overlay

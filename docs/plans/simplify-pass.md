@@ -217,6 +217,6 @@ fixture wrote).
       `HI_BACKENDS: none`; `.github/scripts/session_verdict.sh` for `windows-e2e.yml:99,136,351`,
       `ci.yml:522`, `bsd_loopback.sh:56`.
 - [ ] 71. `windows-client.yml:50` with `platform_badges.sh:62`; `ci.yml:777`; `coverage.yml:471`;
-      `platform_badges.sh:94`; `prettier-plugin-docs.mjs:82`; `scratch/coverage_data.py`.
+      `platform_badges.sh:94`; `prettier-plugin-docs.mjs:82`; `coverage_data.py` (since deleted).
 - [x] 72. `setup-tool`'s unused overrides: a shared file, so it goes on the shared CI
       batch list, not into this repo alone.

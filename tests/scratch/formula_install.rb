@@ -3,7 +3,7 @@
 # page answer. Stubs only what the formula calls, with Pathname#install moving as
 # brew's does. No sandbox, bottle or audit: a mac's brew job still has the last word.
 #
-#   ruby scratch/formula_install.rb packaging/homebrew/say-hi.rb v0.8.3
+#   ruby tests/scratch/formula_install.rb packaging/homebrew/say-hi.rb v0.8.3
 require "fileutils"
 require "open3"
 require "pathname"

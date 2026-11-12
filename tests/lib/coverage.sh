@@ -29,7 +29,7 @@ _HI_RUNNER="$_HI_ROOT/tests/test_runner.sh"
 
 # The report's subject is the product, not what drives or builds it: the
 # driver leaves these top-level directories out of every ranking and figure.
-_HI_COV_NOT_SUBJECT=(tests docs scratch .github)
+_HI_COV_NOT_SUBJECT=(tests docs .github)
 
 # _hi_cov_untested <base> <missed> - the lines of the tree's *.sh files
 # changed since <base> that the sweep lists as never run (the `path:line`

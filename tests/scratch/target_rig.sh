@@ -5,10 +5,10 @@
 # script(1) for spin and split; run from your shell, not a session (the sandbox
 # denies docker's socket). Results also land in local/<mode>/results.txt.
 #
-#   scratch/target_rig.sh spin [runs] [cpus...]    # default: 5 1 0.5 0.25 0.125
-#   scratch/target_rig.sh split [runs] [cpus...]   # default: 15 1 0.125
-#   scratch/target_rig.sh notty [runs]             # default: 9
-#   scratch/target_rig.sh stages [runs] [cpus...]  # default: 15 1 0.125
+#   tests/scratch/target_rig.sh spin [runs] [cpus...]    # default: 5 1 0.5 0.25 0.125
+#   tests/scratch/target_rig.sh split [runs] [cpus...]   # default: 15 1 0.125
+#   tests/scratch/target_rig.sh notty [runs]             # default: 9
+#   tests/scratch/target_rig.sh stages [runs] [cpus...]  # default: 15 1 0.125
 #
 # spin: a cold connect against a CPU-starved target, to stand in for a Pi-class
 # box where none is at hand. Loopback, no netem, so only the target's CPU moves.
@@ -50,7 +50,7 @@
 # timed by bash's own clock. A stage that is not a whole process (the sources,
 # hi_header) runs in one bash from the top down.
 set -uo pipefail
-root="$(realpath "${BASH_SOURCE[0]%/*}/..")"
+root="$(realpath "${BASH_SOURCE[0]%/*}/../..")"
 mode="${1:-}"
 shift $(($# > 0 ? 1 : 0))
 case "$mode" in
@@ -58,7 +58,7 @@ spin) runs="${1:-5}" cpus=(1 0.5 0.25 0.125) ;;
 split | stages) runs="${1:-15}" cpus=(1 0.125) ;;
 notty) runs="${1:-9}" cpus=() ;;
 *)
-  echo "usage: scratch/target_rig.sh spin|split|notty|stages [runs] [cpus...]" >&2
+  echo "usage: tests/scratch/target_rig.sh spin|split|notty|stages [runs] [cpus...]" >&2
   exit 2
   ;;
 esac
@@ -76,7 +76,7 @@ cleanup() {
 trap cleanup EXIT
 
 # the image the ssh suites build, with the entrypoint they generate
-# shellcheck source=../tests/dockerfiles/sshd-entrypoint.sh
+# shellcheck source=../dockerfiles/sshd-entrypoint.sh
 source "$root/tests/dockerfiles/sshd-entrypoint.sh"
 mkdir -p "$w/ctx" "$w/home" "$w/run"
 chmod 700 "$w/run"

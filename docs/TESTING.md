@@ -311,8 +311,8 @@ link first on its own `PATH`: bashcov does not follow a dash child, so a
 `#!/bin/sh` file a suite executes as `sh …` (`common/targets.sh`,
 `common/mux.sh`) would read 0% where `/bin/sh` is dash.
 
-It reports one subject: every tracked `*.sh` file outside `tests/`, `docs/`,
-`scratch/`, and `.github/` (`_HI_COV_NOT_SUBJECT` in `tests/lib/coverage.sh`),
+It reports one subject: every tracked `*.sh` file outside `tests/` (its
+`scratch/` included), `docs/` and `.github/` (`_HI_COV_NOT_SUBJECT` in `tests/lib/coverage.sh`),
 a file no suite loads included, at 0%. The sweep leaves its worst-first
 ranking as `files` in its outdir and its unrun lines as `missed`, and
 `tests/coverage_v2.sh --untested <revision>` lists the lines changed since
@@ -327,7 +327,7 @@ In CI the sweep is sharded (`--shard i/n`, which `_hi_cov_select_suites` passes
 to `test_runner.sh` with `_HI_SHARD_BY=bashcov`: the suites dealt by
 `$_HI_TEST_COSTS_BASHCOV`, the seconds CI took tracing each, costliest first to
 the lightest slice, so the slices take about as long;
-`scratch/shard_costs.sh --coverage` re-reads them off a coverage run) and
+`tests/scratch/shard_costs.sh --coverage` re-reads them off a coverage run) and
 merged by a gather job: a plain JSON hash union of the `--command-name`-keyed
 `.resultset.json` files, safe because shards partition the suite table.
 
@@ -335,7 +335,7 @@ The Windows client's shards and `ci.yml`'s e2e shards are dealt the same way,
 by `_HI_SHARD_BY=gitbash` (`$_HI_TEST_COSTS_GITBASH`, each suite's time under
 Git Bash on arm64), `_HI_SHARD_BY=e2e` (`$_HI_TEST_COSTS_E2E`), and
 `_HI_SHARD_BY=backends` (`$_HI_TEST_COSTS_BACKENDS`, which leaves kube a runner
-to itself); `scratch/shard_costs.sh` re-reads any of them off a CI run's summary
+to itself); `tests/scratch/shard_costs.sh` re-reads any of them off a CI run's summary
 tables.
 
 bashcov reads bash's `xtrace`, and skews in known ways: a **heredoc body**
@@ -385,8 +385,8 @@ ranking, not the milliseconds. `ci.yml`'s `profile` job runs it beside `bench`
 and uploads the `profiles` artifact (14 days); it is advisory
 (`continue-on-error`), the bench ceilings stay the gate.
 
-`scratch/trace_volume.sh <suite>` ranks a suite's traced lines by function, the
-cost bashcov pays, and `scratch/trace_sweep.sh` ranks every suite the same way:
+`tests/scratch/trace_volume.sh <suite>` ranks a suite's traced lines by function, the
+cost bashcov pays, and `tests/scratch/trace_sweep.sh` ranks every suite the same way:
 the first place to look when a CI job nears its time limit.
 
 ### Timing and shared state
@@ -451,9 +451,9 @@ flake may pass, a run that wrote nothing is made once more and listed under
 _Flaky cases_. A run that said anything is never made twice.
 
 A case that fails only on one BSD runner can be reproduced locally:
-`scratch/bsd_vm.sh up` boots FreeBSD's cloud image under qemu with KVM, and
-`scratch/bsd_vm.sh cases <suite> <word>` runs matching cases there through
-`scratch/run_cases.sh`.
+`tests/scratch/bsd_vm.sh up` boots FreeBSD's cloud image under qemu with KVM, and
+`tests/scratch/bsd_vm.sh cases <suite> <word>` runs matching cases there through
+`tests/scratch/run_cases.sh`.
 
 ### The images are files; the build contexts are not
 

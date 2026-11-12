@@ -3,16 +3,16 @@
 # whose run function keeps only the _hi_check lines holding one of the words
 # given, run against this checkout with no inherited _HI_*.
 #
-# Usage: scratch/run_cases.sh <suite under tests/> <word of a case's line>...
-#   scratch/run_cases.sh scripts/add_tag_test.sh test_add_tag_knows
-#   scratch/run_cases.sh common/core_identity_test.sh test_ssh_host_tag_ zsh
+# Usage: tests/scratch/run_cases.sh <suite under tests/> <word of a case's line>...
+#   tests/scratch/run_cases.sh scripts/add_tag_test.sh test_add_tag_knows
+#   tests/scratch/run_cases.sh common/core_identity_test.sh test_ssh_host_tag_ zsh
 #
 # The copy sits in local/ for the run and is removed after it: a failing case
 # reads its own source for the line that failed. Its line numbers are the
 # copy's, where a continued line is joined into one.
 set -euo pipefail
 
-root="$(cd "${BASH_SOURCE[0]%/*}/.." && pwd)"
+root="$(cd "${BASH_SOURCE[0]%/*}/../.." && pwd)"
 [ $# -ge 2 ] || {
   printf 'usage: %s <suite under tests/> <word of a case line>...\n' "$0" >&2
   exit 2

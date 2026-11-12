@@ -13,18 +13,18 @@
 #
 # The rows land in local/shard-costs-<run>.txt.
 #
-#   scratch/shard_costs.sh 38678529977 'Git Bash arm64' GITBASH
-#   scratch/shard_costs.sh 38678529977 '^e2e \((ssh|podman)' E2E
-#   scratch/shard_costs.sh 38649751933 --coverage
+#   tests/scratch/shard_costs.sh 38678529977 'Git Bash arm64' GITBASH
+#   tests/scratch/shard_costs.sh 38678529977 '^e2e \((ssh|podman)' E2E
+#   tests/scratch/shard_costs.sh 38649751933 --coverage
 #
 # Needs gh with read access; the logs come from *.blob.core.windows.net.
 set -euo pipefail
 
-run="${1:?usage: scratch/shard_costs.sh <run id> <job name regex> <table name> | <run id> --coverage}"
+run="${1:?usage: tests/scratch/shard_costs.sh <run id> <job name regex> <table name> | <run id> --coverage}"
 match="${2:?a job name regex, or --coverage}"
 table=""
 [ "$match" = --coverage ] || table="${3:?a table name}"
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 repo="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 out="$here/local/shard-costs-$run.txt"
 mkdir -p "${out%/*}"

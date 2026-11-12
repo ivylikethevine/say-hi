@@ -123,7 +123,7 @@ fi
 # Each suite's cost in seconds, per sharding table ($_HI_SHARD_BY): bashcov
 # (the coverage sweep; 0 for a suite it skips), gitbash (Windows arm64), e2e
 # and backends (ci.yml's shards). An unlisted suite costs 5. Refresh with
-# scratch/shard_costs.sh (--coverage for bashcov).
+# tests/scratch/shard_costs.sh (--coverage for bashcov).
 _HI_TEST_COSTS_BASHCOV="
   ssh_keep:323 framework:227 hi_payload_scan:181 kube:122
   hi_payload_overlay:107 doctor_config:106 ssh:100 doctor_target:93
