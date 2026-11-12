@@ -36,11 +36,11 @@
 #
 # Needs strace or perf, and script(1); runs from a session.
 #
-#   scratch/target_profile.sh [exec] [wait]       # default wait 3
-#   scratch/target_profile.sh cpu [runs] [wait]   # default 9 runs, wait 2
-#   scratch/target_profile.sh trace [wait]        # default wait 2
+#   tests/scratch/target_profile.sh [exec] [wait]       # default wait 3
+#   tests/scratch/target_profile.sh cpu [runs] [wait]   # default 9 runs, wait 2
+#   tests/scratch/target_profile.sh trace [wait]        # default wait 2
 set -uo pipefail
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 mode="exec"
 case "${1:-}" in exec | cpu | trace) mode="$1" && shift ;; esac
 if [ "$mode" = cpu ]; then

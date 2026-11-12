@@ -3,8 +3,8 @@
 # first: <lines> <file>:<first line> [G], G marking a run with a GLOSSARY tag.
 # Shebangs and shellcheck directives do not count toward a run.
 #
-#   scratch/comment_blocks.sh [-n N] <file>...
-#   scratch/comment_blocks.sh -n 4 hi.sh load.sh common/* scripts/*.sh
+#   tests/scratch/comment_blocks.sh [-n N] <file>...
+#   tests/scratch/comment_blocks.sh -n 4 hi.sh load.sh common/* scripts/*.sh
 min=3
 if [ "${1:-}" = -n ]; then
   min=$2

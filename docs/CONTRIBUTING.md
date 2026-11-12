@@ -154,8 +154,6 @@ dispatch, never on your pull request. What each one catches:
   push, which says so and stops until an account and key exist.
 - `rerun-timeouts.yml` — when a listed workflow's run ends red: reruns its
   failed jobs once a job hit its time limit, twice at most.
-- `cancel-closed-pr.yml` — when a PR closes: cancels its in-flight runs, which
-  a `concurrency:` group cannot, since a merge pushes nothing to the PR's ref.
 
 ## What a review will bounce on
 

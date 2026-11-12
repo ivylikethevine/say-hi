@@ -6,17 +6,17 @@
 # then counts lines by file and by file:function. Output and the raw trace
 # go to local/trace-<suite>/.
 #
-#   scratch/trace_volume.sh configure_pty
-#   scratch/trace_volume.sh hi_keep 40
-#   TRACE_KEEP=1 scratch/trace_volume.sh hi_keep   # keep the raw trace too
+#   tests/scratch/trace_volume.sh configure_pty
+#   tests/scratch/trace_volume.sh hi_keep 40
+#   TRACE_KEEP=1 tests/scratch/trace_volume.sh hi_keep   # keep the raw trace too
 #
 # The raw trace is dropped by default: hundreds of MB under local/, which the
 # lint suites' tree-wide greps would read.
 set -euo pipefail
 
-suite="${1:?usage: scratch/trace_volume.sh <suite> [top]}"
+suite="${1:?usage: tests/scratch/trace_volume.sh <suite> [top]}"
 top="${2:-30}"
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 out="$here/local/trace-$suite"
 mkdir -p "$out"
 

@@ -216,7 +216,7 @@ function lint_portable_pairs() {
   # before the grep is an alternative, not a pipe, so the bar wants a
   # non-bar before it
   hits="$(cd "$_HI_ROOT" && grep -rlE --include='*.sh' 'set -(euo|o) pipefail' . "${_HI_LINT_NOT_OUTPUT[@]}" \
-    --exclude-dir=node_modules --exclude-dir=scratch --exclude-dir=tests 2>/dev/null |
+    --exclude-dir=node_modules --exclude-dir=tests 2>/dev/null |
     xargs grep -nHE '[^|]\|[[:space:]]*grep[[:space:]]+(-[A-Za-z]+[[:space:]]+)*-[A-Za-z]*q[A-Za-z]*([[:space:]]|$)' 2>/dev/null |
     grep -v ':[[:space:]]*#' | sed 's|^\./||' || true)"
   if [ -z "$hits" ]; then

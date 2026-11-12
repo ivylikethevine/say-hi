@@ -100,15 +100,15 @@ function _hi_cov_resultset() {
 }
 
 # tests/coverage_v2.sh --merge, over two shards: the suites' hits summed per
-# line, the ranking and the figure over the subject alone (no tests/, no
-# scratch/, no .github/ or .git/, nothing outside the tree), and the union
+# line, the ranking and the figure over the subject alone (no tests/, its
+# tests/scratch/ included, no .github/ or .git/, nothing outside the tree), and the union
 # written out
 function test_coverage_v2_merge_reports_the_subject_alone() {
   local dir="$_HI_WORKDIR/covmerge" root="$_HI_ROOT" out files missed pct rc=0
   _hi_cov_resultset "$dir/shards/a/.resultset.json" one "$root/common/x.sh" '[null,1,0,0]' \
     "$root/tests/t.sh" '[0,0]' /elsewhere/y.sh '[0]'
   _hi_cov_resultset "$dir/shards/b/.resultset.json" two "$root/common/x.sh" '[null,0,2,0]' \
-    "$root/scratch/z.sh" '[0,0]' "$root/.github/scripts/q.sh" '[0]' "$root/hi.sh" '[1,null]' \
+    "$root/tests/scratch/z.sh" '[0,0]' "$root/.github/scripts/q.sh" '[0]' "$root/hi.sh" '[1,null]' \
     "$root/.git/hooks/update.sample" '[0]'
   out="$("$_HI_ROOT/tests/coverage_v2.sh" --merge "$dir/out" "$dir/shards" 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] || _hi_why rc out || return 1
@@ -244,7 +244,7 @@ function test_cost_tables_name_the_suites_they_deal() {
       case "$keys" in *" $n "*) ;; *) bad="$bad $var:$n(missing)" ;; esac
     done
   done
-  [ -z "$bad" ] || _hi_because "cost tables out of step with the suite table:$bad - refresh them (scratch/shard_costs.sh)"
+  [ -z "$bad" ] || _hi_because "cost tables out of step with the suite table:$bad - refresh them (tests/scratch/shard_costs.sh)"
 }
 
 # coverage.yml's sweep takes its slices dealt by bashcov's costs

@@ -42,7 +42,7 @@ one home and every other mention is a sentence and a link. Net negative lines.
 Items 13 and 14 covered every comment block of six or more lines in the
 shipped tree (`hi.sh`, `load.sh`, `common/`, `scripts/`) and the harness
 (`tests/lib/`, `tests/test_lib.sh`, and `tests/test_runner.sh`'s blocks of
-seven or more); `scratch/comment_blocks.sh -n 6 <files>` lists what is left.
+seven or more); `tests/scratch/comment_blocks.sh -n 6 <files>` lists what is left.
 Suites' own per-case comments were not part of it. Each file was checked with
 `bash -n` (and `zsh -n`, `dash -n`, `fish -n` where those shells read it) and
 `shellcheck -x`.

@@ -5,18 +5,18 @@
 # prepare step installs, copies this checkout in over ssh, and runs one suite's
 # cases or a command there. Everything it makes lives in local/bsdvm.
 #
-# Usage: scratch/bsd_vm.sh <command> [args]
+# Usage: tests/scratch/bsd_vm.sh <command> [args]
 #   up                      download, provision and boot the VM; waits for ssh
-#   cases <suite> <word>... scratch/run_cases.sh in the VM, against the synced tree
+#   cases <suite> <word>... tests/scratch/run_cases.sh in the VM, against the synced tree
 #   suite <suite>           tests/test_runner.sh <suite> in the VM
 #   sh [cmd...]             a shell, or one command, in the VM's checkout
 #   sync                    copy the checkout in again (cases/suite/sh do this first)
 #   down                    power the VM off
 #   console                 the serial console log so far
 #
-#   scratch/bsd_vm.sh up
-#   scratch/bsd_vm.sh cases load/load_test.sh test_hooks_run_once
-#   scratch/bsd_vm.sh sh 'ps -A -o pid,ppid,pgid,tty,stat,wchan,etime,args'
+#   tests/scratch/bsd_vm.sh up
+#   tests/scratch/bsd_vm.sh cases load/load_test.sh test_hooks_run_once
+#   tests/scratch/bsd_vm.sh sh 'ps -A -o pid,ppid,pgid,tty,stat,wchan,etime,args'
 #
 # The guest runs everything as the user `hi`, or as root with BSD_VM_USER=root,
 # which is what the CI jobs run as; bash, zsh, git and python3 come from pkg at
@@ -25,7 +25,7 @@
 # image, and FreeBSD reproduces the hang the BSD jobs share.
 set -euo pipefail
 
-root="$(cd "${BASH_SOURCE[0]%/*}/.." && pwd)"
+root="$(cd "${BASH_SOURCE[0]%/*}/../.." && pwd)"
 vm="$root/local/bsdvm"
 release="${BSD_VM_RELEASE:-15.1}"
 image="FreeBSD-$release-RELEASE-amd64-BASIC-CLOUDINIT-ufs.qcow2"
@@ -137,7 +137,7 @@ function boot() {
 # stay behind
 function sync_tree() {
   [ -n "$(vm_pid)" ] || {
-    say "VM not running: scratch/bsd_vm.sh up"
+    say "VM not running: tests/scratch/bsd_vm.sh up"
     exit 1
   }
   tar -C "$root/.." --exclude=say-hi/.git --exclude=say-hi/local --exclude=say-hi/node_modules \
@@ -157,7 +157,7 @@ sync) sync_tree ;;
 cases)
   shift
   sync_tree
-  in_tree "scratch/run_cases.sh $*"
+  in_tree "tests/scratch/run_cases.sh $*"
   ;;
 suite)
   sync_tree

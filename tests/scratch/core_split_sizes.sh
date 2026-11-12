@@ -8,7 +8,7 @@
 # Stages the tree as pack.sh does (copy, cut, comment strip, tar | gzip -9 -n),
 # so the whole agrees with _hi_wire_bytes and the README badge.
 #
-#   _HI_HOME=<dir holding say-hi> scratch/core_split_sizes.sh
+#   _HI_HOME=<dir holding say-hi> tests/scratch/core_split_sizes.sh
 #
 # Prints one report, writes nothing, and unsets every other inherited _HI_*.
 set -euo pipefail
@@ -19,7 +19,7 @@ done
 : "${_HI_HOME:?set _HI_HOME to the directory holding say-hi}"
 export _HI_PAYLOAD_CACHE=0
 set --
-# shellcheck source=../hi.sh
+# shellcheck source=../../hi.sh
 source "$_HI_HOME/say-hi/hi.sh"
 set -euo pipefail
 
