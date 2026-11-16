@@ -25,7 +25,8 @@
 #      allowlist would cut a job off, so the policy is never left to it. A step
 #      with id `dns-experiment` may come before it: on a runner in GitHub's DNS
 #      experiment, `block` drops the runner's own connections, so a job fails
-#      and stays open until its limit unless it refuses that runner first
+#      and stays open until its limit unless it refuses that runner first; a
+#      job that tests harden-runner's fix reports the runner instead
 #   7. in a job whose actions/checkout sets sparse-checkout, every local
 #      `uses: ./<path>` step has <path> (or a parent directory of it) in that
 #      list - otherwise the runner fails with "Can't find 'action.yml'" - and so
