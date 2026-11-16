@@ -83,7 +83,7 @@ jobs:
     outputs:
       sweep: ${{ steps.gate.outputs.sweep }}
     steps:
-      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           disable-sudo: true
@@ -200,7 +200,7 @@ jobs:
       matrix:
         shard: [1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 8/8]
     steps:
-      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           # Off this job's own audit log, bashcov's gem included:
@@ -341,7 +341,7 @@ jobs:
       HI_MERGE: ${{ needs.reuse.outputs.sweep == 'true' && needs.shard-bashcov.result == 'success' }}
       HI_COMMENT: ${{ github.event_name == 'pull_request' }}
     steps:
-      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: block
           # Off the audit logs of the two jobs this replaced: it merges the
