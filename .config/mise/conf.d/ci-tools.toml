@@ -1,0 +1,23 @@
+# The pinned CI tools of .github/actions/setup-tool/tools.txt, for mise, which
+# reads this file beside the checkout's own mise.toml (`mise install`). Each
+# version is that file's pin for the tool and moves with it, in the same
+# change; a tool's key is its name, or a backend path ending in it.
+#
+# Not here, since mise has no package for them: install from apt (or brew)
+#   apt: checkbashisms mandoc
+# checkbashisms is in devscripts.
+
+[tools]
+actionlint = "1.7.12"
+"aqua:charmbracelet/freeze" = "0.2.2"
+gitleaks = "8.30.1"
+hadolint = "2.15.1"
+lychee = "0.24.2"
+minisign = "0.12"
+nfpm = "2.48.0"
+osv-scanner = "2.7.1"
+shellcheck = "0.11.0"
+shfmt = "3.14.1"
+trivy = "0.76.2"
+typos = "1.52.0"
+zizmor = "1.32.0"
