@@ -50,7 +50,8 @@ tests/test_runner.sh --group lint
 ```
 
 `mise install` puts the lint group's tools on `PATH` at CI's pins
-(`mise.toml`; its header names the three it leaves to apt), and
+(`mise.toml`, and `.config/mise/conf.d/ci-tools.toml` for `tools.txt`'s, whose
+header names the two it leaves to apt), and
 `mise run gate` runs both groups with any inherited `_HI_*` cleared.
 
 CI runs both on every push; both should be green before you open the pull

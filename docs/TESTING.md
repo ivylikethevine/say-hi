@@ -674,10 +674,11 @@ checking that something written down elsewhere still agrees with the tree:
   count of its kin (a `source` of a path in a variable, a shell's `-c`, a
   recursive `rm`) matches its row; a row nothing matches fails too, so the
   roster only counts down.
-- **32. mise.toml**: every `[tools]` version is its home's pin
-  (`tools.txt`'s row, `ci.yml`'s `node-version`, `coverage.yml`'s
-  `BASHCOV_VERSION`, `demos.yml`'s vhs `version:`), and every `tools.txt` row
-  is a `[tools]` key or named on the file's `apt:` line.
+- **32. mise.toml**: every `[tools]` version in `mise.toml` and
+  `.config/mise/conf.d/*.toml` is its home's pin (`tools.txt`'s row, `ci.yml`'s
+  `node-version`, `coverage.yml`'s `BASHCOV_VERSION`, `demos.yml`'s vhs
+  `version:`), and every `tools.txt` row is a `[tools]` key or named on an
+  `apt:` line.
 
 ## Test levers
 
