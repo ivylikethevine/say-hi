@@ -1,29 +1,16 @@
 # The development tools for this checkout: `mise trust && mise install`, then
-# `mise run setup` once. Every version below is a copy of a pin whose home is
-# elsewhere - .github/actions/setup-tool/tools.txt for the binaries, ci.yml's
-# `node-version`, coverage.yml's BASHCOV_VERSION, demos.yml's vhs `version:` -
-# and the lint group's `mise` drift check fails a copy that parts from it.
-# Bump the home; this file follows.
+# `mise run setup` once. The binaries .github/actions/setup-tool/tools.txt pins
+# are in .config/mise/conf.d/ci-tools.toml, which mise reads beside this file
+# and which changes with tools.txt. Every version below is a copy of a pin
+# whose home is elsewhere - ci.yml's `node-version`, coverage.yml's
+# BASHCOV_VERSION, demos.yml's vhs `version:` - and the lint group's `mise`
+# drift check fails a copy that parts from it. Bump the home; this file
+# follows.
 #
-# Not here, since mise has no package for them: install from apt (or brew)
-#   apt: checkbashisms mandoc
-# checkbashisms is in devscripts. zsh, fish, docker, and podman float for the reasons tools.txt
-# gives, and the suites skip yellow where one is missing.
+# zsh, fish, docker, and podman float for the reasons tools.txt gives, and the
+# suites skip yellow where one is missing.
 
 [tools]
-actionlint = "1.7.12"
-gitleaks = "8.30.1"
-hadolint = "2.15.1"
-lychee = "0.24.2"
-minisign = "0.12"
-nfpm = "2.48.0"
-osv-scanner = "2.7.1"
-shellcheck = "0.11.0"
-shfmt = "3.14.1"
-trivy = "0.76.2"
-typos = "1.52.0"
-zizmor = "1.32.0"
-"aqua:charmbracelet/freeze" = "0.2.2"
 vhs = "0.12.1"
 # markdownlint-cli2 and prettier are .github/package-lock.json's (`mise run setup`)
 node = "24"

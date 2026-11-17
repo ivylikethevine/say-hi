@@ -426,12 +426,14 @@ function lint_container_family() {
   return "$bad"
 }
 
-# mise.toml's [tools] versions are copies of pins whose home is elsewhere, and
-# a bump to the home alone would leave `mise install` handing a developer a
-# tool CI does not run. Each tools.txt row is a [tools] key at its pin (bare,
-# or the tail of an `aqua:<owner>/<name>` key) or named on the file's `apt:`
-# comment line, so a new pin cannot skip the dev setup either; node, bashcov,
-# and vhs are checked against the workflow line that pins each.
+# The mise config's [tools] versions are copies of pins whose home is
+# elsewhere, and a bump to the home alone would leave `mise install` handing a
+# developer a tool CI does not run. The config is mise.toml and
+# .config/mise/conf.d/*.toml, where the shared ci-tools.toml carries the
+# tools.txt pins and arrives with them. Each tools.txt row is a [tools] key at
+# its pin (bare, or the tail of an `aqua:<owner>/<name>` key) or named on an
+# `apt:` comment line, so a new pin cannot skip the dev setup either; node,
+# bashcov, and vhs are checked against the workflow line that pins each.
 function _hi_mise_tool() {
   local k v
   while IFS='=' read -r k v; do
@@ -449,33 +451,37 @@ function _hi_lint_mise_pin() {
       _hi_align " | $name: apt, not mise ($home pins $want)" "OK" "$GREEN" && return 0
       ;;
     esac
-    _hi_lint_fail " | $name: $home pins $want, and mise.toml neither lists it nor names it on its apt: line" \
-      "mise.toml: $name missing (add it at $want, or to the apt: line)"
+    _hi_lint_fail " | $name: $home pins $want, and the mise config neither lists it nor names it on an apt: line" \
+      "mise: $name missing (add it at $want, or to an apt: line)"
   elif [ "$got" = "$want" ]; then
     _hi_align " | $name $got ($home)" "OK" "$GREEN" && return 0
   else
-    _hi_lint_fail " | $name: mise.toml has $got, $home pins $want" "mise.toml: $name $got is not $home's $want"
+    _hi_lint_fail " | $name: the mise config has $got, $home pins $want" "mise: $name $got is not $home's $want"
   fi
   return 1
 }
 
 function lint_mise() {
-  local file="$_HI_ROOT/mise.toml" wf="$_HI_ROOT/.github/workflows" line k v in=0 name pin bad=0
-  _hi_h2 "Checking mise.toml against the pins it copies"
+  local file wf="$_HI_ROOT/.github/workflows" line k v in name pin bad=0
+  _hi_h2 "Checking the mise config against the pins it copies"
   _HI_MISE_TOOLS="" _HI_MISE_APT=" "
-  while IFS= read -r line; do
-    case "$line" in
-    '[tools]') in=1 && continue ;;
-    '['*) in=0 && continue ;;
-    '#'*'apt:'*) _HI_MISE_APT=" ${line#*apt:} " && continue ;;
-    '' | '#'*) continue ;;
-    esac
-    [ "$in" = 1 ] || continue
-    k="${line%% = *}" v="${line#* = }"
-    k="${k#\"}" v="${v#\"}"
-    _HI_MISE_TOOLS="$_HI_MISE_TOOLS${k%\"}=${v%%\"*}
+  for file in "$_HI_ROOT/mise.toml" "$_HI_ROOT"/.config/mise/conf.d/*.toml; do
+    [ -f "$file" ] || continue
+    in=0
+    while IFS= read -r line; do
+      case "$line" in
+      '[tools]') in=1 && continue ;;
+      '['*) in=0 && continue ;;
+      '#'*'apt:'*) _HI_MISE_APT="$_HI_MISE_APT${line#*apt:} " && continue ;;
+      '' | '#'*) continue ;;
+      esac
+      [ "$in" = 1 ] || continue
+      k="${line%% = *}" v="${line#* = }"
+      k="${k#\"}" v="${v#\"}"
+      _HI_MISE_TOOLS="$_HI_MISE_TOOLS${k%\"}=${v%%\"*}
 "
-  done <"$file"
+    done <"$file"
+  done
   while IFS='|' read -r name pin _; do
     case "$name" in '' | '#'*) continue ;; esac
     _hi_lint_mise_pin "$name" "$pin" tools.txt || bad=$((bad + 1))
