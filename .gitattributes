@@ -11,3 +11,7 @@
 *.jpeg binary
 *.webp binary
 *.apk binary
+# A package that reads its version from git keeps .git_archival.txt, which git
+# archive (and GitHub's tarball of a commit) fills in, so an archive without
+# history still carries its version. It does nothing where the file is absent.
+.git_archival.txt export-subst
