@@ -339,6 +339,10 @@ one.
   takes pull requests from `dev`, and releases are built off it.
 - **Simple, concise commits** — enough to see what is going on; the pull
   request body is where the detail lives.
+- **New code meets the 90% coverage target**; the coverage comment flags a
+  miss without blocking ([TESTING.md](TESTING.md#coverage-and-profiling)).
+- **Every call to `sh` is tested with dash as `/bin/sh`**: CI's Ubuntu
+  `/bin/sh` is dash, so a green run where it is bash proves nothing there.
 - **Say if AI wrote part of it**, in the template's AI disclosure.
 
 ## AI-assisted contributions
