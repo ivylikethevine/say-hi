@@ -40,6 +40,7 @@ CLAUDE.local.md
 # values, so it stays tracked.
 .env
 .env.*
+*.env
 !.env.example
 .envrc
 .direnv/
@@ -82,6 +83,15 @@ __pycache__/
 # A local Jekyll build of the docs site; CI builds the real one.
 _site/
 .jekyll-cache/
+# `nix build`'s links to what it built.
+/result
+/result-*
+# OpenTofu and Terraform working state, which can hold addresses, key names
+# and secrets.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
 # Screenshots and images: none ships, and one can hold real account content.
 *.png
 *.jpg
@@ -100,56 +110,8 @@ _site/
 *.doc
 *.docx
 *.id
-**output**
-**build**
-**tmp**
-**secret**
-**private**
-**key**
-**local**
-
-*.py
-*.pyc
-*.env
-*.direnv
-*.envrc
-*.txt
-# setup-tool's roster, which the blanket *.txt above would swallow; the action
-# and the drift checker both read it
-!.github/actions/setup-tool/tools.txt
-# the drift checker's repo hook, which the blanket **local** above would swallow
-!.github/scripts/check_tool_versions.local.sh
-*.tsv
-*.csv
-*.sql
-*.toml
-# the typos allowlist, read by the lint gate (tests/lint/tools_test.sh)
-!.typos.toml
-!.moxide.toml
-# lychee's link-check config, read by ci.yml and link-check.yml
-!lychee.toml
-# the advisories Scorecard's Vulnerabilities check skips in package-lock.json
-!.github/osv-scanner.toml
-# tools.txt's pins for mise, which reads them beside mise.toml
-!.config/mise/conf.d/ci-tools.toml
-# the REUSE licensing data, which the blanket *.toml and *.txt above would swallow
-!REUSE.toml
-!LICENSES/*.txt
-# everything under the payload directories ships, whatever it is named: the
-# blanket rules above once swallowed a config/*.toml (drift_test.sh's
-# lint_ignored_payload keeps it that way)
-!config/**
-!common/**
-# packaging/mkpkg.sh's staging and output directory. Not "build/" or
-# "output/": the blanket rules above would swallow those.
-dist/
-
-# this project's own publishing key, which the secrets rules above would swallow
+# this project's own publishing key, which the shared *.pub rule would ignore
 !packaging/apk/*.rsa.pub
-
-# `nix build`'s link to what it built
-/result
-/result-*
 
 # the coverage drivers' reports (tests/coverage.sh, tests/coverage_v2.sh), as
 # coverage.yml writes them into the checkout

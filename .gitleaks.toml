@@ -1,0 +1,31 @@
+# gitleaks configuration: the default rules, plus passwords in connection
+# strings, which they miss. `gitleaks git` and `gitleaks dir` read it from the
+# root of the tree they scan.
+#
+# An allow list entry pins a path AND the exact value, so a real secret later
+# pasted into the same file still fails. Add one only with a comment saying
+# what the value is.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "connection-url-password"
+description = "Password in a database or broker URL"
+regex = '''(?i)\b(?:postgres(?:ql)?|mysql|mariadb|mongodb|rediss?|amqps?|sqlserver|mssql)(?:\+[a-z0-9]+)?://[^\s:@/'"]*:([^\s@/'"]{4,})@'''
+secretGroup = 1
+keywords = ["postgres", "mysql", "mariadb", "mongodb", "redis", "amqp", "sqlserver", "mssql"]
+
+# a variable, a template, an ellipsis or a stand-in, not a password
+[[rules.allowlists]]
+regexes = ['''^(?:[$<{%*]|\.{3}|(?i:password|passwd|changeme|example|secret|test)$)''']
+
+[[rules]]
+id = "connection-keyvalue-password"
+description = "Password in a key=value connection string"
+regex = '''(?i)\b(?:server|host|data source)\s*=[^"'\n]*?\b(?:password|pwd)\s*=\s*([^;"'\s]{4,})'''
+secretGroup = 1
+keywords = ["password", "pwd"]
+
+[[rules.allowlists]]
+regexes = ['''^(?:[$<{%*]|\.{3}|(?i:password|passwd|changeme|example|secret|test)$)''']

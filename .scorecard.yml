@@ -3,11 +3,6 @@
 # they never change the score, so a finding this repository will not fix reads
 # as decided rather than unnoticed. Annotate only a finding a run reports; one
 # that matches nothing misleads.
-#
-# code-review is deliberately not annotated: the 0/9 finding is accurate (no
-# second reviewer) and no reason code says so truthfully. The prose version of
-# the pinned-dependencies entry is docs/TESTING.md, "What is pinned, and what
-# deliberately is not".
 annotations:
   - checks:
       - pinned-dependencies

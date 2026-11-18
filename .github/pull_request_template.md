@@ -24,11 +24,10 @@ Link any relevant issues or discussions here.
 
 If one of these cannot be completed, give a justification.
 
-- [ ] New code meets the 90% test coverage target (the coverage comment flags a miss; it does not block)
-- [ ] All tests and CI checks green
-- [ ] All calls to `sh` were tested with dash as `/bin/sh`
-- [ ] Any disabled linter/code-style rule is explained
-- [ ] Affected docs are updated (see CONTRIBUTING's table)
+- [ ] The checks in [docs/CONTRIBUTING.md](https://github.com/ivylikethevine/say-hi/blob/main/docs/CONTRIBUTING.md) pass locally, and the change keeps the rules it sets
+- [ ] A new feature or a bug fix comes with a test
+- [ ] Any disabled linter or code-style rule is explained
+- [ ] Affected docs are updated
 
 ## AI disclosure
 

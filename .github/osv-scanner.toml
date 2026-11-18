@@ -11,6 +11,8 @@
 #   id = "GHSA-..."
 #   ignoreUntil = YYYY-MM-DD
 #   reason = "..."
-#
-# None at present: the braces stack-exhaustion advisory (GHSA-vfj7-8cjw-p6xm)
-# was withdrawn upstream on 2026-10-23.
+
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2027-02-17
+reason = "picomatch ReDoS via extglobs; only fixed in 4.0.8, but micromatch 4.0.8 (via markdownlint-cli2) requires ^2.3.1. Dev-only Markdown linting over the repo's own glob patterns, no untrusted input."
