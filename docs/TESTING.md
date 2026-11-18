@@ -303,9 +303,9 @@ or by `coverage.yml`: after every green CI run on a push to `main`, and on every
 same-repo, non-draft PR, where the `comment` job posts its figure beside main's
 in one comment edited in place, with the PR's passed-case count from its CI run
 beside main's (the push that merges the PR reuses its figure). The figure is
-for finding untested arms. Never a gate: the pull request template's 90% is a
-target, and the PR comment flags a PR whose figure falls below it without
-failing anything. The sweep pins `_HI_PAR_WIDTH=1`, since a batch writing into
+for finding untested arms. Never a gate: 90% is the target for new code, and
+the PR comment flags a PR whose figure falls below it without failing
+anything. The sweep pins `_HI_PAR_WIDTH=1`, since a batch writing into
 a suite's one trace stream side by side loses lines, and puts a bash-as-`sh`
 link first on its own `PATH`: bashcov does not follow a dash child, so a
 `#!/bin/sh` file a suite executes as `sh …` (`common/targets.sh`,
@@ -488,7 +488,9 @@ builds locally (`hi-test-sshd` and the like; see `--build-arg BASE=` in
 `tests/targets/*_test.sh`), with no upstream digest to pin; Scorecard flags
 them as unpinned `containerImage` dependencies, and
 [`.scorecard.yml`](https://github.com/ivylikethevine/say-hi/blob/main/.scorecard.yml)
-annotates the check `test-data` rather than pretending it's clean. Nothing in
+annotates the check `test-data` rather than pretending it's clean. (Its
+code-review check is deliberately not annotated: the 0/9 there is accurate, no
+second reviewer, and no reason code says so truthfully.) Nothing in
 `tests/dockerfiles/` reaches a release; the release path's workflows and
 actions are SHA-pinned separately.
 
