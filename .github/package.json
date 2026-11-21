@@ -4,13 +4,12 @@
   "license": "MIT",
   "description": "Pins CI's Markdown tools (markdownlint-cli2, prettier) and their dependency tree with a lockfile, for `npm ci --prefix .github`.",
   "devDependencies": {
-    "markdownlint-cli2": "0.24.0",
+    "markdownlint-cli2": "0.24.1",
     "prettier": "3.9.10"
   },
   "overrides": {
     "katex": "0.19.1",
     "markdown-it": "15.0.3",
-    "re2js": "2.9.1",
     "smol-toml": "1.9.1"
   }
 }

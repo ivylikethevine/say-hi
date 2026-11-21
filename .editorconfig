@@ -16,3 +16,8 @@ indent_size = 4
 # rustfmt's default indent
 [*.rs]
 indent_size = 4
+
+# plan-scan is kept byte for byte with copies elsewhere whose style indents case
+# branches
+[plan-scan]
+switch_case_indent = true
