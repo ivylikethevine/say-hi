@@ -73,17 +73,18 @@ if [ -n "${_HI_CHECK_VAR:-}" ]; then
   [ "$actual" = "$_HI_EXPECT" ] || { echo "$_HI_CHECK_VAR: got [$actual] want [$_HI_EXPECT]" >&2; fail=1; }
 fi
 
-if [ -n "${_HI_CHECK_BAT_OPTS:-}" ]; then
-  case "$(alias bat 2>/dev/null)" in
-  *"$_HI_EXPECT_BAT_OPTS"*) : ;;
-  *) echo "bat alias missing opts [$_HI_EXPECT_BAT_OPTS]: $(alias bat 2>/dev/null)" >&2; fail=1 ;;
+# the alias $_HI_BODY_OF holds $_HI_BODY_HAS and not $_HI_BODY_LACKS
+if [ -n "${_HI_BODY_OF:-}" ]; then
+  body="$(alias "$_HI_BODY_OF" 2>/dev/null)"
+  case "$body" in
+  *"${_HI_BODY_HAS:-}"*) : ;;
+  *) echo "$_HI_BODY_OF alias lacks [$_HI_BODY_HAS]: $body" >&2; fail=1 ;;
   esac
-fi
-
-if [ -n "${_HI_CHECK_BAT_NO_THEME:-}" ]; then
-  case "$(alias bat 2>/dev/null)" in
-  *--theme*) echo "bat alias carries --theme: $(alias bat 2>/dev/null)" >&2; fail=1 ;;
-  esac
+  if [ -n "${_HI_BODY_LACKS:-}" ]; then
+    case "$body" in
+    *"$_HI_BODY_LACKS"*) echo "$_HI_BODY_OF alias holds [$_HI_BODY_LACKS]: $body" >&2; fail=1 ;;
+    esac
+  fi
 fi
 
 if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
@@ -157,16 +158,14 @@ if set -q _HI_CHECK_VAR
   end
 end
 
-if set -q _HI_CHECK_BAT_OPTS
-  if not string match -q -- "*$_HI_EXPECT_BAT_OPTS*" (functions bat | string join \n)
-    echo "bat alias missing opts [$_HI_EXPECT_BAT_OPTS]" >&2
+if set -q _HI_BODY_OF
+  set body (functions -- $_HI_BODY_OF | string join \n)
+  if not string match -q -- "*$_HI_BODY_HAS*" "$body"
+    echo "$_HI_BODY_OF alias lacks [$_HI_BODY_HAS]: $body" >&2
     set fail 1
   end
-end
-
-if set -q _HI_CHECK_BAT_NO_THEME
-  if string match -q -- "*--theme*" (functions bat | string join \n)
-    echo "bat alias carries --theme" >&2
+  if test -n "$_HI_BODY_LACKS"; and string match -q -- "*$_HI_BODY_LACKS*" "$body"
+    echo "$_HI_BODY_OF alias holds [$_HI_BODY_LACKS]: $body" >&2
     set fail 1
   end
 end
@@ -231,7 +230,7 @@ function _hi_write_overlay() {
 # exists, so the overlay's aliases win. Per shell, the tool aliases opted
 # into where a shipped one is needed: a new overlay alias
 # arrives; a redefinition of a shipped name wins while building on the
-# shipped values (the add-a-flag idiom docs/SETTINGS.md gives); `alias cat=cat`
+# shipped values; `alias cat=cat`
 # takes one shipped alias back; and a config-dir-less run (the container
 # fallback's shape) stays silent.
 # shellcheck disable=SC2016 # the overlay lines expand in the shell under test
@@ -338,16 +337,33 @@ function run_path_lookup_tests() {
   done
 }
 
-# A value settings.sh exports - here _HI_BAT_OPTS - reaches the alias built
-# from it (core.sh and config.fish source settings.sh ahead of this file).
-function run_bat_opts_test() {
-  _hi_h1 "An exported _HI_BAT_OPTS reaches the bat alias"
-  local shell fakepath
-  fakepath="$(_hi_fake_path fp_batopts bat)"
+# A value settings.sh exports reaches the alias built from it (core.sh and
+# config.fish source settings.sh ahead of this file): an *_OPTS replaces
+# hi's flags, an *_ADD follows them, and eza's never reach ls. bash and zsh
+# run the eza cases twice, the second through core.sh's _hi_bin_is.
+function run_tool_opts_test() {
+  _hi_h1 "The *_OPTS and *_ADD settings reach their aliases"
+  local shell bat eza ls helper hi_bat='-P --tabs 2 --style changes,grid'
+  local hi_eza='--smart-group --time-style="+%b %d %Y %H:%M"'
+  bat="$(_hi_fake_path fp_batopts bat)"
+  eza="$(_hi_fake_path fp_ezaopts eza ls)"
+  ls="$(_hi_fake_path fp_lsopts ls)"
   for shell in $_HI_INSTALLED_SHELLS; do
-    _hi_run_scenario "$shell" "$fakepath" \
-      "_HI_BAT_OPTS lands in the bat alias" \
-      _HI_BAT_OPTS='--style plain --opts-marker' _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--opts-marker'
+    _hi_run_scenario "$shell" "$bat" "_HI_BAT_OPTS lands in the bat alias" \
+      _HI_BAT_OPTS='--style plain --opts-marker' _HI_BODY_OF=bat _HI_BODY_HAS='--opts-marker'
+    _hi_run_scenario "$shell" "$bat" "_HI_BAT_ADD follows hi's bat flags" \
+      _HI_BAT_ADD='--add-marker' _HI_BODY_OF=bat _HI_BODY_HAS="$hi_bat --add-marker"
+    _hi_run_scenario "$shell" "$bat" "_HI_BAT_ADD follows batn's numbers" \
+      _HI_BAT_ADD='--add-marker' _HI_BODY_OF=batn _HI_BODY_HAS="$hi_bat,numbers --add-marker"
+    for helper in "" "_HI_CORE_HELPERS=$_HI_WORKDIR/path_lookup.sh"; do
+      case "$helper:$shell" in :* | *:bash | *:zsh) ;; *) continue ;; esac
+      _hi_run_scenario "$shell" "$eza" "_HI_EZA_ADD follows hi's eza flags; _HI_LS_OPTS stays out${helper:+ (_hi_bin_is)}" \
+        ${helper:+"$helper"} _HI_EZA_ADD='--eza-marker' _HI_LS_OPTS='--ls-marker' \
+        _HI_BODY_OF=ls _HI_BODY_HAS="$hi_eza --eza-marker" _HI_BODY_LACKS=--ls-marker
+      _hi_run_scenario "$shell" "$ls" "eza's settings never reach ls; _HI_LS_ADD does${helper:+ (_hi_bin_is)}" \
+        ${helper:+"$helper"} _HI_EZA_OPTS='--eza-marker' _HI_EZA_ADD='--eza-marker' _HI_LS_ADD='--ls-marker' \
+        _HI_BODY_OF=ls _HI_BODY_HAS='-F -l --color=auto --ls-marker' _HI_BODY_LACKS=--eza-marker
+    done
   done
 }
 
@@ -458,7 +474,7 @@ function run_tool_aliases_flag_tests() {
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_run_scenario "$shell" "$fakepath" \
       "default _HI_BAT_OPTS carry no --theme" \
-      _HI_CHECK_BAT_NO_THEME=1 _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='-P --tabs 2 --style changes,grid'
+      _HI_BODY_OF=bat _HI_BODY_HAS='-P --tabs 2 --style changes,grid' _HI_BODY_LACKS=--theme
   done
   _hi_h1 "_HI_TOOL_ALIASES opt-in"
   fakepath="$(_hi_fake_path fp_toolflags cat bat vi eza nano emacs micro sudo)"
@@ -582,7 +598,7 @@ function run_alias_fallthrough_test() {
   run_overlay_poisoning_test
   run_preexisting_alias_test
   run_path_lookup_tests
-  run_bat_opts_test
+  run_tool_opts_test
   run_session_wrapper_tests
 
   _hi_suite_end "" \

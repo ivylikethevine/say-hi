@@ -806,10 +806,10 @@ function test_config_flags_values_set_in_aliases_sh() {
   mkdir "$dir"
   printf '%s\n' "export _HI_BAT_OPTS='-p'" '# export _HI_LS_OPTS=x' \
     'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' \
-    'export _HI_TOOL_ALIASES=1' \
+    'export _HI_TOOL_ALIASES=1 _HI_EZA_ADD=--icons' \
     'export _HI_SUDO_ALIAS=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"
   out="$(_hi_doc_at "$dir" doctor_config)"
-  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_SUDO_ALIAS _HI_TOOL_ALIASES - "* ]] || _hi_why out || return 1
+  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_EZA_ADD _HI_SUDO_ALIAS _HI_TOOL_ALIASES - "* ]] || _hi_why out || return 1
   printf '%s\n' 'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' >"$dir/aliases.sh"
   out="$(_hi_doc_at "$dir" doctor_config)"
   [[ "$out" != *"alias-vars"* ]] || _hi_why out

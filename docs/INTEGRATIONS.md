@@ -173,13 +173,23 @@ With `_HI_TOOL_ALIASES=1`, hi builds these aliases from what the target has:
   pager, two-space tabs, `changes,grid` style, and your bat config's theme.
   `catn` adds line numbers. Without bat, `cat` is `ccat` or plain `cat`, and
   there is no `catn`.
-- `ls` and `eza` are one alias running eza if the target has it, else `ls`,
-  each with its own flags (`_HI_LS_OPTS`). Set `_HI_LS_OPTS` yourself and it
-  wins.
+- `ls` and `eza` are one alias running eza if the target has it, with
+  `_HI_EZA_OPTS`, else `ls`, with `_HI_LS_OPTS`. eza's flags never reach a
+  target's `ls`.
 
 Off, the default, `cat`, `ls`, and `bat` are the plain commands. No alias
-names a tool the target lacks. To add one flag to hi's, redefine the alias in
-[your `aliases.sh`](SETTINGS.md#shells-you-drop-into-inside-a-session).
+names a tool the target lacks. Set an `*_OPTS` setting and it replaces hi's
+flags; to keep them and add one, set `_HI_EZA_ADD`, `_HI_LS_ADD` or
+`_HI_BAT_ADD` in `settings.sh`:
+
+```sh
+export _HI_EZA_ADD='--icons'
+export _HI_BAT_ADD='--italic-text always'
+```
+
+A tool set by its environment, such as `TIME_STYLE` for eza and GNU `ls`,
+takes a table of your `plugins` that names the variable
+([Variables that ride](SETTINGS.md#variables-that-ride)).
 
 ### Shipping your bat theme
 

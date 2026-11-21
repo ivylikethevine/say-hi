@@ -441,7 +441,7 @@ function doctor_config() {
   if [ -n "$atext" ]; then
     toggles="$(grep -oE '_HI_(DISABLE_[A-Z_]+|TOOL_ALIASES|SUDO_ALIAS)' "$_HI_ALIASES" 2>/dev/null | sort -u | tr '\n' '|')"
     late="$(printf '%s\n' "$atext" |
-      grep -oE "(_HI_[A-Z0-9]+_(OPTS|BIN)|${toggles%|})=" |
+      grep -oE "(_HI_[A-Z0-9]+_(OPTS|ADD|BIN)|${toggles%|})=" |
       tr -d = | sort -u | tr '\n' ' ')" || true
   fi
   [ -z "$late" ] ||
