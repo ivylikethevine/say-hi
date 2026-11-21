@@ -9,8 +9,9 @@ of [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 
 As of 2026-11-20, branch `dev`; the newest release is v0.8.6.
 
-- Every entry waits on something outside this checkout: ci-shared's batch
-  (1), the 1.0.0 tag (2), or an upstream account or review (4 to 6).
+- 7 can start now; every other entry waits on something outside this
+  checkout: ci-shared's batch (1), the 1.0.0 tag (2), or an upstream account
+  or review (4 to 6).
 - `rerun-timeouts.yml` is still here, with its line in CONTRIBUTING.md's
   _What CI runs_; ci-shared drops it only after its stuck-runner workaround
   goes.
@@ -18,13 +19,34 @@ As of 2026-11-20, branch `dev`; the newest release is v0.8.6.
 
 ## Order of work
 
+- 7 first, before the 1.0.0 tag makes its settings a contract.
 - 1, once ci-shared's batch drops `rerun-timeouts.yml`.
 - 2, with the 1.0.0 tag.
 - 4, 5 and 6 after it, each when its upstream allows.
 
 ## Now
 
-Nothing that can move before one of the waits above clears.
+### 7. Tool settings that add to hi's (M)
+
+Changing one tool alias or config means replacing all of hi's. `_HI_LS_OPTS`
+is one value for both binaries: set to eza's flags, a target with only `ls`
+runs `ls` with flags it refuses; and adding one flag means an alias in
+`aliases.sh` that restates hi's defaults and its eza-or-ls choice
+([Integrations](INTEGRATIONS.md#bat-and-eza)). `_HI_BAT_OPTS` replaces hi's
+flags the same way. A tool set up by its environment alone, such as
+`TIME_STYLE` for eza and GNU `ls`, needs an extension file that exports it,
+since the `env` plugin carries a fixed few (`LESS`, `CLICOLOR`, `LS_COLORS`).
+
+- **Do:** eza's flags apart from `ls`'s (an `_HI_EZA_OPTS` beside
+  `_HI_LS_OPTS`); a way to add flags to hi's defaults for `ls`, eza and bat
+  without restating them; and a list of environment variable names the `env`
+  plugin carries, beside the ones it sends now. `--configure`, `--doctor` and
+  SETTINGS.md's table know each new setting, and INTEGRATIONS.md drops the
+  advice to redefine the alias.
+- **Ticks when:** one setting adds an eza flag that never reaches a target's
+  `ls`, one adds a bat flag while hi's others stay, and a named variable such
+  as `TIME_STYLE` reaches a target with no extension file, each with a case in
+  the suite.
 
 ## On hold
 
