@@ -205,10 +205,10 @@ What a finding must clear, and by when. The checks themselves are
 
 ## Supported versions
 
-Before **1.0**, the supported version is the latest release and the tip of
-`main`. Fixes ship in the next release, never as a backport, so a release
-stops receiving security updates when its successor is tagged. After 1.0
-this becomes a version table; what 1.x keeps stable is
+The supported version is the latest release and the tip of `main`. Fixes ship
+in the next release, never as a backport, so a release stops receiving
+security updates when its successor is tagged. What a 1.x release keeps stable
+is
 [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break).
 
 ## Reporting a vulnerability
