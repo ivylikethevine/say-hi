@@ -1,0 +1,382 @@
+#!/usr/bin/env bash
+# plan-scan [FILE...]: scans Claude Code plan files and other committed notes
+# for data about a developer, their machines or their file systems, and for
+# secrets, since they may be published. With no FILE, every file in the
+# current repo's scope. Prints FILE:LINE: CATEGORY: MATCH for each finding and
+# exits 1 when there is one, 2 when the scan cannot run.
+#   --hook   reads a PostToolUse payload on stdin and scans its file_path when
+#            it lies in scope; findings go to stderr with exit 2, which hands
+#            them back to the session to reword. A copy in the project's
+#            .claude/ that the project's own settings run as a hook takes
+#            over from one installed elsewhere; a copy the project only
+#            carries does not.
+#   --promote NAME...
+#            scans each rule draft local/rules/NAME.md of the current repo and
+#            moves each that passes into .claude/rules/; one that fails stays,
+#            with its findings printed.
+# A line directly under <!-- plan-allow --> is not reported.
+#
+# Scope: .md files under docs/plans/, .claude/rules/ and local/rules/ (rule
+# drafts), plus the repo-relative globs in the repo's .claude/plan-scan.paths,
+# one per line, # for comments, matched as case patterns (* crosses /).
+#
+# What it matches:
+#   patterns   home, temp, mount, tool-prefix and Claude Code state paths,
+#              emails, IPv4, IPv6 and MAC addresses, .local and .lan
+#              hostnames, UUIDs (device, simulator and session ids), AWS
+#              account ids in ARNs, ssh keys and config, secret-named values,
+#              and the list words that "allowed" and "denied" replace
+#   identity   read at scan time: the login, the full name and its parts, the
+#              hostname, the kernel release, and git's user.name of
+#              ~/.gitconfig and ~/.config/git/*
+#   data dir   $PLAN_SCAN_DIR (~/.local/share/plan-scan), each file optional,
+#              one entry per line, # for comments:
+#                denylist  names and path prefixes to block
+#                roots     directories whose folder names are blocked: each
+#                          folder up to two levels down, and each git repo
+#                          three levels down
+#                allow     words and values never blocked, a pattern's
+#                          whole match included
+#   repo allow .claude/plan-scan.allow of the repo a file is in, one entry per
+#              line, # for comments: names never blocked there as a folder
+#              name or a denylisted name. It excuses no pattern, identity or
+#              secret match.
+#   secrets    gitleaks' default rules, the secret itself redacted
+# Names match as whole words without case, and the plan's own repo and the
+# folder holding it never match. Needs rg (with PCRE2) and jq; gitleaks is
+# skipped with a note where it is missing. Runs on bash 3.2.
+set -uo pipefail
+# a caller's errexit, inherited through an exported SHELLOPTS (bashcov exports
+# it), would end the scan silently at the first test that is false
+set +e
+unset RIPGREP_CONFIG_PATH
+
+data=${PLAN_SCAN_DIR:-$HOME/.local/share/plan-scan}
+tab=$(printf '\t')
+nl='
+'
+
+case ${1-} in
+  -h | --help)
+    sed -n '2,/^set -uo/{ /^#/s/^# \{0,1\}//p; }' "$0"
+    exit 0
+    ;;
+esac
+hook=0 promote=0
+[ "${1-}" = --hook ] && hook=1 && shift
+[ "${1-}" = --promote ] && promote=1 && shift
+
+die() {
+  printf 'plan-scan: %s\n' "$1" >&2
+  exit 2
+}
+
+# entries FILE: its entries, comments and blank lines dropped
+entries() {
+  [ -r "$1" ] || return 0
+  sed -e 's/[[:space:]]#.*//' -e 's/^#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$1" | awk 'NF'
+}
+
+# load_globs TOP: the globs of TOP's .claude/plan-scan.paths, read once into
+# globs (a loop, not mapfile, for macOS's bash 3.2)
+load_globs() {
+  local g
+  globs=()
+  while IFS= read -r g; do globs+=("$g"); done < <(entries "$1/.claude/plan-scan.paths")
+}
+
+# listed REL: true when REL matches one of globs
+listed() {
+  local g
+  for g in ${globs[@]+"${globs[@]}"}; do
+    # shellcheck disable=SC2254 # the globs are the repo's own
+    case $1 in $g) return 0 ;; esac
+  done
+  return 1
+}
+
+# repo_top PATH: sets top to the repo holding PATH, by its .git, with no fork:
+# the hook runs on every edit
+repo_top() {
+  top=${1%/*}
+  while [ -n "$top" ] && [ ! -e "$top/.git" ]; do top=${top%/*}; done
+}
+
+# in_scope FILE: true for a file the scan covers
+in_scope() {
+  case $1 in */docs/plans/*.md | */.claude/rules/*.md | */local/rules/*.md) return 0 ;; esac
+  local top
+  repo_top "$1"
+  [ -n "$top" ] && [ -s "$top/.claude/plan-scan.paths" ] || return 1
+  load_globs "$top"
+  listed "${1#"$top"/}"
+}
+
+if [ "$hook" = 1 ]; then
+  # a project copy its settings run as a hook scans this edit itself, so this
+  # one stands aside; a copy the project only carries runs nowhere, so this scans
+  self=$(cd "$(dirname "$0")" && pwd)/${0##*/}
+  proj=${CLAUDE_PROJECT_DIR:+$CLAUDE_PROJECT_DIR/.claude/plan-scan}
+  if [ -n "$proj" ] && [ -f "$proj" ] && [ "$self" != "$proj" ] &&
+    grep -qsF '.claude/plan-scan --hook' "$CLAUDE_PROJECT_DIR/.claude/settings.json" "$CLAUDE_PROJECT_DIR/.claude/settings.local.json"; then
+    exit 0
+  fi
+fi
+command -v rg >/dev/null || die "rg is not installed, so plan files cannot be scanned"
+command -v jq >/dev/null || die "jq is not installed, so plan files cannot be scanned"
+
+if [ "$hook" = 1 ]; then
+  file=$(jq -r '.tool_input.file_path // ""') || die "could not read the hook payload"
+  [ -f "$file" ] || exit 0
+  in_scope "$file" || exit 0
+  set -- "$file"
+  # a copy with a plan-scan.sha256 beside it runs only while it matches
+  sums=${self%/*}/plan-scan.sha256
+  if [ -f "$sums" ]; then
+    want=$(awk '{ print $1; exit }' "$sums")
+    got=$({ sha256sum "$self" 2>/dev/null || shasum -a 256 "$self"; } | awk '{ print $1 }')
+    [ -n "$want" ] && [ "$got" = "$want" ] ||
+      die "$self does not match $sums, so it has drifted from the version recorded there; restore it or record the new version"
+  fi
+elif [ "$promote" = 1 ]; then
+  [ $# -gt 0 ] || die "--promote needs a rule name"
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || die "not in a git repo"
+  for n; do
+    shift
+    n=${n%.md}
+    [ -f "$top/local/rules/$n.md" ] || die "no draft at local/rules/$n.md"
+    [ -e "$top/.claude/rules/$n.md" ] && die ".claude/rules/$n.md already exists"
+    set -- "$@" "$top/local/rules/$n.md"
+  done
+elif [ $# -eq 0 ]; then
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || die "not in a git repo, and no FILE given"
+  while IFS= read -r f; do set -- "$@" "$f"; done < <(
+    {
+      for f in "$top"/docs/plans/*.md "$top"/.claude/rules/*.md "$top"/local/rules/*.md; do
+        [ -f "$f" ] && printf '%s\n' "$f"
+      done
+      if [ -s "$top/.claude/plan-scan.paths" ]; then
+        load_globs "$top"
+        git -C "$top" ls-files -co --exclude-standard | while IFS= read -r rel; do
+          listed "$rel" && printf '%s\n' "$top/$rel"
+        done
+      fi
+    } | sort -u
+  )
+  [ $# -gt 0 ] || exit 0
+fi
+
+# made only once there is a file to scan: the hook runs on every edit
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/plan-scan.XXXXXX") || exit 2
+trap 'case $tmp in */plan-scan.??????) rm -r -- "$tmp" ;; esac' EXIT
+
+# Identity, read once.
+{
+  user=$(id -un 2>/dev/null) && printf '%s\n' "$user"
+  printf '%s\n' "${USER-}"
+  full=$(id -F 2>/dev/null) ||
+    full=$(getent passwd "${user-}" 2>/dev/null | cut -d: -f5 | cut -d, -f1) || full=''
+  if [ -n "$full" ]; then
+    printf '%s\n' "$full"
+    for part in $full; do printf '%s\n' "$part"; done
+  fi
+  host=$(uname -n 2>/dev/null) && printf '%s\n%s\n' "$host" "${host%%.*}"
+  uname -r 2>/dev/null
+  for f in "$HOME/.gitconfig" "$HOME"/.config/git/*; do
+    [ -f "$f" ] && git config -f "$f" --get-all user.name 2>/dev/null
+  done
+} | awk 'length($0) >= 3' | sort -u >"$tmp/identity"
+
+# Folder names under each root, read once.
+entries "$data/roots" | while IFS= read -r root; do
+  [ -d "$root" ] || continue
+  for a in "$root"/*/; do
+    [ -d "$a" ] || continue
+    a=${a%/}
+    printf '%s\n' "${a##*/}"
+    for b in "$a"/*/; do
+      [ -d "$b" ] || continue
+      b=${b%/}
+      printf '%s\n' "${b##*/}"
+      [ -e "$b/.git" ] && continue
+      for c in "$b"/*/; do
+        [ -e "$c.git" ] && c=${c%/} && printf '%s\n' "${c##*/}"
+      done
+    done
+  done
+done | sort -u >"$tmp/folders"
+
+entries "$data/denylist" | awk 'length($0) >= 3' | sort -u >"$tmp/denylist"
+entries "$data/allow" >"$tmp/allow"
+allow_words=$nl$(cat "$tmp/allow")$nl
+[ -s "$tmp/denylist" ] || [ -s "$tmp/folders" ] ||
+  printf 'plan-scan: nothing in %s; machine and folder names are not checked\n' "$data" >&2
+
+# Fixed patterns: CATEGORY, a tab, a PCRE.
+cat >"$tmp/patterns" <<'EOF'
+home path	(?:/home/|/Users/|/var/root/|/root/|[A-Za-z]:\\\\Users\\\\)[^\s'"`)\]>;,]*
+home-relative path	(?<![\w/.~])~/[^\s'"`)\]>;,]*
+home variable	\$HOME\b|\$\{HOME\}|%USERPROFILE%|\$env:USERPROFILE
+temp path	(?:/tmp/claude-|/private/var/folders/|/var/folders/)[^\s'"`)\]>;,]*
+mounted volume path	(?:/run/media/|/media/|/mnt/|/Volumes/)[^\s'"`)\]>;,]*
+tool prefix path	(?:/opt/homebrew/|/usr/local/Cellar/|/nix/store/)[^\s'"`)\]>;,]*
+Claude Code state path	\.claude/(?:projects|shell-snapshots|session-env|todos|plans|jobs)/[^\s'"`)\]>;,]*
+email	[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}
+IPv4 address	(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])
+IPv6 address	(?<![\w:])(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}(?![\w:])|(?<![\w:])(?:[0-9A-Fa-f]{1,4}:){1,6}:(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,5})?(?![\w:])
+MAC address	(?<![\w:-])(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}(?![\w:-])
+local hostname	(?i)\b[a-z0-9-]+\.(?:local|lan|home\.arpa|internal|localdomain)\b(?!\.[a-z0-9])
+UUID (device, simulator or session id)	\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b
+AWS account id	arn:aws[\w-]*:[\w-]*:[\w-]*:\d{12}:
+ssh key or config	ssh-(?:ed25519|rsa|dss)\s+AAAA|ecdsa-sha2-\S+\s+AAAA|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:IdentityFile|ProxyJump)\b
+secret-named value	\b[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY|PRIVATE_KEY|ACCESS_KEY)[A-Z0-9_]*\s*[=:]\s*['"]?[^\s'"]{6,}
+wording (allowed, denied)	(?i)\b(?:white|black)[ -]?list(?:ed|ing|s)?\b
+EOF
+
+# allowed MATCH CATEGORY: true for a match that is not personal data
+allowed() {
+  shopt -s nocasematch
+  case $allow_words in *"$nl$1$nl"*)
+    shopt -u nocasematch
+    return 0
+    ;;
+  esac
+  shopt -u nocasematch
+  case $2 in
+    email)
+      case ${1##*@} in
+        example.com | example.org | example.net | *.example | *.invalid | *.test | *.localhost) return 0 ;;
+      esac
+      ;;
+    "IPv4 address")
+      case $1 in
+        127.0.0.1 | 0.0.0.0 | 10.0.2.2 | 255.255.255.255 | 255.255.255.0 | 192.0.2.* | 198.51.100.* | 203.0.113.*) return 0 ;;
+      esac
+      ;;
+    "IPv6 address") [ "$1" = ::1 ] && return 0 ;;
+    UUID*) case $1 in 00000000-0000-*) return 0 ;; esac ;;
+  esac
+  return 1
+}
+
+out=$tmp/findings
+: >"$out"
+missing=0
+
+# report CATEGORY: reads FILE<TAB>LINE<TAB>MATCH from rg -o, appends findings
+report() {
+  local file line match
+  while IFS=$tab read -r file line match; do
+    # a path that ends a sentence keeps its period out
+    case $1 in *path) match=${match%.} ;; esac
+    case $allow_lines in *"$nl$file$tab$line$nl"*) continue ;; esac
+    allowed "$match" "$1" && continue
+    printf '%s:%s: %s: %s\n' "$file" "$line" "$1" "$match" >>"$out"
+  done
+}
+
+# rgt ARG...: rg's matches as FILE<TAB>LINE<TAB>MATCH
+rgt() { rg -n -o --with-filename --field-match-separator="$tab" "$@"; }
+
+# names LIST CATEGORY FILE...: whole-word matches of LIST's names in the
+# FILEs, less the allowed words and the names in $tmp/skip
+names() {
+  local list=$1 category=$2
+  shift 2
+  [ -s "$list" ] || return 0
+  grep -v -x -i -F -f "$tmp/skip" "$list" >"$tmp/names" || :
+  [ -s "$tmp/names" ] || return 0
+  rgt -i -w -F -f "$tmp/names" -- "$@" | report "$category"
+}
+
+# repo_names FILE...: the name lists over FILEs of one repo, $own, whose name
+# and folder's never match; the repo's own allow list excuses a folder name
+# and a denylisted name, never the scanning developer's identity
+repo_names() {
+  local parent=${own%/*}
+  cp "$tmp/allow" "$tmp/skip"
+  [ -z "$own" ] || printf '%s\n%s\n' "${own##*/}" "${parent##*/}" >>"$tmp/skip"
+  names "$tmp/identity" identity "$@"
+  [ -z "$own" ] || entries "$own/.claude/plan-scan.allow" >>"$tmp/skip"
+  names "$tmp/folders" "folder name" "$@"
+  names "$tmp/denylist" "denylisted name" "$@"
+}
+
+for file; do
+  shift
+  if [ -f "$file" ]; then
+    set -- "$@" "$file"
+  else
+    printf 'plan-scan: no such file: %s\n' "$file" >&2
+    missing=1
+  fi
+done
+[ $# -gt 0 ] || exit "$missing"
+# each FILE<TAB>LINE under a plan-allow comment
+allow_lines=$nl$(awk 'FNR == 1 { prev = "" }
+  prev ~ /<!--[[:space:]]*plan-allow[[:space:]]*-->/ { print FILENAME "\t" FNR }
+  { prev = $0 }' "$@")$nl
+
+# each pattern over every file at once
+while IFS=$tab read -r category re; do
+  [ -n "$re" ] || continue
+  rgt -P -e "$re" -- "$@" | report "$category"
+done <"$tmp/patterns"
+
+# the name lists once per repo, over its files together, a run of files in one
+# repo as a batch
+own='' batch=()
+for file; do
+  case $file in
+    /*) repo_top "$file" ;;
+    *) repo_top "$PWD/$file" ;;
+  esac
+  if [ ${#batch[@]} -gt 0 ] && [ "$top" != "$own" ]; then
+    repo_names "${batch[@]}"
+    batch=()
+  fi
+  own=$top
+  batch+=("$file")
+done
+repo_names "${batch[@]}"
+
+if command -v gitleaks >/dev/null; then
+  for file; do
+    rm -f "$tmp/leaks.json"
+    gitleaks dir --no-banner --redact -l error -f json -r "$tmp/leaks.json" --exit-code 0 -- "$file" >/dev/null 2>&1
+    [ -s "$tmp/leaks.json" ] && jq -r --arg f "$file" '.[] | "\($f)\t\(.StartLine)\t\(.RuleID)"' "$tmp/leaks.json" |
+      report "secret (gitleaks)"
+  done
+else
+  printf 'plan-scan: gitleaks is not installed; secrets are not checked\n' >&2
+fi
+
+[ -s "$out" ] && sort -u "$out" | sort -s -t: -k1,1 -k2,2n >"$tmp/sorted"
+if [ "$promote" = 1 ]; then
+  [ -s "$out" ] && cat "$tmp/sorted"
+  for file; do
+    if grep -q -F -e "$file:" "$out"; then
+      printf 'plan-scan: %s failed the scan and stays in local/rules/\n' "${file##*/}" >&2
+    elif mkdir -p "$top/.claude/rules" && mv -- "$file" "$top/.claude/rules/"; then
+      printf 'plan-scan: moved %s to .claude/rules/\n' "${file##*/}"
+    else
+      missing=1
+    fi
+  done
+  [ -s "$out" ] && exit 1
+  exit "$missing"
+fi
+if [ -s "$out" ]; then
+  if [ "$hook" = 1 ]; then
+    {
+      echo "plan-scan: this file holds data about a developer, a machine or a file system, or a secret, and it may be published."
+      echo "Reword each line below: repo-relative paths, a machine by its role (\"the Mac\", \"the Linux machine\"), no names, addresses or ids."
+      echo "A deliberate one gets <!-- plan-allow --> on the line above it."
+      cat "$tmp/sorted"
+    } >&2
+    exit 2
+  fi
+  cat "$tmp/sorted"
+  exit 1
+fi
+exit "$missing"
