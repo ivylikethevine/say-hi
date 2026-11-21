@@ -13,7 +13,6 @@ it rather than copying it.
 - [Traps](#traps)
 - [Docs rules](#docs-rules)
 - [Repository mechanics](#repository-mechanics)
-- [Machine-specific notes](#machine-specific-notes)
 
 ## Verification loop
 
@@ -172,8 +171,3 @@ are all machine-read by a suite, and `README.md`'s payload badge by
   together, never in a workflow; markdownlint-cli2 and prettier are
   `.github/package-lock.json`'s
   ([docs/TESTING.md's _The lint gate_](docs/TESTING.md#the-lint-gate)).
-
-## Machine-specific notes
-
-Absolute paths, which tree on this host is a real install, and the host's
-`/bin/sh` live in an untracked `CLAUDE.local.md` beside this file.
