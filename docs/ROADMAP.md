@@ -24,7 +24,7 @@ As of 2026-11-20, branch `dev`; the newest release is v0.8.6.
 
 ## Now
 
-Nothing that can move before one of the waits above clears.
+Nothing that can start in this checkout.
 
 ## On hold
 

@@ -12,7 +12,7 @@
 # eval fish never runs (fish's `command -v` reports no builtin `shift`). `-`,
 # not `:-`, so set empties survive. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${_HI_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}"; _HI_ALIAS_GUARD="${_HI_ALIAS_GUARD-true}" FISH_VERSION="${FISH_VERSION-}"' 2>/dev/null || true
+  eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${_HI_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_BAT_ADD="${_HI_BAT_ADD-}" _HI_LS_ADD="${_HI_LS_ADD-}" _HI_EZA_ADD="${_HI_EZA_ADD-}"; _HI_ALIAS_GUARD="${_HI_ALIAS_GUARD-true}" FISH_VERSION="${FISH_VERSION-}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists, one rung per dialect: bash and
 # zsh through _hi_path_lookup, sh in backticks after `unalias -a`, fish
@@ -49,24 +49,32 @@ command -v shift >/dev/null 2>&1 &&
 # lookups above with them: cat is bat with these options when bat exists, ccat
 # or plain cat otherwise; bat, batcat, batn, and catn exist only with bat.
 # Everything they carry is bat syntax (-P included), hence the $_HI_BAT_BIN
-# gate. No --theme: that is your bat config's to say.
+# gate. No --theme: that is your bat config's to say. $_HI_BAT_ADD follows
+# hi's flags, or your $_HI_BAT_OPTS, on a line of its own: an alias body
+# ending in a blank would alias-expand the word after it.
 [ -z "$_HI_BAT_OPTS" ] && export _HI_BAT_OPTS='-P --tabs 2 --style changes,grid' || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias batcat="$_HI_CAT_BIN" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias bat="batcat $_HI_BAT_OPTS" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && [ -n "$_HI_BAT_ADD" ] && alias bat="batcat $_HI_BAT_OPTS $_HI_BAT_ADD" && alias batn="batcat $_HI_BAT_OPTS,numbers $_HI_BAT_ADD" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_CAT_BIN" ] && alias cat="$_HI_CAT_BIN" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias cat="bat" && alias catn="batn" || true
 
-# One alias body under `ls` and `eza`, with each binary's own flags
-# ($_HI_LS_OPTS; a set value wins): eza's beyond `-F -l` mean nothing to ls,
-# and ls gets `--color=auto` where it takes it. Time format:
+# One alias body under `ls` and `eza`, with each binary's own flags, a set
+# value winning: $_HI_EZA_OPTS where the binary is eza, $_HI_LS_OPTS (with
+# `--color=auto` where ls takes it) otherwise, then $_HI_EZA_ADD or
+# $_HI_LS_ADD. $_HI_LS_FLAGS is what the alias runs. Time format:
 # https://docs.rs/chrono/latest/chrono/format/strftime/index.html
-[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" eza && export _HI_LS_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
-# shellcheck disable=SC2006,SC2015
-[ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "`type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza`" ] || export _HI_LS_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"'
-[ -n "$FISH_VERSION" ] && [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v eza | string match -q -- "$_HI_LS_BIN" && export _HI_LS_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
+[ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ -z "$_HI_LS_OPTS" ] && export _HI_LS_OPTS='-F -l' && command ls --color=auto -d / >/dev/null 2>&1 && export _HI_LS_OPTS='-F -l --color=auto' || true
-[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
+export _HI_LS_FLAGS="$_HI_LS_OPTS" _HI_EZA_FLAGS="$_HI_EZA_OPTS"
+[ -n "$_HI_LS_ADD" ] && export _HI_LS_FLAGS="$_HI_LS_OPTS $_HI_LS_ADD" || true
+[ -n "$_HI_EZA_ADD" ] && export _HI_EZA_FLAGS="$_HI_EZA_OPTS $_HI_EZA_ADD" || true
+[ -n "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" eza && export _HI_LS_FLAGS="$_HI_EZA_FLAGS" || true
+# shellcheck disable=SC2006,SC2015
+[ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "`type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza`" ] || export _HI_LS_FLAGS="$_HI_EZA_FLAGS"
+[ -n "$FISH_VERSION" ] && [ -n "$_HI_LS_BIN" ] && command -v eza | string match -q -- "$_HI_LS_BIN" && export _HI_LS_FLAGS="$_HI_EZA_FLAGS" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_FLAGS" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
 
 # A bash or fish started in a session gets hi's rc through these wrappers

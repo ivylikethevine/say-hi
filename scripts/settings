@@ -47,5 +47,9 @@ you | _HI_TRUECOLOR | by terminal | flag | 1, 0, or unset for the terminal's own
 you | _HI_EDITOR | unset | editor | one of | the editor a session sets as `$EDITOR`, `$VISUAL`, and `$SUDO_EDITOR`, where the target has it; unset, your own `$EDITOR`, else the first of `nvim vim micro hx helix kak nano emacs` the target has
 you | _HI_POWERLINE_GO_OPTS | unset | - | - | extra flags for [powerline-go](https://github.com/justjanne/powerline-go) (`-modules venv,cwd,git -mode flat`)
 you | NO_COLOR | unset | - | - | [the convention](https://no-color.org): any non-empty value turns off color, on targets too
-you | _HI_LS_OPTS | `-F -1 -l -m --group-directories-first --smart-group` + a time format where eza answers, else `-F -l` (and `--color=auto` where `ls` takes it) | - | - | the flags of the `ls`/`eza` alias; set, it replaces hi's
+you | _HI_LS_OPTS | `-F -l`, and `--color=auto` where `ls` takes it | - | - | the flags of the `ls` alias where it runs `ls`; set, it replaces hi's
+you | _HI_EZA_OPTS | `-F -1 -l -m --group-directories-first --smart-group` + a time format | - | - | the flags of the `ls`/`eza` alias where it runs eza; set, it replaces hi's
 you | _HI_BAT_OPTS | `-P --tabs 2 --style changes,grid` | - | - | the flags of the `bat`/`batn` aliases; no `--theme`, so your bat config's theme shows
+you | _HI_LS_ADD | unset | - | - | flags added after `_HI_LS_OPTS`, so hi's stay (`-h`)
+you | _HI_EZA_ADD | unset | - | - | flags added after `_HI_EZA_OPTS`, so hi's stay (`--icons`); never reaches `ls`
+you | _HI_BAT_ADD | unset | - | - | flags added after `_HI_BAT_OPTS`, so hi's stay (`--italic-text always`)

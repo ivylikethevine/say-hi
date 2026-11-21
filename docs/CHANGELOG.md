@@ -15,6 +15,7 @@ in the list below, and nothing else is ever done to this file.
 
 From the roadmap:
 
+- eza's flags are `_HI_EZA_OPTS`, apart from `ls`'s `_HI_LS_OPTS`, so a target with only `ls` never gets flags it refuses; `_HI_EZA_ADD`, `_HI_LS_ADD` and `_HI_BAT_ADD` add flags after hi's in place of an alias in `aliases.sh` that restates them, and a variable such as `TIME_STYLE` rides through a table of your `plugins` that names it.
 - [SECURITY.md](SECURITY.md#supported-versions) supports the latest release and the tip of `main`, before 1.0 and after it, with fixes shipped forward and no backports, so no release changes it.
 - The apt, rpm and apk repository stays a channel beside the release's own package files, subscribers or none; [PACKAGING.md](PACKAGING.md#install-channels) lists what ships.
 - Coverage is measured by bashcov alone: kcov's sweep, its badge, and `tests/coverage.sh` are gone, and `tests/coverage_v2.sh --untested` lists a change's unrun lines.
