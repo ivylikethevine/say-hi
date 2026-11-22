@@ -592,7 +592,7 @@ function test_a_relay_hands_on_what_it_carried() {
   _hi_prints : _hi_in_session "$dir" "$dir/say hi/config" _hi_overlay_fixup "'$next'"
 }
 
-# hi.sh reaches the packer through the five functions a session defines for
+# hi.sh reaches the packer through the four functions a session defines for
 # itself, and four more that run only with an overlay to send or outside a
 # session. The session's stripped copy is read, so a comment names nothing.
 function test_hi_sh_reaches_the_packer_only_through_the_seam() {

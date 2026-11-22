@@ -29,14 +29,14 @@ this alone on your own machine ([On your own machine](#on-your-own-machine)).
 
 ## At a glance
 
-| tool                                                                                                                                                                                                                                                                                                                                                                                           | what hi does with it                                                          | on by default               | switch                                        |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------- | --------------------------------------------- |
-| [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [bash-it](https://github.com/Bash-it/bash-it) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                    | yes, where installed here   | `_HI_PROMPT_TOOL` (`hi` for hi's own)         |
-| mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv                                                                                                                                                                                                                                                                                                               | names the active ones in the prompt's leading `(myproj)` segment              | yes                         | `_HI_DISABLE_ENV_STATUS`                      |
-| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza)                                                                                                                                                                                                                                                                                                             | `cat`, `bat`, and `ls`/`eza` aliases with hi's flags and your theme           | no: opt-in, where installed | `_HI_TOOL_ALIASES`                            |
-| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                                                                           | `hi --keep` runs the session inside one on the target; your `tmux.conf` rides | no: per connect             | `--keep`, `--no-keep`, `--end`                |
-| vim/neovim, nano, emacs, micro, [helix](https://helix-editor.com), [kakoune](https://kakoune.org)                                                                                                                                                                                                                                                                                              | opens with your config through an alias ([the files](FILES.md#the-overlay))   | yes                         | `hi --disable-plugin editors`, or one by name |
-| oh-my-zsh, powerlevel10k, bash-it, fzf                                                                                                                                                                                                                                                                                                                                                         | loads after them and leaves their hooks working                               | -                           | [Shell frameworks](#shell-frameworks)         |
+| tool                                                                                                                                                                                                                                                                                                                                                                                           | what hi does with it                                                          | on by default               | switch                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------- |
+| [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [bash-it](https://github.com/Bash-it/bash-it) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                    | yes, where installed here   | `_HI_PROMPT_TOOL` (`hi` for hi's own)                                  |
+| mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv                                                                                                                                                                                                                                                                                                               | names the active ones in the prompt's leading `(myproj)` segment              | yes                         | `_HI_DISABLE_ENV_STATUS`                                               |
+| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza)                                                                                                                                                                                                                                                                                                             | `cat`, `bat`, and `ls`/`eza` aliases with hi's flags and your theme           | no: opt-in, where installed | `_HI_TOOL_ALIASES`                                                     |
+| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                                                                           | `hi --keep` runs the session inside one on the target; your `tmux.conf` rides | no: per connect             | `--keep`, `--no-keep`, `--end`                                         |
+| vim/neovim, nano, emacs, micro, [helix](https://helix-editor.com), [kakoune](https://kakoune.org)                                                                                                                                                                                                                                                                                              | opens with your config through an alias ([the files](FILES.md#the-overlay))   | yes                         | `hi --disable-plugin vim nvim nano emacs hx kak micro`, or one by name |
+| oh-my-zsh, powerlevel10k, bash-it, fzf                                                                                                                                                                                                                                                                                                                                                         | loads after them and leaves their hooks working                               | -                           | [Shell frameworks](#shell-frameworks)                                  |
 
 ## Prompt programs
 
@@ -214,8 +214,9 @@ reattaches. `--no-keep` opens an ordinary session beside it. A colleague on
 the same account gets a session of their own. `_HI_KEEP=1` makes every
 connect a kept one.
 
-It needs a target with bash, an ssh host or a container, and a terminal on
-your side; anywhere else hi says so and connects as usual.
+It needs a target with bash, on any backend, and a terminal on your side.
+Without a terminal the session is an ordinary one; a target without bash gets
+the usual notice, and `--plain` says it skips `--keep`.
 
 **Ending it**, which removes the session's directory:
 
@@ -227,7 +228,7 @@ your side; anywhere else hi says so and connects as usual.
 Detach with the multiplexer's own key. New panes and windows run hi's shell
 too.
 
-**A dropped link.** hi retries for `_HI_KEEP_RETRY` (5m) and lands you back
+**A dropped link.** On an ssh host, hi retries for `_HI_KEEP_RETRY` (5m) and lands you back
 in the session, showing how long the target keeps it. Ctrl+C stops retrying;
 `hi <target>` reattaches later. ssh's `~.` counts as a drop, so `~.` then
 Ctrl+C leaves. A silent link counts as dropped after 45 seconds unless your
@@ -251,8 +252,8 @@ a file the target does not have (`source-file`, TPM's plugins, zellij's
 `file:` plugins) goes out disabled, and `hi --doctor` names it.
 
 `_HI_DISABLE_KEEP=1` turns all of this off: `--keep` and `--end` are refused,
-and the multiplexers in a session are the plain tools. For a container or
-`--plain`, use a multiplexer of your own:
+and the multiplexers in a session are the plain tools. For `--plain`, use a
+multiplexer of your own:
 `tmux new -A -s <name> hi <target>`. How it works:
 [HI.65](GLOSSARY.md#hi65-kept-session).
 

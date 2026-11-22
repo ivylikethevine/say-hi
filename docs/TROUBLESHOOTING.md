@@ -42,8 +42,8 @@ shells alias `hi`.
 
 ### The install says it cannot write an rc file
 
-The file is read-only or belongs to a dotfile manager. Nothing was changed.
-Run `hi --install --print-rc` and add the block it prints to the copy the
+The file is read-only or belongs to a dotfile manager. That file was not
+changed; the rest of the install went ahead, and it exits non-zero. Run `hi --install --print-rc` and add the block it prints to the copy the
 manager deploys
 ([SETTINGS.md](SETTINGS.md#keeping-the-overlay-in-a-dotfile-manager)).
 

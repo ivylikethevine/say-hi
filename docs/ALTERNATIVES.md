@@ -38,8 +38,9 @@ below is a member of it.
 Not the same thing: **terminal emulators that help with ssh**, like
 [kitty's ssh kitten], which solve the adjacent terminfo / shell-integration
 problem. If your pain is "backspace is broken over ssh", that is the fix, and
-it composes with say-hi — which handles the terminfo half itself, swapping a
-`TERM` the target has no entry for to `xterm-256color`
+it composes with say-hi — which handles the terminfo half itself: for a
+`TERM` the target has no entry for, it compiles your terminal's entry there
+when the target has `tic`, else swaps `TERM` to `xterm-256color`
 ([HI.22](GLOSSARY.md#hi22-term-fallback-probe)).
 
 ## The direct alternatives, side by side
@@ -62,8 +63,9 @@ it composes with say-hi — which handles the terminfo half itself, swapping a
 ### sshrc — the ancestor
 
 say-hi is a fork of [sshrc] (via [cdown's] and [danrabinowitz's] lines), and
-the core idea is unchanged: tar your config, base64 it, hand it to the login
-shell, source it on the far side. Links here point at [cdown's] fork, the
+the core idea is unchanged: tar your config, hand it to the login shell,
+source it on the far side (sshrc base64s it into argv; say-hi sends it raw
+over stdin). Links here point at [cdown's] fork, the
 maintained continuation, which keeps the design (64KB argv ceiling included).
 
 **Where sshrc still wins:** smaller and simpler, which counts in something

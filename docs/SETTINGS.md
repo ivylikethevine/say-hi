@@ -64,8 +64,9 @@ one, `balanced` by default.
 | `minimal`    | the colored prompt and your configs; no header, git status, or editor configs; nothing on this machine                              |
 | `lean`       | `minimal`, and nothing of yours rides: every plugin stays home, hi's own prompt everywhere, ssh the only backend                    |
 
-`lean` is the least hi can send: only `settings.sh`, `colors`, and `packages`
-ride, no prompt program runs on a target, and no backend CLI starts. It also
+`lean` is the least hi can send: only `settings.sh`, `colors`, and any
+`ssh_tags` ride (`packages` stays home with the header), no prompt program
+runs on a target, and no backend CLI starts. It also
 sets `_HI_PROMPT_TOOL=hi` and `_HI_BACKENDS_OFF=all`, which other presets do
 not reset; comment those two lines out to leave it.
 
@@ -97,7 +98,8 @@ an old name, with the `mv` that fixes it.
 ### The site tier
 
 A team's defaults for every account on a box live in `/etc/say-hi/` (or the
-first `say-hi/` under `$XDG_CONFIG_DIRS`): `settings.sh`, `colors`,
+first `say-hi/` under `$XDG_CONFIG_DIRS`; an exported `$_HI_SITE_DIR` names
+another and skips that search): `settings.sh`, `colors`,
 `packages`, and `plugins`, shaped like the overlay's. They sit between the
 tree's defaults and yours:
 
@@ -141,16 +143,16 @@ is written from `scripts/settings`.
 | `_HI_PROMPT_END_FISH`       | `\|`                                                                  | you              | fish's prompt separator; unset, root gets `#`                                                                                                                                                                                        |
 | `_HI_DISABLE_LEAD_SPACE`    | `0`                                                                   | you              | `1` drops the leading space before the prompt and each header row                                                                                                                                                                    |
 | `_HI_DISABLE_RIGHT_EDGE`    | `0`                                                                   | you              | `1` drops the closing \| from every header row                                                                                                                                                                                       |
-| `_HI_PLUGINS_ON`            | unset                                                                 | you              | plugins that are off by default (`hooks`, `env`, `git`) to turn on; `hi --enable-plugin` writes it ([Switching a plugin off](#switching-a-plugin-off))                                                                               |
+| `_HI_PLUGINS_ON`            | unset                                                                 | you              | plugins that are off by default (`env`, `git`, and the hooks: `zoxide`, `atuin`, `direnv`, `mise`) to turn on; `hi --enable-plugin` writes it ([Switching a plugin off](#switching-a-plugin-off))                                    |
 | `_HI_PLUGINS_OFF`           | unset                                                                 | a preset, or you | plugins or files that stay home; `hi --disable-plugin` writes it ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                 |
-| `_HI_KEEP`                  | `0`                                                                   | you              | `1` makes every ssh connect a `--keep` one; `--no-keep` skips it once ([Integrations](INTEGRATIONS.md#terminal-multiplexers))                                                                                                        |
+| `_HI_KEEP`                  | `0`                                                                   | you              | `1` makes every connect a `--keep` one; `--no-keep` skips it once ([Integrations](INTEGRATIONS.md#terminal-multiplexers))                                                                                                            |
 | `_HI_UPDATE_UNSIGNED`       | `0`                                                                   | you              | `1` lets `hi --update` take a tag it cannot verify (unsigned, an unknown key, or no gpg), saying which; a bad signature refuses either way ([Security](SECURITY.md#what-hi-does---and-deliberately-doesnt))                          |
 | `_HI_PLAIN`                 | `0`                                                                   | a preset, or you | `1` makes every connect a `--plain` one, sending nothing; `--no-plain` skips it once. Most useful in a tag's file ([Settings by host tag](#settings-by-host-tag))                                                                    |
 | `_HI_KEEP_TIMEOUT`          | `24h`                                                                 | you              | how long a kept session waits with nobody attached before it closes; `0` is never. Read on the target                                                                                                                                |
 | `_HI_HOLD_TIMEOUT`          | `15m`                                                                 | you              | how long a dropped session's files wait for a reconnect on a target with no multiplexer; `0` holds nothing. Read on the target                                                                                                       |
 | `_HI_KEEP_RETRY`            | `5m`                                                                  | you              | how long hi retries a kept session after the link drops; `0` is never                                                                                                                                                                |
 | `_HI_DISABLE_KEEP`          | `0`                                                                   | you              | `1` turns kept sessions off: `--keep` and `--end` are refused, and `tmux`, `zellij`, and `screen` are the plain tools ([Integrations](INTEGRATIONS.md#terminal-multiplexers))                                                        |
-| `_HI_SHELL_PREFERENCE`      | `login`                                                               | you              | the shells a session tries, in order: `login` (your login shell on the target), `bash`, `zsh`, or `fish`; the first the target has wins. Read on the target                                                                          |
+| `_HI_SHELL_PREFERENCE`      | `login`                                                               | you              | the shells a session tries, in order: `login` (your login shell on the target), `bash`, `zsh`, or `fish`; the first the target has wins, then fish, zsh, and bash. Read on the target                                                |
 | `_HI_BACKENDS_OFF`          | unset                                                                 | you              | backends hi never asks (`docker`, `podman`, `nerdctl`, `finch`, `nomad`, `kube`), or `all` for ssh alone; `--use` still reaches one ([Compatibility](COMPATIBILITY.md#what-ships))                                                   |
 | `_HI_DISABLE_CONTROLMASTER` | `0`                                                                   | you              | `1` stops hi passing ssh its `ControlMaster` options, so your ssh config decides; a connect then authenticates twice ([Security](SECURITY.md#trust-boundaries))                                                                      |
 | `_HI_TRUECOLOR`             | by terminal                                                           | you              | `1` or `0` forces or refuses 24-bit color; unset, the terminal decides ([Colors](COLORS.md))                                                                                                                                         |
@@ -168,8 +170,8 @@ is written from `scripts/settings`.
 
 Names that look like settings but are not:
 
-- `$_HI_HOME`, `$_HI_ROOT`, and `$_HI_CONFIG_DIR` are read **before**
-  `settings.sh`, so a line there is too late: export them in your
+- `$_HI_HOME`, `$_HI_ROOT`, `$_HI_CONFIG_DIR`, and `$_HI_SITE_DIR` are read
+  **before** `settings.sh`, so a line there is too late: export them in your
   environment.
 - `$_HI_SSH_CONFIG`, `$_HI_COLORS`, and `$_HI_PACKAGES` are recomputed on
   every load: put your file in the overlay instead.
@@ -208,13 +210,15 @@ A host's tags come from its `# Tags:` or `Tag` line in `~/.ssh/config`
 (`hi --add-tag` writes one) or the name of its file in `~/.ssh/config.d`
 ([Colors](COLORS.md)). A container, allocation, or pod carries its
 backend's word (`docker`, `podman`, `nerdctl`, `finch`, `nomad`, `kube`), and
-a pod its context and namespace too.
+a pod typed as `namespace:pod` or `context:namespace:pod` the words typed too.
 
-- hi reads the tag files after `settings.sh`, so their lines win; with
-  several tags, the last listed wins. The target is sent one `settings.sh`
-  with them joined on, so `settings.prod.sh` reaches only `prod` hosts.
-- A pod reads `settings.kube.sh`, then its context's file, then its
-  namespace's. The six backend words are reserved for tags.
+- hi reads the tag files after `settings.sh`, so their lines win. An ssh host
+  carries one tag, the first its `# Tags:` line lists. The target is sent one
+  `settings.sh` with them joined on, so `settings.prod.sh` reaches only `prod`
+  hosts.
+- A pod reads `settings.kube.sh`, then its typed context's file, then its
+  typed namespace's, the last winning. The six backend words are reserved for
+  tags.
 - A tag names a file only when it is letters, digits, `_`, and `-`.
 - `hi --configure` writes only `settings.sh`; write a tag's file by hand.
 - A `hi` run inside a session reads none; it inherits what it was sent.
@@ -242,7 +246,7 @@ order for when you turn it back on.
 | `ram`        | used/total memory                                              |
 | `ip`         | this box's routable IPv4 address(es)                           |
 | `gitid`      | the masked git identity (`user.email`)                         |
-| `containers` | the docker/podman container count, when either runs            |
+| `containers` | the container count, from docker, podman, nerdctl, and finch   |
 | `jobs`       | the nomad job count, when nomad answers                        |
 | `pods`       | the reachable kube pod count, when kubectl answers             |
 | `auth`       | the `~/.ssh/authorized_keys` line count                        |
@@ -253,9 +257,9 @@ order for when you turn it back on.
 
 - A word left out is not printed; an unknown word is ignored. Your own words
   are [header cells](INTEGRATIONS.md#header-cells-of-your-own).
-- `containers`, `jobs`, and `pods` ask docker, podman, nomad, and kubectl on
-  every header, each capped by `_HI_PROBE_TIMEOUT`. Leave them out and none
-  is started.
+- `containers`, `jobs`, and `pods` ask docker, podman, nerdctl, finch, nomad,
+  and kubectl on every header, each capped by `_HI_PROBE_TIMEOUT`. Leave them
+  out and none is started.
 - No two cells side by side share a color
   ([HI.48](GLOSSARY.md#hi48-header-cell-hue-resolution)).
 - A line too long for `_HI_MAX_WIDTH` continues on the next, until the
@@ -386,14 +390,17 @@ them, with where each file was found and whether it rides:
 
 - `hi --disable-plugin lazygit` keeps it home (in `_HI_PLUGINS_OFF`), and
   `hi --enable-plugin lazygit` lets it ride again.
-- Plugins off by default (`hooks`, `env`, `git`) turn on through
-  `_HI_PLUGINS_ON`, which the same two commands edit.
+- Plugins off by default (`env`, `git`, and the hooks: `zoxide`, `atuin`,
+  `direnv`, `mise`) turn on through `_HI_PLUGINS_ON`, which the same two
+  commands edit. A group's name (`editors`, `hooks`) is not a plugin name:
+  name each plugin.
 - A name is a plugin, a file (`bat/config`), or one file of a directory
   (`extensions/10-kube`).
 - What is off sends nothing, overlay copy included, so the target's tool
   keeps its own config. At home, every tool reads its own config whatever
   the list says.
-- hi's own files (`settings.sh`, `colors`, `packages`) always ride.
+- hi's own files (`settings.sh`, `colors`, `ssh_tags`) always ride;
+  `packages` and the header cells stay home while `_HI_DISABLE_HEADER=1`.
 - An editor that is off is not used for `$EDITOR` on a target.
 
 ### Shell hooks
@@ -485,9 +492,10 @@ files = "notes.txt"
   `,` between candidates means "the first not skipped", as a tool checks its
   variable before its default. A trailing `/` is a directory. Nothing else
   expands or runs.
-- **dialect**: left out, the file rides as written. Named (`sh`, `fish`,
-  `vim`, `lua`, `elisp`, `nano`, `tmux`, `screen`, `readline`, `kak`, `kdl`,
-  `omp`, `omp-json`, `conf`), comments are stripped and includes are
+- **dialect**: left out, the file rides as written. Named (`sh`, `omz`,
+  `omb`, `bash-it`, `fish`, `vim`, `lua`, `elisp`, `nano`, `tmux`, `screen`,
+  `git`, `readline`, `kak`, `kdl`, `omp`, `omp-json`, `conf`), comments are
+  stripped and includes are
   [checked](#the-editor-rcs-come-from-where-you-keep-them).
 - **init**: the tool's shell hook, `{shell}` for the shell's name
   (`zoxide init {shell}`). Plain words only. A plugin with an init needs no

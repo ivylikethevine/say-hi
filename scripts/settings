@@ -31,16 +31,16 @@ you | _HI_PROMPT_END_ZSH | `%(!.#.>)` | noquote | a single quote can't be writte
 you | _HI_PROMPT_END_FISH | `\|` | noquote | a single quote can't be written to settings.sh | fish's prompt separator; unset, root gets `#`
 you | _HI_DISABLE_LEAD_SPACE | `0` | flag | 1 or 0 | `1` drops the leading space before the prompt and each header row
 you | _HI_DISABLE_RIGHT_EDGE | `0` | flag | 1 or 0 | `1` drops the closing \| from every header row
-you | _HI_PLUGINS_ON | unset | plugins | plugins that hi --plugins lists (hi --configure converts a group's word) | plugins that are off by default (`hooks`, `env`, `git`) to turn on; `hi --enable-plugin` writes it ([Switching a plugin off](#switching-a-plugin-off))
+you | _HI_PLUGINS_ON | unset | plugins | plugins that hi --plugins lists (hi --configure converts a group's word) | plugins that are off by default (`env`, `git`, and the hooks: `zoxide`, `atuin`, `direnv`, `mise`) to turn on; `hi --enable-plugin` writes it ([Switching a plugin off](#switching-a-plugin-off))
 preset | _HI_PLUGINS_OFF | unset | plugins | plugins or members that hi --plugins lists (hi --configure converts a group's word) | plugins or files that stay home; `hi --disable-plugin` writes it ([Switching a plugin off](#switching-a-plugin-off))
-you | _HI_KEEP | `0` | flag | 1 or 0 | `1` makes every ssh connect a `--keep` one; `--no-keep` skips it once ([Integrations](INTEGRATIONS.md#terminal-multiplexers))
+you | _HI_KEEP | `0` | flag | 1 or 0 | `1` makes every connect a `--keep` one; `--no-keep` skips it once ([Integrations](INTEGRATIONS.md#terminal-multiplexers))
 you | _HI_UPDATE_UNSIGNED | `0` | flag | 1 or 0 | `1` lets `hi --update` take a tag it cannot verify (unsigned, an unknown key, or no gpg), saying which; a bad signature refuses either way ([Security](SECURITY.md#what-hi-does---and-deliberately-doesnt))
 preset | _HI_PLAIN | `0` | flag | 1 or 0 | `1` makes every connect a `--plain` one, sending nothing; `--no-plain` skips it once. Most useful in a tag's file ([Settings by host tag](#settings-by-host-tag))
 you | _HI_KEEP_TIMEOUT | `24h` | duration | seconds, or a number with s, m, h, or d | how long a kept session waits with nobody attached before it closes; `0` is never. Read on the target
 you | _HI_HOLD_TIMEOUT | `15m` | duration | seconds, or a number with s, m, h, or d | how long a dropped session's files wait for a reconnect on a target with no multiplexer; `0` holds nothing. Read on the target
 you | _HI_KEEP_RETRY | `5m` | duration | seconds, or a number with s, m, h, or d | how long hi retries a kept session after the link drops; `0` is never
 you | _HI_DISABLE_KEEP | `0` | flag | 1 or 0 | `1` turns kept sessions off: `--keep` and `--end` are refused, and `tmux`, `zellij`, and `screen` are the plain tools ([Integrations](INTEGRATIONS.md#terminal-multiplexers))
-you | _HI_SHELL_PREFERENCE | `login` | shells | login, bash, zsh, fish, in order | the shells a session tries, in order: `login` (your login shell on the target), `bash`, `zsh`, or `fish`; the first the target has wins. Read on the target
+you | _HI_SHELL_PREFERENCE | `login` | shells | login, bash, zsh, fish, in order | the shells a session tries, in order: `login` (your login shell on the target), `bash`, `zsh`, or `fish`; the first the target has wins, then fish, zsh, and bash. Read on the target
 you | _HI_BACKENDS_OFF | unset | - | - | backends hi never asks (`docker`, `podman`, `nerdctl`, `finch`, `nomad`, `kube`), or `all` for ssh alone; `--use` still reaches one ([Compatibility](COMPATIBILITY.md#what-ships))
 you | _HI_DISABLE_CONTROLMASTER | `0` | flag | 1 or 0 | `1` stops hi passing ssh its `ControlMaster` options, so your ssh config decides; a connect then authenticates twice ([Security](SECURITY.md#trust-boundaries))
 you | _HI_TRUECOLOR | by terminal | flag | 1, 0, or unset for the terminal's own verdict | `1` or `0` forces or refuses 24-bit color; unset, the terminal decides ([Colors](COLORS.md))

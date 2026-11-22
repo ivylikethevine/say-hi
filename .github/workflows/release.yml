@@ -25,9 +25,8 @@ name: Release
 # whole needs chain - a skipped ancestor two jobs up skips everything under
 # it, with the run still green.
 #
-# Every job starts with harden-runner: `audit` records egress, and the two
-# jobs that write outside the run (publish, tap) run `block` with an
-# allowlist.
+# Every job starts with harden-runner, on `block` with an allowlist but
+# `brew`, which runs `audit` until it has an allowlist of its own.
 on:
   push:
     tags:
