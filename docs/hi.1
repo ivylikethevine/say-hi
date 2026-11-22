@@ -86,11 +86,13 @@ goes to stdout; hi's progress and errors go to stderr. For a plain, pty\-free
 remote command (a tarball piped into a file, say), use
 .BR ssh (1).
 .PP
-An ssh target with neither
+A target with neither
 .BR base64 (1)
 nor
 .BR openssl (1),
-or nowhere to make a
+no
+.BR tar (1)
+that reads gzip, or nowhere to make a
 .BR mktemp (1)
 directory, gets its own login session instead, with a notice saying why.
 .SH SESSION SHELL
@@ -219,8 +221,8 @@ multiplexer's own key. Leaving the first pane's shell asks before it closes
 the session; with nobody attached for
 .B _HI_KEEP_TIMEOUT
 (24h) it closes itself. Either way the session directory is removed.
-The target needs bash, and you a terminal; otherwise hi says so and connects
-as usual.
+The target needs bash, on any backend, and you a terminal; without a terminal
+the session is an ordinary one, and only an ssh drop is retried.
 On a target with none of the three the shell cannot outlive its connection,
 and its directory does: a dropped link leaves it for
 .B _HI_HOLD_TIMEOUT
@@ -328,7 +330,6 @@ ignored for a non\-ssh target.
 .B \-\-use
 forces the backend as a connect would.
 .BR \-\-plain ,
-.BR \-\-no\-plain ,
 .BR \-\-keep ,
 .BR \-\-no\-keep ,
 and
@@ -684,9 +685,10 @@ site tier:
 (else the first
 .B say-hi/
 under
-.BR $XDG_CONFIG_DIRS ,
-or
-.BR $_HI_SITE_DIR )
+.BR $XDG_CONFIG_DIRS ;
+an exported
+.B $_HI_SITE_DIR
+names another and skips the search)
 may hold a
 .BR settings.sh ,
 read before yours,
@@ -726,9 +728,15 @@ is its backend's word
 .BR finch ,
 .BR nomad ,
 .BR kube ),
-or a pod's context or namespace; in settings.sh's shape: read after it on a
+or the context or namespace typed in a pod's name
+.RI ( namespace : pod
+or
+.IR context : namespace : pod );
+in settings.sh's shape: read after it on a
 connect, backend, context, then namespace, and sent to that target joined to
-it. Written by hand; the six words are no host's tag.
+it. An ssh host's tag is the first its
+.B # Tags:
+line lists. Written by hand; the six words are no host's tag.
 .TP
 .B ~/.config/say-hi/colors
 your copy of
@@ -1053,14 +1061,14 @@ and shipped to the session, since ssh never forwards that.
 .TP
 .B _HI_KEEP
 .B 1
-makes every ssh connect a
+makes every connect a
 .B \-\-keep
 one;
 .B \-\-no\-keep
 overrides it once.
 .TP
 .B _HI_PLUGINS_ON
-the plugins that are off by default (the shipped
+the plugins that are off by default (env, git, and the shipped
 .BR hooks :
 zoxide, atuin, direnv, mise) and should ride and run anyway;
 .B \-\-enable\-plugin
@@ -1159,7 +1167,8 @@ is your login shell on the target where hi styles it, and
 .BR zsh ,
 or
 .B fish
-names one; the first installed on the target wins, and bash is the floor.
+names one; the first installed on the target wins, then fish, zsh, and bash,
+the floor.
 .B "zsh fish"
 is zsh wherever the target has it, whatever your login shell there. Default
 .BR login .

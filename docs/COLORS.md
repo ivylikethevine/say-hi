@@ -66,8 +66,9 @@ files included:
 
 The comment wins over a `Tag` line, which wins over the file name. A wildcard
 block (`Host prod-*`) tags every name it covers, but takes a tag only from a
-line of its own. A tag holding anything but letters, digits, `_`, `.`, and
-`-` tags nothing; one with a `.` colors but names no
+line of its own. A `Tag` line or a file name holding anything but letters,
+digits, `_`, `.`, and `-` tags nothing; a `# Tags:` comment is read as written
+up to its first comma or space. A tag with a `.` colors but names no
 [settings file](SETTINGS.md#settings-by-host-tag). `hi --doctor <host>` says
 where a host's tag came from.
 

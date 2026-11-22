@@ -10,7 +10,8 @@ package puts its files
 [SECURITY.md](SECURITY.md).
 
 Throughout, `$_HI_HOME` is the directory holding the tree, `$_HI_ROOT` is
-`$_HI_HOME/say-hi`, and `$_HI_CONFIG_DIR` is
+the tree itself (`$_HI_HOME/say-hi` for a checkout of that name), and
+`$_HI_CONFIG_DIR` is
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi` unless set.
 
 ## Contents
@@ -40,7 +41,9 @@ Each file is marked with where it goes:
 
 - **payload** — `hi.sh`'s `_HI_PAYLOAD` (`common/`, `config/`, `load.sh`,
   `hi.sh`): comment-stripped, gzipped, and sent to every target on every
-  connect.
+  connect, less a cut list: `config/plugins` always, and the files a toggle
+  or the overlay leaves out
+  ([HI.39](GLOSSARY.md#hi39-payload-staging)).
 - **package** — `scripts/install.sh`'s `_HI_PACKAGE_CONTENTS` (the payload plus
   `scripts/`, `LICENSE.md`, `README.md`), copied to `<prefix>/say-hi` by a
   package or `install.sh --prefix`.
@@ -56,6 +59,9 @@ Each file is marked with where it goes:
 | `docs/ROADMAP.md`                                                           | dev     | What is left to build, and what each release waits on.                                            |
 | `docs/CHANGELOG.md`                                                         | dev     | Each release's notes, written before its tag; the source tarball carries it.                      |
 | `CLAUDE.md`, `.claude/settings.json`                                        | dev     | Conventions and shared tool permissions for agent sessions in this repo.                          |
+| `.claude/rules/`, `.claude/plan-scan`                                       | dev     | Rules agent sessions load by path, and the scan of committed notes for private data and secrets.  |
+| `REUSE.toml`, `LICENSES/`                                                   | dev     | Each file's license and copyright, in the REUSE layout, and the license texts.                    |
+| `.gitleaks.toml`                                                            | dev     | The secret scan's rules and its pinned allow list.                                                |
 | `flake.nix`, `flake.lock`                                                   | dev     | The nix flake's outputs (`packaging/nix/` holds them) and its pinned nixpkgs.                     |
 | `_config.yml`                                                               | dev     | The GitHub Pages site's Jekyll config.                                                            |
 | `mise.toml`                                                                 | dev     | The development tools at CI's pins (drift-checked), and tasks for the gate and coverage.          |
@@ -103,12 +109,16 @@ All **package**, never in the payload.
 | `scripts/zshrc.sh`                | Where this machine's zsh reads its `.zshrc`: under `ZDOTDIR`, the environment's or the one `~/.zshenv` sets, else `~`. `rc.sh` and `pack.sh` source it.                                                                                                           |
 | `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                                                                                                                                                                                                |
 | `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                                                                                                                                                                                                 |
+| `scripts/doctor_target.sh`        | `hi --doctor`'s target section, sourced by `doctor.sh`: the backend a name resolves to, each check timed, and what a session ships and the target has.                                                                                                            |
 | `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag, or fast-forwards `dev`.                                                                                                                                                                                       |
 | `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                                                                                                                     |
 | `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, `plugins`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it.                                                                                |
 | `scripts/plugins.sh`              | `hi --plugins`, `--disable-plugin`, and `--enable-plugin`: lists what rides, and keeps `_HI_PLUGINS_OFF` and `_HI_PLUGINS_ON` in `settings.sh`.                                                                                                                   |
 | `scripts/edit.sh`                 | `hi --edit`: opens the overlay, or one file of it, in your editor, making a `plugins`, `colors`, `packages`, or `settings.sh` that is not there yet.                                                                                                              |
 | `scripts/pack.sh`                 | The packer `hi.sh` sources on a client: the overlay table and the plugins rows, the include scan, the comment strip, and the cached tars a connect sends. A session has none, and relays its tree as it stands ([HI.66](GLOSSARY.md#hi66-the-packer-stays-home)). |
+| `scripts/pack_plugins.sh`         | Sourced by `pack.sh`: the plugins files read into rows and checked table by table, with their shell hooks.                                                                                                                                                        |
+| `scripts/pack_scan.sh`            | Sourced by `pack.sh`: the include scan, the lines naming a path no target has, and the files a marked line carries.                                                                                                                                               |
+| `scripts/pack_stream.sh`          | Sourced by `pack.sh`: the staged tars of the tree and overlay, the comment strip, the payload's cut list, their caches, and the sizes hi reports.                                                                                                                 |
 | `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                                                                                                                      |
 | `scripts/table.sh`                | The display the scripts draw through: column padding, the pieces a line is painted from, the boxed table the previews draw, and the section of rows `hi --doctor` and `hi --plugins` report in.                                                                   |
 | `scripts/settings`                | Every setting, a row each: `docs/SETTINGS.md`'s _Every setting_ table is written from it, and `hi --configure` writes a `settings.sh` line for each.                                                                                                              |
@@ -137,7 +147,8 @@ All **dev**: the inputs a release builds from.
 **dev**, except `docs/hi.1`, the man page a package installs. The docs are
 indexed in [README.md](README.md); `docs/tapes/` holds the VHS demo tapes,
 their fixtures, `generate.sh` to render them, and `demo.gif`, plus
-[USAGE.md](USAGE.md)'s examples (`usage`) and `usage.sh` to render them.
+[USAGE.md](USAGE.md)'s examples (`usage`) and `usage.sh` to render them;
+`docs/plans/` holds the working plans.
 
 ### tests/
 
@@ -154,6 +165,7 @@ All **dev**; [TESTING.md](TESTING.md) is the full layout.
 | `tests/targets/`                     | The e2e and backends groups: ssh, docker, podman, nomad, kube, install methods, frameworks.                                                     |
 | `tests/dockerfiles/`                 | Every image those suites build: sshd targets, shell floors, installed-target variants, frameworks.                                              |
 | `tests/coverage_v2.sh`, `profile.sh` | bashcov coverage, and timep profiles.                                                                                                           |
+| `tests/scratch/`                     | Untested one-off tools: a BSD VM, case runners, trace and cost rankings, each saying in its header how to run it.                               |
 
 ### .github/
 
@@ -166,7 +178,8 @@ the helpers they call; plus the issue and pull request templates, `CODEOWNERS`,
 `dependabot.yml`, `allowed_signers` (the keys a release tag may be signed
 with), `package.json`/`package-lock.json` (the pinned Markdown linters),
 `osv-scanner.toml` (the advisories against that lockfile Scorecard's
-Vulnerabilities check skips, each with its reason and an expiry), and
+Vulnerabilities check skips, each with its reason and an expiry),
+`actionlint.yaml` and `zizmor.yml` (the workflow linters' settings), and
 `prettier-plugin-docs.mjs` (writes each doc's `## Contents` list, the
 settings table, and USAGE.md's commands as prettier formats them).
 
@@ -174,8 +187,8 @@ settings table, and USAGE.md's commands as prettier formats them).
 
 ### The overlay
 
-Everything in `$_HI_CONFIG_DIR` that hi knows by name (`hi.sh`'s
-`_HI_OVERLAY_FILES`). All of it is optional and, `plugins` aside, rides to
+Everything in `$_HI_CONFIG_DIR` that hi knows by name (`scripts/pack.sh`'s
+`_HI_OVERLAY_FILES`, plus the files the plugins rows name). All of it is optional and, `plugins` aside, rides to
 every target, landing in `$_HI_ROOT/config/` over the defaults it replaces.
 Directories (`extensions/`, `bin/`, zellij's `layouts/` and `themes/`) ride
 file by file; a file name starts with a letter or digit, then
@@ -202,13 +215,14 @@ file by file; a file name starts with a letter or digit, then
 | `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `eza/theme.yml`, `bat/config`                   | -                  | -                 | starship, oh-my-posh, eza, and bat on a target                                                                                                  |
 | `inputrc`                                                                                                 | -                  | -                 | readline on a target (`$INPUTRC`)                                                                                                               |
 | `ripgreprc`, `fzfrc`, `lazygit/config.yml`                                                                | -                  | -                 | rg, fzf, and lazygit on a target (`$RIPGREP_CONFIG_PATH`, `$FZF_DEFAULT_OPTS_FILE`, `$LG_CONFIG_FILE`)                                          |
+| `git/config`                                                                                              | -                  | -                 | git on a target, as an `include.path` (`$GIT_CONFIG_COUNT`); off by default                                                                     |
+| `atuin/config.toml`                                                                                       | -                  | -                 | atuin on a target (`$ATUIN_CONFIG_DIR`); off by default                                                                                         |
 | `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars`               | -                  | -                 | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target                                                                             |
 | `ssh_tags`                                                                                                | -                  | -                 | a `hi` run from inside a session, for the next hop's tag colors                                                                                 |
 
 - A file with a _Replaces_ entry rides instead of the tree's, so only one
   `colors` is sent. `aliases.sh` is the exception: yours loads on top of hi's,
   so both ride.
-- An editor default whose editor is not installed here stays home.
 - `wiring.sh` rides beside them, written by hi as the overlay is packed
   ([HI.62](GLOSSARY.md#hi62-generated-wiring)); one in `$_HI_CONFIG_DIR` is
   not read.
@@ -255,6 +269,7 @@ rides either way.
 | `fzfrc`                          | `$FZF_DEFAULT_OPTS_FILE`; fzf reads no file without it                                                                                                                                                                                                           |
 | `lazygit/config.yml`             | `$LG_CONFIG_FILE`, `$XDG_CONFIG_HOME/lazygit/config.yml`, `~/Library/Application Support/lazygit/config.yml`                                                                                                                                                     |
 | `git/config`                     | `$GIT_CONFIG_GLOBAL`, else `~/.gitconfig`; `$XDG_CONFIG_HOME/git/config`; only with `hi --enable-plugin git`, and less what is private ([INTEGRATIONS.md](INTEGRATIONS.md#git))                                                                                  |
+| `atuin/config.toml`              | `$ATUIN_CONFIG_DIR/config.toml`, else `$XDG_CONFIG_HOME/atuin/config.toml`; only with `hi --enable-plugin atuin`                                                                                                                                                 |
 | `inputrc`                        | `${INPUTRC:-~/.inputrc}`                                                                                                                                                                                                                                         |
 | `ssh_tags`                       | the `# Tags:` lines of `~/.ssh/config` and its Includes, a block's `Tag` line or a `config.d` file's name written as one, each with the `Host` or `Match host` line under it and nothing else                                                                    |
 
@@ -289,7 +304,7 @@ reads none of their config files.
 | Path                                                                                  | What                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc`, `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish` | lines tagged `# added by hi during install`, in the login shell's rc and any other that exists already (`--shell` chooses); `ZDOTDIR` is the environment's, else the one `~/.zshenv` sets; the file and its directory are created if missing; `--print-rc` prints the lines instead |
-| `<rc>.hi-orig`                                                                        | a one-time backup before hi first writes a non-empty rc; never overwritten, and left by uninstall                                                                                                                                                                                   |
+| `<rc>.hi-orig`                                                                        | a one-time backup before hi first writes a non-empty rc; never overwritten; uninstall removes it once the rc matches it again, else keeps it                                                                                                                                        |
 | `~/.bash_profile` (macOS)                                                             | a line sourcing `~/.bashrc`, plus `~/.profile` in a file hi creates                                                                                                                                                                                                                 |
 | `/etc/say-hi/`, or the first `say-hi/` under `$XDG_CONFIG_DIRS`                       | the site tier ([SETTINGS.md](SETTINGS.md#the-site-tier)): a `settings.sh` read before yours, and a `colors`, `packages`, or `plugins` under yours and over the tree's; `$_HI_SITE_DIR` overrides the path                                                                           |
 | `$_HI_CONFIG_DIR/plugins`                                                             | the plugins of your own, written by hand (`hi --edit plugins` opens it)                                                                                                                                                                                                             |
@@ -305,15 +320,17 @@ In the runtime directory: `$XDG_RUNTIME_DIR` when it exists, else
 owned by someone else. A cache is written under a temporary name and moved
 into place.
 
-| File                    | What                                                                                                                                                                                                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `hi.targets.<kind>`     | completion's target list, for `$_HI_TARGETS_TTL` seconds                                                                                                                                                                                               |
-| `hi.payload.tree.<key>` | the gzipped payload, rebuilt when a tree file changes, keyed on the tree's path and its cut list (the defaults an overlay shadows, or whose tool is not installed here, and the prompt loaders a target is not handed); off with `_HI_PAYLOAD_CACHE=0` |
-| `hi.overlay.<key>`      | the overlay stream, keyed on its member list and the home paths any member was packed from                                                                                                                                                             |
-| `hi.plugins.<key>`      | the plugins files' parsed rows, keyed on the tree, site, and overlay paths; read afresh when a plugins file or `scripts/` is newer, or a plugins file comes, goes, or changes size                                                                     |
-| `hi.settings.<key>`     | `settings.sh` with a tagged target's `settings.<tag>.sh` files joined on, what that target is sent; rewritten only when its content changes                                                                                                            |
-| `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                                                                                                                                                                                             |
-| `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off)                                                                                                                                                                  |
+| File                     | What                                                                                                                                                                                                                                                                               |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hi.targets.<kind>`      | completion's target list, for `$_HI_TARGETS_TTL` seconds                                                                                                                                                                                                                           |
+| `hi.payload.tree.<key>`  | the gzipped payload, rebuilt when a tree file changes, keyed on the tree's path and its cut list (the defaults an overlay shadows, the prompt loaders a target is not handed, and the files `_HI_DISABLE_HEADER` and `_HI_DISABLE_KEEP` leave out); off with `_HI_PAYLOAD_CACHE=0` |
+| `hi.overlay.<key>`       | the overlay stream, keyed on its member list and the home paths any member was packed from                                                                                                                                                                                         |
+| `hi.plugins.<key>`       | the plugins files' parsed rows, keyed on the tree, site, and overlay paths; read afresh when a plugins file or `scripts/` is newer, or a plugins file comes, goes, or changes size                                                                                                 |
+| `hi.settings.<key>`      | `settings.sh` with a tagged target's `settings.<tag>.sh` files joined on, what that target is sent; rewritten only when its content changes                                                                                                                                        |
+| `hi.ssh_tags`            | the `ssh_tags` member, recut when `~/.ssh/config` is newer                                                                                                                                                                                                                         |
+| `hi.kept.<key>`          | an empty mark that a target holds a kept session, for the connection's key, so a later connect retries and reattaches                                                                                                                                                              |
+| `hi.overlay.<key>.carry` | the files the overlay stream carried for its includes, which its cache then watches too                                                                                                                                                                                            |
+| `hi.ctl.<key>`           | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off)                                                                                                                                                                                              |
 
 fish also keeps `__hi_color_user`, `__hi_color_host`, and `__hi_colors_key` as
 universal variables in its own store, so a color is only resolved once per
@@ -336,8 +353,8 @@ All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 | `hi.probes.XXXXXX/`                                           | the header's parallel probes, outside a session's tree                                          |
 | `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                                                   |
 | `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place                                                  |
-| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                                                                  |
-| `hi.plugins.XXXXXX`                                           | `hi --disable-plugin`, `hi --enable-plugin`                                                     |
+| `hi.config.XXXXXX`                                            | `hi --add-tag`, `hi --remove-tag`                                                               |
+| `hi.settings.sh.XXXXXX`                                       | `hi --disable-plugin`, `hi --enable-plugin`                                                     |
 | `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                                                   |
 
 ## Variables hi sets

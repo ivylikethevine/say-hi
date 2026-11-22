@@ -35,8 +35,9 @@ load.sh hi.sh`) goes over the wire; docs, tests, and CI never leave your
   rides only with its plugin on, and never its credentials or keys
   ([INTEGRATIONS.md](INTEGRATIONS.md#git)). A `plugins` row is read as data,
   never evaluated ([HI.63](GLOSSARY.md#hi63-plugins-rows)).
-- **base64 is armor, not crypto.** It gets the payload through the target's
-  login shell intact; confidentiality and integrity come from the transport.
+- **The payload is not encrypted by hi.** The archives go over stdin as they
+  are, and base64 armors only the bootloader and a few rc lines;
+  confidentiality and integrity come from the transport.
 - **hi writes nothing on the target outside its own temp directories**: no
   login file, no history file, nothing under `$HOME`
   ([the full list](#what-hi-writes-on-a-target)).
@@ -81,8 +82,8 @@ the session (longer only for a [kept session](INTEGRATIONS.md#terminal-multiplex
 | the session tree | `<user>.hi.XXXXXX` | every session but `--plain`                       |
 | the bootstrap    | `hi.boot.XXXXXX`   | every session but `--plain`, removed when it ends |
 
-Besides those, a fish session caches its two prompt colors in fish's
-universal variables, as it does locally, and a `hi` run from inside a
+Besides those, a fish session caches its two prompt colors and their key in
+three fish universal variables, as it does locally, and a `hi` run from inside a
 session to reach a further target keeps its caches in the runtime directory.
 That is everything hi's own code writes.
 
@@ -98,8 +99,8 @@ keep it after the session:
 
 `_HI_PROMPT_TOOL=hi` keeps the prompt programs out. Your commands land in the
 target's own history file, and programs you run write what they always do,
-as over plain `ssh`; hi's emacs config turns off emacs's backups, autosaves,
-and lock files. `hi --doctor` prints every setting not at its default.
+as over plain `ssh`, an editor's backups and swap files included.
+`hi --doctor` prints every setting not at its default.
 
 ## Footprint and cleanup on the target
 

@@ -63,13 +63,13 @@ target's own session, as `--plain` does.
 rc first, then points `_HI_HOME`, `_HI_ROOT`, and `_HI_CONFIG_DIR` at the
 session tree, then sources hi's:
 
-| File          | For                                                                                    |
-| ------------- | -------------------------------------------------------------------------------------- |
-| `bashrc`      | `bash --rcfile`: `~/.bashrc`, then `common/bash.sh`                                    |
-| `.zshenv`     | `ZDOTDIR` points here: sources `~/.zshenv` with `ZDOTDIR` unset, then points it back   |
-| `.zshrc`      | the `.zshrc` in that `ZDOTDIR` (`~/.zshrc` by default), then `common/zsh.zsh`          |
-| `fish.config` | `fish -C`: blanks `fish_greeting`, then `common/config.fish` (after fish's own config) |
-| `shrc`        | `$ENV` for sh, dash, and ash: `common/paths.sh` and `common/aliases.sh`                |
+| File          | For                                                                                            |
+| ------------- | ---------------------------------------------------------------------------------------------- |
+| `bashrc`      | `bash --rcfile`: `~/.bashrc`, then `common/bash.sh`                                            |
+| `.zshenv`     | `ZDOTDIR` points here: sources `~/.zshenv` with `ZDOTDIR` unset, then points it back           |
+| `.zshrc`      | the `.zshrc` in that `ZDOTDIR` (`~/.zshrc` by default), then `common/zsh.zsh`                  |
+| `fish.config` | `fish -C`: blanks `fish_greeting`, then `common/config.fish` (after fish's own config)         |
+| `shrc`        | `$ENV` for sh, dash, and ash: `config/settings.sh`, `common/paths.sh`, and `common/aliases.sh` |
 
 ### What a target's files are read for
 
@@ -80,7 +80,8 @@ session tree, then sources hi's:
 | `/etc/passwd` (through `getent`)                                                          | the login shell, when `$SHELL` is unset                 |
 | everything in [Paths hi recognizes](FILES.md#paths-hi-recognizes) that applies to a shell | the header, prompt, and completion, the same as locally |
 
-The editors never read a target's own rcs; `$VIMINIT` names the session's
-vimrc. They also leave nothing behind: neovim's and vim's state, swap, undo,
+An editor whose config rode never reads the target's own; `$VIMINIT` names
+the session's vimrc. One whose config did not ride keeps the target's. They
+also leave nothing behind: neovim's and vim's state, swap, undo,
 and cache go under the session tree, vim keeps no viminfo, and micro keeps no
 backups or history.

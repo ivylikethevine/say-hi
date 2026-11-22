@@ -193,8 +193,8 @@ The sums and the attestation cover the deb, rpm, apk, and
 `say-hi-<version>.tar.gz`:
 `gh attestation verify say-hi-*.tar.gz --repo ivylikethevine/say-hi` answers
 for the sources as the line above does for the `.deb`. The other assets (the
-manifests, the SBOM, `package-repo.tar.gz`, and `demo.gif`, uploaded later by
-[the demos workflow](RELEASING.md#regenerating-the-demo-gifs)) are not in
+manifests, the SBOM, `package-repo.tar.gz`, and `demo.gif`, which
+`release.yml`'s `demo` job renders and `publish` attaches) are not in
 `SHA256SUMS`.
 
 ## After installing from a package

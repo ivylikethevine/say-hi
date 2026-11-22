@@ -6,7 +6,7 @@ sentences this file gained since the release before it, beside its pull
 requests' notes ([RELEASING.md](RELEASING.md#cutting-a-release)); a new one goes
 in the list below, and nothing else is ever done to this file.
 
-## Since the last release
+## Since 0.8.0
 
 - A pull request into `main` takes nine fewer CI runners, and the Debian and Ubuntu test and package-build images move to rebuilt bases that close the fixable high and critical CVEs the scan found in them.
 - The package check no longer warns about `exa`, which eza installs beside itself for compatibility.

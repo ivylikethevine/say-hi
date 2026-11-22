@@ -120,8 +120,10 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 - `_HI_RUN_DEADLINE=<seconds>` ends the whole run that long after it started:
   each suite still running is reported **FAILED (deadline)** the same way,
   and each not yet started as never run. Every CI step that runs the suites
-  sets it three minutes under its job's limit, since a job its limit ends
-  keeps no log of what it was doing.
+  sets it under its job's limit (`ci.yml`'s jobs three minutes under, a job
+  that runs the suites more than once or through a VM wrapper under that
+  run's or wrapper's own share), since a job its limit ends keeps no log of
+  what it was doing.
 - The machine is sampled every two seconds while suites run, and the run
   ends with a **Machine use** section: CPU busy (average, 90th percentile,
   peak), memory in use at its peak, and CPU busy by how many suites were
@@ -140,8 +142,7 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 - `--host-report` (`_HI_HOST_REPORT=1`) prints one block before the first suite:
   bash, OS, CPU and memory, userland (GNU/BSD/busybox), the locale's glyph
   verdict, which tree `$_HI_HOME` resolves to, which backends answer, and tool
-  versions. Every CI job but the lint runs and `release.yml`'s `ci` run passes
-  it. The tree half prints on **every** run when the tree under test is not the
+  versions. Every `ci.yml` job but the lint runs passes it. The tree half prints on **every** run when the tree under test is not the
   one the runner was invoked from — the quietest way to get a wrong result here.
 - Every test script also runs directly, e.g. `tests/lint/shellcheck_test.sh`.
 - Under a wrapper that leaves a controlling terminal but a background process
@@ -201,8 +202,9 @@ membership) - `ci` above, and:
 - **`backends`** — `podman`, `nerdctl`, `nomad`, `kube`: split from `e2e`
   because they need extra runner setup.
 
-`bench`, `e2e`, and `backends` always run one suite at a time: the bench
-measures, and the other two contend on one container daemon.
+`bench` always runs one suite at a time, since it measures; `e2e` and
+`backends` do too unless `_HI_E2E_WIDTH` is set, since they contend on one
+container daemon.
 
 A case stands down through two guards: `_hi_check_requires <bin>` when a
 _command_ is missing, `_hi_check_capable <capability>` when a _facility_ is —
@@ -220,6 +222,7 @@ inline). The roster is `_hi_capable` in `tests/lib/fixtures.sh`:
 | `fork_concurrency` | `uname` (MSYS/Cygwin)                  | background subshells have to genuinely overlap                      |
 | `mode_bits`        | `uname` (MSYS/Cygwin)                  | a reported permission string has to reflect `chmod`'s own bits      |
 | `netem`            | `/proc/modules` or `/sys/module`       | `modprobe sch_netem` has not run on the host; a container can't     |
+| `applet_shims`     | probe: `sh` runs a shim on `PATH`      | a busybox `sh` runs its own applet over a `PATH` entry of that name |
 
 The `starved` case in the ssh e2e suite is the one that asks for `netem`: it
 shapes a container's own link with `tc qdisc … netem`, which needs the
@@ -300,7 +303,8 @@ run.
 [bashcov](https://github.com/infertux/bashcov) (`tests/coverage_v2.sh`) runs
 over the full suite sweep — every suite the box's backends can host — by hand
 or by `coverage.yml`: after every green CI run on a push to `main`, and on every
-same-repo, non-draft PR, where the `comment` job posts its figure beside main's
+same-repo, non-draft PR into `main`, where the `gather-bashcov` job posts its
+figure beside main's
 in one comment edited in place, with the PR's passed-case count from its CI run
 beside main's (the push that merges the PR reuses its figure). The figure is
 for finding untested arms. Never a gate: 90% is the target for new code, and
@@ -319,7 +323,7 @@ ranking as `files` in its outdir and its unrun lines as `missed`, and
 that revision that are on `missed`, less the ones `xtrace` never prints: a
 line that only closes a block with a redirect (`done <file`), an empty case
 arm, the rest of a command the line above continues with a `\`, and an array
-assignment's lines above the one that closes it. The `comment` job puts those
+assignment's lines above the one that closes it. `gather-bashcov` puts those
 lines, for the PR's diff, in the comment. The `test_runner_ci` suite runs
 `--untested` and `tests/coverage_v2.sh --merge` over fixtures.
 
@@ -480,7 +484,7 @@ naming a missing Dockerfile.
 
 **Upstream base images are digest-pinned, non-negotiably.** Every `FROM` in
 `tests/dockerfiles/` that names an upstream image (12 of 21: alpine, ubuntu,
-debian, fedora, bash, zshusers/zsh) carries a `@sha256:` — what makes a failed
+debian, fedora, bash, zshusers/zsh, ohmyfish/fish) carries a `@sha256:` — what makes a failed
 e2e run reproducible and a base-image move a deliberate, reviewable act.
 `tool-versions.yml` reports a moved tag weekly, which is how a base image
 reaching EOL gets noticed. The other 9 are `FROM ${BASE}` over an image a suite or a tape
@@ -522,7 +526,7 @@ shipping an image with the framework missing.
 
 ## The lint gate
 
-`--group lint` is five suites, twenty-eight checks between them. Each suite is
+`--group lint` is five suites, thirty-four checks between them. Each suite is
 its own process (`shellcheck`, `dialects`, `tools`, `drift`, `drift_docs`)
 with its own tally in the summary table, so a failure in one never hides what the others
 found.
@@ -611,8 +615,9 @@ skipping yellow when its tool isn't installed (CI has all eight):
   `prettier --write --plugin ./.github/prettier-plugin-docs.mjs` on the paths
   it names.
 
-**`drift`** (`tests/lint/drift_test.sh`, and `drift_docs_test.sh` for the five
-over the docs: 19, 20, 23, 24, 25) — seventeen repo-consistency sweeps, each
+**`drift`** (`tests/lint/drift_test.sh`, and `drift_docs_test.sh` for the seven
+over the docs and settings: 19-22 and 25-27) — twenty-one repo-consistency
+sweeps, each
 checking that something written down elsewhere still agrees with the tree:
 
 - **14. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
@@ -681,6 +686,11 @@ checking that something written down elsewhere still agrees with the tree:
   `node-version`, `coverage.yml`'s `BASHCOV_VERSION`, `demos.yml`'s vhs
   `version:`), and every `tools.txt` row is a `[tools]` key or named on an
   `apt:` line.
+- **33. Case reasons**: no suite's case fails on a bare last-line assertion, a
+  silent `|| return 1`, or a compared substitution with nothing saying why;
+  the scan first runs on a case written to fail it.
+- **34. Case subjects**: every `_hi_*` a case negates or hands a reporter is
+  defined somewhere in the tree, since `! f` passes on a name nothing defines.
 
 ## Test levers
 
@@ -691,8 +701,7 @@ call), `_HI_PROBE_TIMEOUT` (seconds one backend CLI gets), `_HI_PAYLOAD_CACHE`
 (`0` builds the payload and overlay archives fresh), `_HI_CTL_PERSIST`
 (seconds a shared ssh control socket lingers; `0` gives a connect a private
 one, closed after), `_HI_HEADER_VERSION` (the header's version cell,
-otherwise the release stamp or `git describe` — what
-`docs/tapes/generate.sh --version` sets) and `_HI_WATCH_STEP` (seconds
+otherwise the release stamp or `git describe`) and `_HI_WATCH_STEP` (seconds
 between a session tree's watcher's checks on its shell, otherwise 60 —
 `ssh_keep`'s killed and expired cases set 2). Their defaults are the shipped
 behaviour; `hi --configure` writes none of them. `_HI_LOAD_NO_INIT=1` is

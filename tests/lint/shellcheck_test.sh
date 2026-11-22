@@ -2,12 +2,13 @@
 # The repo's shellcheck run: every *.sh file, through shellcheck itself, with
 # one precondition ahead of it that is fatal rather than counted.
 #
-# This is one of four suites the `lint` group runs; the others cover what
+# This is one of five suites the `lint` group runs; the others cover what
 # this suite's own reading can't. dialects_test.sh runs the same files a
 # non-bash shell parses for itself through that shell's own syntax checker
 # (native, plus a pinned floor and ceiling build). tools_test.sh wraps shfmt,
-# checkbashisms, mandoc, and typos. drift_test.sh is the repo-consistency
-# sweeps. See each file's own header; all four are registered under
+# checkbashisms, mandoc, and typos. drift_test.sh and drift_docs_test.sh are
+# the repo-consistency sweeps. See each file's own header; all five are
+# registered under
 # `lint` in test_runner.sh's _HI_TESTS table.
 set -euo pipefail
 

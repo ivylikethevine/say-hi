@@ -7,7 +7,7 @@ of [CHANGELOG.md](CHANGELOG.md). What a release waits on is
 
 ## Where it stands
 
-As of 2026-11-20, branch `dev`; the newest release is v0.8.6.
+As of 2026-11-21, branch `dev`.
 
 - Every entry waits on something outside this checkout: ci-shared's batch
   (1), the 1.0.0 tag (2), or an upstream account or review (4 to 6).
@@ -45,7 +45,7 @@ CONTRIBUTING.md's _What CI runs_ has a line per workflow.
 
 ### 2. The pre-1.0 conversions go at the tag (S)
 
-`scripts/convert_settings.sh` (23 KB, 11 functions) rewrites overlay shapes
+`scripts/convert_settings.sh` (23 KB, 12 functions) rewrites overlay shapes
 nothing after the tag has a contract for.
 
 - **Do:** keep the entry point, which `--install`, `--configure` and

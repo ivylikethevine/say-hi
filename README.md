@@ -133,17 +133,19 @@ Then run `hi --install` once per user to wire your shell.
   a dotfile manager owns) are in [docs/USAGE.md](docs/USAGE.md#hi---install);
   unattended installs are
   [Installing without a terminal](docs/GETTING-STARTED.md#installing-without-a-terminal).
-- **Updating**: `hi --update` moves a clone to the newest signed release tag;
-  a package updates through its package manager.
-- **Uninstalling**: `hi --uninstall` removes hi's rc lines and its link;
-  `--purge` removes `~/.config/say-hi` too. For a clone:
+- **Updating**: `hi --update` moves a clone to the newest release tag, and
+  refuses one whose signature it cannot verify; a package updates through its
+  package manager.
+- **Uninstalling**: `hi --uninstall` removes hi's rc lines, its link, and the
+  `settings.sh` the install wrote; `--purge` removes the rest of
+  `~/.config/say-hi` too. For a clone:
 
   ```sh
   hi --uninstall --purge && rm -rf ~/say-hi
   ```
 
 All twenty flags are in [docs/USAGE.md](docs/USAGE.md) and `man hi`;
-anything hi does not recognize goes to `ssh`. When something is slow or
+a single-dash option hi does not claim goes to `ssh`. When something is slow or
 failing, run `hi --doctor` and see
 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 

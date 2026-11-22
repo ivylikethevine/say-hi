@@ -306,8 +306,8 @@ jobs:
       - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
 
-  # The lint group's four suites (shellcheck, dialects, tools, drift), against
-  # the pinned tools below - text linting does not depend on the userland, so
+  # The lint group's five suites (shellcheck, dialects, tools, drift,
+  # drift_docs), against the pinned tools below - text linting does not depend on the userland, so
   # the macOS, Alpine, Windows, and BSD jobs run `--group fast` alone and this is
   # the one gate. Its own job, not a step of `test`: the two groups run side
   # by side, and `test` installs none of the tools only the linters call.

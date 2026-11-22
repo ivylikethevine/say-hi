@@ -153,8 +153,9 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    exists, copy the manifest by hand per [AUR](#aur).
 
 **A rehearsal** — dispatching `release.yml` with a `version` — runs `gate`
-(waiting on `manual-dispatch` approval) and `build` against the branch's HEAD,
-unsigned, and publishes nothing.
+(waiting on `manual-dispatch` approval), `upgrade`, and `build` against the
+branch's HEAD, which needs no signed tag, and publishes nothing; `build` signs
+the rpm and apk with the real keys, as a release does.
 
 **A release candidate is a GitHub Release and nothing more.** A tag with a `-`
 (`v1.0.0-rc.1`) runs steps 1-4, is created `--prerelease --latest=false` so
@@ -183,9 +184,10 @@ reading `none` contributes nothing; a release with no notes falls back to the
 titles.
 
 `release-note.yml` (the `release note (pr body)` check, re-run on each
-body edit) fails any non-draft PR, `dev` → `main` included and only
-Dependabot's exempt, whose section is missing or holds only whitespace and
-comments. The release reads the bodies as they are at the tag.
+body edit) warns on any non-draft PR into `main`, `dev` → `main` included and
+only Dependabot's exempt, whose section is missing or holds only whitespace
+and comments; it never fails, so a missing note never holds a merge or a
+release. The release reads the bodies as they are at the tag.
 
 **The body opens with the tag's own badges.** README's tests and bashcov
 badges track the newest green `main`; the release body freezes the same two
@@ -346,7 +348,7 @@ The tap is a plain repo
 Homebrew's side reviews what lands there, which is why `brew audit --strict` is
 a hard gate here.
 
-**The checks and the PR are automated; merging is not.** Right after
+**The checks, the PR, and its merge are automated.** Right after
 `publish`, `release.yml`'s `brew` job puts the release's formula in a
 throwaway tap on a hosted mac, runs the commands below against the published
 tarball, filters out the two expected findings further down, and records the
@@ -358,7 +360,8 @@ current) from the release body. The PR's commit is made through GitHub's
 `createCommitOnBranch` API rather than pushed from the runner, so GitHub signs
 it: the tap's `main` ruleset requires signed commits and blocks every merge of
 a PR holding an unsigned one. The tap's own CI runs `brew style`,
-`brew audit`, install, and test on macOS and Linux against the PR. Without
+`brew audit`, install, and test on macOS and Linux against the PR, which
+`tap` sets to auto-merge once they pass. Without
 `HOMEBREW_TAP_TOKEN`, `tap` warns and does nothing.
 
 Repeating the checks on a mac of your own takes the same throwaway tap:

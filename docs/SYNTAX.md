@@ -72,7 +72,7 @@ first time a spelling costs a CI round trip.
 ## bash 3.2
 
 macOS's `/bin/bash`, and the floor: `drift`'s bash-4 table fails the build on
-the first four rows.
+each row caught by `drift`.
 
 | Write                                                       | Not                                                   | Breaks on                                                                                      | Caught by                                                   |
 | ----------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -90,20 +90,20 @@ the first four rows.
 
 ## Files shared with other shells
 
-| File                | Dialect                                                                             | Caught by                                       |
-| ------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `common/aliases.sh` | what bash, zsh, and fish all parse: `alias`, `export`, `&&` chains, `$( )`; no `if` | `dialects` (fish and zsh parse it)              |
-| `common/paths.sh`   | plain `export` lines four shells read                                               | `dialects` (fish and zsh parse it)              |
-| `common/targets.sh` | standalone POSIX sh                                                                 | checkbashisms, over every `#!/bin/sh` file      |
-| `settings.sh`       | `export NAME=value` lines sh and fish both parse                                    | `hi --doctor`'s config rows, on the user's copy |
+| File                | Dialect                                                                                          | Caught by                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| `common/aliases.sh` | what bash, zsh, and fish all parse: `alias`, `export`, `&&` chains, backticks; no `if` or `$( )` | `dialects` (fish and zsh parse it)              |
+| `common/paths.sh`   | plain `export` lines four shells read                                                            | `dialects` (fish and zsh parse it)              |
+| `common/targets.sh` | standalone POSIX sh                                                                              | checkbashisms, over every `#!/bin/sh` file      |
+| `settings.sh`       | `export NAME=value` lines sh and fish both parse                                                 | `hi --doctor`'s config rows, on the user's copy |
 
 ## Aliases and command lookup
 
-| Write                                                                     | Not                                                                  | Breaks on                                                                                                                                                                   | Caught by                                                                         |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `$(type unalias >/dev/null 2>&1 && unalias -a \|\| true && command -v x)` | `$(command -v x)` where an alias may exist                           | bash, zsh, and dash hand back the alias's text, so the "binary" is `alias ls='ls --color=auto'` ([HI.13](GLOSSARY.md#hi13-command--v-fallthrough))                          | `alias_fallthrough`; learned from the first `ls` of a session on Ubuntu           |
-| `command sudo`, `command bash` in an alias body                           | `sudo` as its own alias's first word                                 | fish's alias function calls itself forever                                                                                                                                  | `aliases`                                                                         |
-| `$(command -v x >/dev/null 2>&1 && command x --flag … && echo …)`         | `$(command x --flag 2>/dev/null && echo …)` where `x` may be missing | fish: a command not found inside a `$( )` drops the whole `alias` statement with "Unknown command", and no redirect silences it; bash, zsh, and dash expand an empty string | review; learned from a user `aliases.sh` sourced by fish on a target without `fd` |
+| Write                                                                        | Not                                                                  | Breaks on                                                                                                                                                                   | Caught by                                                                         |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `` `type unalias >/dev/null 2>&1 && unalias -a \|\| true && command -v x` `` | `$(command -v x)` where an alias may exist                           | bash, zsh, and dash hand back the alias's text, so the "binary" is `alias ls='ls --color=auto'` ([HI.13](GLOSSARY.md#hi13-command--v-fallthrough))                          | `alias_fallthrough`; learned from the first `ls` of a session on Ubuntu           |
+| `command sudo`, `command bash` in an alias body                              | `sudo` as its own alias's first word                                 | fish's alias function calls itself forever                                                                                                                                  | `aliases`                                                                         |
+| `$(command -v x >/dev/null 2>&1 && command x --flag … && echo …)`            | `$(command x --flag 2>/dev/null && echo …)` where `x` may be missing | fish: a command not found inside a `$( )` drops the whole `alias` statement with "Unknown command", and no redirect silences it; bash, zsh, and dash expand an empty string | review; learned from a user `aliases.sh` sourced by fish on a target without `fd` |
 
 ## Git Bash
 

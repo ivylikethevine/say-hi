@@ -64,7 +64,8 @@ A name that is both an ssh host and a container resolves as the ssh host.
 ## The target's OS
 
 Every workflow named here runs on each push to main and each same-repository
-pull request.
+pull request that changes code; a docs-only or workflow-only diff skips them,
+and so does a push whose tree a pull request's run already passed.
 
 | target OS                                                        | result                                                                              | proven by                                                                                     |
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -106,13 +107,13 @@ Your login shell on the target, when hi styles it; else the first of fish,
 zsh, and bash the target has. `_HI_SHELL_PREFERENCE` reorders that
 ([SETTINGS.md](SETTINGS.md#every-setting)).
 
-| session shell                                           | result                                                       | note                                                                                       |
-| ------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `bash` ≥ 3.2                                            | ✅ full: header, prompt, git status, aliases, editor configs | 3.2 because macOS still ships it                                                           |
-| `zsh` ≥ 5.5                                             | ✅ full                                                      | completion through your rc's own `compinit`; 5.5 is RHEL 8's                               |
-| `fish` ≥ 3.3                                            | ✅ full                                                      | 3.3 is Ubuntu 22.04's; an older fish gets a notice and the next shell down                 |
-| `sh`/`dash`/`ash` (no bash on the target)               | ⚠️ aliases and a colored prompt, with a warning              | no header and no git segment: those need bash                                              |
-| `nushell`, `ion`, `elvish`, `xonsh`, `tcsh`, PowerShell | ❌ [decided against](#shells-hi-does-not-style)              | you still get a session in the best shell the target has, or plain PowerShell with no `sh` |
+| session shell                                           | result                                                       | note                                                                                          |
+| ------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `bash` ≥ 3.2                                            | ✅ full: header, prompt, git status, aliases, editor configs | 3.2 because macOS still ships it                                                              |
+| `zsh` ≥ 5.5                                             | ✅ full                                                      | completion through your rc's own `compinit`; 5.5 is RHEL 8's                                  |
+| `fish` ≥ 3.3                                            | ✅ full                                                      | 3.3 is Ubuntu 22.04's; an older fish on a target is skipped for the next shell down, silently |
+| `sh`/`dash`/`ash` (no bash on the target)               | ⚠️ aliases and a colored prompt, with a warning              | no header and no git segment: those need bash                                                 |
+| `nushell`, `ion`, `elvish`, `xonsh`, `tcsh`, PowerShell | ❌ [decided against](#shells-hi-does-not-style)              | you still get a session in the best shell the target has, or plain PowerShell with no `sh`    |
 
 **Shell frameworks load normally on a target** ✅: oh-my-zsh, powerlevel10k,
 starship, bash-it, oh-my-bash, tide, powerline-go, fzf, zoxide, direnv,

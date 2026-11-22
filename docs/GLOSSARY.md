@@ -8,11 +8,13 @@ Each entry is a construct that looks odd until you know which master it serves.
 
 Every entry carries a stable `HI.NN` code; a file references it with a
 `# GLOSSARY: HI.NN` tag — one code, or two joined with `+`, optional prose
-after — instead of re-explaining. The tag is _mandatory_ in `common/`,
-`config/`, `load.sh`, and `hi.sh`. Tags point at codes, so an entry can be
-retitled without touching a tagged file; codes are never reused once retired.
-`tests/lint/drift_test.sh` fails the build if a tag names a code this file
-doesn't define, or if an entry here is referenced by nothing. This file never
+after — instead of re-explaining. `common/`, `config/`, `load.sh`, and
+`hi.sh` use the tag wherever an oddity needs one, by convention; nothing
+enforces it. Tags point at codes, so an entry can be retitled without
+touching a tagged file; codes are never reused once retired.
+`tests/lint/drift_docs_test.sh`'s `lint_glossary_tags` fails the build if a
+`GLOSSARY:` tag names a code this file doesn't define, or if an entry here
+is named by no tag; a bare `HI.NN` outside a tag is not checked. This file never
 ships (`docs/` is not in `$_HI_PAYLOAD`).
 
 ## Contents
@@ -127,7 +129,8 @@ format, leaving `$x` untouched. `printf -v x '%s' ''` clears it everywhere.
 tail: sourcing the file defines its functions and stops there, which is how
 the test suites reach the functions without running an install/bump/render.
 `hi.sh`, `scripts/install.sh`, `scripts/doctor.sh`, `scripts/preview.sh`,
-`packaging/bump.sh`, `packaging/mkpkg.sh`, and `packaging/mkrepo.sh` carry it.
+`scripts/convert_settings.sh`, `packaging/bump.sh`, `packaging/mkpkg.sh`, and
+`packaging/mkrepo.sh` carry it.
 
 ## HI.07 toggle defaulting
 
@@ -228,8 +231,8 @@ code registers a cleanup trap.
 Files sourced into an interactive shell (`common/core.sh`, `hi.sh`, ...) that
 run anything as they load set `set -euo pipefail` at the top _and disable it
 at the end of their own code_: left on, any later
-non-zero status or unset variable kills the user's session. The `common/`
-files end with `_hi_opts_restore`, which gives an interactive shell back the
+non-zero status or unset variable kills the user's session.
+`common/core.sh` ends with `_hi_opts_restore`, which gives an interactive shell back the
 `-e`, `-u`, and `pipefail` it had before the file loaded; a script keeps them
 off. A user's file (`settings.sh`) is sourced with strict mode off, so one
 failing line cannot stop a shell starting. `common/bash.sh` never enables it
@@ -415,8 +418,9 @@ in a real 3.2 container.
 
 Test suites hand their case functions to `_hi_check`/`_hi_case`/`_hi_par_case`
 as `"$@"`, or register them as trap hooks, so nothing in the file calls them by
-name. shellcheck reads that as dead code (SC2329), so every suite carries a
-file-level `# shellcheck disable=SC2329`.
+name. shellcheck reads that as dead code (SC2329), so every suite that does
+carries a file-level `# shellcheck disable=SC2329`
+([HI.34](#hi34-test-suite-preamble) lists the ones that do not).
 
 ## HI.31 porcelain branch.oid
 
@@ -522,8 +526,8 @@ split suite (`<suite>_<part>_test.sh`, as `doctor_json_test.sh` is to
 `doctor_test.sh`) names its part and sources its parent suite in place of the
 harness, which the parent then sources once, for the helpers the parts share;
 and a suite with no function it
-reaches only indirectly (the lint suites, docker's and podman's) drops the
-SC2329 line:
+reaches only indirectly (the lint suites, docker's, podman's, and nerdctl's)
+drops the SC2329 line:
 
 ```sh
 # GLOSSARY: HI.30 + HI.34
@@ -547,16 +551,16 @@ HI.30. Both stay verbatim above their statement.
 
 ## HI.35 payload comment and whitespace strip
 
-Every tree file `scripts/pack.sh`'s `$_HI_STRIP_NAMES` matches — the shell
-files and the data files under `config/` — and every overlay member whose dialect
-(`$_HI_DIALECTS`) has `<strip>` 1, such as `vim/vimrc` and `tmux/tmux.conf`,
-whose prose headers document the _installed_ copies, is comment-stripped by
+Every tree file `scripts/pack_stream.sh`'s `$_HI_STRIP_NAMES` matches — the
+shell files and the data files under `config/` — and every overlay member
+whose dialect (`$_HI_DIALECTS`) has `<strip>` 1, such as `vim/vimrc` and
+`tmux/tmux.conf`, is comment-stripped by
 `_hi_strip_awk` on its way into the payload or overlay; about 40% of the
 shipped shell is comment. A member's comment leader is its dialect's, handed
 to the stripper as `c=` ahead of the file: vimrc's `"`, init.el's `;`, and
 lua's `--`, beside `#`. Lua's `--[[` block form is deliberately
 not one: the strip is line-wise, so a block opener would go and its body stay
-— which is why the shipped `nvim/init.lua` uses line comments only.
+— an `init.lua` that rides keeps to line comments.
 `bench_payload_readme_badge` checks README's badge against the result, through
 `packaging/stamp_badge.sh --check`.
 
@@ -635,11 +639,14 @@ so `tar cf - -C dir` archives a file called `-C` there.
 
 `_hi_payload_tar` (`scripts/pack_stream.sh`) ships the tree, comment-stripped
 (HI.35), through `_hi_stage_tar`, which the overlay shares; a session's own
-`_hi_payload_tar` stages nothing ([HI.66](#hi66-the-packer-stays-home)). What
-ships never depends on a toggle: `$_HI_PAYLOAD` is whole directories, every
-toggle is read where it applies, and a session that switched something off
-carries the file and leaves it alone (a per-toggle trim would save about a
-kilobyte at the cost of a cache key, a second table, and an exclusion list).
+`_hi_payload_tar` stages nothing ([HI.66](#hi66-the-packer-stays-home)).
+`$_HI_PAYLOAD` is whole directories less `_hi_payload_excl`'s cut list
+(HI.32): `config/plugins` always (`$_HI_PAYLOAD_CUT`), the defaults an overlay
+member shadows, each `fw_*` loader for a framework the target is not handed,
+`header.sh` and `config/packages` under `_HI_DISABLE_HEADER` (HI.41), and
+`keep.sh` and `mux.sh` under `_HI_DISABLE_KEEP` (HI.65). Every other toggle is
+read where it applies, and a session that switched it off carries the file
+and leaves it alone.
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
 is not hi's to touch, so it is copied to a `mktemp -d` stage with `cp -R -L`
@@ -847,7 +854,7 @@ color would repeat it, swaps in that word's hand-picked alternate
 A single pass suffices because **every word's alternate has a different hue
 than that word's own primary**, so a substituted cell can never itself
 collide with what came before it. The shell does not enforce this; it is a
-property of the hand-written table, and `tests/common/header_test.sh`'s
+property of the hand-written table, and `tests/common/header_whole_test.sh`'s
 `test_header_word_alt_differs_from_its_own_primary` checks it mechanically.
 
 A cell of the user's own, from the overlay's `header/` (`header.sh`'s
@@ -936,7 +943,8 @@ files, since the IDs are the daemon's.
 `--use <backend>` forces any arm by name, ssh and every roster row included,
 and is the only way to: there is no per-backend flag, so a member added to
 the family is reachable with no second spelling. Names stay plain identifiers
-(`[A-Za-z0-9_]`): `hi.sh`'s per-member predicate is `eval`-defined.
+(`[A-Za-z0-9_]`): each is spelled into a `|`-separated `_HI_BACKENDS` row
+and split into its predicate's words (`_hi_is_family_container <cli>`).
 
 ## HI.53 terminal reset after a failed session
 
@@ -1456,15 +1464,16 @@ none of it costs a byte on the wire.
 
 A session's tree has no `scripts/`, and needs no packer: the tree _is_ the
 payload, already stripped, with the overlay unpacked over `config/`. There
-`hi.sh` defines the packer's side of a connect itself, in five short
+`hi.sh` defines the packer's side of a connect itself, in four short
 functions: no overlay members, no cut list, no cache, and a `_hi_payload_tar`
 that tars `$_HI_PAYLOAD` as it stands. A relay sends what it was sent.
 
 - **The seam.** `_say_hi` reaches the packer through
-  `_hi_overlay_files`, `_hi_payload_excl`, `_hi_payload_cached`,
-  `_hi_payload_tar`, and `_hi_payload_stream`, the five a session defines, and
-  through three that run only with an overlay to send or outside a session
-  (`_hi_overlay_cached`, `_hi_overlay_stream`, `_hi_prompt_here`). `payload_test.sh` holds `hi.sh` to that list.
+  `_hi_overlay_files`, `_hi_payload_excl`, `_hi_payload_cached`, and
+  `_hi_payload_tar`, the four a session defines, and through four that run
+  only with an overlay to send or outside a session (`_hi_overlay_cached`,
+  `_hi_overlay_file`, `_hi_overlay_unpack`, `_hi_prompt_here`).
+  `payload_test.sh` holds `hi.sh` to that list.
 - **Carried includes.** An include the client carried names the config
   directory of the hop it landed on, once `_hi_overlay_fixup` has run there.
   A relay hands that path on as the token, so the next hop's fixup makes it its

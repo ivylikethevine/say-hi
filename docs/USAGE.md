@@ -95,7 +95,7 @@ It changes how a connect runs, which [the tour's story](GETTING-STARTED.md#survi
 
 ### `hi --uninstall`
 
-`hi --uninstall [--purge] [--dry-run]`: take those lines out; --purge removes the overlay too.
+`hi --uninstall [--purge] [--dry-run]`: take those lines and settings.sh out; --purge, the overlay too.
 
 ![hi --uninstall --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-uninstall.svg)
 
