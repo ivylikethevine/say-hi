@@ -34,7 +34,7 @@
 #                denylist  names and path prefixes to block
 #                roots     directories whose folder names are blocked: each
 #                          folder up to two levels down, and each git repo
-#                          three levels down
+#                          three levels down; nothing inside a git repo
 #                allow     words and values never blocked, a pattern's
 #                          whole match included
 #   repo allow .claude/plan-scan.allow of the repo a file is in, one entry per
@@ -194,6 +194,7 @@ entries "$data/roots" | while IFS= read -r root; do
     [ -d "$a" ] || continue
     a=${a%/}
     printf '%s\n' "${a##*/}"
+    [ -e "$a/.git" ] && continue
     for b in "$a"/*/; do
       [ -d "$b" ] || continue
       b=${b%/}
