@@ -101,7 +101,7 @@ gitleaks|8.30.1|tar.gz|https://github.com/gitleaks/gitleaks/releases/download/v%
 # For .claude/plan-scan, whose patterns need PCRE2: the musl release is built
 # with it, where the runner image's apt ripgrep may not be.
 rg|15.2.0|tar.gz|https://github.com/BurntSushi/ripgrep/releases/download/%v/ripgrep-%v-x86_64-unknown-linux-musl.tar.gz|--pcre2-version|github:BurntSushi/ripgrep||33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c
-typos|1.52.0|tar.gz|https://github.com/crate-ci/typos/releases/download/v%v/typos-v%v-x86_64-unknown-linux-musl.tar.gz|--version|github:crate-ci/typos||6155d4114f9a0f5b8f6d4fda96266c9d5f6add71df80da7f684ee5e72eb14588
+typos|1.52.2|tar.gz|https://github.com/crate-ci/typos/releases/download/v%v/typos-v%v-x86_64-unknown-linux-musl.tar.gz|--version|github:crate-ci/typos||3b13d1291281d39d01822e54035636487a7a0f228e70097899b1e33aeb0e7e93
 # Every lockfile as Scorecard's Vulnerabilities check reads it, before a merge
 # rather than after. Like trivy, the advisories are fetched on every run,
 # whatever this pin is.
@@ -110,7 +110,7 @@ shfmt|3.14.1|raw|https://github.com/mvdan/sh/releases/download/v%v/shfmt_v%v_lin
 # 2.26.13 ships the same checkbashisms.pl as 2.26.12 (verified against the devscripts_2.26.13
 # source tarball), so the sha256 is unchanged across this bump.
 checkbashisms|2.26.13|raw|https://salsa.debian.org/debian/devscripts/-/raw/v%v/scripts/checkbashisms.pl|--version|gitlab:salsa.debian.org/debian%2Fdevscripts||7ffec5f4f3282d7551b7f1dd103d84ea6034bb1f177efdce2cebc60bfd72c088
-nfpm|2.48.0|tar.gz|https://github.com/goreleaser/nfpm/releases/download/v%v/nfpm_%v_Linux_x86_64.tar.gz|--version|github:goreleaser/nfpm||6d7f9a28b2f397934403950fcbba83f598b08d02edbe79a0815b3b4897341750
+nfpm|2.49.0|tar.gz|https://github.com/goreleaser/nfpm/releases/download/v%v/nfpm_%v_Linux_x86_64.tar.gz|--version|github:goreleaser/nfpm||2afaa5ffb5e3493402e31e7c67a5a1fb42133e3f66fc315ca0051934125561c7
 minisign|0.12|tar.gz|https://github.com/jedisct1/minisign/releases/download/%v/minisign-%v-linux.tar.gz|-v|github:jedisct1/minisign||9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73
 # Draws docs/USAGE.md's images from hi's own output (docs/tapes/usage.sh).
 freeze|0.2.2|tar.gz|https://github.com/charmbracelet/freeze/releases/download/v%v/freeze_%v_Linux_x86_64.tar.gz|--version|github:charmbracelet/freeze||012fdbdd16c0c19570f9052aac34d16d93d7d0d3b565b05374cc59492f53539b
